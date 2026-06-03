@@ -197,13 +197,6 @@ export function SuperAdminPlanEditor() {
           </button>
         </div>
       </div>
-
-      {/* TAB SWITCHER */}
-      <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 4 }}>
-        {([["editor","✏️ Editor"],["coupons","🎟️ Coupons"],["promotions","📢 Promotions"],["referral","🤝 Referrals"],["sync","🔄 Price Sync"]] as const).map(([tab, label]) => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            style={{ padding: "12px 16px", border: "none", borderBottom: activeTab === tab ? "3px solid #2196F3" : "3px solid transparent", background: "none", fontWeight: activeTab === tab ? 700 : 500, color: activeTab === tab ? "#2196F3" : "#6B7280", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
-            {label}
       {/* ── TAB BAR ──────────────────────────────────────────────────── */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
         {([
