@@ -682,169 +682,590 @@ export function SuperAdminPlanEditor() {
 // Coupon, Promotion, Referral, PlanSync tabs
 import type { CouponCode, Promotion, ReferralProgram, ReferralRecord } from "../../services/planSyncService";
 
+// ─── COUPON MANAGEMENT TAB ────────────────────────────────────────────────────
 function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; name: string }[] }) {
   const [coupons, setCoupons] = React.useState<CouponCode[]>(() => planSyncService.getCoupons());
   const [showForm, setShowForm] = React.useState(false);
-  const [form, setForm] = React.useState({ code:"", type:"percent" as "percent"|"flat", value:10, minOrderValue:0, maxUses:0, validFrom:"", validTo:"", applicablePlans:[] as string[], active:true, description:"", createdBy:"Admin" });
+  const [editId, setEditId] = React.useState<string|null>(null);
+  const blank = { code:"", type:"percent" as "percent"|"flat", value:10, minOrderValue:0, maxUses:0, validFrom:"", validTo:"", applicablePlans:[] as string[], active:true, description:"", createdBy:"Admin" };
+  const [form, setForm] = React.useState(blank);
   const today = new Date().toISOString().slice(0,10);
   const reload = () => setCoupons(planSyncService.getCoupons());
 
+  const openEdit = (c: CouponCode) => {
+    setForm({ code:c.code, type:c.type, value:c.value, minOrderValue:c.minOrderValue, maxUses:c.maxUses, validFrom:c.validFrom, validTo:c.validTo, applicablePlans:c.applicablePlans, active:c.active, description:c.description, createdBy:c.createdBy });
+    setEditId(c.id);
+    setShowForm(true);
+  };
+
+  const handleSave = () => {
+    if (!form.code.trim()) { toast.error("Coupon code is required"); return; }
+    if (form.value <= 0) { toast.error("Discount value must be greater than 0"); return; }
+    if (form.type === "percent" && form.value > 100) { toast.error("Percentage cannot exceed 100%"); return; }
+    if (editId) {
+      planSyncService.updateCoupon(editId, { ...form, code: form.code.toUpperCase().trim() });
+      toast.success("Coupon updated");
+    } else {
+      const exists = planSyncService.getCoupons().find(c => c.code.toUpperCase() === form.code.toUpperCase().trim());
+      if (exists) { toast.error("Coupon code already exists"); return; }
+      planSyncService.addCoupon({ ...form, code: form.code.toUpperCase().trim() });
+      toast.success(`Coupon ${form.code.toUpperCase()} created`);
+    }
+    setShowForm(false); setEditId(null); setForm(blank); reload();
+  };
+
+  const activeCount = coupons.filter(c => c.active && (!c.validTo || today <= c.validTo)).length;
+  const expiredCount = coupons.filter(c => c.validTo && today > c.validTo).length;
+
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <div><h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#0f172a" }}>🎟️ Coupon Codes</h3><p style={{ margin:"4px 0 0", fontSize:13, color:"#64748b" }}>{coupons.length} coupons · {coupons.filter(c=>c.active).length} active</p></div>
-        <button onClick={()=>setShowForm(!showForm)} style={{ padding:"10px 20px", background:"linear-gradient(135deg,#10b981,#059669)", color:"white", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ New Coupon</button>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <h3 style={{margin:0,fontSize:18,fontWeight:700,color:"#0f172a"}}>🎟️ Coupon Codes</h3>
+          <p style={{margin:"4px 0 0",fontSize:13,color:"#64748b"}}>
+            {coupons.length} total · <span style={{color:"#10b981",fontWeight:600}}>{activeCount} active</span> · <span style={{color:"#ef4444"}}>{expiredCount} expired</span>
+          </p>
+        </div>
+        <button onClick={()=>{setForm(blank);setEditId(null);setShowForm(!showForm);}}
+          style={{padding:"10px 20px",background:"linear-gradient(135deg,#10b981,#059669)",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+          + Create Coupon
+        </button>
       </div>
+
+      {/* Quick stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+        {[
+          {label:"Total Coupons",value:coupons.length,color:"#6366f1",bg:"#eff6ff",icon:"🎟️"},
+          {label:"Active",value:activeCount,color:"#10b981",bg:"#f0fdf4",icon:"✅"},
+          {label:"Total Used",value:coupons.reduce((s,c)=>s+c.usedCount,0),color:"#f59e0b",bg:"#fffbeb",icon:"🛒"},
+          {label:"Expired",value:expiredCount,color:"#ef4444",bg:"#fef2f2",icon:"⏰"},
+        ].map(s=>(
+          <div key={s.label} style={{background:s.bg,borderRadius:12,padding:"12px 14px",border:`1px solid ${s.color}20`}}>
+            <div style={{fontSize:20}}>{s.icon}</div>
+            <div style={{fontSize:20,fontWeight:800,color:s.color}}>{s.value}</div>
+            <div style={{fontSize:11,color:"#64748b"}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create/Edit Form */}
       {showForm && (
-        <div style={{ background:"#f0fdf4", borderRadius:14, padding:20, marginBottom:20, border:"2px solid #86efac" }}>
-          <h4 style={{ margin:"0 0 14px", color:"#065f46" }}>Create Coupon</h4>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
-            {[["Code *","code","SAVE20","text"],["Description","description","e.g. Welcome offer","text"],["Min Order ₹","minOrderValue","500","number"],["Max Uses (0=∞)","maxUses","100","number"],["Valid From","validFrom","","date"],["Valid To","validTo","","date"]] .map(([lbl,k,ph,tp]: any)=>(
-              <div key={k}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>{lbl}</label>
-              <input type={tp} value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:tp==="number"?Number(e.target.value):e.target.value}))} placeholder={ph} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #d1fae5",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
+        <div style={{background:"#f8fafc",borderRadius:14,padding:20,marginBottom:20,border:"2px solid #e0e7ff"}}>
+          <h4 style={{margin:"0 0 16px",color:"#4338ca",fontSize:15}}>{editId?"✏️ Edit Coupon":"➕ Create New Coupon"}</h4>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            {[
+              {label:"Coupon Code *",key:"code",ph:"e.g. SAVE20",type:"text",upper:true},
+              {label:"Description",key:"description",ph:"e.g. Welcome offer for new users",type:"text"},
+              {label:"Min Order Value (₹)",key:"minOrderValue",ph:"0",type:"number"},
+              {label:"Max Uses (0 = unlimited)",key:"maxUses",ph:"100",type:"number"},
+              {label:"Valid From",key:"validFrom",ph:"",type:"date"},
+              {label:"Valid To",key:"validTo",ph:"",type:"date"},
+            ].map(({label,key,ph,type,upper}:any)=>(
+              <div key={key}>
+                <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>{label}</label>
+                <input type={type} value={(form as any)[key]}
+                  onChange={e=>setForm(p=>({...p,[key]:type==="number"?Number(e.target.value):upper?e.target.value.toUpperCase():e.target.value}))}
+                  placeholder={ph}
+                  style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+              </div>
             ))}
           </div>
-          <div style={{ display:"flex",gap:10,marginBottom:10 }}>
-            <div style={{ flex:1 }}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Type</label><select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value as any}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #d1fae5",borderRadius:8,fontSize:13,fontFamily:"inherit" }}><option value="percent">% off</option><option value="flat">₹ flat off</option></select></div>
-            <div style={{ flex:1 }}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Value</label><input type="number" value={form.value} onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #d1fae5",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>Discount Type</label>
+              <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value as any}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit"}}>
+                <option value="percent">Percentage off (%)</option>
+                <option value="flat">Flat amount off (₹)</option>
+              </select>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>
+                {form.type==="percent"?"Discount Percentage (%)":"Discount Amount (₹)"}
+              </label>
+              <input type="number" value={form.value} min={1} max={form.type==="percent"?100:undefined}
+                onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+            </div>
           </div>
-          <div style={{ display:"flex",gap:10 }}>
-            <button onClick={()=>{ if(!form.code.trim()){toast.error("Code required");return;} planSyncService.addCoupon({...form,code:form.code.toUpperCase()}); toast.success("Coupon created"); setShowForm(false); reload(); }} style={{ padding:"10px 24px",background:"#10b981",color:"white",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13 }}>Create</button>
-            <button onClick={()=>setShowForm(false)} style={{ padding:"10px 18px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,cursor:"pointer",fontSize:13 }}>Cancel</button>
+          {/* Preview box */}
+          {form.code && form.value > 0 && (
+            <div style={{marginBottom:12,padding:"10px 14px",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",borderRadius:10,border:"1px solid #c7d2fe",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{padding:"6px 14px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",borderRadius:8,fontFamily:"monospace",fontWeight:800,fontSize:14,letterSpacing:2}}>
+                {form.code||"CODE"}
+              </div>
+              <div style={{fontSize:13,color:"#4338ca"}}>
+                <strong>{form.type==="percent"?`${form.value}% off`:`₹${form.value} off`}</strong>
+                {form.minOrderValue>0&&` on orders above ₹${form.minOrderValue}`}
+                {form.maxUses>0&&` · Max ${form.maxUses} uses`}
+                {form.validTo&&` · Expires ${form.validTo}`}
+              </div>
+            </div>
+          )}
+          {/* Applicable plans */}
+          <div style={{marginBottom:12}}>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:6}}>Applicable Plans (leave blank = all plans)</label>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {monthlyPlans.map(p=>(
+                <label key={p.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,padding:"6px 12px",borderRadius:20,border:`2px solid ${form.applicablePlans.includes(p.id)?"#6366f1":"#e2e8f0"}`,background:form.applicablePlans.includes(p.id)?"#eff6ff":"white",fontWeight:form.applicablePlans.includes(p.id)?700:400,color:form.applicablePlans.includes(p.id)?"#4338ca":"#374151"}}>
+                  <input type="checkbox" checked={form.applicablePlans.includes(p.id)} style={{display:"none"}}
+                    onChange={e=>setForm(prev=>({...prev,applicablePlans:e.target.checked?[...prev.applicablePlans,p.id]:prev.applicablePlans.filter(x=>x!==p.id)}))} />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <button onClick={handleSave}
+              style={{padding:"10px 28px",background:"linear-gradient(135deg,#10b981,#059669)",color:"white",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13}}>
+              {editId?"Update Coupon":"Create Coupon"}
+            </button>
+            <button onClick={()=>{setShowForm(false);setEditId(null);setForm(blank);}}
+              style={{padding:"10px 20px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,cursor:"pointer",fontSize:13}}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
-      <div style={{ display:"grid",gap:8 }}>
-        {coupons.length===0&&<div style={{ textAlign:"center",padding:40,color:"#94a3b8",background:"#f8fafc",borderRadius:12,fontSize:14 }}>No coupons yet. Create your first one above.</div>}
-        {coupons.map(c=>{ const exp=c.validTo&&today>c.validTo; return(
-          <div key={c.id} style={{ background:"white",border:`2px solid ${c.active&&!exp?"#d1fae5":"#f1f5f9"}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ padding:"7px 14px",background:`linear-gradient(135deg,${c.active&&!exp?"#10b981":"#94a3b8"},${c.active&&!exp?"#059669":"#cbd5e1"})`,color:"white",borderRadius:10,fontWeight:800,fontSize:14,letterSpacing:1,minWidth:100,textAlign:"center",fontFamily:"monospace" }}>{c.code}</div>
-            <div style={{ flex:1 }}><div style={{ fontWeight:700,color:"#0f172a",fontSize:14 }}>{c.type==="percent"?`${c.value}% off`:`₹${c.value} off`}{c.description&&<span style={{ fontWeight:400,color:"#64748b",marginLeft:8 }}>· {c.description}</span>}</div><div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>{c.maxUses>0?`${c.usedCount}/${c.maxUses} used`:`${c.usedCount} used`}{c.validTo&&` · Expires ${c.validTo}`}{c.minOrderValue>0&&` · Min ₹${c.minOrderValue}`}</div></div>
-            <div style={{ display:"flex",gap:8,flexShrink:0 }}>
-              {exp&&<span style={{ fontSize:11,background:"#fef2f2",color:"#ef4444",padding:"3px 8px",borderRadius:6,fontWeight:600 }}>EXPIRED</span>}
-              {!exp&&c.active&&<span style={{ fontSize:11,background:"#f0fdf4",color:"#10b981",padding:"3px 8px",borderRadius:6,fontWeight:600 }}>ACTIVE</span>}
-              <button onClick={()=>{planSyncService.updateCoupon(c.id,{active:!c.active});reload();}} style={{ padding:"5px 12px",background:c.active?"#fef2f2":"#f0fdf4",color:c.active?"#ef4444":"#10b981",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600 }}>{c.active?"Disable":"Enable"}</button>
-              <button onClick={()=>{planSyncService.deleteCoupon(c.id);reload();}} style={{ padding:"5px 10px",background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:6,cursor:"pointer",fontSize:12 }}>🗑</button>
-            </div>
-          </div>
-        );})}
-      </div>
+
+      {/* Coupon list */}
+      {coupons.length===0 ? (
+        <div style={{textAlign:"center",padding:48,color:"#94a3b8",background:"#f8fafc",borderRadius:16,border:"2px dashed #e2e8f0"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🎟️</div>
+          <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>No coupons yet</div>
+          <div style={{fontSize:13}}>Create your first coupon to offer discounts to customers</div>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:8}}>
+          {coupons.map(coup=>{
+            const isExpired = coup.validTo && today > coup.validTo;
+            const notStarted = coup.validFrom && today < coup.validFrom;
+            const isActive = coup.active && !isExpired && !notStarted;
+            const usagePct = coup.maxUses > 0 ? Math.round((coup.usedCount/coup.maxUses)*100) : 0;
+            return (
+              <div key={coup.id} style={{background:"white",border:`2px solid ${isActive?"#e0e7ff":"#f1f5f9"}`,borderRadius:12,padding:"14px 18px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                  {/* Code badge */}
+                  <div style={{padding:"8px 16px",background:`linear-gradient(135deg,${isActive?"#6366f1":"#94a3b8"},${isActive?"#8b5cf6":"#cbd5e1"})`,color:"white",borderRadius:10,fontWeight:800,fontSize:14,letterSpacing:2,fontFamily:"monospace",flexShrink:0,minWidth:120,textAlign:"center"}}>
+                    {coup.code}
+                  </div>
+                  {/* Details */}
+                  <div style={{flex:1,minWidth:200}}>
+                    <div style={{fontWeight:700,color:"#0f172a",fontSize:14}}>
+                      {coup.type==="percent"?`${coup.value}% off`:`₹${coup.value} off`}
+                      {coup.description&&<span style={{fontWeight:400,color:"#64748b",marginLeft:8,fontSize:13}}>— {coup.description}</span>}
+                    </div>
+                    <div style={{fontSize:12,color:"#94a3b8",marginTop:3,display:"flex",gap:10,flexWrap:"wrap"}}>
+                      {coup.minOrderValue>0&&<span>Min ₹{coup.minOrderValue}</span>}
+                      {coup.maxUses>0?<span>{coup.usedCount}/{coup.maxUses} used</span>:<span>{coup.usedCount} used (unlimited)</span>}
+                      {coup.validTo&&<span>Expires {coup.validTo}</span>}
+                      {coup.applicablePlans.length>0&&<span>{coup.applicablePlans.join(", ")} only</span>}
+                    </div>
+                    {/* Usage bar */}
+                    {coup.maxUses > 0 && (
+                      <div style={{marginTop:6,height:4,background:"#f1f5f9",borderRadius:2,overflow:"hidden",maxWidth:200}}>
+                        <div style={{height:"100%",width:`${usagePct}%`,background:usagePct>80?"#ef4444":"#10b981",borderRadius:2,transition:"width 0.3s"}} />
+                      </div>
+                    )}
+                  </div>
+                  {/* Status + actions */}
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                    {isExpired&&<span style={{fontSize:11,background:"#fef2f2",color:"#ef4444",padding:"3px 8px",borderRadius:6,fontWeight:600}}>EXPIRED</span>}
+                    {notStarted&&<span style={{fontSize:11,background:"#fffbeb",color:"#d97706",padding:"3px 8px",borderRadius:6,fontWeight:600}}>SCHEDULED</span>}
+                    {isActive&&<span style={{fontSize:11,background:"#f0fdf4",color:"#10b981",padding:"3px 8px",borderRadius:6,fontWeight:600}}>ACTIVE</span>}
+                    {!isActive&&!isExpired&&!notStarted&&<span style={{fontSize:11,background:"#f1f5f9",color:"#64748b",padding:"3px 8px",borderRadius:6,fontWeight:600}}>PAUSED</span>}
+                    <button onClick={()=>openEdit(coup)}
+                      style={{padding:"5px 12px",background:"#f1f5f9",color:"#374151",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>✏️ Edit</button>
+                    <button onClick={()=>{planSyncService.updateCoupon(coup.id,{active:!coup.active});reload();}}
+                      style={{padding:"5px 12px",background:coup.active?"#fef2f2":"#f0fdf4",color:coup.active?"#ef4444":"#10b981",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                      {coup.active?"Pause":"Resume"}
+                    </button>
+                    <button onClick={()=>{if(window.confirm(`Delete coupon ${coup.code}?`)){planSyncService.deleteCoupon(coup.id);reload();}}}
+                      style={{padding:"5px 10px",background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:6,cursor:"pointer",fontSize:12}}>🗑</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
+// ─── PROMOTIONS TAB ────────────────────────────────────────────────────────────
 function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: string }[] }) {
   const [promos, setPromos] = React.useState<Promotion[]>(() => planSyncService.getPromotions());
   const [showForm, setShowForm] = React.useState(false);
-  const [form, setForm] = React.useState({ name:"",description:"",type:"percent" as any,value:10,applicablePlans:[] as string[],startDate:"",endDate:"",active:true,autoApply:false,badge:"🎉",createdBy:"Admin" });
+  const [editId, setEditId] = React.useState<string|null>(null);
+  const blank = { name:"", description:"", type:"percent" as any, value:10, applicablePlans:[] as string[], startDate:"", endDate:"", active:true, autoApply:true, badge:"🎉", createdBy:"Admin" };
+  const [form, setForm] = React.useState(blank);
   const today = new Date().toISOString().slice(0,10);
   const reload = () => setPromos(planSyncService.getPromotions());
+
+  const liveNow = promos.filter(p=>p.active&&today>=p.startDate&&today<=p.endDate).length;
+
+  const openEdit = (p: Promotion) => {
+    setForm({name:p.name,description:p.description,type:p.type,value:p.value,applicablePlans:p.applicablePlans,startDate:p.startDate,endDate:p.endDate,active:p.active,autoApply:p.autoApply,badge:p.badge,createdBy:p.createdBy});
+    setEditId(p.id); setShowForm(true);
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) { toast.error("Promotion name required"); return; }
+    if (!form.startDate || !form.endDate) { toast.error("Start and end dates required"); return; }
+    if (form.startDate > form.endDate) { toast.error("End date must be after start date"); return; }
+    if (editId) { planSyncService.updatePromotion(editId, form); toast.success("Promotion updated"); }
+    else { planSyncService.addPromotion(form); toast.success("Promotion created"); }
+    setShowForm(false); setEditId(null); setForm(blank); reload();
+  };
+
+  const BADGES = ["🎉","🔥","⚡","🎄","🪔","🎊","🏷️","💥","🌟","🎁","❄️","🌺"];
+
   return (
     <div>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-        <div><h3 style={{ margin:0,fontSize:18,fontWeight:700,color:"#0f172a" }}>🔥 Offers & Promotions</h3><p style={{ margin:"4px 0 0",fontSize:13,color:"#64748b" }}>{promos.filter(p=>p.active&&today>=p.startDate&&today<=p.endDate).length} currently live</p></div>
-        <button onClick={()=>setShowForm(!showForm)} style={{ padding:"10px 20px",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer" }}>+ New Promotion</button>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <h3 style={{margin:0,fontSize:18,fontWeight:700,color:"#0f172a"}}>🔥 Offers & Promotions</h3>
+          <p style={{margin:"4px 0 0",fontSize:13,color:"#64748b"}}>
+            {promos.length} total · <span style={{color:"#d97706",fontWeight:600}}>{liveNow} live now</span>
+          </p>
+        </div>
+        <button onClick={()=>{setForm(blank);setEditId(null);setShowForm(!showForm);}}
+          style={{padding:"10px 20px",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}>
+          + Create Promotion
+        </button>
       </div>
-      {showForm&&(
-        <div style={{ background:"#fffbeb",borderRadius:14,padding:20,marginBottom:20,border:"2px solid #fcd34d" }}>
-          <h4 style={{ margin:"0 0 12px",color:"#92400e" }}>Create Promotion</h4>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
-            {[["Name *","name","Diwali Special"],["Badge","badge","🎄"],["Description","description","Shown on buy page"],["Type — Value (e.g. 20 for 20%/₹200)","","",""]] .slice(0,3).map(([lbl,k,ph]: any)=>(<div key={k}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>{lbl}</label><input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} placeholder={ph} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>))}
-            <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Type</label><select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit" }}><option value="percent">% Discount</option><option value="flat">₹ Flat Off</option><option value="bogo">Buy 1 Get 1</option></select></div>
-            <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Value</label><input type="number" value={form.value} onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
-            <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Start</label><input type="date" value={form.startDate} onChange={e=>setForm(p=>({...p,startDate:e.target.value}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
-            <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>End</label><input type="date" value={form.endDate} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
+
+      {showForm && (
+        <div style={{background:"#fffbeb",borderRadius:14,padding:20,marginBottom:20,border:"2px solid #fcd34d"}}>
+          <h4 style={{margin:"0 0 14px",color:"#92400e"}}>{editId?"✏️ Edit Promotion":"➕ Create Promotion"}</h4>
+          {/* Badge picker */}
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:6}}>Badge / Emoji</label>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {BADGES.map(b=>(
+                <button key={b} onClick={()=>setForm(p=>({...p,badge:b}))}
+                  style={{width:38,height:38,borderRadius:8,border:`2px solid ${form.badge===b?"#d97706":"#e2e8f0"}`,background:form.badge===b?"#fffbeb":"white",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {b}
+                </button>
+              ))}
+            </div>
           </div>
-          <div style={{ display:"flex",gap:20,marginBottom:10 }}>
-            <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600 }}><input type="checkbox" checked={form.autoApply} onChange={e=>setForm(p=>({...p,autoApply:e.target.checked}))} />Auto-apply (banner on buy page)</label>
-            <label style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,fontWeight:600 }}><input type="checkbox" checked={form.active} onChange={e=>setForm(p=>({...p,active:e.target.checked}))} />Active</label>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            {[
+              {label:"Promotion Name *",key:"name",ph:"e.g. Diwali Special Offer",type:"text"},
+              {label:"Tagline (shown to customers)",key:"description",ph:"e.g. Celebrate with 20% off all plans!",type:"text"},
+            ].map(({label,key,ph,type}:any)=>(
+              <div key={key}>
+                <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>{label}</label>
+                <input value={(form as any)[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))} placeholder={ph}
+                  style={{width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+              </div>
+            ))}
           </div>
-          <div style={{ display:"flex",gap:10 }}>
-            <button onClick={()=>{ if(!form.name.trim()){toast.error("Name required");return;} planSyncService.addPromotion(form); toast.success("Promotion created"); setShowForm(false); reload(); }} style={{ padding:"10px 24px",background:"#f59e0b",color:"white",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13 }}>Create</button>
-            <button onClick={()=>setShowForm(false)} style={{ padding:"10px 18px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,cursor:"pointer",fontSize:13 }}>Cancel</button>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>Discount Type</label>
+              <select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit"}}>
+                <option value="percent">% Percentage</option>
+                <option value="flat">₹ Flat Amount</option>
+                <option value="bogo">Buy 1 Get 1</option>
+              </select>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>
+                {form.type==="percent"?"Discount %":"Discount ₹"}
+              </label>
+              <input type="number" value={form.value} onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>Start Date</label>
+              <input type="date" value={form.startDate} onChange={e=>setForm(p=>({...p,startDate:e.target.value}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>End Date</label>
+              <input type="date" value={form.endDate} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+            </div>
+          </div>
+          <div style={{display:"flex",gap:20,marginBottom:12,flexWrap:"wrap"}}>
+            <label onClick={()=>setForm(p=>({...p,autoApply:!p.autoApply}))} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}>
+              <div style={{width:44,height:24,borderRadius:12,background:form.autoApply?"#f59e0b":"#e2e8f0",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{width:18,height:18,borderRadius:"50%",background:"white",position:"absolute",top:3,left:form.autoApply?23:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}} />
+              </div>
+              <span style={{fontSize:13,fontWeight:600,color:"#374151"}}>Auto-apply <span style={{color:"#64748b",fontWeight:400}}>(shows banner on buy page automatically)</span></span>
+            </label>
+            <label onClick={()=>setForm(p=>({...p,active:!p.active}))} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",userSelect:"none"}}>
+              <div style={{width:44,height:24,borderRadius:12,background:form.active?"#10b981":"#e2e8f0",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{width:18,height:18,borderRadius:"50%",background:"white",position:"absolute",top:3,left:form.active?23:3,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}} />
+              </div>
+              <span style={{fontSize:13,fontWeight:600,color:"#374151"}}>Active immediately</span>
+            </label>
+          </div>
+          {/* Live preview */}
+          {form.name && (
+            <div style={{marginBottom:14,padding:"10px 16px",background:"linear-gradient(135deg,#fffbeb,#fef3c7)",border:"2px solid #fcd34d",borderRadius:10,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:28}}>{form.badge}</span>
+              <div>
+                <div style={{fontWeight:700,color:"#92400e",fontSize:14}}>{form.name}</div>
+                <div style={{fontSize:12,color:"#d97706"}}>{form.description}</div>
+                <div style={{fontSize:11,color:"#b45309",marginTop:2}}>
+                  {form.type==="percent"?`${form.value}% off`:form.type==="flat"?`₹${form.value} off`:"Buy 1 Get 1"}
+                  {form.startDate&&form.endDate&&` · ${form.startDate} to ${form.endDate}`}
+                  {form.autoApply&&" · Auto-applies on buy page"}
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={handleSave}
+              style={{padding:"10px 24px",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"white",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13}}>
+              {editId?"Update Promotion":"Create Promotion"}
+            </button>
+            <button onClick={()=>{setShowForm(false);setEditId(null);setForm(blank);}}
+              style={{padding:"10px 20px",background:"#f1f5f9",color:"#475569",border:"none",borderRadius:8,cursor:"pointer",fontSize:13}}>Cancel</button>
           </div>
         </div>
       )}
-      <div style={{ display:"grid",gap:8 }}>
-        {promos.length===0&&<div style={{ textAlign:"center",padding:40,color:"#94a3b8",background:"#f8fafc",borderRadius:12,fontSize:14 }}>No promotions yet.</div>}
-        {promos.map(p=>{ const live=p.active&&today>=p.startDate&&today<=p.endDate; return(
-          <div key={p.id} style={{ background:"white",border:`2px solid ${live?"#fcd34d":"#f1f5f9"}`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ fontSize:28,flexShrink:0 }}>{p.badge}</div>
-            <div style={{ flex:1 }}><div style={{ fontWeight:700,color:"#0f172a",fontSize:14 }}>{p.name}</div><div style={{ fontSize:12,color:"#64748b",marginTop:2 }}>{p.description}</div><div style={{ fontSize:11,color:"#94a3b8",marginTop:2 }}>{p.type==="percent"?`${p.value}% off`:p.type==="flat"?`₹${p.value} off`:"Buy 1 Get 1"} · {p.startDate} → {p.endDate}{p.autoApply?" · Auto-apply":""}</div></div>
-            <div style={{ display:"flex",gap:8,flexShrink:0 }}>
-              {live&&<span style={{ fontSize:11,background:"#fffbeb",color:"#d97706",padding:"3px 8px",borderRadius:6,fontWeight:600 }}>🔥 LIVE</span>}
-              <button onClick={()=>{planSyncService.updatePromotion(p.id,{active:!p.active});reload();}} style={{ padding:"5px 12px",background:p.active?"#fef2f2":"#f0fdf4",color:p.active?"#ef4444":"#10b981",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600 }}>{p.active?"Pause":"Resume"}</button>
-              <button onClick={()=>{planSyncService.deletePromotion(p.id);reload();}} style={{ padding:"5px 10px",background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:6,cursor:"pointer",fontSize:12 }}>🗑</button>
-            </div>
-          </div>
-        );})}
-      </div>
+
+      {promos.length===0 ? (
+        <div style={{textAlign:"center",padding:48,color:"#94a3b8",background:"#f8fafc",borderRadius:16,border:"2px dashed #e2e8f0"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🔥</div>
+          <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>No promotions yet</div>
+          <div style={{fontSize:13}}>Create time-limited offers that auto-apply on the buy page</div>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:8}}>
+          {promos.map(p=>{
+            const live = p.active && today>=p.startDate && today<=p.endDate;
+            const ended = p.endDate && today > p.endDate;
+            const upcoming = p.startDate && today < p.startDate;
+            return (
+              <div key={p.id} style={{background:"white",border:`2px solid ${live?"#fcd34d":"#f1f5f9"}`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                <div style={{fontSize:32,flexShrink:0}}>{p.badge}</div>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontWeight:700,color:"#0f172a",fontSize:15}}>{p.name}</div>
+                  <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{p.description}</div>
+                  <div style={{fontSize:11,color:"#94a3b8",marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <span>{p.type==="percent"?`${p.value}% off`:p.type==="flat"?`₹${p.value} off`:"Buy 1 Get 1"}</span>
+                    <span>·</span><span>{p.startDate} → {p.endDate}</span>
+                    {p.autoApply&&<span>· 🤖 Auto-apply</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                  {live&&<span style={{fontSize:11,background:"#fffbeb",color:"#d97706",padding:"3px 8px",borderRadius:6,fontWeight:700}}>🔥 LIVE NOW</span>}
+                  {ended&&<span style={{fontSize:11,background:"#fef2f2",color:"#ef4444",padding:"3px 8px",borderRadius:6,fontWeight:600}}>ENDED</span>}
+                  {upcoming&&<span style={{fontSize:11,background:"#eff6ff",color:"#3b82f6",padding:"3px 8px",borderRadius:6,fontWeight:600}}>UPCOMING</span>}
+                  {!live&&!ended&&!upcoming&&<span style={{fontSize:11,background:"#f1f5f9",color:"#64748b",padding:"3px 8px",borderRadius:6,fontWeight:600}}>PAUSED</span>}
+                  <button onClick={()=>openEdit(p)}
+                    style={{padding:"5px 12px",background:"#f1f5f9",color:"#374151",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>✏️ Edit</button>
+                  <button onClick={()=>{planSyncService.updatePromotion(p.id,{active:!p.active});reload();}}
+                    style={{padding:"5px 12px",background:p.active?"#fef2f2":"#f0fdf4",color:p.active?"#ef4444":"#10b981",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>
+                    {p.active?"Pause":"Resume"}
+                  </button>
+                  <button onClick={()=>{if(window.confirm(`Delete "${p.name}"?`)){planSyncService.deletePromotion(p.id);reload();}}}
+                    style={{padding:"5px 10px",background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:6,cursor:"pointer",fontSize:12}}>🗑</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
+// ─── REFERRAL PROGRAM TAB ─────────────────────────────────────────────────────
 function ReferralTab() {
   const [prog, setProg] = React.useState<ReferralProgram>(() => planSyncService.getReferralProgram());
-  const [records] = React.useState<ReferralRecord[]>(() => planSyncService.getReferralRecords());
-  const stats = { total:records.length, converted:records.filter(r=>r.status==="converted").length, discounts:records.reduce((s,r)=>s+r.refereeDiscountAmount,0) };
+  const [records, setRecords] = React.useState<ReferralRecord[]>(() => planSyncService.getReferralRecords());
+  const [saved, setSaved] = React.useState(false);
+  const [filter, setFilter] = React.useState<"all"|"pending"|"converted"|"rewarded">("all");
+
+  const handleSave = () => {
+    planSyncService.saveReferralProgram(prog);
+    setSaved(true); setTimeout(()=>setSaved(false),2000);
+    toast.success("Referral program saved");
+  };
+
+  const stats = {
+    total: records.length,
+    pending: records.filter(r=>r.status==="pending").length,
+    converted: records.filter(r=>r.status==="converted").length,
+    rewarded: records.filter(r=>r.status==="rewarded").length,
+    totalDiscount: records.filter(r=>r.status!=="pending").reduce((s,r)=>s+r.refereeDiscountAmount,0),
+    totalRewards: records.filter(r=>r.status==="rewarded").reduce((s,r)=>s+r.referrerRewardAmount,0),
+  };
+
+  const filtered = records.filter(r=>filter==="all"||r.status===filter);
+
   return (
     <div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24 }}>
-        {[["🔗","Total Referrals",stats.total,"#6366f1","#eff6ff"],["✅","Converted",stats.converted,"#10b981","#f0fdf4"],["🎁","Discounts Given",`₹${stats.discounts.toLocaleString("en-IN")}` ,"#f59e0b","#fffbeb"]].map(([icon,lbl,val,color,bg]: any)=>(
-          <div key={lbl} style={{ background:bg,borderRadius:12,padding:"16px 18px",border:`1px solid ${color}30` }}><div style={{ fontSize:24,marginBottom:4 }}>{icon}</div><div style={{ fontSize:22,fontWeight:800,color }}>{val}</div><div style={{ fontSize:12,color:"#64748b" }}>{lbl}</div></div>
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:24}}>
+        {[
+          {icon:"🔗",label:"Total Referrals",value:stats.total,color:"#6366f1",bg:"#eff6ff"},
+          {icon:"⏳",label:"Pending",value:stats.pending,color:"#f59e0b",bg:"#fffbeb"},
+          {icon:"✅",label:"Converted",value:stats.converted,color:"#10b981",bg:"#f0fdf4"},
+          {icon:"🎁",label:"Discounts Given",value:`₹${stats.totalDiscount.toLocaleString("en-IN")}`,color:"#8b5cf6",bg:"#f5f3ff"},
+          {icon:"💰",label:"Rewards Paid",value:`₹${stats.totalRewards.toLocaleString("en-IN")}`,color:"#ec4899",bg:"#fdf2f8"},
+        ].map(s=>(
+          <div key={s.label} style={{background:s.bg,borderRadius:12,padding:"12px 14px",border:`1px solid ${s.color}20`}}>
+            <div style={{fontSize:20}}>{s.icon}</div>
+            <div style={{fontSize:18,fontWeight:800,color:s.color}}>{s.value}</div>
+            <div style={{fontSize:11,color:"#64748b"}}>{s.label}</div>
+          </div>
         ))}
       </div>
-      <div style={{ background:"white",border:"2px solid #e0e7ff",borderRadius:14,padding:20,marginBottom:20 }}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-          <h4 style={{ margin:0,fontSize:16,fontWeight:700 }}>📣 Referral Program</h4>
-          <div onClick={()=>setProg(p=>({...p,enabled:!p.enabled}))} style={{ width:44,height:24,borderRadius:12,background:prog.enabled?"#10b981":"#e2e8f0",position:"relative",transition:"background 0.2s",cursor:"pointer" }}>
-            <div style={{ width:18,height:18,borderRadius:"50%",background:"white",position:"absolute",top:3,left:prog.enabled?22:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.2)" }} />
+
+      {/* Program settings */}
+      <div style={{background:"white",border:"2px solid #e0e7ff",borderRadius:16,padding:20,marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <h4 style={{margin:0,fontSize:16,fontWeight:700,color:"#0f172a"}}>📣 Referral Program Settings</h4>
+            <p style={{margin:"4px 0 0",fontSize:12,color:"#64748b"}}>Both the referrer and referee get rewarded</p>
+          </div>
+          <div onClick={()=>setProg(p=>({...p,enabled:!p.enabled}))}
+            style={{width:52,height:28,borderRadius:14,background:prog.enabled?"#10b981":"#e2e8f0",position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0}}>
+            <div style={{width:22,height:22,borderRadius:"50%",background:"white",position:"absolute",top:3,left:prog.enabled?27:3,transition:"left 0.2s",boxShadow:"0 2px 4px rgba(0,0,0,0.2)"}} />
           </div>
         </div>
-        <div style={{ background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13,color:"#4338ca",lineHeight:1.6 }}>
-          👤 <strong>Referrer</strong> earns <strong>₹{prog.referrerReward}</strong> when friend subscribes &nbsp;·&nbsp;
-          🎁 <strong>Referee</strong> gets <strong>₹{prog.refereeDiscount} off</strong> first order
+
+        {/* How it works preview */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div style={{background:"linear-gradient(135deg,#eff6ff,#dbeafe)",borderRadius:12,padding:"14px 16px",border:"1px solid #bfdbfe"}}>
+            <div style={{fontSize:24,marginBottom:6}}>👤</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#1e40af",marginBottom:4}}>Referrer gets</div>
+            <div style={{fontSize:22,fontWeight:800,color:"#1e40af"}}>₹{prog.referrerReward}</div>
+            <div style={{fontSize:11,color:"#3b82f6"}}>{prog.referrerRewardType==="flat"?"flat credit":"% off next renewal"} · valid {prog.rewardValidity} days</div>
+          </div>
+          <div style={{background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:12,padding:"14px 16px",border:"1px solid #86efac"}}>
+            <div style={{fontSize:24,marginBottom:6}}>🎁</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#065f46",marginBottom:4}}>Referee gets</div>
+            <div style={{fontSize:22,fontWeight:800,color:"#065f46"}}>₹{prog.refereeDiscount}</div>
+            <div style={{fontSize:11,color:"#10b981"}}>{prog.refereeDiscountType==="flat"?"flat off first order":"% off first order"} · min ₹{prog.minRefereeOrderValue}</div>
+          </div>
         </div>
-        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10 }}>
-          {[["Referrer Reward ₹","referrerReward"],["Referee Discount ₹","refereeDiscount"],["Min Order ₹","minRefereeOrderValue"],["Max Rewards/Person","maxRewardsPerReferrer"],["Validity (days)","rewardValidity"]].map(([lbl,k]: any)=>(
-            <div key={k}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>{lbl}</label><input type="number" value={(prog as any)[k]} onChange={e=>setProg(p=>({...p,[k]:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          {[
+            {label:"Referrer Reward (₹)",key:"referrerReward"},
+            {label:"Referee Discount (₹)",key:"refereeDiscount"},
+            {label:"Min Order Value (₹)",key:"minRefereeOrderValue"},
+            {label:"Max Rewards per Person",key:"maxRewardsPerReferrer"},
+            {label:"Reward Validity (days)",key:"rewardValidity"},
+          ].map(({label,key})=>(
+            <div key={key}>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>{label}</label>
+              <input type="number" value={(prog as any)[key]}
+                onChange={e=>setProg(p=>({...p,[key]:Number(e.target.value)}))}
+                style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
+            </div>
           ))}
         </div>
-        <div style={{ marginTop:10 }}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Terms shown to customers</label><textarea value={prog.termsText} onChange={e=>setProg(p=>({...p,termsText:e.target.value}))} rows={2} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical" }} /></div>
-        <button onClick={()=>{planSyncService.saveReferralProgram(prog);toast.success("Saved");}} style={{ marginTop:12,padding:"10px 24px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:13 }}>Save Settings</button>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4}}>Terms shown to customers</label>
+          <textarea value={prog.termsText} onChange={e=>setProg(p=>({...p,termsText:e.target.value}))} rows={2}
+            style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}} />
+        </div>
+        <button onClick={handleSave}
+          style={{padding:"11px 28px",background:saved?"#10b981":"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:14,transition:"background 0.3s"}}>
+          {saved?"✓ Saved!":"Save Referral Settings"}
+        </button>
       </div>
-      {records.length===0&&<div style={{ textAlign:"center",padding:32,color:"#94a3b8",background:"#f8fafc",borderRadius:12 }}>No referrals yet. Customers will generate codes from their profile.</div>}
+
+      {/* Referral records */}
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <h4 style={{margin:0,fontSize:15,fontWeight:700,color:"#0f172a"}}>Referral Activity</h4>
+          <div style={{display:"flex",gap:6}}>
+            {(["all","pending","converted","rewarded"] as const).map(f=>(
+              <button key={f} onClick={()=>setFilter(f)}
+                style={{padding:"5px 12px",borderRadius:20,border:`2px solid ${filter===f?"#6366f1":"#e2e8f0"}`,background:filter===f?"#eff6ff":"white",color:filter===f?"#4338ca":"#64748b",fontWeight:filter===f?700:400,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>
+                {f.charAt(0).toUpperCase()+f.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filtered.length===0 ? (
+          <div style={{textAlign:"center",padding:40,color:"#94a3b8",background:"#f8fafc",borderRadius:12,border:"2px dashed #e2e8f0"}}>
+            <div style={{fontSize:32,marginBottom:8}}>🔗</div>
+            <div style={{fontWeight:600,marginBottom:4}}>No referrals yet</div>
+            <div style={{fontSize:12}}>Customers generate referral codes from their profile page</div>
+          </div>
+        ) : filtered.map(r=>(
+          <div key={r.id} style={{background:"white",border:"1.5px solid #f1f5f9",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
+            <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,flexShrink:0}}>
+              {r.referrerName.charAt(0)}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>{r.referrerName}</div>
+              <div style={{fontSize:11,color:"#94a3b8"}}>Code: <strong style={{fontFamily:"monospace",color:"#6366f1"}}>{r.referralCode}</strong> · {new Date(r.createdAt).toLocaleDateString("en-IN")}</div>
+              {r.refereeName&&<div style={{fontSize:11,color:"#64748b",marginTop:1}}>→ {r.refereeName}{r.orderAmount?` · ₹${r.orderAmount.toLocaleString("en-IN")}`:""}</div>}
+            </div>
+            <span style={{fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:700,
+              background:r.status==="converted"?"#f0fdf4":r.status==="rewarded"?"#eff6ff":r.status==="expired"?"#fef2f2":"#fffbeb",
+              color:r.status==="converted"?"#10b981":r.status==="rewarded"?"#6366f1":r.status==="expired"?"#ef4444":"#d97706"}}>
+              {r.status.toUpperCase()}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
+// ─── PLAN SYNC STATUS TAB ─────────────────────────────────────────────────────
 function PlanSyncStatus() {
   const livePrices = planSyncService.getAllPlanPrices();
+  const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
   return (
     <div>
-      <h3 style={{ margin:"0 0 8px",fontSize:18,fontWeight:700,color:"#0f172a" }}>🔄 Single Source of Truth — Plan Prices</h3>
-      <p style={{ margin:"0 0 20px",fontSize:13,color:"#64748b" }}>These prices from the Plan Editor propagate to ALL parts of the system: Customer Buy Page, TSE App, TSM App, and Car Washer screen. Change a price above — it updates everywhere instantly.</p>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16 }}>
-        {["","Hatchback","SUV / Sedan","Luxury"].map((h,i)=>(
-          <div key={i} style={{ padding:"10px 14px",background:i===0?"transparent":"linear-gradient(135deg,#1e1b4b,#312e81)",borderRadius:10,fontWeight:700,fontSize:13,color:i===0?"#64748b":"white",textAlign:"center" }}>{h}</div>
-        ))}
-        {livePrices.map(p=>(
-          <React.Fragment key={p.id}>
-            <div style={{ padding:"12px 14px",background:"linear-gradient(135deg,#f8fafc,white)",borderRadius:10,fontWeight:700,fontSize:14,color:"#0f172a",display:"flex",alignItems:"center",gap:8,border:"1px solid #e2e8f0" }}><span style={{ fontSize:18 }}>{p.icon}</span>{p.name}</div>
-            {[p.hatchback,p.suv,p.luxury].map((price,i)=>(
-              <div key={i} style={{ padding:"12px 14px",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",borderRadius:10,textAlign:"center",border:"1px solid #e0e7ff" }}>
-                <div style={{ fontSize:20,fontWeight:800,color:"#4338ca" }}>₹{price.toLocaleString("en-IN")}</div>
-                <div style={{ fontSize:10,color:"#94a3b8" }}>per month</div>
-              </div>
+      <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:700,color:"#0f172a"}}>🔄 Single Source of Truth — Plan Prices</h3>
+      <p style={{margin:"0 0 20px",fontSize:13,color:"#64748b"}}>Prices edited above propagate to all parts of the system instantly — Customer Buy Page, TSE App, TSM App, and Car Washer screen.</p>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr>
+              {["Plan","Hatchback","SUV / Sedan","Luxury / Large SUV"].map((h,i)=>(
+                <th key={h} style={{padding:"10px 14px",background:i===0?"#f8fafc":"linear-gradient(135deg,#1e1b4b,#312e81)",color:i===0?"#64748b":"white",textAlign:i===0?"left":"center",fontWeight:700,borderRadius:i===0?0:0,border:"1px solid #e2e8f0"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {livePrices.map((p,i)=>(
+              <tr key={p.id} style={{background:i%2===0?"white":"#f8fafc"}}>
+                <td style={{padding:"12px 14px",fontWeight:700,color:"#0f172a",border:"1px solid #e2e8f0",display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:20}}>{p.icon}</span>{p.name}
+                </td>
+                {[p.hatchback,p.suv,p.luxury].map((price,j)=>(
+                  <td key={j} style={{padding:"12px 14px",textAlign:"center",border:"1px solid #e2e8f0"}}>
+                    <span style={{fontWeight:800,fontSize:15,color:"#4338ca"}}>{inr(price)}</span>
+                    <div style={{fontSize:10,color:"#94a3b8"}}>per month</div>
+                  </td>
+                ))}
+              </tr>
             ))}
-          </React.Fragment>
-        ))}
+          </tbody>
+        </table>
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12 }}>
-        {[["Customer Buy Page","/#/buy","These prices show on the customer checkout page when they select a plan"],["TSE App","/#/tse-app","TSE sees these prices when pitching plans to leads during a call"],["TSM App","/#/tsm-app","TSM dashboards and team performance use these base prices"],["Car Washer Screen","/#/washer-core-screens","Service confirmation and job details show plan name and value"]].map(([name,path,desc])=>(
-          <div key={name} style={{ background:"white",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start" }}>
-            <div style={{ width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:16,flexShrink:0 }}>✅</div>
-            <div><div style={{ fontWeight:700,fontSize:14,color:"#0f172a" }}>{name}</div><div style={{ fontSize:12,color:"#64748b",marginTop:2 }}>{desc}</div></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginTop:20}}>
+        {[
+          ["Customer Buy Page","/#/buy","These exact prices show on checkout"],
+          ["TSE App","/#/tse-app","TSE sees these when pitching to leads"],
+          ["TSM Dashboard","/#/tsm-app","Revenue projections use these prices"],
+          ["Car Washer Screen","/#/washer-core-screens","Job details show plan name and value"],
+        ].map(([name,path,desc])=>(
+          <div key={name} style={{background:"white",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"12px 16px",display:"flex",gap:10,alignItems:"flex-start"}}>
+            <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:14,flexShrink:0}}>✅</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>{name}</div>
+              <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{desc}</div>
+            </div>
           </div>
         ))}
       </div>
