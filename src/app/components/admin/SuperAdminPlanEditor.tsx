@@ -687,7 +687,6 @@ export function SuperAdminPlanEditor() {
               </button>
             </div>
           )}
-        </div>
       </div>
       )} {/* end editor */}
     </div>
