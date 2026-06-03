@@ -650,39 +650,8 @@ export function SuperAdminPlanEditor() {
               </button>
             </div>
           )}
-      </div>)}
+        </div>
       </div>
-
-      {/* COUPONS TAB */}
-      {activeTab === "coupons" && (
-        <div style={{ padding: "24px" }}>
-          <CouponManagementTab monthlyPlans={[{id:"water",name:"Express Wash"},{id:"shampoo",name:"Smart Wash"},{id:"wax",name:"Elite Wash"}]} />
-        </div>
-      )}
-
-      {/* PROMOTIONS TAB */}
-      {activeTab === "promotions" && (
-        <div style={{ padding: "24px" }}>
-          <PromotionsTab monthlyPlans={[{id:"water",name:"Express Wash"},{id:"shampoo",name:"Smart Wash"},{id:"wax",name:"Elite Wash"}]} />
-        </div>
-      )}
-
-      {/* REFERRAL TAB */}
-      {activeTab === "referral" && (
-        <div style={{ padding: "24px" }}>
-          <ReferralTab />
-        </div>
-      )}
-
-      {/* PLAN SYNC STATUS TAB */}
-      {activeTab === "sync" && (
-        <div style={{ padding: "24px" }}>
-          <PlanSyncStatus />
-        </div>
-      )}
-
-
-    </div>
   );
 }
 
