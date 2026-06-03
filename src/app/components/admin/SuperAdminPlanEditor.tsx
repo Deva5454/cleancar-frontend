@@ -198,14 +198,12 @@ export function SuperAdminPlanEditor() {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* TAB SWITCHER */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 4 }}>
         {([["editor","✏️ Editor"],["coupons","🎟️ Coupons"],["promotions","📢 Promotions"],["referral","🤝 Referrals"],["sync","🔄 Price Sync"]] as const).map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ padding: "12px 16px", border: "none", borderBottom: activeTab === tab ? "3px solid #2196F3" : "3px solid transparent", background: "none", fontWeight: activeTab === tab ? 700 : 500, color: activeTab === tab ? "#2196F3" : "#6B7280", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
             {label}
-=======
       {/* ── TAB BAR ──────────────────────────────────────────────────── */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
         {([
@@ -218,13 +216,10 @@ export function SuperAdminPlanEditor() {
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
             style={{ padding: "14px 20px", border: "none", background: "transparent", cursor: "pointer", fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 13, fontFamily: "inherit", color: activeTab === tab.id ? tab.color : "#6B7280", borderBottom: activeTab === tab.id ? `3px solid ${tab.color}` : "3px solid transparent", whiteSpace: "nowrap", transition: "all 0.15s" }}>
             {tab.label}
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
           </button>
         ))}
       </div>
 
-<<<<<<< HEAD
-=======
       {/* ── TAB CONTENT ───────────────────────────────────────────────── */}
       {activeTab === "coupons" && (
         <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px 60px" }}>
@@ -248,7 +243,6 @@ export function SuperAdminPlanEditor() {
       )}
 
       {activeTab === "editor" && (
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
       {/* TAB SWITCHER */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 4 }}>
         {([["editor","✏️ Editor"],["coupons","🎟️ Coupons"],["promotions","📢 Promotions"],["referral","🤝 Referrals"],["sync","🔄 Price Sync"]] as const).map(([tab, label]) => (
@@ -751,11 +745,9 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
 
   return (
     <div>
-<<<<<<< HEAD
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <div><h3 style={{ margin:0, fontSize:18, fontWeight:700, color:"#0f172a" }}>ðŸŽŸï¸ Coupon Codes</h3><p style={{ margin:"4px 0 0", fontSize:13, color:"#64748b" }}>{coupons.length} coupons Â· {coupons.filter(c=>c.active).length} active</p></div>
         <button onClick={()=>setShowForm(!showForm)} style={{ padding:"10px 20px", background:"linear-gradient(135deg,#10b981,#059669)", color:"white", border:"none", borderRadius:10, fontWeight:700, fontSize:13, cursor:"pointer" }}>+ New Coupon</button>
-=======
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
         <div>
@@ -768,7 +760,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
           style={{padding:"10px 20px",background:"linear-gradient(135deg,#10b981,#059669)",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
           + Create Coupon
         </button>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
       </div>
 
       {/* Quick stats */}
@@ -789,7 +780,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
 
       {/* Create/Edit Form */}
       {showForm && (
-<<<<<<< HEAD
         <div style={{ background:"#f0fdf4", borderRadius:14, padding:20, marginBottom:20, border:"2px solid #86efac" }}>
           <h4 style={{ margin:"0 0 14px", color:"#065f46" }}>Create Coupon</h4>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
@@ -801,7 +791,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
           <div style={{ display:"flex",gap:10,marginBottom:10 }}>
             <div style={{ flex:1 }}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Type</label><select value={form.type} onChange={e=>setForm(p=>({...p,type:e.target.value as any}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #d1fae5",borderRadius:8,fontSize:13,fontFamily:"inherit" }}><option value="percent">% off</option><option value="flat">â‚¹ flat off</option></select></div>
             <div style={{ flex:1 }}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Value</label><input type="number" value={form.value} onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #d1fae5",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
-=======
         <div style={{background:"#f8fafc",borderRadius:14,padding:20,marginBottom:20,border:"2px solid #e0e7ff"}}>
           <h4 style={{margin:"0 0 16px",color:"#4338ca",fontSize:15}}>{editId?"✏️ Edit Coupon":"➕ Create New Coupon"}</h4>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
@@ -839,7 +828,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
                 onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))}
                 style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
             </div>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
           </div>
           {/* Preview box */}
           {form.code && form.value > 0 && (
@@ -880,7 +868,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
           </div>
         </div>
       )}
-<<<<<<< HEAD
       <div style={{ display:"grid",gap:8 }}>
         {coupons.length===0&&<div style={{ textAlign:"center",padding:40,color:"#94a3b8",background:"#f8fafc",borderRadius:12,fontSize:14 }}>No coupons yet. Create your first one above.</div>}
         {coupons.map(c=>{ const exp=c.validTo&&today>c.validTo; return(
@@ -896,7 +883,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
           </div>
         );})}
       </div>
-=======
 
       {/* Coupon list */}
       {coupons.length===0 ? (
@@ -959,7 +945,6 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
           })}
         </div>
       )}
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
     </div>
   );
 }
@@ -968,13 +953,10 @@ function CouponManagementTab({ monthlyPlans }: { monthlyPlans: { id: string; nam
 function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: string }[] }) {
   const [promos, setPromos] = React.useState<Promotion[]>(() => planSyncService.getPromotions());
   const [showForm, setShowForm] = React.useState(false);
-<<<<<<< HEAD
   const [form, setForm] = React.useState({ name:"",description:"",type:"percent" as any,value:10,applicablePlans:[] as string[],startDate:"",endDate:"",active:true,autoApply:false,badge:"ðŸŽ‰",createdBy:"Admin" });
-=======
   const [editId, setEditId] = React.useState<string|null>(null);
   const blank = { name:"", description:"", type:"percent" as any, value:10, applicablePlans:[] as string[], startDate:"", endDate:"", active:true, autoApply:true, badge:"🎉", createdBy:"Admin" };
   const [form, setForm] = React.useState(blank);
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
   const today = new Date().toISOString().slice(0,10);
   const reload = () => setPromos(planSyncService.getPromotions());
 
@@ -998,7 +980,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
 
   return (
     <div>
-<<<<<<< HEAD
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
         <div><h3 style={{ margin:0,fontSize:18,fontWeight:700,color:"#0f172a" }}>ðŸ”¥ Offers & Promotions</h3><p style={{ margin:"4px 0 0",fontSize:13,color:"#64748b" }}>{promos.filter(p=>p.active&&today>=p.startDate&&today<=p.endDate).length} currently live</p></div>
         <button onClick={()=>setShowForm(!showForm)} style={{ padding:"10px 20px",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"white",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer" }}>+ New Promotion</button>
@@ -1012,7 +993,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
             <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Value</label><input type="number" value={form.value} onChange={e=>setForm(p=>({...p,value:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
             <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>Start</label><input type="date" value={form.startDate} onChange={e=>setForm(p=>({...p,startDate:e.target.value}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
             <div><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>End</label><input type="date" value={form.endDate} onChange={e=>setForm(p=>({...p,endDate:e.target.value}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #fde68a",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
-=======
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
         <div>
           <h3 style={{margin:0,fontSize:18,fontWeight:700,color:"#0f172a"}}>🔥 Offers & Promotions</h3>
@@ -1040,7 +1020,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
                 </button>
               ))}
             </div>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
             {[
@@ -1121,7 +1100,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
           </div>
         </div>
       )}
-<<<<<<< HEAD
       <div style={{ display:"grid",gap:8 }}>
         {promos.length===0&&<div style={{ textAlign:"center",padding:40,color:"#94a3b8",background:"#f8fafc",borderRadius:12,fontSize:14 }}>No promotions yet.</div>}
         {promos.map(p=>{ const live=p.active&&today>=p.startDate&&today<=p.endDate; return(
@@ -1136,7 +1114,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
           </div>
         );})}
       </div>
-=======
 
       {promos.length===0 ? (
         <div style={{textAlign:"center",padding:48,color:"#94a3b8",background:"#f8fafc",borderRadius:16,border:"2px dashed #e2e8f0"}}>
@@ -1181,7 +1158,6 @@ function PromotionsTab({ monthlyPlans }: { monthlyPlans: { id: string; name: str
           })}
         </div>
       )}
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
     </div>
   );
 }
@@ -1212,7 +1188,6 @@ function ReferralTab() {
 
   return (
     <div>
-<<<<<<< HEAD
       <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24 }}>
         {[["ðŸ”—","Total Referrals",stats.total,"#6366f1","#eff6ff"],["âœ…","Converted",stats.converted,"#10b981","#f0fdf4"],["ðŸŽ","Discounts Given",`â‚¹${stats.discounts.toLocaleString("en-IN")}` ,"#f59e0b","#fffbeb"]].map(([icon,lbl,val,color,bg]: any)=>(
           <div key={lbl} style={{ background:bg,borderRadius:12,padding:"16px 18px",border:`1px solid ${color}30` }}><div style={{ fontSize:24,marginBottom:4 }}>{icon}</div><div style={{ fontSize:22,fontWeight:800,color }}>{val}</div><div style={{ fontSize:12,color:"#64748b" }}>{lbl}</div></div>
@@ -1232,7 +1207,6 @@ function ReferralTab() {
         <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10 }}>
           {[["Referrer Reward â‚¹","referrerReward"],["Referee Discount â‚¹","refereeDiscount"],["Min Order â‚¹","minRefereeOrderValue"],["Max Rewards/Person","maxRewardsPerReferrer"],["Validity (days)","rewardValidity"]].map(([lbl,k]: any)=>(
             <div key={k}><label style={{ display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:4 }}>{lbl}</label><input type="number" value={(prog as any)[k]} onChange={e=>setProg(p=>({...p,[k]:Number(e.target.value)}))} style={{ width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none" }} /></div>
-=======
       {/* Stats */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:24}}>
         {[
@@ -1293,7 +1267,6 @@ function ReferralTab() {
                 onChange={e=>setProg(p=>({...p,[key]:Number(e.target.value)}))}
                 style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}} />
             </div>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
           ))}
         </div>
         <div style={{marginBottom:14}}>
@@ -1354,7 +1327,6 @@ function PlanSyncStatus() {
   const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
   return (
     <div>
-<<<<<<< HEAD
       <h3 style={{ margin:"0 0 8px",fontSize:18,fontWeight:700,color:"#0f172a" }}>ðŸ”„ Single Source of Truth â€” Plan Prices</h3>
       <p style={{ margin:"0 0 20px",fontSize:13,color:"#64748b" }}>These prices from the Plan Editor propagate to ALL parts of the system: Customer Buy Page, TSE App, TSM App, and Car Washer screen. Change a price above â€” it updates everywhere instantly.</p>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16 }}>
@@ -1369,7 +1341,6 @@ function PlanSyncStatus() {
                 <div style={{ fontSize:20,fontWeight:800,color:"#4338ca" }}>â‚¹{price.toLocaleString("en-IN")}</div>
                 <div style={{ fontSize:10,color:"#94a3b8" }}>per month</div>
               </div>
-=======
       <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:700,color:"#0f172a"}}>🔄 Single Source of Truth — Plan Prices</h3>
       <p style={{margin:"0 0 20px",fontSize:13,color:"#64748b"}}>Prices edited above propagate to all parts of the system instantly — Customer Buy Page, TSE App, TSM App, and Car Washer screen.</p>
       <div style={{overflowX:"auto"}}>
@@ -1394,18 +1365,15 @@ function PlanSyncStatus() {
                   </td>
                 ))}
               </tr>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
             ))}
           </tbody>
         </table>
       </div>
-<<<<<<< HEAD
       <div style={{ display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12 }}>
         {[["Customer Buy Page","/#/buy","These prices show on the customer checkout page when they select a plan"],["TSE App","/#/tse-app","TSE sees these prices when pitching plans to leads during a call"],["TSM App","/#/tsm-app","TSM dashboards and team performance use these base prices"],["Car Washer Screen","/#/washer-core-screens","Service confirmation and job details show plan name and value"]].map(([name,path,desc])=>(
           <div key={name} style={{ background:"white",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start" }}>
             <div style={{ width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:16,flexShrink:0 }}>âœ…</div>
             <div><div style={{ fontWeight:700,fontSize:14,color:"#0f172a" }}>{name}</div><div style={{ fontSize:12,color:"#64748b",marginTop:2 }}>{desc}</div></div>
-=======
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginTop:20}}>
         {[
           ["Customer Buy Page","/#/buy","These exact prices show on checkout"],
@@ -1419,7 +1387,6 @@ function PlanSyncStatus() {
               <div style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>{name}</div>
               <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{desc}</div>
             </div>
->>>>>>> 9f5ed13348be82f99c712f4ba03ba24ae43304e3
           </div>
         ))}
       </div>
