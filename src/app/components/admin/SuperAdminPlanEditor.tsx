@@ -206,7 +206,7 @@ export function SuperAdminPlanEditor() {
         ))}
       </div>
 
-      <div style={{ maxWidth: 900, margin: "24px auto", padding: "0 24px 60px" }}>
+      {activeTab === "editor" && (<div style={{ maxWidth: 900, margin: "24px auto", padding: "0 24px 60px" }}>
 
         {/* â”€â”€ Â§1 BRAND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <Section title="Brand & Contact" icon="ðŸ¢">
@@ -650,7 +650,7 @@ export function SuperAdminPlanEditor() {
               </button>
             </div>
           )}
-        </div>
+      </div>)}
       </div>
 
       {/* COUPONS TAB */}
