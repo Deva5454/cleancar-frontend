@@ -198,6 +198,45 @@ export function SuperAdminPlanEditor() {
         </div>
       </div>
 
+      {/* ── TAB BAR ──────────────────────────────────────────────────── */}
+      <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
+        {([
+          { id: "editor",     label: "📋 Plan Editor",   color: "#2196F3" },
+          { id: "coupons",    label: "🎟️ Coupons",       color: "#10b981" },
+          { id: "promotions", label: "🔥 Promotions",     color: "#f59e0b" },
+          { id: "referral",   label: "🔗 Referrals",      color: "#6366f1" },
+          { id: "sync",       label: "🔄 Price Sync",     color: "#7c3aed" },
+        ] as const).map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+            style={{ padding: "14px 20px", border: "none", background: "transparent", cursor: "pointer", fontWeight: activeTab === tab.id ? 700 : 500, fontSize: 13, fontFamily: "inherit", color: activeTab === tab.id ? tab.color : "#6B7280", borderBottom: activeTab === tab.id ? `3px solid ${tab.color}` : "3px solid transparent", whiteSpace: "nowrap", transition: "all 0.15s" }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB CONTENT ───────────────────────────────────────────────── */}
+      {activeTab === "coupons" && (
+        <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px 60px" }}>
+          <CouponManagementTab monthlyPlans={cfg.monthlyPlans.map(p => ({ id: p.id, name: p.name }))} />
+        </div>
+      )}
+      {activeTab === "promotions" && (
+        <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px 60px" }}>
+          <PromotionsTab monthlyPlans={cfg.monthlyPlans.map(p => ({ id: p.id, name: p.name }))} />
+        </div>
+      )}
+      {activeTab === "referral" && (
+        <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px 60px" }}>
+          <ReferralTab />
+        </div>
+      )}
+      {activeTab === "sync" && (
+        <div style={{ maxWidth: 960, margin: "24px auto", padding: "0 24px 60px" }}>
+          <PlanSyncStatus />
+        </div>
+      )}
+
+      {activeTab === "editor" && (
       <div style={{ maxWidth: 900, margin: "24px auto", padding: "0 24px 60px" }}>
 
         {/* ── §1 BRAND ─────────────────────────────────────────────────── */}
@@ -644,36 +683,7 @@ export function SuperAdminPlanEditor() {
           )}
         </div>
       </div>
-
-      {/* COUPONS TAB */}
-      {activeTab === "coupons" && (
-        <div style={{ padding: "24px" }}>
-          <CouponManagementTab monthlyPlans={[{id:"water",name:"Express Wash"},{id:"shampoo",name:"Smart Wash"},{id:"wax",name:"Elite Wash"}]} />
-        </div>
-      )}
-
-      {/* PROMOTIONS TAB */}
-      {activeTab === "promotions" && (
-        <div style={{ padding: "24px" }}>
-          <PromotionsTab monthlyPlans={[{id:"water",name:"Express Wash"},{id:"shampoo",name:"Smart Wash"},{id:"wax",name:"Elite Wash"}]} />
-        </div>
-      )}
-
-      {/* REFERRAL TAB */}
-      {activeTab === "referral" && (
-        <div style={{ padding: "24px" }}>
-          <ReferralTab />
-        </div>
-      )}
-
-      {/* PLAN SYNC STATUS TAB */}
-      {activeTab === "sync" && (
-        <div style={{ padding: "24px" }}>
-          <PlanSyncStatus />
-        </div>
-      )}
-
-
+      )} {/* end editor */}
     </div>
   );
 }
