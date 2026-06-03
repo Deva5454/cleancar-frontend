@@ -688,8 +688,8 @@ export function SuperAdminPlanEditor() {
             </div>
           )}
         </div>
-      )} {/* end editor */}
       </div>
+      )}
     </div>
   );
 }
