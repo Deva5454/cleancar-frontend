@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Navigation Configuration - Master Navigation Tree
  *
  * Single source of truth for all navigation items in the application.
@@ -21,7 +21,7 @@ import {
   FileSearch, BarChart2, Layers, Coins,
   PlusCircle, MinusCircle, FileBarChart, Brain, ShieldCheck, LayoutDashboard,
   Building2, CheckCircle2, ClipboardCheck, GitCompare, FileOutput, ReceiptText,
-  Upload, BookOpen, List, Scale, Zap, Car, Percent, User, Eye
+  Upload, BookOpen, List, Scale, Zap, Car, Percent, User, Eye, Tag
 } from "lucide-react";
 
 export interface NavItem {
@@ -131,7 +131,7 @@ export const NAV_CONFIG: NavItem[] = [
     icon: Crown,
     module: "crm",
     match: "exact",
-    description: "Sales Head workspace — team coaching, lead pipeline, incentives",
+    description: "Sales Head workspace â€” team coaching, lead pipeline, incentives",
     children: [
       { label: "Command Dashboard", path: "/sh-app?tab=dashboard", icon: LayoutDashboard, module: "crm", match: "exact" },
       { label: "Lead Pipeline",     path: "/sh-app?tab=pipeline",  icon: ListTree,        module: "crm", match: "exact" },
@@ -151,7 +151,7 @@ export const NAV_CONFIG: NavItem[] = [
     icon: Building2,
     module: "crm",
     match: "exact",
-    description: "Sales Manager workspace — alliance management, locations, BTL",
+    description: "Sales Manager workspace â€” alliance management, locations, BTL",
     children: [
       { label: "Alliance Dashboard", path: "/sm-app-alliance?tab=dashboard",  icon: MapPin,      module: "crm", match: "exact" },
       { label: "My Locations",       path: "/sm-app-alliance?tab=detail",     icon: Building2,   module: "crm", match: "exact" },
@@ -357,6 +357,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Subscription Plans", path: "/subscription/plan-management", icon: Package, module: "admin", match: "prefix" },
       { label: "Plan Page Editor", path: "/admin/plan-page-editor", icon: MousePointerClick, module: "admin", match: "prefix" },
       { label: "Comm. Templates", path: "/settings/communication-templates", icon: Mail, module: "admin", match: "prefix" },
+      { label: "Discounts & Offers", path: "/admin/discounts", icon: Tag, module: "admin", match: "prefix" },
       { label: "Cost Configuration", path: "/settings/cost-configuration", icon: SlidersHorizontal, module: "admin", match: "prefix" },
       { label: "Working Hours", path: "/workforce/working-hours", icon: Clock, module: "admin", match: "prefix" },
       { label: "Audit Trail", path: "/audit-trail", icon: FileText, module: "audit-trail", match: "prefix" },

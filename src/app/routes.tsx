@@ -1,16 +1,16 @@
-// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createHashRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
 
-// Retry wrapper — if chunk 404s (stale cache after deploy), reload once
+// Retry wrapper â€” if chunk 404s (stale cache after deploy), reload once
 function retryLazy<T>(fn: () => Promise<T>): () => Promise<T> {
   return () => fn().catch(() => { window.location.reload(); return fn(); });
 }
 
-// Skeleton loader — looks like real content, not a broken spinner
+// Skeleton loader â€” looks like real content, not a broken spinner
 const PageLoader = () => (
   <div className="p-6 space-y-4 animate-pulse">
     <div className="h-7 bg-gray-200 rounded-md w-2/5" />
@@ -83,7 +83,7 @@ const PayablesDashboard = lazy(retryLazy(() => import("./components/accounts/Pay
 // import { CashFlowDashboard } from "./components/founder/CashFlowDashboard"; // NOW LAZY
 // import { MarketingROIDrilldown } from "./components/founder/MarketingROIDrilldown"; // NOW LAZY
 // import { CreateSalaryStructure } from "./components/payroll/CreateSalaryStructure"; // NOW LAZY
-// R2 FIX: test-btl-service file may not exist — converted to lazy with error boundary
+// R2 FIX: test-btl-service file may not exist â€” converted to lazy with error boundary
 // import { AdminPlanManagement } from "./components/subscription/AdminPlanManagement"; // NOW LAZY
 // import { IncentiveConfiguration } from "./components/incentives/IncentiveConfiguration"; // NOW LAZY
 
@@ -220,6 +220,7 @@ const SubscriptionApp = lazy(retryLazy(() => import("./components/subscription/S
 const PlanSelectionScreen = lazy(retryLazy(() => import("./components/subscription/PlanSelectionScreen").then(m => ({default: m.PlanSelectionScreen || m.default}))));
 const CustomerPlanPage = lazy(retryLazy(() => import("./components/subscription/CustomerPlanPage").then(m => ({default: m.CustomerPlanPage || m.default}))));
 const SuperAdminPlanEditor = lazy(retryLazy(() => import("./components/admin/SuperAdminPlanEditor").then(m => ({default: m.SuperAdminPlanEditor || m.default}))));
+const DiscountsOffersPage = lazy(retryLazy(() => import("./components/admin/DiscountsOffersPage").then(m => ({ default: m.DiscountsOffersPage }))));
 const SubscriptionDiagnostics = lazy(retryLazy(() => import("./components/subscription/SubscriptionDiagnostics").then(m => ({default: m.SubscriptionDiagnostics || m.default}))));
 const HierarchyDashboard = lazy(retryLazy(() => import("./components/hierarchy/HierarchyDashboard").then(m => ({default: m.HierarchyDashboard || m.default}))));
 const WasherAttendanceHistory = lazy(retryLazy(() => import("./components/washer/WasherAttendanceHistory").then(m => ({default: m.WasherAttendanceHistory || m.default}))));
@@ -287,31 +288,31 @@ export const router = createHashRouter([
     children: [
       { index: true, element: <ErrorBoundary><Suspense fallback={<PageLoader />}><Dashboard /></Suspense></ErrorBoundary> },
 
-      // CRM index — nav parent /crm has no route
+      // CRM index â€” nav parent /crm has no route
       {
         path: "crm",
         element: <Navigate to="/leads" replace />
       },
 
-      // Payroll index — nav parent /payroll has no route
+      // Payroll index â€” nav parent /payroll has no route
       {
         path: "payroll",
         element: <Navigate to="/payroll/run" replace />
       },
 
-      // Admin index — nav parent /admin has no route
+      // Admin index â€” nav parent /admin has no route
       {
         path: "admin",
         element: <Navigate to="/admin/city-management" replace />
       },
 
-      // Reports index — nav parent /reports has no route
+      // Reports index â€” nav parent /reports has no route
       {
         path: "reports",
         element: <Navigate to="/finance/reports" replace />
       },
 
-      // Operations-management — the Operations nav section points here but route doesn't exist
+      // Operations-management â€” the Operations nav section points here but route doesn't exist
       {
         path: "operations-management",
         element: <Navigate to="/operations" replace />
@@ -456,7 +457,7 @@ export const router = createHashRouter([
 
           // Legacy redirects for backward compatibility
           { path: "cost-per-wash", element: <Navigate to="/finance/cost-per-wash" replace /> },
-          // R4 FIX: /unit-economics/ doesn't exist in route tree — removed
+          // R4 FIX: /unit-economics/ doesn't exist in route tree â€” removed
           { path: "cost-per-wash-by-plan", element: <Navigate to="/analytics/cost-by-plan" replace /> },
           { path: "cost-per-wash-by-consumption", element: <Navigate to="/analytics/cost-by-consumption" replace /> },
           { path: "labour-cost-per-wash", element: <Navigate to="/analytics/labour-cost" replace /> },
@@ -575,7 +576,7 @@ export const router = createHashRouter([
       // City Manager App (Production) - Control tower interface
       { path: "city-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CityManagerApp /></Suspense></ErrorBoundary> },
 
-      // Organization Hierarchy Dashboard - City → Cluster → Pincode
+      // Organization Hierarchy Dashboard - City â†’ Cluster â†’ Pincode
       { path: "hierarchy-dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HierarchyDashboard /></Suspense></ErrorBoundary> },
 
       // Tele Sales Manager App (Production) - Pipeline control tower
@@ -599,6 +600,7 @@ export const router = createHashRouter([
       { path: "buy",   element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerPlanPage /></Suspense></ErrorBoundary> },
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><SuperAdminPlanEditor /></ErrorBoundary> },
+      { path: "admin/discounts", element: <ErrorBoundary><DiscountsOffersPage /></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 
       // Client Portal - Read-only client interface
