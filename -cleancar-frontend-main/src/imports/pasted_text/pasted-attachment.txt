@@ -1,0 +1,130 @@
+Reconciliation Auto-Match + GSTR-3B Nil/Exempt + Audit Log
+
+This is Phase 2 of 3. All Phase 1 changes must be applied first.
+
+CHANGE 1 — src/app/components/gst/GSTReconciliation.tsx — Auto-match 2B uploads against system books
+Find the CSV parse and save block:
+ts      newRecords.forEach(rec => gstComplianceService.saveReconciliationRecord(rec));
+      setRecords(gstComplianceService.getReconciliation());
+      setActiveTab("results");
+Replace with:
+ts      // Auto-match each 2B record against existing system transactions
+      const systemTransactions = gstComplianceService.getTransactions(city);
+
+      const matchedRecords = newRecords.map(rec => {
+        const match = systemTransactions.find(t =>
+          t.transactionType === "Purchase" &&
+          t.invoiceNumber?.trim().toLowerCase() === rec.invoiceNumber?.trim().toLowerCase() &&
+          t.partyGstin?.trim().toUpperCase() === rec.vendorGstin?.trim().toUpperCase()
+        );
+
+        if (!match) return rec; // stays "In 2B Only"
+
+        const systemGST = match.cgst + match.sgst + match.igst;
+        const diff = Math.abs(systemGST - rec.gstAmount);
+
+        return {
+          ...rec,
+          vendorId: match.partyId,
+          inSystemBooks: true,
+          matchStatus: diff < 1
+            ? "Matched" as const
+            : diff < 10
+            ? "Amount Mismatch" as const
+            : "Amount Mismatch" as const,
+          differenceAmount: diff,
+          itcClaimable: match.itcEligible,
+          itcStatus: match.itcEligible ? "Provisional" as const : "Blocked" as const,
+        };
+      });
+
+      matchedRecords.forEach(rec => gstComplianceService.saveReconciliationRecord(rec));
+      setRecords(gstComplianceService.getReconciliation());
+
+      const matched   = matchedRecords.filter(r => r.matchStatus === "Matched").length;
+      const unmatched = matchedRecords.filter(r => r.matchStatus !== "Matched").length;
+      alert(`Upload complete. ${matched} matched, ${unmatched} unmatched. Review the Results tab.`);
+      setActiveTab("results");
+Also add useCity import and const { city } = useCity() inside the component.
+Also fix the hardcoded month: "April", year: 2026 in the CSV parser. Replace with:
+ts          month: selectedMonth,
+          year: selectedYear,
+And add state variables if not present:
+ts  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear,  setSelectedYear]  = useState(new Date().getFullYear());
+
+CHANGE 2 — src/app/components/gst/GSTR3BModule.tsx — Fix nil-rated and exempted hardcodes
+Find:
+ts    const zeroRated = salesTransactions.filter(t => t.gstRate === 0).reduce((s, t) => s + t.taxableValue, 0);
+    const nilRated = 0;
+    const exempted = 0;
+Replace with:
+ts    const zeroRated  = salesTransactions
+      .filter(t => t.gstRate === 0 && t.supplyNature === "ZeroRated")
+      .reduce((s, t) => s + t.taxableValue, 0);
+    const nilRated   = salesTransactions
+      .filter(t => t.supplyNature === "NilRated")
+      .reduce((s, t) => s + t.taxableValue, 0);
+    const exempted   = salesTransactions
+      .filter(t => t.supplyNature === "Exempt")
+      .reduce((s, t) => s + t.taxableValue, 0);
+    const nonGST     = salesTransactions
+      .filter(t => t.supplyNature === "NonGST")
+      .reduce((s, t) => s + t.taxableValue, 0);
+Also add nonGST to the return object and to the table row below it:
+ts    return { taxableOutward, zeroRated, nilRated, exempted, nonGST, total };
+
+CHANGE 3 — src/app/components/gst/GSTReports.tsx — Fix audit log to show real change history
+Find the audit tab render block (starting {activeTab === "audit" && (). Replace the entire tbody content:
+Find:
+tsx                {transactions.slice(0, 50).map(txn => (
+                  <tr key={txn.id} className="border-b border-gray-100 text-sm">
+                    <td className="py-3 text-gray-700">{new Date(txn.createdAt).toLocaleString()}</td>
+Replace with a flat log built from changeHistory:
+tsx                {transactions
+                  .flatMap(txn =>
+                    [
+                      // Always include the creation event
+                      { txnId: txn.id, invoice: txn.invoiceNumber, ts: txn.createdAt,
+                        action: "Transaction Created", user: txn.createdBy,
+                        detail: `${txn.transactionType} — ${txn.partyName} — ₹${txn.invoiceTotal?.toLocaleString()}` },
+                      // Expand all changeHistory entries
+                      ...(txn.changeHistory || []).map(log => ({
+                        txnId: txn.id, invoice: txn.invoiceNumber, ts: log.timestamp,
+                        action: log.action, user: log.changedBy,
+                        detail: log.note || (log.newStatus ? `Status → ${log.newStatus}` : log.action),
+                      })),
+                    ]
+                  )
+                  .sort((a, b) => b.ts.localeCompare(a.ts))
+                  .slice(0, 100)
+                  .map((entry, i) => (
+                    <tr key={i} className="border-b border-gray-100 text-sm">
+                      <td className="py-3 text-gray-700">{new Date(entry.ts).toLocaleString("en-IN")}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          entry.action === "Filed" ? "bg-purple-100 text-purple-700"
+                          : entry.action === "Approved" ? "bg-green-100 text-green-700"
+                          : entry.action.includes("AI") ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                        }`}>{entry.action}</span>
+                      </td>
+                      <td className="py-3 text-gray-700">{entry.user}</td>
+                      <td className="py-3 font-mono text-xs text-gray-600">{entry.invoice}</td>
+                      <td className="py-3 text-gray-600">{entry.detail}</td>
+                    </tr>
+                  ))
+                }
+Also fix the export button to export the full flattened log:
+tsx              onClick={(e) => {
+                const data = transactions.flatMap(txn => [
+                  { Timestamp: txn.createdAt, Action: "Transaction Created", User: txn.createdBy,
+                    Invoice: txn.invoiceNumber, Details: `${txn.transactionType} for ${txn.partyName}` },
+                  ...(txn.changeHistory || []).map(log => ({
+                    Timestamp: log.timestamp, Action: log.action, User: log.changedBy,
+                    Invoice: txn.invoiceNumber, Details: log.note || log.action,
+                  })),
+                ]).sort((a, b) => b.Timestamp.localeCompare(a.Timestamp));
+                handleExport(e, "gst-audit-log", data);
+              }}
+Do not change any other file in Phase 2.

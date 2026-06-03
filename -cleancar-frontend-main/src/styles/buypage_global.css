@@ -1,0 +1,202 @@
+/*
+ * buypage_global.css
+ * Global CSS for /buy page — matches 24/9 Carwashing website theme
+ * Add this to your index.css or import in App.tsx
+ *
+ * Font CDN: already loaded via <link> inside CustomerPlanPage.tsx
+ */
+
+/* ── RESET (buy page specific) ───────────────────────────────────────────── */
+.buy-page * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── FOCUS RINGS — accessibility ──────────────────────────────────────────── */
+.buy-page input:focus,
+.buy-page select:focus,
+.buy-page textarea:focus {
+  outline: none;
+  border-color: #0F172A !important;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.10);
+}
+
+.buy-page button:focus-visible {
+  outline: 2px solid #0F172A;
+  outline-offset: 2px;
+}
+
+/* ── VEHICLE + PLAN CARDS — hover lift ────────────────────────────────────── */
+.buy-page .plan-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+/* ── CTA BUTTONS ──────────────────────────────────────────────────────────── */
+.buy-page .btn-primary {
+  background: #0F172A;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 13px 32px;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  letter-spacing: 0.2px;
+}
+
+.buy-page .btn-primary:hover { background: #1E293B; }
+.buy-page .btn-primary:active { transform: scale(0.98); }
+.buy-page .btn-primary:disabled {
+  background: #D1D5DB;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.buy-page .btn-back {
+  background: transparent;
+  color: #6B7280;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 11px 22px;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.buy-page .btn-back:hover { border-color: #9CA3AF; color: #374151; }
+
+/* ── STEP PROGRESS BAR ────────────────────────────────────────────────────── */
+.buy-page .step-bar {
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  justify-content: center;
+  padding: 0 32px;
+  position: sticky;
+  top: 60px;
+  z-index: 10;
+}
+
+/* ── HERO IMAGE OVERLAY ───────────────────────────────────────────────────── */
+.buy-page .hero-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: url('https://static.wixstatic.com/media/4ae675_a44950b3d59245f3b09dd9f9bd21a1d6~mv2.jpg/v1/fill/w_1440,h_600,al_c,q_85/hero.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+/* ── PINCODE INPUT ────────────────────────────────────────────────────────── */
+.buy-page .pincode-input {
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: 8px !important;
+  color: #0F172A !important;
+  border: 2.5px solid #E5E7EB !important;
+}
+.buy-page .pincode-input:focus {
+  border-color: #0F172A !important;
+  letter-spacing: 8px;
+}
+
+/* ── PLAN CARD SELECTION ──────────────────────────────────────────────────── */
+.buy-page .plan-card {
+  border: 1.5px solid #E5E7EB;
+  border-radius: 16px;
+  background: #FFFFFF;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.15s;
+}
+.buy-page .plan-card.selected {
+  border: 2px solid #0F172A;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+}
+.buy-page .plan-card.popular {
+  border: 2px solid #0F172A;
+}
+.buy-page .plan-card:hover {
+  transform: translateY(-2px);
+}
+
+/* ── TRUST STRIP ──────────────────────────────────────────────────────────── */
+.buy-page .trust-strip {
+  background: #0F172A;
+  padding: 14px 32px;
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.buy-page .trust-strip span {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── FORM LABELS ──────────────────────────────────────────────────────────── */
+.buy-page label {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ── ORDER SUMMARY ────────────────────────────────────────────────────────── */
+.buy-page .summary-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.buy-page .summary-header {
+  background: #0F172A;
+  color: #FFFFFF;
+  padding: 16px 20px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+.buy-page .summary-amount {
+  background: #0F172A;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.buy-page .summary-amount .label {
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 16px;
+}
+.buy-page .summary-amount .value {
+  color: #FBBF24;
+  font-family: 'Poppins', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .buy-page .step-bar { padding: 0 8px; }
+  .buy-page .step-label { display: none; }
+  .buy-page .hero-content { padding: 40px 20px 56px; }
+  .buy-page .plan-grid { grid-template-columns: 1fr !important; }
+  .buy-page .btn-primary { width: 100%; text-align: center; }
+}
+
+/* ── SCROLLBAR ────────────────────────────────────────────────────────────── */
+.buy-page ::-webkit-scrollbar { width: 6px; }
+.buy-page ::-webkit-scrollbar-track { background: #F1F5F9; }
+.buy-page ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+.buy-page ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }

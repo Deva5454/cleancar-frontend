@@ -1,0 +1,19 @@
+{
+  "name": "CleanCar 360 ERP",
+  "short_name": "CC360",
+  "description": "Car Wash Operations Management System",
+  "start_url": "/#/washer",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1B3F6E",
+  "theme_color": "#1B3F6E",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en-IN"
+}
