@@ -54,3 +54,4 @@ try {
   console.error("Fatal error rendering app:", error);
   createRoot(container).render(<EmergencyFallback />);
 }
+ 
