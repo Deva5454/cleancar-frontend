@@ -197,6 +197,11 @@ export function SuperAdminPlanEditor() {
           </button>
         </div>
       </div>
+      <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", overflowX: "auto" }}>
+        {([{id:"editor",label:"Plan Editor"},{id:"coupons",label:"Coupons"},{id:"promotions",label:"Promotions"},{id:"referral",label:"Referrals"},{id:"sync",label:"Price Sync"}] as const).map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} style={{ padding:"14px 20px",border:"none",background:"transparent",cursor:"pointer",fontWeight:activeTab===tab.id?700:500,fontSize:13,color:activeTab===tab.id?"#2196F3":"#6B7280",borderBottom:activeTab===tab.id?"3px solid #2196F3":"3px solid transparent",whiteSpace:"nowrap" }}>{tab.label}</button>
+        ))}
+      </div>
       {/* TAB BAR */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
         {([{id:"editor",label:"Plan Editor",color:"#2196F3"},{id:"coupons",label:"Coupons",color:"#10b981"},{id:"promotions",label:"Promotions",color:"#f59e0b"},{id:"referral",label:"Referrals",color:"#6366f1"},{id:"sync",label:"Price Sync",color:"#7c3aed"}] as const).map(tab => (
