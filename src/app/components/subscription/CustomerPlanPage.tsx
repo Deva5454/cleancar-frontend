@@ -254,9 +254,13 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
   const discountPct = commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
-  const discountAmt = planMode==="monthly"?Math.round(planPrice*(commitMonths||1)*discountPct/100):0;
-  const finalTotal = Math.max(0, total - discountAmt - (couponDiscount||0) - (referralDiscount||0) - (promoDiscount||0));
-  const grandTotal = Math.round(finalTotal*1.18);
+  // FIX: use basePrice (planPrice × commitMonths) not planPrice × 1
+  // basePrice is passed as prop and already equals planPrice × commitMonths
+  const planBaseTotal = planMode==="monthly" ? (basePrice || planPrice*(commitMonths||1)) : 0;
+  const discountAmt = planMode==="monthly" ? Math.round(planBaseTotal * discountPct / 100) : 0;
+  const subtotalAfterDiscount = Math.max(0, total - discountAmt - (couponDiscount||0) - (referralDiscount||0) - (promoDiscount||0));
+  const finalTotal = subtotalAfterDiscount;
+  const grandTotal = Math.round(finalTotal * 1.18); // GST on post-discount subtotal
   const hasContent = activeCat||selectedPlan||addons.length>0;
   const prevTotal = useRef(grandTotal);
   const priceChanged = prevTotal.current !== grandTotal;
@@ -382,10 +386,10 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
                 <span style={{fontSize:12,color:"#059669",fontWeight:700}}>âˆ’{inr(discountAmt)}</span>
               </div>
             )}
-            {/* Subtotal = base plan + addons before discounts */}
+            {/* Subtotal = after commitment discount, before GST */}
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
               <span style={{fontSize:12,color:"#94a3b8"}}>Subtotal</span>
-              <span style={{fontSize:12,color:"#64748b"}}>{inr(total)}</span>
+              <span style={{fontSize:12,color:"#64748b"}}>{inr(finalTotal)}</span>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
               <span style={{fontSize:12,color:"#94a3b8"}}>GST (18%)</span>
