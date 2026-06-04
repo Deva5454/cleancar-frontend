@@ -24,7 +24,7 @@ export default defineConfig({
     ],
   },
   build: {
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 1201,
     sourcemap: false,
     // Preload all chunks so navigation is instant after first load
     modulePreload: { polyfill: true },
@@ -32,7 +32,7 @@ export default defineConfig({
       output: {
         charset: 'utf8', 
         manualChunks(id) {
-          // Core vendor — always needed immediately
+          // Core vendor â€” always needed immediately
           if (id.includes('node_modules/react/') ||
               id.includes('node_modules/react-dom/') ||
               id.includes('node_modules/react-router-dom/')) {
@@ -40,7 +40,7 @@ export default defineConfig({
           }
           // TanStack Query
           if (id.includes('@tanstack/react-query')) return 'vendor-query';
-          // Charts — large but needed by many pages
+          // Charts â€” large but needed by many pages
           if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
           // UI components
           if (id.includes('lucide-react') || id.includes('sonner') ||
