@@ -30,6 +30,7 @@ export default defineConfig({
     modulePreload: { polyfill: true },
     rollupOptions: {
       output: {
+        charset: 'utf8', 
         manualChunks(id) {
           // Core vendor — always needed immediately
           if (id.includes('node_modules/react/') ||
