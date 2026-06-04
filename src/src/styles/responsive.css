@@ -1,0 +1,86 @@
+/**
+ * CleanCar 360 — Responsive Utilities
+ */
+
+/* Minimum touch targets for all interactive elements */
+button, [role="button"], a, input[type="checkbox"], input[type="radio"] {
+  min-height: 36px;
+}
+
+/* Field-staff primary actions — larger touch target */
+.touch-target-lg {
+  min-height: 48px !important;
+  min-width: 48px !important;
+}
+
+/* Horizontal scroll containers with momentum scrolling on iOS */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Kanban and tab scroll containers */
+.snap-scroll-x {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.snap-scroll-x > * {
+  scroll-snap-align: start;
+}
+
+/* Prevent text overflow in table cells on mobile */
+.table-cell-mobile {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Full-bleed on mobile (remove card border radius) */
+@media (max-width: 640px) {
+  .card-mobile-full {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+}
+
+/* Bottom action bar — pins buttons to bottom of viewport on mobile */
+.mobile-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  z-index: 40;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  .mobile-bottom-bar {
+    display: none;
+  }
+}
+
+/* Safe area padding for notched phones */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Readable font sizes on mobile — prevents iOS zoom on input focus */
+input, select, textarea {
+  font-size: max(16px, 1rem);
+}
+
+@media (min-width: 640px) {
+  input, select, textarea {
+    font-size: 0.875rem;
+  }
+}
