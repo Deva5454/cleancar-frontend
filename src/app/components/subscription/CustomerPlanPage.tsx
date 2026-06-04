@@ -70,7 +70,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
-    {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"â‚¹225 saving on Hatchback Shampoo."},
+    {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"₹225 saving on Hatchback Shampoo."},
     {id:"6month",   term:"6 Months",      discountLabel:"10% off",    perk:"Renewal + free vacuum monthly.", highlight:"great"},
     {id:"12month",  term:"12 Months",     discountLabel:"18% off",    perk:"Vacuum + tyre dressing + priority.", highlight:"best"},
   ],
@@ -96,7 +96,7 @@ function loadConfig(): PlanPageConfig {
   return DEFAULT_CONFIG;
 }
 
-const inr = (n: number) => "â‚¹" + n.toLocaleString("en-IN");
+const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 // â”€â”€â”€ GLOBAL STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GLOBAL_CSS = `
@@ -311,7 +311,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
               <div>
                 <div style={{fontSize:11,color:"#64748b"}}>{commitMonths>1?`${commitMonths}-Month Subscription`:"Monthly Plan"}</div>
                 <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{planObj?.icon} {planObj?.name}</div>
-                {planMode==="monthly" && <div style={{fontSize:11,color:"#7c3aed"}}>â‚¹{inr(planPrice)}/mo Ã— {commitMonths} mo{commitMonths>1?` = ${inr(planPrice*commitMonths)}`:""}</div>}
+                {planMode==="monthly" && <div style={{fontSize:11,color:"#7c3aed"}}>₹{inr(planPrice)}/mo Ã— {commitMonths} mo{commitMonths>1?` = ${inr(planPrice*commitMonths)}`:""}</div>}
               </div>
               <div style={{fontSize:16,fontWeight:800,color:"#4f46e5"}}>{inr(planMode==="monthly"?planPrice*commitMonths:planPrice)}</div>
             </div>
@@ -553,7 +553,7 @@ export function CustomerPlanPage() {
       const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} â€” Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
-      const waMsg=encodeURIComponent(`Hi ${firstName}! 🎏‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
+      const waMsg=encodeURIComponent(`Hi ${firstName}! 🎏‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: ₹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
       if(notifyPref==="whatsapp"||notifyPref==="both"){(window as any)._pendingWAInvoice=`https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;}
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
@@ -652,7 +652,7 @@ export function CustomerPlanPage() {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {[
                 {label:"Invoice",value:inv?.invoiceNumber},
-                {label:"Amount paid",value:`â‚¹${grandTotalRounded.toLocaleString("en-IN")} incl. GST`},
+                {label:"Amount paid",value:`₹${grandTotalRounded.toLocaleString("en-IN")} incl. GST`},
                 {label:"Vehicle",value:inv?.vehicleReg||catLabel},
                 {label:isMonthly?(commitLabel?"Commitment":"Plan"):isPack?"Valid":"Date",value:isMonthly?(commitLabel||"Month-to-Month"):isPack?`${packValidity} days`:oneTimeDate},
               ].map(({label,value})=>(
@@ -910,7 +910,7 @@ export function CustomerPlanPage() {
                             <div style={{fontSize:36,marginBottom:8,filter:`drop-shadow(0 4px 8px ${ac}40)`}}>{plan.icon}</div>
                             <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4}}>{plan.name}</div>
                             <div style={{fontSize:26,fontWeight:800,color:sel?"#4f46e5":ac,marginBottom:2,fontFamily:"'Playfair Display',serif"}}>{inr(price)}</div>
-                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>â‚¹{pw}/wash · 30 washes/month</div>
+                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>₹{pw}/wash · 30 washes/month</div>
                             <div style={{borderTop:`1px dashed ${br}`,paddingTop:10}}>
                               {plan.features.slice(0,5).map((f,fi)=>(
                                 <div key={fi} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
@@ -1279,9 +1279,9 @@ export function CustomerPlanPage() {
                         <span style={{fontSize:18}}>{p.badge}</span>
                         <div>
                           <div style={{fontWeight:700,color:"#92400e"}}>{p.name}</div>
-                          <div style={{fontSize:12,color:"#d97706"}}>{p.type==="percent"?`${p.value}% off applied automatically`:p.type==="flat"?`â‚¹${p.value} off applied automatically`:"Offer applied"} â€” {p.description}</div>
+                          <div style={{fontSize:12,color:"#d97706"}}>{p.type==="percent"?`${p.value}% off applied automatically`:p.type==="flat"?`₹${p.value} off applied automatically`:"Offer applied"} â€” {p.description}</div>
                         </div>
-                        <div style={{marginLeft:"auto",fontWeight:800,color:"#d97706",fontSize:15}}>-â‚¹{p.type==="percent"?Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100):p.value}</div>
+                        <div style={{marginLeft:"auto",fontWeight:800,color:"#d97706",fontSize:15}}>-₹{p.type==="percent"?Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100):p.value}</div>
                       </div>
                     ))}
                   </div>
@@ -1299,7 +1299,7 @@ export function CustomerPlanPage() {
                   <div style={{padding:"8px 12px",background:couponResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${couponResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                     <span>{couponResult.valid?"❌…":"âŒ"}</span>
                     <span style={{color:couponResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
-                      {couponResult.valid?`Coupon applied â€” â‚¹${couponResult.discount} off your order`:couponResult.error}
+                      {couponResult.valid?`Coupon applied â€” ₹${couponResult.discount} off your order`:couponResult.error}
                     </span>
                     {couponResult.valid&&<button onClick={()=>{setCouponResult(null);setCouponInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>❌•</button>}
                   </div>
@@ -1317,7 +1317,7 @@ export function CustomerPlanPage() {
                   <div style={{padding:"8px 12px",background:referralResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${referralResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8}}>
                     <span>{referralResult.valid?"🎏":"âŒ"}</span>
                     <span style={{color:referralResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
-                      {referralResult.valid?`Referral applied â€” â‚¹${referralResult.discount} off! You and your friend both benefit 🎏‰`:referralResult.error}
+                      {referralResult.valid?`Referral applied â€” ₹${referralResult.discount} off! You and your friend both benefit 🎏‰`:referralResult.error}
                     </span>
                     {referralResult.valid&&<button onClick={()=>{setReferralResult(null);setReferralInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>❌•</button>}
                   </div>
