@@ -1,6 +1,6 @@
 ﻿import React, { useState } from "react";
-import { planSyncService } from "../services/planSyncService";
-import { toast } from "sonner";
+
+
 
 export function DiscountsOffersPage() {
   const [activeTab, setActiveTab] = useState<"coupons"|"promotions"|"referrals"|"sync">("coupons");
@@ -33,3 +33,4 @@ export function DiscountsOffersPage() {
     </div>
   );
 }
+
