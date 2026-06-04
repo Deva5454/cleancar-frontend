@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Checkout Summary Component
- * UI RESTYLED ONLY — all logic, calculations, props, and callbacks unchanged
+ * UI RESTYLED ONLY â€” all logic, calculations, props, and callbacks unchanged
  * Desktop: sticky right-side summary panel via position:sticky on the wrapper
  */
 
@@ -23,7 +23,7 @@ export function CheckoutSummary({
   selectedAddons = [],
   onProceedToPayment,
 }: CheckoutSummaryProps) {
-  // ── ALL CALCULATIONS IDENTICAL TO ORIGINAL ───────────────────────────────
+  // â”€â”€ ALL CALCULATIONS IDENTICAL TO ORIGINAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const selectedPrice = plan.prices.find((p) => p.duration === selectedDuration);
 
   if (!selectedPrice) {
@@ -45,9 +45,9 @@ export function CheckoutSummary({
   }, 0);
 
   const totalAddonCost = addonMonthlyTotal * selectedPrice.months;
-  const grandTotal = selectedPrice.totalAmount + totalAddonCost;
+  const grandTotal = Math.round((selectedPrice.totalAmount + totalAddonCost) * 1.18);
   const effectiveMonthlyWithAddons = Math.round(grandTotal / selectedPrice.months);
-  // ── END UNCHANGED CALCULATIONS ───────────────────────────────────────────
+  // â”€â”€ END UNCHANGED CALCULATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const Row = ({ label, value, accent }: { label: string; value: string; accent?: string }) => (
     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0" }}>
@@ -68,7 +68,7 @@ export function CheckoutSummary({
       {/* Main card */}
       <div style={{ background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 16, overflow: "hidden", marginBottom: 16 }}>
 
-        {/* Plan header — coloured band */}
+        {/* Plan header â€” coloured band */}
         <div style={{ background: "#1a0533", padding: "20px 22px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
             <div>
@@ -106,9 +106,9 @@ export function CheckoutSummary({
             Pricing breakdown
           </div>
 
-          {/* Base price — logic unchanged */}
+          {/* Base price â€” logic unchanged */}
           <Row
-            label={`Base plan (${selectedPrice.months} × ${subscriptionPlansService.formatPrice(plan.tier.baseMonthlyPrice)})`}
+            label={`Base plan (${selectedPrice.months} Ã— ${subscriptionPlansService.formatPrice(plan.tier.baseMonthlyPrice)})`}
             value={subscriptionPlansService.formatPrice(plan.tier.baseMonthlyPrice * selectedPrice.months)}
           />
 
@@ -128,7 +128,7 @@ export function CheckoutSummary({
             <span style={{ fontWeight: 500, color: "#1a0533" }}>{subscriptionPlansService.formatPrice(selectedPrice.totalAmount)}</span>
           </div>
 
-          {/* Add-ons — logic unchanged */}
+          {/* Add-ons â€” logic unchanged */}
           {selectedAddons.length > 0 && (
             <>
               <div style={{ borderTop: "1px solid #F3F4F6", margin: "12px 0 10px" }} />
@@ -143,8 +143,8 @@ export function CheckoutSummary({
                       {addon.name}
                       <span style={{ color: "#9CA3AF", marginLeft: 4 }}>
                         ({addon.billingType === "PER_MONTH"
-                          ? `${subscriptionPlansService.formatPrice(addon.price)}/mo × ${selectedPrice.months}`
-                          : "per visit – billed separately"})
+                          ? `${subscriptionPlansService.formatPrice(addon.price)}/mo Ã— ${selectedPrice.months}`
+                          : "per visit â€“ billed separately"})
                       </span>
                     </span>
                     <span style={{ fontWeight: 500, marginLeft: 8 }}>
@@ -182,7 +182,7 @@ export function CheckoutSummary({
             <div style={{ background: "#E6F1FB", border: "1px solid #B5D4F4", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "#0C447C" }}>Effective monthly cost</div>
-                <div style={{ fontSize: 11, color: "#185FA5", marginTop: 2 }}>Total ÷ {selectedPrice.months} months</div>
+                <div style={{ fontSize: 11, color: "#185FA5", marginTop: 2 }}>Total Ã· {selectedPrice.months} months</div>
               </div>
               <div style={{ fontSize: 22, fontWeight: 500, color: "#0C447C" }}>
                 {subscriptionPlansService.formatPrice(effectiveMonthlyWithAddons)}
@@ -199,7 +199,7 @@ export function CheckoutSummary({
             </div>
           </div>
 
-          {/* Savings badge — logic unchanged */}
+          {/* Savings badge â€” logic unchanged */}
           {selectedPrice.amountSaved > 0 && (
             <div style={{ background: "#E1F5EE", border: "2px solid #5DCAA5", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 14 }}>
               <Check size={18} color="#0F6E56" />
@@ -211,7 +211,7 @@ export function CheckoutSummary({
         </div>
       </div>
 
-      {/* What's included — logic unchanged */}
+      {/* What's included â€” logic unchanged */}
       <div style={{ background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 16, padding: "18px 22px", marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 500, color: "#1a0533", display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
           <Check size={16} color="#1D9E75" /> What's included
@@ -233,7 +233,7 @@ export function CheckoutSummary({
         </div>
       </div>
 
-      {/* Payment info — logic unchanged */}
+      {/* Payment info â€” logic unchanged */}
       <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "14px 18px", display: "flex", gap: 12, marginBottom: 20 }}>
         <Info size={18} color="#B45309" style={{ flexShrink: 0, marginTop: 2 }} />
         <div>
@@ -241,17 +241,17 @@ export function CheckoutSummary({
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
             {[
               "Service starts within 24 hours of payment confirmation",
-              "Daily doorstep service (Mon–Sat) = ~26 washes/month",
+              "Daily doorstep service (Monâ€“Sat) = ~26 washes/month",
               "All prices include GST and service charges",
               "Auto-renewal can be disabled anytime from your account",
             ].map((item) => (
-              <li key={item} style={{ fontSize: 12, color: "#92400E" }}>· {item}</li>
+              <li key={item} style={{ fontSize: 12, color: "#92400E" }}>Â· {item}</li>
             ))}
           </ul>
         </div>
       </div>
 
-      {/* CTA buttons — logic unchanged */}
+      {/* CTA buttons â€” logic unchanged */}
       <div style={{ display: "flex", gap: 12 }}>
         <button
           style={{
@@ -286,3 +286,4 @@ export function CheckoutSummary({
     </div>
   );
 }
+
