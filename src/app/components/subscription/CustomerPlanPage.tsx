@@ -32,12 +32,12 @@ export interface AddonConfig { id: string; name: string; price: number; unit: st
 
 export const DEFAULT_CONFIG: PlanPageConfig = {
   brand: { name: "249 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
-  hero: { badge: "ðŸš— Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash â€” photos after every wash on WhatsApp." },
+  hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash â€” photos after every wash on WhatsApp." },
   trustItems: ["ðŸ“¸ Before & after photos","ðŸ”„ Free re-wash 24h","ðŸ  We come to you","ðŸ“ž Cancel anytime"],
   trustStrip: ["ðŸ”’ Razorpay secured","ðŸ“¸ Before & after photos","ðŸ”„ Free re-wash 24h","ðŸ“ž 7-day cancellation","ðŸ  Home, office, society"],
   vehicleCategories: [
-    { id: "hatchback", label: "Hatchback", icon: "ðŸš—" },
-    { id: "suv", label: "SUV / Sedan", icon: "ðŸš™" },
+    { id: "hatchback", label: "Hatchback", icon: "🚗" },
+    { id: "suv", label: "SUV / Sedan", icon: "🚙" },
     { id: "luxury", label: "Luxury SUV", icon: "ðŸŽï¸" },
   ],
   carModelMap: {
@@ -53,10 +53,10 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {code:"395002",label:"Rander / Jahangirpura"},{code:"394510",label:"Althan / Dumas Road"},
   ],
   monthlyPlans: [
-    { id:"water", name:"Express Wash", icon:"âš¡", tagline:"Clean every morning before you wake up",
+    { id:"water", name:"Express Wash", icon:"⚡", tagline:"Clean every morning before you wake up",
       popular:false, features:[{text:"Exterior rinse & wipe",included:true},{text:"Tyre & rim wipe",included:true},{text:"Wiper fluid top-up",included:true},{text:"Before & after photo",included:true},{text:"Shampoo wash",included:false},{text:"Interior clean",included:false}],
       prices:{hatchback:1249,suv:1499,luxury:1999} },
-    { id:"shampoo", name:"Smart Wash", icon:"âœ¨", tagline:"Full shampoo wash, showroom fresh daily",
+    { id:"shampoo", name:"Smart Wash", icon:"✨", tagline:"Full shampoo wash, showroom fresh daily",
       popular:true, features:[{text:"Full shampoo exterior",included:true},{text:"Tyre & rim scrub",included:true},{text:"Wiper fluid top-up",included:true},{text:"Before & after photo",included:true},{text:"Interior wipe-down",included:true},{text:"Wax polish",included:false}],
       prices:{hatchback:1599,suv:1999,luxury:2699} },
     { id:"wax", name:"Elite Wash", icon:"ðŸ‘‘", tagline:"Premium daily care â€” showroom feel every day",
@@ -65,8 +65,8 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
   packs: [
     { id:"onetime", name:"One-Time", icon:"1ï¸âƒ£", description:"Single visit. No expiry. Pay & book on the day.", prices:{waterWash:{hatchback:199,suv:299,luxury:399},shampoo:{hatchback:299,suv:349,luxury:499},shampooWax:{hatchback:399,suv:499,luxury:699}}, discount:"Standard rate", validityDays:null },
-    { id:"pack2",   name:"Pack of 2", icon:"ðŸ”", description:"2 visits Â· 8% off single price Â· Valid 20 days Â· Mix wash types Â· 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
-    { id:"pack4",   name:"Pack of 4", icon:"ðŸ“…", description:"4 visits Â· 15% off single price Â· Valid 30 days Â· Mix wash types Â· 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
+    { id:"pack2",   name:"Pack of 2", icon:"ðŸ”", description:"2 visits · 8% off single price · Valid 20 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
+    { id:"pack4",   name:"Pack of 4", icon:"ðŸ“…", description:"4 visits · 15% off single price · Valid 30 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
   ],
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
@@ -76,7 +76,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
   comboBundles: [
     {id:"andar-se-sundar", name:"Andar Se Sundar ðŸŒŸ", addonIds:["vacuum","dashboard"], prices:{hatchback:299,suv:399,luxury:549}, savings:{hatchback:49,suv:49,luxury:49}},
-    {id:"showroom-shine",  name:"Showroom Shine Pack âœ¨", addonIds:["waxpolish","vacuum","dashboard"], prices:{hatchback:849,suv:1099,luxury:1399}, savings:{hatchback:198,suv:248,luxury:348}},
+    {id:"showroom-shine",  name:"Showroom Shine Pack ✨", addonIds:["waxpolish","vacuum","dashboard"], prices:{hatchback:849,suv:1099,luxury:1399}, savings:{hatchback:198,suv:248,luxury:348}},
   ],
   addons: [
     {id:"vacuum",    name:"Interior Deep Vacuum",     price:199,unit:"per visit",prices:{hatchback:199,suv:249,luxury:349},description:"Seats, mats, footwells & boot area cleaned"},
@@ -250,7 +250,7 @@ function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
 // â”€â”€â”€ LIVE COST PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selectedPack,planPrice,packPrice,addons,addonTotal,total,commitment,commitments,cfg,vehicleCat,basePrice,couponDiscount=0,referralDiscount=0,promoDiscount=0,couponCode,referralCode,commitMonths=1,addonFreqMonth=4,addonGrandTotal=0}: any) {
   const planObj = cfg.monthlyPlans.find((p:any)=>p.id===selectedPlan);
-  const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"ðŸš—";
+  const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"🚗";
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
   const discountPct = commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
@@ -553,7 +553,7 @@ export function CustomerPlanPage() {
       const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} â€” Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
-      const waMsg=encodeURIComponent(`Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! ðŸš—âœ¨`);
+      const waMsg=encodeURIComponent(`Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
       if(notifyPref==="whatsapp"||notifyPref==="both"){(window as any)._pendingWAInvoice=`https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;}
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
@@ -586,10 +586,10 @@ export function CustomerPlanPage() {
 
     const subheadline = isMonthly
       ? `Your ${planLine} starts within 2 working days`
-      : isPack ? `Valid for ${packValidity} days Â· ${packVisits} visits to use`
+      : isPack ? `Valid for ${packValidity} days · ${packVisits} visits to use`
       : `Scheduled for ${oneTimeDate} at ${oneTimeHour}`;
 
-    const heroEmoji = isMonthly ? "ðŸš—" : isPack ? "ðŸ“¦" : "ðŸª£";
+    const heroEmoji = isMonthly ? "🚗" : isPack ? "ðŸ“¦" : "ðŸª£";
     const heroBg = isMonthly ? "linear-gradient(135deg,#1e40af,#6366f1)"
       : isPack ? "linear-gradient(135deg,#059669,#10b981)"
       : "linear-gradient(135deg,#d97706,#f59e0b)";
@@ -599,7 +599,7 @@ export function CustomerPlanPage() {
       isMonthly ? [
         {icon:"ðŸ“²",title:"Receipt on WhatsApp",detail:"Invoice sent immediately to your number",color:"#25d366"},
         {icon:"ðŸ“ž",title:"Confirmation call",detail:"Our team calls within 1 working day to confirm your time slot",color:"#6366f1"},
-        {icon:"ðŸš—",title:"Service begins",detail:`Your washer starts within 2 working days at your preferred time: ${prefTime}`,color:"#f59e0b"},
+        {icon:"🚗",title:"Service begins",detail:`Your washer starts within 2 working days at your preferred time: ${prefTime}`,color:"#f59e0b"},
         {icon:"ðŸ“¸",title:"Before & after photos",detail:"WhatsApp photo after every wash. Ask for a re-wash within 24h if unsatisfied.",color:"#06b6d4"},
         {icon:"ðŸ”„",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel anytime with 7 days notice.`,color:"#8b5cf6"},
       ] : isPack ? [
@@ -610,7 +610,7 @@ export function CustomerPlanPage() {
         {icon:"âš ï¸",title:"Pack rules",detail:"One vehicle only. Mix wash types freely. Pack cannot be split or shared.",color:"#f59e0b"},
       ] : [
         {icon:"ðŸ“²",title:"Booking confirmed on WhatsApp",detail:"Full details sent immediately to your number",color:"#25d366"},
-        {icon:"ðŸš—",title:"Washer arrives",detail:`We'll be at your address on ${oneTimeDate} at ${oneTimeHour}`,color:"#6366f1"},
+        {icon:"🚗",title:"Washer arrives",detail:`We'll be at your address on ${oneTimeDate} at ${oneTimeHour}`,color:"#6366f1"},
         {icon:"ðŸ“¸",title:"Before & after photos",detail:"Photos sent on WhatsApp when the wash is complete",color:"#06b6d4"},
         {icon:"ðŸ”„",title:"Free re-wash guarantee",detail:"Not satisfied? We redo it within 24 hours at no extra charge",color:"#10b981"},
       ];
@@ -704,7 +704,7 @@ export function CustomerPlanPage() {
       {/* Top bar */}
       <div style={{background:"linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)",padding:"14px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 4px 20px rgba(30,27,75,0.3)"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>ðŸš—</div>
+          <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚗</div>
           <div>
             <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>249 Carwashing</div>
             <div style={{fontSize:10,color:"rgba(199,210,254,0.6)",letterSpacing:0.5}}>SECURE CHECKOUT</div>
@@ -741,9 +741,9 @@ export function CustomerPlanPage() {
               <div style={{marginBottom:24}}>
                 <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Car model or brand name</label>
                 <div style={{position:"relative"}}>
-                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>ðŸš—</span>
+                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>🚗</span>
                   <input className="cpp-input" value={carModel} onChange={e=>setCarModel(e.target.value)}
-                    placeholder="Swift, Creta, Fortuner, Innovaâ€¦"
+                    placeholder="Swift, Creta, Fortuner, Innova…"
                     style={{paddingLeft:48,border:`2px solid ${detectedCat?"#6366f1":"rgba(148,163,184,0.3)"}`,boxShadow:detectedCat?"0 0 0 4px rgba(99,102,241,0.1)":undefined}} />
                 </div>
                 {detectedCat && (
@@ -803,7 +803,7 @@ export function CustomerPlanPage() {
 
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="cpp-btn-primary" onClick={()=>goTo(2)} disabled={!step1Ok}>
-                  Continue â†’ {step1Ok&&<span style={{marginLeft:4}}>âœ“</span>}
+                  Continue ←’ {step1Ok&&<span style={{marginLeft:4}}>âœ“</span>}
                 </button>
               </div>
             </div>
@@ -864,8 +864,8 @@ export function CustomerPlanPage() {
               </div>
 
               <div style={{display:"flex",justifyContent:"space-between"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(1)}>â† Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(3)} disabled={!step2OkForPlanning}>Continue â†’ Plan</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(1)}>← Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(3)} disabled={!step2OkForPlanning}>Continue ←’ Plan</button>
               </div>
             </div>
           )}
@@ -910,7 +910,7 @@ export function CustomerPlanPage() {
                             <div style={{fontSize:36,marginBottom:8,filter:`drop-shadow(0 4px 8px ${ac}40)`}}>{plan.icon}</div>
                             <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4}}>{plan.name}</div>
                             <div style={{fontSize:26,fontWeight:800,color:sel?"#4f46e5":ac,marginBottom:2,fontFamily:"'Playfair Display',serif"}}>{inr(price)}</div>
-                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>â‚¹{pw}/wash Â· 30 washes/month</div>
+                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>â‚¹{pw}/wash · 30 washes/month</div>
                             <div style={{borderTop:`1px dashed ${br}`,paddingTop:10}}>
                               {plan.features.slice(0,5).map((f,fi)=>(
                                 <div key={fi} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
@@ -980,14 +980,14 @@ export function CustomerPlanPage() {
                             {dp>0&&<div style={{fontSize:22,fontWeight:800,color:colors[i],fontFamily:"'Playfair Display',serif",margin:"6px 0"}}>{inr(dp)}</div>}
                             {dp>0&&pack.id!=="onetime"&&(
                               <div style={{fontSize:11,fontWeight:600,marginBottom:4,opacity:0.85,color:colors[i]}}>
-                                {_washRef.current==="waterWash"?"ðŸ’§ Water Wash":_washRef.current==="shampooWax"?"âœ¨ Shampoo+Wax":"ðŸ§´ Shampoo"}
+                                {_washRef.current==="waterWash"?"ðŸ’§ Water Wash":_washRef.current==="shampooWax"?"✨ Shampoo+Wax":"ðŸ§´ Shampoo"}
                               </div>
                             )}
                             {(pack as any).discount&&<span className="cpp-badge" style={{background:"rgba(16,185,129,0.12)",color:"#059669"}}>{(pack as any).discount}</span>}
                             {pack.id==="onetime"&&activeCat&&(
                               <div style={{marginTop:10,borderTop:"1px dashed #e2e8f0",paddingTop:8}}>
                                 <div style={{fontSize:10,color:"#94a3b8",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>For your {vehicleCat==="suv"?"SUV / Sedan":vehicleCat==="luxury"?"Luxury SUV":"Hatchback"}</div>
-                                {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","âœ¨ Shampoo+Wax"]].map(([wt,wlbl])=>{
+                                {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","✨ Shampoo+Wax"]].map(([wt,wlbl])=>{
                                   const np=(pack as any).prices;const wObj=np?.[wt];const p=wObj?.[vehicleCat]??wObj?.hatchback??0;
                                   const isSel=_washRef.current===wt;
                                   return p>0?(<div key={wt} onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt as string);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",borderRadius:6,background:isSel?"rgba(99,102,241,0.1)":"transparent",cursor:"pointer"}}><span style={{fontSize:11,color:isSel?"#4f46e5":"#64748b",fontWeight:isSel?700:400}}>{isSel?"âœ“ ":""}{wlbl}</span><span style={{fontSize:12,fontWeight:800,color:isSel?"#4f46e5":"#0f172a"}}>{inr(p)}</span></div>):null;
@@ -1007,7 +1007,7 @@ export function CustomerPlanPage() {
                                 {[
                                   {wt:"waterWash", label:"ðŸ’§ Water Wash",    icon:"ðŸ’§"},
                                   {wt:"shampoo",   label:"ðŸ§´ Shampoo",        icon:"ðŸ§´"},
-                                  {wt:"shampooWax",label:"âœ¨ Shampoo + Wax",  icon:"âœ¨"},
+                                  {wt:"shampooWax",label:"✨ Shampoo + Wax",  icon:"✨"},
                                 ].map(({wt,label})=>{
                                   const pr=(pack as any).prices?.[wt];
                                   const p=vehicleCat==="suv"?pr?.suv:vehicleCat==="luxury"?pr?.luxury:pr?.hatchback;
@@ -1036,7 +1036,7 @@ export function CustomerPlanPage() {
                                   const days=pack.id==="pack2"?20:30;
                                   return pv?(
                                     <div style={{marginTop:6,padding:"5px 8px",background:"rgba(16,185,129,0.08)",borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                      <span style={{fontSize:10,color:"#065f46",fontWeight:600}}>{inr(Math.round(pv/n))}/visit Â· {pack.id==="pack2"?"2 visits":"4 visits"}</span>
+                                      <span style={{fontSize:10,color:"#065f46",fontWeight:600}}>{inr(Math.round(pv/n))}/visit · {pack.id==="pack2"?"2 visits":"4 visits"}</span>
                                       <span style={{fontSize:10,color:"#94a3b8"}}>Valid {days}d</span>
                                     </div>
                                   ):null;
@@ -1057,7 +1057,7 @@ export function CustomerPlanPage() {
                     <div style={{padding:"16px 20px",background:"linear-gradient(135deg,#f5f3ff,#ede9fe)",borderRadius:16,marginBottom:24,border:"2px solid #ddd6fe"}}>
                       <div style={{fontSize:13,fontWeight:700,color:"#4338ca",marginBottom:10}}>Select wash type for this pack</div>
                       <div style={{display:"flex",gap:10}}>
-                        {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","âœ¨ Shampoo + Wax"]].map(([id,lbl])=>(
+                        {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","✨ Shampoo + Wax"]].map(([id,lbl])=>(
                           <button key={id} onClick={()=>setSelectedWashType(id as string)}
                             style={{flex:1,padding:"10px 8px",borderRadius:10,border:`2px solid ${_washRef.current===id?"#6366f1":"rgba(148,163,184,0.3)"}`,background:_washRef.current===id?"white":"transparent",color:"#0f172a",fontWeight:_washRef.current===id?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",boxShadow:_washRef.current===id?"0 4px 12px rgba(99,102,241,0.2)":undefined,transition:"all 0.2s"}}>
                             {lbl}
@@ -1070,8 +1070,8 @@ export function CustomerPlanPage() {
               )}
 
               <div style={{display:"flex",justifyContent:"space-between"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(2)}>â† Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(4)} disabled={!step3Ok}>Continue â†’ Add-ons</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(2)}>← Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(4)} disabled={!step3Ok}>Continue ←’ Add-ons</button>
               </div>
             </div>
           )}
@@ -1167,9 +1167,9 @@ export function CustomerPlanPage() {
               {addons.length===0&&<div style={{textAlign:"center",padding:"16px",color:"#94a3b8",fontSize:13,marginTop:12}}>No add-ons selected. You can skip this step.</div>}
 
               <div style={{display:"flex",justifyContent:"space-between",marginTop:28}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(3)}>â† Back</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(3)}>← Back</button>
                 <button className="cpp-btn-primary" onClick={()=>goTo(5)}>
-                  Continue â†’ Details {addons.length>0&&`(+${addons.length} add-on${addons.length>1?"s":""})`}
+                  Continue ←’ Details {addons.length>0&&`(+${addons.length} add-on${addons.length>1?"s":""})`}
                 </button>
               </div>
             </div>
@@ -1201,7 +1201,7 @@ export function CustomerPlanPage() {
                 <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Full address *</label>
                 <div style={{position:"relative"}}>
                   <span style={{position:"absolute",left:14,top:14,fontSize:15}}>ðŸ </span>
-                  <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmarkâ€¦" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
+                  <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmark…" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
                 </div>
               </div>
 
@@ -1324,8 +1324,8 @@ export function CustomerPlanPage() {
                 )}
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(4)}>â† Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(6)} disabled={!step5Ok}>Continue â†’ Review</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(4)}>← Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(6)} disabled={!step5Ok}>Continue ←’ Review</button>
               </div>
             </div>
           )}
@@ -1338,10 +1338,10 @@ export function CustomerPlanPage() {
               {/* Order card */}
               <div style={{borderRadius:18,overflow:"hidden",marginBottom:24,boxShadow:"0 4px 20px rgba(0,0,0,0.08)"}}>
                 {[
-                  {icon:"ðŸš—",label:"Vehicle",value:`${cfg.vehicleCategories.find(c=>c.id===activeCat)?.icon} ${catLabel}`,bg:"#eff6ff"},
+                  {icon:"🚗",label:"Vehicle",value:`${cfg.vehicleCategories.find(c=>c.id===activeCat)?.icon} ${catLabel}`,bg:"#eff6ff"},
                   {icon:"ðŸ“",label:"Area",value:`${cfg.serviceablePincodes.find(p=>p.code===pincode)?.label} â€” ${pincode}`,bg:"#f0fdf4"},
                   {icon:"ðŸ“‹",label:"Plan",value:selectedPlan?`${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.icon} ${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.name} â€” ${inr(planPrice)}/mo${commitMonths>1?" Ã— "+commitMonths+"mo = "+inr(planPrice*commitMonths):""}`:`${cfg.packs.find(p=>p.id===selectedPack)?.name} â€” ${inr(packPrice)}`,bg:"#f5f3ff"},
-                  ...(addons.length>0?[{icon:"âœ¨",label:"Add-ons",value:addons.map(id=>cfg.addons.find(a=>a.id===id)?.name).join(", "),bg:"#fffbeb"}]:[]),
+                  ...(addons.length>0?[{icon:"✨",label:"Add-ons",value:addons.map(id=>cfg.addons.find(a=>a.id===id)?.name).join(", "),bg:"#fffbeb"}]:[]),
                   {icon:"ðŸ‘¤",label:"Name",value:custName,bg:"#f8fafc"},
                   {icon:"ðŸ“±",label:"Mobile",value:custMobile,bg:"#f8fafc"},
                   {icon:"â°",label:"Time",value:isOneTime?`${oneTimeDate} at ${oneTimeHour}`:prefTime,bg:"#f8fafc"},
@@ -1387,13 +1387,13 @@ export function CustomerPlanPage() {
               </div>
 
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(5)}>â† Back</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(5)}>← Back</button>
                 <button
                   onClick={handleSubmit}
                   disabled={!step6Ok||isProcessing}
                   style={{padding:"16px 44px",borderRadius:50,border:"none",cursor:(!step6Ok||isProcessing)?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:16,background:(!step6Ok||isProcessing)?"#cbd5e1":"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",boxShadow:(!step6Ok||isProcessing)?"none":"0 8px 24px rgba(99,102,241,0.45)",transition:"all 0.2s",display:"flex",alignItems:"center",gap:10}}>
                   {isProcessing?(
-                    <><div style={{width:18,height:18,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"white",borderRadius:"50%",animation:"spin 0.7s linear infinite"}} /> Processingâ€¦</>
+                    <><div style={{width:18,height:18,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"white",borderRadius:"50%",animation:"spin 0.7s linear infinite"}} /> Processing…</>
                   ):(
                     <>ðŸ”’ Pay {inr(Math.round(finalTotal*1.18))} Securely</>
                   )}
