@@ -7,7 +7,7 @@ import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
 
 // Retry wrapper â€” if chunk 404s (stale cache after deploy), reload once
 function retryLazy<T>(fn: () => Promise<T>): () => Promise<T> {
-  return () => fn().catch(() => { window.location.reload(); return fn(); });
+  return () => fn().catch(() => new Promise(resolve => setTimeout(() => resolve(fn()), 1500)));
 }
 
 // Skeleton loader â€” looks like real content, not a broken spinner
