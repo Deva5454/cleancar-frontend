@@ -600,7 +600,7 @@ export const router = createHashRouter([
       { path: "buy",   element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerPlanPage /></Suspense></ErrorBoundary> },
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><SuperAdminPlanEditor /></ErrorBoundary> },
-      { path: "admin/discounts", element: <ErrorBoundary><DiscountsOffersPage /></ErrorBoundary> },
+      { path: "admin/discounts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><DiscountsOffersPage /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 
       // Client Portal - Read-only client interface
@@ -630,3 +630,5 @@ export const router = createHashRouter([
     ],
   },
 ]);
+
+
