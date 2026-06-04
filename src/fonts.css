@@ -2,7 +2,7 @@
 /* Loaded in main.tsx via @fontsource/geist CSS imports */
 
 :root {
-  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+ --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   --font-mono: 'Geist Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
 }
 
@@ -12,4 +12,8 @@
 
 code, pre, kbd, samp, .font-mono {
   font-family: var(--font-mono);
+}
+/* Ensure emoji render correctly everywhere */
+* {
+  font-variant-emoji: text;
 }
