@@ -1,4 +1,4 @@
-﻿// CustomerPlanPage.tsx â€” Premium Redesign v2
+// CustomerPlanPage.tsx â€” Premium Redesign v2
 // Classy, colorful, interactive checkout with glassmorphism, gradients & animations
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";

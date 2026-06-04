@@ -1,4 +1,4 @@
-﻿// cache-bust: 20260604-123437 // Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+// cache-bust: 20260604-123437 // Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createHashRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";

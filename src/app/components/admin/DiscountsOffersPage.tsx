@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 
 export function DiscountsOffersPage() {
   const [tab, setTab] = useState("coupons");

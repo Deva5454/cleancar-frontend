@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Navigation Configuration - Master Navigation Tree
  *
  * Single source of truth for all navigation items in the application.

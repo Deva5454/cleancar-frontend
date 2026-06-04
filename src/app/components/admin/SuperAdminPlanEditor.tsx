@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 /**
  * SuperAdminPlanEditor.tsx
  * Full editor for the customer-facing plan page.

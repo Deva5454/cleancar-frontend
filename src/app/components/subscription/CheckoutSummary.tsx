@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Checkout Summary Component
  * UI RESTYLED ONLY â€” all logic, calculations, props, and callbacks unchanged
  * Desktop: sticky right-side summary panel via position:sticky on the wrapper
