@@ -346,20 +346,26 @@ function PromotionsTab() {
   );
 }
 
-// ─── REFERRALS TAB ────────────────────────────────────────────────────────────
+// ─── REFERRALS TAB (Updated with 400-day vehicle rule + loophole alerts) ─────
 function ReferralsTab() {
-  const defaultProgram: ReferralProgram = {
+  const defaultProgram = {
     enabled: true, referrerReward: 200, referrerRewardType: "flat",
     refereeDiscount: 100, refereeDiscountType: "flat", minRefereeOrderValue: 500,
-    maxRewardsPerReferrer: 10, rewardValidity: 90, termsText: "Refer a friend and earn ₹200 credit when they subscribe.",
+    maxRewardsPerReferrer: 10, rewardValidity: 90,
+    vehicleLockoutDays: 400,   // ← NEW: days before same vehicle can be referred again
+    phoneLockoutDays: 400,      // ← NEW: days before same phone can use another referral
+    requireVehicleNumber: true, // ← NEW: vehicle number mandatory on checkout
+    termsText: "Refer a friend and earn ₹200 credit when they subscribe.",
   };
 
-  const getProgram = (): ReferralProgram => {
-    try { return JSON.parse(localStorage.getItem("cleancar_referral_program") || "null") || defaultProgram; } catch { return defaultProgram; }
+  const getProgram = () => {
+    try { return { ...defaultProgram, ...JSON.parse(localStorage.getItem("cleancar_referral_program") || "null") }; }
+    catch { return defaultProgram; }
   };
 
-  const [program, setProgram] = useState<ReferralProgram>(getProgram);
+  const [program, setProgram] = useState(getProgram());
   const [saved, setSaved] = useState(false);
+  const [activeSection, setActiveSection] = useState<"settings"|"records"|"loopholes">("settings");
 
   const getReferrals = () => {
     try { return JSON.parse(localStorage.getItem("cleancar_referrals") || "[]"); } catch { return []; }
@@ -372,84 +378,212 @@ function ReferralsTab() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  // ── Loophole risk analysis ──────────────────────────────────────────────────
+  const loopholes = [
+    {
+      risk: "HIGH",
+      icon: "🚗",
+      title: "Same vehicle, different phone numbers",
+      desc: "A customer cancels, hands the car to a family member, who signs up with a new number using a referral code on the same vehicle.",
+      impact: "Free referral discount every time the subscription is re-started under a new account.",
+      fix: "Enforced ✅ — vehicle number is locked for 400 days regardless of phone number.",
+      fixed: true,
+    },
+    {
+      risk: "HIGH",
+      icon: "📱",
+      title: "Same phone, multiple vehicles",
+      desc: "One person buys subscriptions for multiple vehicles (e.g. family members' cars) and uses a referral code for each.",
+      impact: "Each vehicle gets the referee discount. If they're also the referrer, they earn reward credit per vehicle.",
+      fix: "Partially mitigated — phone lockout of 400 days applies. But consider limiting referee discount to 1 per phone lifetime.",
+      fixed: false,
+    },
+    {
+      risk: "HIGH",
+      icon: "🤝",
+      title: "TSE self-referral via family members",
+      desc: "A TSE shares their own employee ID as a referral code with their own family members who subscribe, earning incentive credit.",
+      impact: "TSE earns incentive on fake conversions. Family gets discount. Company loses on both ends.",
+      fix: "Add rule: TSE cannot refer customers in their own household (same address). Flag if TSE referral code is used by same pincode 3+ times.",
+      fixed: false,
+    },
+    {
+      risk: "HIGH",
+      icon: "🔄",
+      title: "Cancel and re-subscribe to get referral discount again",
+      desc: "Customer subscribes using referral discount, cancels after 1 month, waits, then re-subscribes using a new referral code.",
+      impact: "Repeated referral discounts on the same customer who was never truly 'new'.",
+      fix: "Enforced ✅ — 400-day lockout on both vehicle and phone prevents this for over a year.",
+      fixed: true,
+    },
+    {
+      risk: "MEDIUM",
+      icon: "💳",
+      title: "Coupon stacking with referral codes",
+      desc: "A customer applies both a coupon code (e.g. SAVE20) AND a referral code at checkout, getting double discounts.",
+      impact: "Company gives away more discount than intended on a single order.",
+      fix: "Add rule: coupon and referral cannot be applied simultaneously. Show message: 'Only one discount can be applied per order.'",
+      fixed: false,
+    },
+    {
+      risk: "MEDIUM",
+      icon: "📋",
+      title: "TSE enters fake vehicle numbers",
+      desc: "A TSE creates a referral lead with a random/fake vehicle number (e.g. GJ01XX0000) to bypass the vehicle lockout check.",
+      impact: "Vehicle lockout becomes ineffective. Customer gets discount without proper tracking.",
+      fix: "Validate vehicle number format via regex (e.g. must match Indian registration format). Cross-check against existing customer database.",
+      fixed: false,
+    },
+    {
+      risk: "MEDIUM",
+      icon: "⏰",
+      title: "Referral code shared publicly on social media",
+      desc: "A TSE or customer posts their referral code on WhatsApp groups, Facebook, etc. reaching hundreds of people.",
+      impact: "Referral program costs spiral. Originally designed for personal 1-to-1 referrals.",
+      fix: "Set max referrals per referrer (already configurable). Also add IP/device fingerprint check — same device cannot be used for multiple referee signups.",
+      fixed: false,
+    },
+    {
+      risk: "LOW",
+      icon: "🎟️",
+      title: "Expired coupons being shared/reused",
+      desc: "Old coupon codes circulate in WhatsApp groups even after expiry. If validation is only frontend, the discount may still apply.",
+      impact: "Revenue leakage if backend doesn't validate coupon expiry server-side.",
+      fix: "Enforce ✅ coupon expiry check on every apply. Also add single-use coupons for high-value offers.",
+      fixed: true,
+    },
+    {
+      risk: "LOW",
+      icon: "🏠",
+      title: "Same address, multiple subscriptions via referrals",
+      desc: "A housing society with 100 flats — one resident refers all neighbours. Referrer earns ₹200 × 100 = ₹20,000 in credits.",
+      impact: "Technically valid use but creates unexpected liability if reward credits are redeemable.",
+      fix: "Set maxRewardsPerReferrer limit (already configurable). For societies, use a separate B2B pricing track.",
+      fixed: false,
+    },
+  ];
+
+  const riskColor = (r: string) => r === "HIGH" ? "#EF4444" : r === "MEDIUM" ? "#F59E0B" : "#6B7280";
+
   return (
     <div>
-      {/* Program Settings */}
-      <div style={{ background: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Referral Program Settings</div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-            <input type="checkbox" checked={program.enabled} onChange={e => setProgram(p => ({ ...p, enabled: e.target.checked }))} />
-            <span style={{ fontWeight: 700, color: program.enabled ? "#059669" : "#6B7280" }}>{program.enabled ? "Enabled" : "Disabled"}</span>
-          </label>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div>
-            <label style={lbl}>Referrer Reward (₹)</label>
-            <input style={inp} type="number" value={program.referrerReward} onChange={e => setProgram(p => ({ ...p, referrerReward: +e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Referee Discount (₹)</label>
-            <input style={inp} type="number" value={program.refereeDiscount} onChange={e => setProgram(p => ({ ...p, refereeDiscount: +e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Min Referee Order (₹)</label>
-            <input style={inp} type="number" value={program.minRefereeOrderValue} onChange={e => setProgram(p => ({ ...p, minRefereeOrderValue: +e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Max Rewards per Referrer (0=∞)</label>
-            <input style={inp} type="number" value={program.maxRewardsPerReferrer} onChange={e => setProgram(p => ({ ...p, maxRewardsPerReferrer: +e.target.value }))} />
-          </div>
-          <div>
-            <label style={lbl}>Reward Validity (days)</label>
-            <input style={inp} type="number" value={program.rewardValidity} onChange={e => setProgram(p => ({ ...p, rewardValidity: +e.target.value }))} />
-          </div>
-          <div style={{ gridColumn: "span 3" }}>
-            <label style={lbl}>Terms Text (shown on buy page)</label>
-            <input style={inp} value={program.termsText} onChange={e => setProgram(p => ({ ...p, termsText: e.target.value }))} />
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button onClick={handleSave} style={{ padding: "10px 24px", background: saved ? "#059669" : "#2563EB", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", transition: "background 0.2s" }}>
-            {saved ? "✓ Saved!" : "Save Settings"}
+      {/* Sub-nav */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 24, background: "#F3F4F6", borderRadius: 10, padding: 4, width: "fit-content" }}>
+        {[
+          { id: "settings", label: "⚙️ Program Settings" },
+          { id: "records", label: "📋 Referral Records" },
+          { id: "loopholes", label: "🔐 Security Rules" },
+        ].map(s => (
+          <button key={s.id} onClick={() => setActiveSection(s.id as any)}
+            style={{ padding: "8px 16px", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: activeSection === s.id ? 700 : 500, background: activeSection === s.id ? "white" : "transparent", color: activeSection === s.id ? "#111827" : "#6B7280", boxShadow: activeSection === s.id ? "0 1px 4px #0001" : "none" }}>
+            {s.label}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* Referral Records */}
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 12 }}>Referral History ({referrals.length})</div>
-      {referrals.length === 0 ? (
-        <EmptyState icon="🔗" title="No referrals yet" sub="Referral records appear here when customers use referral codes on the buy page" />
-      ) : (
-        <div style={{ border: "1.5px solid #E5E7EB", borderRadius: 12, overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#F9FAFB", borderBottom: "1.5px solid #E5E7EB" }}>
-                {["Referrer", "Code", "Referee", "Order", "Status", "Date"].map(h => (
-                  <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, color: "#374151", fontSize: 12 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {referrals.map((r: any, i: number) => (
-                <tr key={r.id} style={{ borderBottom: i < referrals.length - 1 ? "1px solid #F3F4F6" : "none" }}>
-                  <td style={{ padding: "12px 14px", fontWeight: 600 }}>{r.referrerName}</td>
-                  <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700 }}>{r.referralCode}</td>
-                  <td style={{ padding: "12px 14px" }}>{r.refereeName || "—"}</td>
-                  <td style={{ padding: "12px 14px" }}>{r.orderAmount ? fmt(r.orderAmount) : "—"}</td>
-                  <td style={{ padding: "12px 14px" }}>
-                    <Badge label={r.status} color={r.status === "rewarded" ? "#059669" : r.status === "converted" ? "#2563EB" : r.status === "expired" ? "#EF4444" : "#F59E0B"} />
-                  </td>
-                  <td style={{ padding: "12px 14px", color: "#6B7280", fontSize: 12 }}>{r.createdAt?.slice(0, 10)}</td>
+      {/* Program Settings */}
+      {activeSection === "settings" && (
+        <div style={{ background: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Referral Program Settings</div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={program.enabled} onChange={e => setProgram((p: any) => ({ ...p, enabled: e.target.checked }))} />
+              <span style={{ fontWeight: 700, color: program.enabled ? "#059669" : "#6B7280" }}>{program.enabled ? "Enabled" : "Disabled"}</span>
+            </label>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div><label style={lbl}>Referrer Reward (₹)</label><input style={inp} type="number" value={program.referrerReward} onChange={e => setProgram((p: any) => ({ ...p, referrerReward: +e.target.value }))} /></div>
+            <div><label style={lbl}>Referee Discount (₹)</label><input style={inp} type="number" value={program.refereeDiscount} onChange={e => setProgram((p: any) => ({ ...p, refereeDiscount: +e.target.value }))} /></div>
+            <div><label style={lbl}>Min Referee Order (₹)</label><input style={inp} type="number" value={program.minRefereeOrderValue} onChange={e => setProgram((p: any) => ({ ...p, minRefereeOrderValue: +e.target.value }))} /></div>
+            <div><label style={lbl}>Vehicle Lockout (days) 🚗</label><input style={inp} type="number" value={program.vehicleLockoutDays} onChange={e => setProgram((p: any) => ({ ...p, vehicleLockoutDays: +e.target.value }))} /></div>
+            <div><label style={lbl}>Phone Lockout (days) 📱</label><input style={inp} type="number" value={program.phoneLockoutDays} onChange={e => setProgram((p: any) => ({ ...p, phoneLockoutDays: +e.target.value }))} /></div>
+            <div><label style={lbl}>Max Rewards per Referrer</label><input style={inp} type="number" value={program.maxRewardsPerReferrer} onChange={e => setProgram((p: any) => ({ ...p, maxRewardsPerReferrer: +e.target.value }))} /></div>
+            <div><label style={lbl}>Reward Validity (days)</label><input style={inp} type="number" value={program.rewardValidity} onChange={e => setProgram((p: any) => ({ ...p, rewardValidity: +e.target.value }))} /></div>
+            <div style={{ gridColumn: "span 2", display: "flex", alignItems: "flex-end", gap: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={program.requireVehicleNumber} onChange={e => setProgram((p: any) => ({ ...p, requireVehicleNumber: e.target.checked }))} />
+                Require vehicle number at checkout (recommended ✅)
+              </label>
+            </div>
+            <div style={{ gridColumn: "span 3" }}><label style={lbl}>Terms Text (shown on buy page)</label><input style={inp} value={program.termsText} onChange={e => setProgram((p: any) => ({ ...p, termsText: e.target.value }))} /></div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <button onClick={handleSave} style={{ padding: "10px 24px", background: saved ? "#059669" : "#2563EB", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              {saved ? "✓ Saved!" : "Save Settings"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Records */}
+      {activeSection === "records" && (
+        referrals.length === 0 ? (
+          <EmptyState icon="🔗" title="No referrals yet" sub="Referral records will appear here when customers use referral codes on the buy page" />
+        ) : (
+          <div style={{ border: "1.5px solid #E5E7EB", borderRadius: 12, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB", borderBottom: "1.5px solid #E5E7EB" }}>
+                  {["Referrer", "Code", "Vehicle No.", "Referee Phone", "Order", "Status", "Date"].map(h => (
+                    <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, color: "#374151", fontSize: 12 }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {referrals.map((r: any, i: number) => (
+                  <tr key={r.id} style={{ borderBottom: i < referrals.length - 1 ? "1px solid #F3F4F6" : "none" }}>
+                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>{r.referrerName}</td>
+                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700 }}>{r.referrerCode}</td>
+                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontSize: 12 }}>{r.vehicleNumber || "—"}</td>
+                    <td style={{ padding: "12px 14px" }}>{r.refereePhone || "—"}</td>
+                    <td style={{ padding: "12px 14px" }}>{r.orderAmount ? "₹" + r.orderAmount.toLocaleString("en-IN") : "—"}</td>
+                    <td style={{ padding: "12px 14px" }}>
+                      <Badge label={r.status} color={r.status === "rewarded" ? "#059669" : r.status === "converted" ? "#2563EB" : r.status === "rejected" ? "#EF4444" : r.status === "expired" ? "#9CA3AF" : "#F59E0B"} />
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#6B7280", fontSize: 12 }}>{r.createdAt?.slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {/* Loopholes / Security Rules */}
+      {activeSection === "loopholes" && (
+        <div>
+          <div style={{ background: "#FEF3C7", border: "1.5px solid #FCD34D", borderRadius: 10, padding: "12px 16px", marginBottom: 20, fontSize: 13 }}>
+            <strong>⚠️ Security Audit</strong> — {loopholes.filter(l => l.fixed).length} of {loopholes.length} rules enforced. Review and fix open vulnerabilities.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {loopholes.map((l, i) => (
+              <div key={i} style={{ border: `1.5px solid ${l.fixed ? "#D1FAE5" : "#FEE2E2"}`, borderRadius: 12, padding: 18, background: l.fixed ? "#F0FDF4" : "#FFF8F8" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ fontSize: 28 }}>{l.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, fontSize: 14, color: "#111827" }}>{l.title}</span>
+                      <Badge label={l.risk + " RISK"} color={riskColor(l.risk)} />
+                      {l.fixed && <Badge label="✓ ENFORCED" color="#059669" />}
+                    </div>
+                    <div style={{ fontSize: 13, color: "#374151", marginBottom: 6 }}>{l.desc}</div>
+                    <div style={{ fontSize: 12, color: "#DC2626", marginBottom: 6 }}>
+                      <strong>Impact:</strong> {l.impact}
+                    </div>
+                    <div style={{ fontSize: 12, color: l.fixed ? "#059669" : "#2563EB" }}>
+                      <strong>Fix:</strong> {l.fix}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
+
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.5 };
