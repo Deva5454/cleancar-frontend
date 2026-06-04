@@ -2,12 +2,14 @@ import { defineConfig } from 'vite';
 import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
   ],
+  esbuild: {
+    charset: 'utf8',
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -26,31 +28,24 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1201,
     sourcemap: false,
-    // Preload all chunks so navigation is instant after first load
     modulePreload: { polyfill: true },
     rollupOptions: {
       output: {
-        charset: 'utf8', 
+        charset: 'utf8',
         manualChunks(id) {
-          // Core vendor â€” always needed immediately
           if (id.includes('node_modules/react/') ||
               id.includes('node_modules/react-dom/') ||
               id.includes('node_modules/react-router-dom/')) {
             return 'vendor-react';
           }
-          // TanStack Query
           if (id.includes('@tanstack/react-query')) return 'vendor-query';
-          // Charts â€” large but needed by many pages
           if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
-          // UI components
           if (id.includes('lucide-react') || id.includes('sonner') ||
               id.includes('@radix-ui') || id.includes('class-variance-authority') ||
               id.includes('tailwind-merge')) {
             return 'vendor-ui';
           }
-          // Animation
           if (id.includes('framer-motion') || id.includes('/motion/')) return 'vendor-motion';
-          // Date utilities
           if (id.includes('date-fns')) return 'vendor-dates';
         },
       },
