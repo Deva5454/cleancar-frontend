@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   vehicleCategories: [
     { id: "hatchback", label: "Hatchback", icon: "🚗" },
     { id: "suv", label: "SUV / Sedan", icon: "🚙" },
-    { id: "luxury", label: "Luxury SUV", icon: "ðŸŽï¸" },
+    { id: "luxury", label: "Luxury SUV", icon: "🏎️" },
   ],
   carModelMap: {
     swift:"hatchback",baleno:"hatchback",i20:"hatchback",tiago:"hatchback",dzire:"hatchback",alto:"hatchback",wagon:"hatchback",figo:"hatchback",polo:"hatchback",jazz:"hatchback",amaze:"hatchback",tigor:"hatchback",
@@ -233,7 +233,7 @@ function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
                 color:(done||active)?"white":"#94a3b8",
                 boxShadow:active?"0 4px 12px rgba(99,102,241,0.4)":done?"0 4px 12px rgba(16,185,129,0.35)":"none",
               }}>
-                {done?"âœ“":n}
+                {done?"❌“":n}
               </div>
               <span style={{fontSize:12,fontWeight:active?700:500,whiteSpace:"nowrap",color:active?"#4f46e5":done?"#059669":"#94a3b8"}}>{label}</span>
             </button>
@@ -279,7 +279,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
         </div>
         {discountAmt>0 && (
           <div style={{marginTop:8,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(16,185,129,0.2)",border:"1px solid rgba(16,185,129,0.3)",borderRadius:20,padding:"4px 10px"}}>
-            <span style={{color:"#6ee7b7",fontSize:12,fontWeight:600}}>ðŸŽ‰ Saving {inr(discountAmt)} with {commitObj?.term}</span>
+            <span style={{color:"#6ee7b7",fontSize:12,fontWeight:600}}>🎏‰ Saving {inr(discountAmt)} with {commitObj?.term}</span>
           </div>
         )}
         {finalTotal>0 && (
@@ -361,7 +361,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
 
         {couponDiscount>0 && (
           <div style={{padding:"8px 12px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:12,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"#065f46",fontWeight:600}}>ðŸŽŸ Coupon {couponCode}</span>
+            <span style={{fontSize:12,color:"#065f46",fontWeight:600}}>🎏Ÿ Coupon {couponCode}</span>
             <span style={{fontSize:13,fontWeight:800,color:"#10b981"}}>-{inr(couponDiscount)}</span>
           </div>
         )}
@@ -553,7 +553,7 @@ export function CustomerPlanPage() {
       const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} â€” Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
-      const waMsg=encodeURIComponent(`Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
+      const waMsg=encodeURIComponent(`Hi ${firstName}! 🎏‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
       if(notifyPref==="whatsapp"||notifyPref==="both"){(window as any)._pendingWAInvoice=`https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;}
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
@@ -604,7 +604,7 @@ export function CustomerPlanPage() {
         {icon:"ðŸ”„",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel anytime with 7 days notice.`,color:"#8b5cf6"},
       ] : isPack ? [
         {icon:"ðŸ“²",title:"Pack receipt on WhatsApp",detail:"Invoice and pack details sent immediately",color:"#25d366"},
-        {icon:"âœ…",title:`Pack of ${packVisits} is active`,detail:`Valid for ${packValidity} days from today. No rollover after expiry.`,color:"#10b981"},
+        {icon:"❌…",title:`Pack of ${packVisits} is active`,detail:`Valid for ${packValidity} days from today. No rollover after expiry.`,color:"#10b981"},
         {icon:"ðŸ“…",title:"Book each visit",detail:"WhatsApp us at least 2 hours before your preferred time. One visit per day.",color:"#6366f1"},
         {icon:"ðŸ“¸",title:"Photos after every visit",detail:"Before & after photos on WhatsApp when done",color:"#06b6d4"},
         {icon:"âš ï¸",title:"Pack rules",detail:"One vehicle only. Mix wash types freely. Pack cannot be split or shared.",color:"#f59e0b"},
@@ -753,7 +753,7 @@ export function CustomerPlanPage() {
                       <div style={{fontSize:14,fontWeight:700,color:"#4338ca"}}>Detected: {cfg.vehicleCategories.find(c=>c.id===detectedCat)?.label}</div>
                       <div style={{fontSize:12,color:"#6366f1"}}>Tap below to change if incorrect</div>
                     </div>
-                    <div style={{marginLeft:"auto",fontSize:20}}>âœ…</div>
+                    <div style={{marginLeft:"auto",fontSize:20}}>❌…</div>
                   </div>
                 )}
               </div>
@@ -803,7 +803,7 @@ export function CustomerPlanPage() {
 
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="cpp-btn-primary" onClick={()=>goTo(2)} disabled={!step1Ok}>
-                  Continue ←’ {step1Ok&&<span style={{marginLeft:4}}>âœ“</span>}
+                  Continue ←’ {step1Ok&&<span style={{marginLeft:4}}>❌“</span>}
                 </button>
               </div>
             </div>
@@ -824,7 +824,7 @@ export function CustomerPlanPage() {
                 </div>
                 {pincodeStatus==="ok" && (
                   <div style={{marginTop:14,padding:"14px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>âœ…</div>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>❌…</div>
                     <div>
                       <div style={{fontSize:15,fontWeight:700,color:"#065f46"}}>Great news â€” we serve your area!</div>
                       <div style={{fontSize:12,color:"#059669",marginTop:2}}>{cfg.serviceablePincodes.find(p=>p.code===pincode)?.label}</div>
@@ -841,7 +841,7 @@ export function CustomerPlanPage() {
                       </div>
                     </div>
                     <div style={{marginTop:10,padding:"10px 14px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:10,border:"1px solid #86efac"}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#065f46"}}>{"âœ… One-time wash IS available at your location!"}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:"#065f46"}}>{"❌… One-time wash IS available at your location!"}</div>
                       <div style={{fontSize:12,color:"#059669",marginTop:2}}>{"We provide one-time washes all across Surat. Continue to choose a visit pack."}</div>
                     </div>
                   </div>
@@ -915,7 +915,7 @@ export function CustomerPlanPage() {
                               {plan.features.slice(0,5).map((f,fi)=>(
                                 <div key={fi} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                                   <div style={{width:16,height:16,borderRadius:"50%",background:f.included?`linear-gradient(135deg,${ac},${ac}99)`:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                                    <span style={{fontSize:9,color:f.included?"white":"#cbd5e1",fontWeight:800}}>{f.included?"âœ“":"Ã—"}</span>
+                                    <span style={{fontSize:9,color:f.included?"white":"#cbd5e1",fontWeight:800}}>{f.included?"❌“":"Ã—"}</span>
                                   </div>
                                   <span style={{fontSize:11,color:f.included?"#374151":"#94a3b8",textAlign:"left"}}>{f.text}</span>
                                 </div>
@@ -990,7 +990,7 @@ export function CustomerPlanPage() {
                                 {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","✨ Shampoo+Wax"]].map(([wt,wlbl])=>{
                                   const np=(pack as any).prices;const wObj=np?.[wt];const p=wObj?.[vehicleCat]??wObj?.hatchback??0;
                                   const isSel=_washRef.current===wt;
-                                  return p>0?(<div key={wt} onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt as string);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",borderRadius:6,background:isSel?"rgba(99,102,241,0.1)":"transparent",cursor:"pointer"}}><span style={{fontSize:11,color:isSel?"#4f46e5":"#64748b",fontWeight:isSel?700:400}}>{isSel?"âœ“ ":""}{wlbl}</span><span style={{fontSize:12,fontWeight:800,color:isSel?"#4f46e5":"#0f172a"}}>{inr(p)}</span></div>):null;
+                                  return p>0?(<div key={wt} onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt as string);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",borderRadius:6,background:isSel?"rgba(99,102,241,0.1)":"transparent",cursor:"pointer"}}><span style={{fontSize:11,color:isSel?"#4f46e5":"#64748b",fontWeight:isSel?700:400}}>{isSel?"❌“ ":""}{wlbl}</span><span style={{fontSize:12,fontWeight:800,color:isSel?"#4f46e5":"#0f172a"}}>{inr(p)}</span></div>):null;
                                 })}
                               </div>
                             )}
@@ -1019,7 +1019,7 @@ export function CustomerPlanPage() {
                                       onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt);}}
                                       style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:3,borderRadius:6,cursor:"pointer",background:isSel?"rgba(99,102,241,0.1)":"rgba(0,0,0,0.03)",border:isSel?"1.5px solid #6366f1":"1.5px solid transparent",transition:"all 0.15s"}}>
                                       <span style={{fontSize:11,fontWeight:isSel?700:500,color:isSel?"#4338ca":"#374151"}}>
-                                        {isSel&&<span style={{marginRight:4}}>âœ“</span>}{label}
+                                        {isSel&&<span style={{marginRight:4}}>❌“</span>}{label}
                                       </span>
                                       <div style={{textAlign:"right"}}>
                                         <div style={{fontSize:13,fontWeight:800,color:isSel?"#4338ca":colors[i]}}>{inr(p)}</div>
@@ -1126,7 +1126,7 @@ export function CustomerPlanPage() {
                             </div>
                           </div>
                           <div style={{marginTop:10,fontSize:12,color:allSel?"#4338ca":"#64748b",fontWeight:allSel?700:400}}>
-                            {allSel?"âœ… Bundle applied â€” tap to remove":"Tap to add both together"}
+                            {allSel?"❌… Bundle applied â€” tap to remove":"Tap to add both together"}
                           </div>
                         </div>
                       );
@@ -1150,7 +1150,7 @@ export function CustomerPlanPage() {
                         style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:`2px solid ${sel?ac:"rgba(148,163,184,0.25)"}`,borderRadius:14,cursor:"pointer",background:sel?`linear-gradient(135deg,${ac}10,${ac}06)`:"rgba(255,255,255,0.9)",transition:"all 0.2s",boxShadow:sel?`0 4px 16px ${ac}25`:"0 1px 4px rgba(0,0,0,0.04)"}}>
                         {/* Custom checkbox */}
                         <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${sel?ac:"rgba(148,163,184,0.4)"}`,background:sel?`linear-gradient(135deg,${ac},${ac}cc)`:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",boxShadow:sel?`0 2px 8px ${ac}40`:undefined}}>
-                          {sel&&<span style={{color:"white",fontSize:13,fontWeight:800}}>âœ“</span>}
+                          {sel&&<span style={{color:"white",fontSize:13,fontWeight:800}}>❌“</span>}
                         </div>
                         <div style={{flex:1}}>
                           <div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{addon.name}</div>
@@ -1184,7 +1184,7 @@ export function CustomerPlanPage() {
                 {[
                   {label:"Full name *",value:custName,onChange:setCustName,placeholder:"Rajesh Patel",icon:"ðŸ‘¤"},
                   {label:"Mobile number *",value:custMobile,onChange:setCustMobile,placeholder:"10-digit number",type:"tel",icon:"ðŸ“±"},
-                  {label:"Email address",value:custEmail,onChange:setCustEmail,placeholder:"Optional",type:"email",icon:"âœ‰ï¸"},
+                  {label:"Email address",value:custEmail,onChange:setCustEmail,placeholder:"Optional",type:"email",icon:"❌‰ï¸"},
                   {label:"Vehicle registration",value:custReg,onChange:setCustReg,placeholder:"GJ05AB1234",icon:"ðŸ”¢"},
                 ].map(({label,value,onChange,placeholder,type,icon})=>(
                   <div key={label}>
@@ -1237,7 +1237,7 @@ export function CustomerPlanPage() {
                     {cfg.timeSlots.map(slot=>(
                       <button key={slot} onClick={()=>setPrefTime(slot)}
                         style={{padding:"11px 14px",borderRadius:10,border:`2px solid ${prefTime===slot?"#6366f1":"rgba(148,163,184,0.3)"}`,background:prefTime===slot?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"rgba(255,255,255,0.9)",color:"#0f172a",fontWeight:prefTime===slot?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",textAlign:"left",transition:"all 0.2s",boxShadow:prefTime===slot?"0 4px 12px rgba(99,102,241,0.2)":undefined}}>
-                        {prefTime===slot?"âœ“ ":""}{slot}
+                        {prefTime===slot?"❌“ ":""}{slot}
                       </button>
                     ))}
                   </div>
@@ -1252,7 +1252,7 @@ export function CustomerPlanPage() {
                     if(dow===0){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:10,fontSize:12,color:"#9a3412"}}>ðŸŒž <strong>Sunday:</strong> Orders placed today will be confirmed and scheduled from <strong>Monday morning</strong>. We'll call you to confirm your time slot.</div>;}
                     if(dow===6&&h>=14){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:10,fontSize:12,color:"#9a3412"}}>ðŸŒ… <strong>Saturday afternoon:</strong> Orders placed now will be confirmed on <strong>Monday</strong>. We'll call you to confirm the slot.</div>;}
                     if(h>=18){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#eff6ff,#dbeafe)",border:"2px solid #bfdbfe",borderRadius:10,fontSize:12,color:"#1e40af"}}>ðŸŒ™ <strong>After-hours booking:</strong> Orders after 6:30 PM are scheduled for the <strong>next working day</strong>. We'll confirm your slot in the morning.</div>;}
-                    if(h>=14){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:10,fontSize:12,color:"#065f46"}}>âœ… Same-day and next-day slots available for today.</div>;}
+                    if(h>=14){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:10,fontSize:12,color:"#065f46"}}>❌… Same-day and next-day slots available for today.</div>;}
                     return null;
                   })()}
                   </div>
@@ -1269,7 +1269,7 @@ export function CustomerPlanPage() {
 
               {/* Coupon / Referral codes */}
               <div style={{marginBottom:20}}>
-                <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:12}}>ðŸŽŸï¸ Have a coupon or referral code?</div>
+                <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:12}}>🎏Ÿï¸ Have a coupon or referral code?</div>
                 
                 {/* Active auto-promotions banner */}
                 {activePromos.length>0&&(
@@ -1290,18 +1290,18 @@ export function CustomerPlanPage() {
                 {/* Coupon code */}
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <div style={{position:"relative",flex:1}}>
-                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>ðŸŽŸï¸</span>
+                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>🎏Ÿï¸</span>
                     <input className="cpp-input" value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} placeholder="Coupon code (e.g. SAVE20)" style={{paddingLeft:36,fontFamily:"monospace",fontWeight:700,letterSpacing:2,border:`2px solid ${couponResult?.valid?"#10b981":couponResult?.error?"#ef4444":"rgba(148,163,184,0.3)"}`}} />
                   </div>
                   <button onClick={handleApplyCoupon} disabled={!couponInput.trim()} style={{padding:"12px 20px",background:couponResult?.valid?"#10b981":"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",border:"none",borderRadius:12,fontWeight:700,fontSize:13,cursor:couponInput.trim()?"pointer":"not-allowed",fontFamily:"'Sora',sans-serif",opacity:couponInput.trim()?1:0.6}}>Apply</button>
                 </div>
                 {couponResult&&(
                   <div style={{padding:"8px 12px",background:couponResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${couponResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                    <span>{couponResult.valid?"âœ…":"âŒ"}</span>
+                    <span>{couponResult.valid?"❌…":"âŒ"}</span>
                     <span style={{color:couponResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
                       {couponResult.valid?`Coupon applied â€” â‚¹${couponResult.discount} off your order`:couponResult.error}
                     </span>
-                    {couponResult.valid&&<button onClick={()=>{setCouponResult(null);setCouponInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>âœ•</button>}
+                    {couponResult.valid&&<button onClick={()=>{setCouponResult(null);setCouponInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>❌•</button>}
                   </div>
                 )}
 
@@ -1315,11 +1315,11 @@ export function CustomerPlanPage() {
                 </div>
                 {referralResult&&(
                   <div style={{padding:"8px 12px",background:referralResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${referralResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8}}>
-                    <span>{referralResult.valid?"ðŸŽ":"âŒ"}</span>
+                    <span>{referralResult.valid?"🎏":"âŒ"}</span>
                     <span style={{color:referralResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
-                      {referralResult.valid?`Referral applied â€” â‚¹${referralResult.discount} off! You and your friend both benefit ðŸŽ‰`:referralResult.error}
+                      {referralResult.valid?`Referral applied â€” â‚¹${referralResult.discount} off! You and your friend both benefit 🎏‰`:referralResult.error}
                     </span>
-                    {referralResult.valid&&<button onClick={()=>{setReferralResult(null);setReferralInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>âœ•</button>}
+                    {referralResult.valid&&<button onClick={()=>{setReferralResult(null);setReferralInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>❌•</button>}
                   </div>
                 )}
               </div>
@@ -1373,7 +1373,7 @@ export function CustomerPlanPage() {
                     onClick={()=>setter(!val)}
                     style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:val?`linear-gradient(135deg,${ac}10,${ac}06)`:"rgba(248,250,252,0.8)",borderRadius:12,marginBottom:8,border:`2px solid ${val?ac+"60":"rgba(148,163,184,0.2)"}`,cursor:"pointer",transition:"all 0.2s"}}>
                     <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${val?ac:"rgba(148,163,184,0.4)"}`,background:val?`linear-gradient(135deg,${ac},${ac}cc)`:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s"}}>
-                      {val&&<span style={{color:"white",fontSize:12,fontWeight:800}}>âœ“</span>}
+                      {val&&<span style={{color:"white",fontSize:12,fontWeight:800}}>❌“</span>}
                     </div>
                     <span style={{fontSize:13,color:"#374151"}} onClick={e=>e.stopPropagation()}>
                       {pre}{" "}
