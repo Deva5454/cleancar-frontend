@@ -254,7 +254,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
   const discountPct = commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
-  const discountAmt = planMode==="monthly"?Math.round(planPrice*discountPct/100):0;
+  const discountAmt = planMode==="monthly"?Math.round(planPrice*(commitMonths||1)*discountPct/100):0;
   const finalTotal = Math.max(0, total - discountAmt - (couponDiscount||0) - (referralDiscount||0) - (promoDiscount||0));
   const grandTotal = Math.round(finalTotal*1.18);
   const hasContent = activeCat||selectedPlan||addons.length>0;
