@@ -315,7 +315,7 @@ export function SubscriptionIncentiveTracker({
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors
               ${filter === f ? "bg-slate-900 text-white border-slate-900" : "bg-white text-gray-600 border-gray-200 hover:border-slate-400"}`}
           >
-            {f === "ALL" ? `All (${summary.tranches.reduce((s, x) => s + (s > 0 || true ? 0 : 0), 0) || uniqueRecs.length + 0})` : f}
+            {f === "ALL" ? `All (${uniqueRecs.length})` : f === "ACTIVE" ? `Active (${summary.tranches.filter(x => x.record.status === "ACTIVE").reduce((acc, x, _, arr) => acc.add(x.record.subscriptionId) && acc, new Set()).size})` : `Cancelled (${summary.tranches.filter(x => x.record.status === "CANCELLED").reduce((acc, x, _, arr) => acc.add(x.record.subscriptionId) && acc, new Set()).size})`}
           </button>
         ))}
       </div>

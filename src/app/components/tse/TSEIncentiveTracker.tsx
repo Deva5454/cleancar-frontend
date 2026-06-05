@@ -16,13 +16,31 @@ function getSession() {
 }
 
 // ── Seed demo records if localStorage is empty ────────────────────────────────
-// This runs ONCE per device. Once real conversions happen, this is never needed again.
+// Runs on every mount but only seeds if no VALID records with tranches exist.
+// Guard key is cleared if existing records have no tranches (broken seed).
 function seedDemoRecordsIfEmpty(employeeId: string, employeeName: string) {
   const SEED_KEY = "cc360_incentive_v6_seeded_" + employeeId;
-  if (localStorage.getItem(SEED_KEY)) return; // already seeded
 
+  // Check if real/valid records already exist for this employee
   const existing = incentiveV6.getAll();
-  if (existing.some(r => r.tseId === employeeId)) return; // real records exist
+  const myRecords = existing.filter(r => r.tseId === employeeId);
+  const hasValidRecords = myRecords.length > 0 &&
+    myRecords.some(r => r.tranches && r.tranches.length > 0 && r.poolTotal > 0);
+
+  // If valid records exist, nothing to do
+  if (hasValidRecords) return;
+
+  // If guard is set but records are invalid/empty, clear the guard and re-seed
+  if (localStorage.getItem(SEED_KEY) && !hasValidRecords) {
+    localStorage.removeItem(SEED_KEY);
+    // Also clear any broken records for this employee
+    const others = existing.filter(r => r.tseId !== employeeId);
+    try {
+      localStorage.setItem("cleancar_incentive_v6_records", JSON.stringify(others));
+    } catch {}
+  }
+
+  if (localStorage.getItem(SEED_KEY)) return; // already seeded with valid data
 
   const today = new Date();
   const ago = (months: number) => {
