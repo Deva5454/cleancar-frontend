@@ -54,35 +54,33 @@ class TeleSalesExecutiveService {
     vehicleType: "4W" | "2W",
     tseCategory?: string
   ): VehicleCategoryName {
-    // 4-Wheeler mappings
+    // Use EXACT string keys from VEHICLE_CATEGORIES_CONFIG in subscriptionPlans.ts
+    const cat = (tseCategory || "").toUpperCase();
+
     if (vehicleType === "4W") {
-      if (tseCategory === "HATCHBACK" || tseCategory === "SEDAN") {
-        return "HATCHBACK_COMPACT_SEDAN";
+      if (cat.includes("HATCHBACK") || cat.includes("SEDAN") || cat.includes("COMPACT")) {
+        return "Hatchback / Compact Sedan" as VehicleCategoryName;
       }
-      if (tseCategory === "SUV") {
-        return "SUV_MUV_SEDAN";
+      if (cat.includes("LUXURY") || cat.includes("LARGE")) {
+        return "Luxury / Large SUV" as VehicleCategoryName;
       }
-      if (tseCategory === "LUXURY") {
-        return "LUXURY_LARGE_SUV";
-      }
-      // Default for 4W
-      return "SUV_MUV_SEDAN";
+      // Default 4W = SUV
+      return "SUV / MUV / Sedan" as VehicleCategoryName;
     }
 
-    // 2-Wheeler mappings
     if (vehicleType === "2W") {
-      if (tseCategory === "SCOOTER") {
-        return "SCOOTER";
+      if (cat.includes("SCOOTER")) {
+        return "2W - Scooter" as VehicleCategoryName;
       }
-      if (tseCategory === "BIKE") {
-        return "STANDARD_COMMUTER_BIKE"; // Default to standard
+      if (cat.includes("SPORT") || cat.includes("PREMIUM")) {
+        return "2W - Sports / Premium Bike" as VehicleCategoryName;
       }
-      // Default for 2W
-      return "STANDARD_COMMUTER_BIKE";
+      // Default 2W = commuter bike
+      return "2W - Standard / Commuter Bike" as VehicleCategoryName;
     }
 
     // Fallback
-    return "SUV_MUV_SEDAN";
+    return "SUV / MUV / Sedan" as VehicleCategoryName;
   }
 
   /**
@@ -96,8 +94,9 @@ class TeleSalesExecutiveService {
 
     // Get all vehicle categories and find the matching one
     const allCategories = subscriptionPlansService.getVehicleCategories();
+    // Match by name OR displayName (handles both key formats)
     const matchedCategory = allCategories.find(
-      (cat) => cat.name === subscriptionCategory
+      (cat) => cat.name === subscriptionCategory || cat.displayName === subscriptionCategory
     );
 
     if (!matchedCategory) {
