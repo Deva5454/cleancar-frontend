@@ -22,6 +22,40 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Plan helpers ─────────────────────────────────────────────────────────────
+const PLAN_LABELS: Record<string, string> = {
+  SHINE: "Express Wash", PROTECT: "Smart Wash", ELITE: "Elite Wash",
+  EXPRESS_WASH: "Express Wash", SMART_WASH: "Smart Wash", ELITE_WASH: "Elite Wash",
+  water: "Express Wash", shampoo: "Smart Wash", wax: "Elite Wash",
+};
+const PLAN_COLORS: Record<string, string> = {
+  SHINE: "bg-blue-100 text-blue-700", PROTECT: "bg-purple-100 text-purple-700",
+  ELITE: "bg-yellow-100 text-yellow-700", EXPRESS_WASH: "bg-blue-100 text-blue-700",
+  SMART_WASH: "bg-purple-100 text-purple-700", ELITE_WASH: "bg-yellow-100 text-yellow-700",
+};
+const VEHICLE_LABELS: Record<string, string> = {
+  hatchback: "Hatchback", suv: "SUV/Sedan", luxury: "Luxury SUV",
+  "Hatchback / Compact Sedan": "Hatchback", "SUV / MUV / Sedan": "SUV/Sedan",
+  "Luxury / Large SUV": "Luxury SUV",
+};
+
+/** Get live expected deal value from planSyncService × commitMonths × 1.18 GST */
+function getExpectedDealValue(planId: string, vehicleCat: string, commitMonths: number = 3): number {
+  try {
+    const plans = planSyncService.getAllPlanPrices();
+    const plan = plans.find(p => p.tierId === planId || p.id === planId);
+    if (!plan) return 0;
+    const cat = vehicleCat?.toLowerCase();
+    const monthly = cat?.includes("luxury") ? plan.luxury
+      : cat?.includes("suv") ? plan.suv
+      : plan.hatchback;
+    const discountPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
+    const subtotal = monthly * commitMonths * (1 - discountPct);
+    return Math.round(subtotal * 1.18);
+  } catch { return 0; }
+}
 import type { Lead, LeadStage, LeadSource } from "../../types/teleSalesManager.types";
 
 interface TSMLeadPipelineProps {
@@ -115,6 +149,20 @@ export function TSMLeadPipeline({ initialStageFilter = "ALL" }: TSMLeadPipelineP
     crmNonCompliant: leads.filter((l) => !l.crmCompliant).length,
   };
 
+  // Pipeline value stats — using live prices from planSyncService
+  const pipelineValueStats = {
+    totalPipelineValue: leads
+      .filter(l => l.stage !== "LOST")
+      .reduce((sum, l) => {
+        const liveValue = getExpectedDealValue(l.planOfInterest || "PROTECT", l.vehicleCategory || "hatchback", l.commitMonths || 3);
+        return sum + (liveValue || l.estimatedValue || 0);
+      }, 0),
+    eliteCount: leads.filter(l => ["ELITE", "ELITE_WASH", "wax"].includes(l.planOfInterest || "")).length,
+    protectCount: leads.filter(l => ["PROTECT", "SMART_WASH", "shampoo"].includes(l.planOfInterest || "")).length,
+    shineCount: leads.filter(l => ["SHINE", "EXPRESS_WASH", "water"].includes(l.planOfInterest || "")).length,
+    luxuryCount: leads.filter(l => (l.vehicleCategory || "").toLowerCase().includes("luxury")).length,
+  };
+
   return (
     <div className="space-y-6">
       {/* Pipeline Summary Stats */}
@@ -154,6 +202,32 @@ export function TSMLeadPipeline({ initialStageFilter = "ALL" }: TSMLeadPipelineP
           <div className="text-2xl font-bold text-amber-600">
             {pipelineStats.crmNonCompliant}
           </div>
+        </Card>
+      </div>
+
+      {/* Pipeline Value Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+          <div className="text-xs text-gray-500">Total Pipeline Value (excl. lost)</div>
+          <div className="text-xl font-bold text-green-700">
+            ₹{(pipelineValueStats.totalPipelineValue / 1000).toFixed(0)}K
+          </div>
+          <div className="text-xs text-gray-400">incl. GST, 3mo default</div>
+        </Card>
+        <Card className="p-3 bg-yellow-50 border-yellow-200">
+          <div className="text-xs text-gray-500">Elite Wash Leads</div>
+          <div className="text-xl font-bold text-yellow-700">{pipelineValueStats.eliteCount}</div>
+          <div className="text-xs text-gray-400">Highest value plan</div>
+        </Card>
+        <Card className="p-3 bg-purple-50 border-purple-200">
+          <div className="text-xs text-gray-500">Smart Wash Leads</div>
+          <div className="text-xl font-bold text-purple-700">{pipelineValueStats.protectCount}</div>
+          <div className="text-xs text-gray-400">Mid-tier plan</div>
+        </Card>
+        <Card className="p-3 bg-orange-50 border-orange-200">
+          <div className="text-xs text-gray-500">Luxury SUV Leads</div>
+          <div className="text-xl font-bold text-orange-700">{pipelineValueStats.luxuryCount}</div>
+          <div className="text-xs text-gray-400">Premium vehicle tier</div>
         </Card>
       </div>
 
@@ -300,6 +374,18 @@ export function TSMLeadPipeline({ initialStageFilter = "ALL" }: TSMLeadPipelineP
                   <div className="text-xs text-gray-500 mt-1">
                     Lead ID: {lead.id}
                   </div>
+                  {lead.planOfInterest && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLAN_COLORS[lead.planOfInterest] || "bg-gray-100 text-gray-600"}`}>
+                        {PLAN_LABELS[lead.planOfInterest] || lead.planOfInterest}
+                      </span>
+                      {lead.vehicleCategory && (
+                        <span className="text-xs text-gray-500">
+                          · {VEHICLE_LABELS[lead.vehicleCategory] || lead.vehicleCategory}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -352,10 +438,19 @@ export function TSMLeadPipeline({ initialStageFilter = "ALL" }: TSMLeadPipelineP
                 </div>
 
                 <div className="text-center">
-                  <div className="text-xs text-gray-500">Est. Value</div>
-                  <div className="text-sm font-semibold text-green-600">
-                    ₹{(lead.estimatedValue / 1000).toFixed(0)}K
-                  </div>
+                  <div className="text-xs text-gray-500">Deal Value</div>
+                  {(() => {
+                    const liveVal = getExpectedDealValue(lead.planOfInterest || "PROTECT", lead.vehicleCategory || "hatchback", lead.commitMonths || 3);
+                    const displayVal = liveVal || lead.estimatedValue || 0;
+                    return (
+                      <div>
+                        <div className="text-sm font-semibold text-green-600">
+                          ₹{(displayVal / 1000).toFixed(1)}K
+                        </div>
+                        <div className="text-xs text-gray-400">incl. GST</div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-center">
