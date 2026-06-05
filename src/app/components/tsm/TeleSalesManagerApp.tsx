@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tele Sales Manager Application - Pipeline Control Tower
  *
  * Main orchestrator for the TSM module providing real-time pipeline governance
@@ -47,7 +47,7 @@ import {
 } from "../../constants/teleSalesManager.constants";
 
 // A5 FIX: Replace with auth context in production — e.g. useAuth().user.name
-const CURRENT_TSM_NAME = "Rajesh Kumar";  // TODO: read from auth session
+const _tsmSess = (() => { try { return JSON.parse(localStorage.getItem("cc360_session") || "{}"); } catch { return {}; } })(); const CURRENT_TSM_NAME = _tsmSess.employeeName || "TSM"; const CURRENT_TSM_ID = _tsmSess.employeeId || "EDB-TSM-SUR1";
 
 /** Time mode type for daily workflow */
 type TimeMode = "MORNING" | "MIDDAY" | "AFTERNOON" | "EVENING" | "OFF_HOURS";

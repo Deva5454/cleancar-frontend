@@ -1,4 +1,4 @@
-import { IncentivePayoutLedger } from "../incentives/IncentivePayoutLedger";
+﻿import { IncentivePayoutLedger } from "../incentives/IncentivePayoutLedger";
 import { useState } from "react";
 import { SubscriptionIncentiveTracker } from "../incentives/SubscriptionIncentiveTracker";
 
@@ -6,7 +6,7 @@ import { SubscriptionIncentiveTracker } from "../incentives/SubscriptionIncentiv
  * TSMIncentiveTracker — tab wrapper: Team Overview | Payout Ledger
  */
 export function TSMIncentiveTracker({ tsmId, name }: { tsmId?: string; name?: string }) {
-  const id  = tsmId || "EDB-TSM-SUR1";
+  const _s = (() => { try { return JSON.parse(localStorage.getItem("cc360_session") || "{}"); } catch { return {}; } })(); const id = _s.employeeId || tsmId || "EDB-TSM-SUR1"; const empName = _s.employeeName || name || id;
   const [tab, setTab] = useState<"overview" | "ledger">("overview");
 
   return (
