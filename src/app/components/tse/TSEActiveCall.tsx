@@ -513,24 +513,36 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                     <span>+₹{(getAddOnPricePerVisit(a) * addonFreqPerMonth).toLocaleString()}/mo</span>
                   </div>
                 ))}
-                <div className="border-t border-green-200 pt-1 space-y-0.5">
-                  <div className="flex justify-between text-xs text-green-700">
-                    <span>Plan ({commitMonths}mo)</span>
-                    <span>₹{(pricingCalculation.basePlan.monthlyPrice * commitMonths).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-green-700">
-                    <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
-                    <span>+₹{getTotalAddonCost().toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-green-700">
-                    <span>GST (18%)</span>
-                    <span>+₹{Math.round((pricingCalculation.basePlan.monthlyPrice * commitMonths + getTotalAddonCost()) * 0.18).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-bold text-green-900 border-t border-green-200 pt-1">
-                    <span>Grand Total (incl. GST)</span>
-                    <span>₹{Math.round((pricingCalculation.basePlan.monthlyPrice * commitMonths + getTotalAddonCost()) * 1.18).toLocaleString()}</span>
-                  </div>
-                </div>
+                {(() => {
+                  const monthlyBase = selectedBundle ? selectedBundle.price : pricingCalculation.basePlan.monthlyPrice;
+                  const discPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
+                  const planSub = Math.round(monthlyBase * commitMonths * (1 - discPct));
+                  const addonSub = getTotalAddonCost();
+                  const gstAmt = Math.round((planSub + addonSub) * 0.18);
+                  const grand = planSub + addonSub + gstAmt;
+                  return (
+                    <div className="border-t border-green-200 pt-1 space-y-0.5">
+                      <div className="flex justify-between text-xs text-green-700">
+                        <span>Plan ({commitMonths}mo{discPct > 0 ? ` · ${discPct * 100}% off` : ""})</span>
+                        <span>₹{planSub.toLocaleString()}</span>
+                      </div>
+                      {addonSub > 0 && (
+                        <div className="flex justify-between text-xs text-green-700">
+                          <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
+                          <span>+₹{addonSub.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs text-green-600">
+                        <span>GST (18%)</span>
+                        <span>+₹{gstAmt.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-bold text-green-900 border-t border-green-200 pt-1">
+                        <span>Grand Total (incl. GST)</span>
+                        <span>₹{grand.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             <div className="text-xs text-gray-600 mt-2 italic">
