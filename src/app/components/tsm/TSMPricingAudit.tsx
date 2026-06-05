@@ -21,6 +21,52 @@ import {
   Filter,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Plan label mapping ───────────────────────────────────────────────────────
+const DEAL_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  BASE:       { label: "Express Wash (Base)",    color: "bg-blue-600" },
+  ADD_ON:     { label: "Add-on Only",             color: "bg-green-600" },
+  BUNDLE_MID: { label: "Smart Wash + Add-ons",   color: "bg-purple-600" },
+  BUNDLE_LOW: { label: "Elite Wash + Add-ons",   color: "bg-yellow-600" },
+  SHINE:      { label: "Express Wash",            color: "bg-blue-600" },
+  PROTECT:    { label: "Smart Wash",              color: "bg-purple-600" },
+  ELITE:      { label: "Elite Wash",              color: "bg-yellow-600" },
+};
+
+// ─── EBITDA thresholds linked to real plan margins ────────────────────────────
+// For a car wash business: cost of service ≈ 60-65% of revenue
+// Healthy EBITDA = 35%+, Warning = 25-34%, Critical = <25%
+const EBITDA_FLOOR = 25;      // below this = CRITICAL
+const EBITDA_WARNING = 35;    // below this = WARNING
+const EBITDA_HEALTHY = 35;    // at/above this = HEALTHY
+
+/** Get expected EBITDA % for a plan based on live pricing */
+function getExpectedEBITDA(planId: string, vehicleCat: string = "hatchback"): {
+  expectedEBITDA: number; costOfService: number; planPrice: number;
+} {
+  try {
+    const plans = planSyncService.getAllPlanPrices();
+    const plan = plans.find(p => p.tierId === planId || p.id === planId);
+    if (!plan) return { expectedEBITDA: 35, costOfService: 0, planPrice: 0 };
+    const price = vehicleCat.includes("luxury") ? plan.luxury
+      : vehicleCat.includes("suv") ? plan.suv : plan.hatchback;
+    // Cost structure: labour (40%) + materials (15%) + overhead (10%) = 65% cost
+    const costOfService = Math.round(price * 0.65);
+    const expectedEBITDA = Math.round(((price - costOfService) / price) * 100);
+    return { expectedEBITDA, costOfService, planPrice: price };
+  } catch {
+    return { expectedEBITDA: 35, costOfService: 0, planPrice: 0 };
+  }
+}
+
+/** Check if a deal value is below minimum (discounted below cost) */
+function isDealBelowFloor(dealValue: number, planId: string, vehicleCat: string): boolean {
+  const { planPrice } = getExpectedEBITDA(planId, vehicleCat);
+  if (!planPrice) return false;
+  // Alert if TSE sold at more than 20% below list price
+  return dealValue < planPrice * 0.80;
+}
 import type { DealType, PricingAuditEntry } from "../../types/teleSalesManager.types";
 
 export function TSMPricingAudit() {
@@ -54,26 +100,23 @@ export function TSMPricingAudit() {
   });
 
   const getDealTypeBadge = (dealType: DealType) => {
-    const badges: Record<DealType, { color: string; label: string }> = {
-      BASE: { color: "bg-blue-600", label: "Base" },
-      ADD_ON: { color: "bg-green-600", label: "Add-On" },
-      BUNDLE_MID: { color: "bg-purple-600", label: "Bundle MID" },
-      BUNDLE_LOW: { color: "bg-red-600", label: "Bundle LOW" },
-    };
-    return badges[dealType];
+    return DEAL_TYPE_LABELS[dealType] || { label: dealType, color: "bg-gray-600" };
   };
 
   const getEBITDAStatusColor = (status: string) => {
     switch (status) {
-      case "HEALTHY":
-        return "text-green-600";
-      case "WARNING":
-        return "text-amber-600";
-      case "CRITICAL":
-        return "text-red-600";
-      default:
-        return "text-gray-600";
+      case "HEALTHY": return "text-green-600";
+      case "WARNING":  return "text-amber-600";
+      case "CRITICAL": return "text-red-600";
+      default:         return "text-gray-600";
     }
+  };
+
+  /** Get EBITDA status from actual percentage using real thresholds */
+  const getEBITDAStatus = (pct: number): "HEALTHY" | "WARNING" | "CRITICAL" => {
+    if (pct >= EBITDA_HEALTHY) return "HEALTHY";
+    if (pct >= EBITDA_FLOOR)   return "WARNING";
+    return "CRITICAL";
   };
 
   // Audit summary stats
@@ -185,33 +228,21 @@ export function TSMPricingAudit() {
               >
                 All
               </Button>
-              <Button
-                variant={selectedDealType === "BASE" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedDealType("BASE")}
-              >
-                Base
+              <Button variant={selectedDealType === "BASE" ? "default" : "outline"}
+                size="sm" onClick={() => setSelectedDealType("BASE")}>
+                Express Wash
               </Button>
-              <Button
-                variant={selectedDealType === "ADD_ON" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedDealType("ADD_ON")}
-              >
-                Add-On
+              <Button variant={selectedDealType === "BUNDLE_MID" ? "default" : "outline"}
+                size="sm" onClick={() => setSelectedDealType("BUNDLE_MID")}>
+                Smart Wash + Add-ons
               </Button>
-              <Button
-                variant={selectedDealType === "BUNDLE_MID" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedDealType("BUNDLE_MID")}
-              >
-                Bundle MID
+              <Button variant={selectedDealType === "BUNDLE_LOW" ? "default" : "outline"}
+                size="sm" onClick={() => setSelectedDealType("BUNDLE_LOW")}>
+                Elite + Add-ons
               </Button>
-              <Button
-                variant={selectedDealType === "BUNDLE_LOW" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedDealType("BUNDLE_LOW")}
-              >
-                Bundle LOW
+              <Button variant={selectedDealType === "ADD_ON" ? "default" : "outline"}
+                size="sm" onClick={() => setSelectedDealType("ADD_ON")}>
+                Add-on Only
               </Button>
             </div>
           </div>
@@ -255,6 +286,35 @@ export function TSMPricingAudit() {
           <div className="ml-auto text-sm text-gray-600">
             Showing {filteredAudit.length} of {auditStats.totalDeals} deals
           </div>
+        </div>
+      </Card>
+
+      {/* Plan Margin Reference — live from planSyncService */}
+      <Card className="p-4 bg-blue-50 border-blue-200">
+        <div className="flex items-center gap-2 mb-3">
+          <Shield className="w-4 h-4 text-blue-600" />
+          <span className="text-sm font-semibold text-blue-900">Plan Margin Reference (Live Prices)</span>
+          <span className="text-xs text-blue-600 ml-2">EBITDA Floor: {EBITDA_FLOOR}% · Warning: &lt;{EBITDA_WARNING}%</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { id: "SHINE",   label: "Express Wash", cat: "hatchback" },
+            { id: "PROTECT", label: "Smart Wash",   cat: "hatchback" },
+            { id: "ELITE",   label: "Elite Wash",   cat: "hatchback" },
+          ].map(plan => {
+            const { planPrice, costOfService, expectedEBITDA } = getExpectedEBITDA(plan.id, plan.cat);
+            return (
+              <div key={plan.id} className="bg-white rounded-lg p-3 border border-blue-200">
+                <div className="text-xs font-semibold text-gray-700 mb-1">{plan.label} (Hatchback)</div>
+                <div className="text-sm font-bold text-gray-900">₹{planPrice.toLocaleString("en-IN")}/mo</div>
+                <div className="text-xs text-gray-500">Cost: ₹{costOfService.toLocaleString("en-IN")}</div>
+                <div className={`text-xs font-semibold mt-1 ${expectedEBITDA >= EBITDA_HEALTHY ? "text-green-600" : "text-amber-600"}`}>
+                  EBITDA: {expectedEBITDA}%
+                </div>
+                <div className="text-xs text-red-500">Min deal: ₹{Math.round(planPrice * 0.80).toLocaleString("en-IN")} (80% of list)</div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
@@ -514,8 +574,13 @@ export function TSMPricingAudit() {
             <div className="space-y-2 text-sm">
               <div><span className="font-medium text-gray-600">Customer:</span> {detailEntry.customerName}</div>
               <div><span className="font-medium text-gray-600">TSE:</span> {detailEntry.tseName} ({detailEntry.tseId})</div>
-              <div><span className="font-medium text-gray-600">Deal Type:</span> {detailEntry.dealType}</div>
-              <div><span className="font-medium text-gray-600">Deal Value:</span> ₹{detailEntry.dealValue.toLocaleString()}</div>
+              <div><span className="font-medium text-gray-600">Plan:</span> {DEAL_TYPE_LABELS[detailEntry.dealType]?.label || detailEntry.dealType}</div>
+              <div>
+                <span className="font-medium text-gray-600">Deal Value:</span> ₹{detailEntry.dealValue.toLocaleString()}
+                {isDealBelowFloor(detailEntry.dealValue, detailEntry.dealType, "hatchback") && (
+                  <span className="ml-2 text-xs text-red-600 font-medium">⚠ Below 80% of list price</span>
+                )}
+              </div>
               <div><span className="font-medium text-gray-600">EBITDA:</span>
                 <span className={detailEntry.ebitdaPercentage >= 30 ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
                   {" "}{detailEntry.ebitdaPercentage.toFixed(1)}%
