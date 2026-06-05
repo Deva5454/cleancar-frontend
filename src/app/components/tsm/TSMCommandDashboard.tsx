@@ -33,6 +33,20 @@ import {
   REVENUE_THRESHOLDS,
   DEAL_VALUE_DEFAULTS,
 } from "../../constants/teleSalesManager.constants";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Live deal value from planSyncService ─────────────────────────────────────
+function getLiveAvgDealValue(): number {
+  try {
+    const plans = planSyncService.getAllPlanPrices();
+    if (!plans.length) return DEAL_VALUE_DEFAULTS.AVERAGE;
+    // Average across all plans and vehicle types × 3mo commitment × 5% discount × 1.18 GST
+    const avg = plans.reduce((sum, p) => sum + p.hatchback + p.suv + p.luxury, 0) / (plans.length * 3);
+    return Math.round(avg * 3 * 0.95 * 1.18);
+  } catch {
+    return DEAL_VALUE_DEFAULTS.AVERAGE;
+  }
+}
 
 /**
  * Props for TSMCommandDashboard component
@@ -179,6 +193,9 @@ export function TSMCommandDashboard({
                 +{Math.abs(conversionGap).toFixed(1)}% above target
               </div>
             )}
+            <div className="text-xs text-gray-400 mt-2">
+              TSE avg method · matches Reports tab
+            </div>
           </div>
         </Card>
 
@@ -207,6 +224,7 @@ export function TSMCommandDashboard({
             <div className="text-3xl font-bold text-gray-900">
               ₹{(metrics.revenue.mtd / 100000).toFixed(1)}L
             </div>
+            <div className="text-xs text-gray-400">MRR excl. GST</div>
             <div className="text-sm text-gray-600">
               Target: ₹{(metrics.revenue.target / 100000).toFixed(1)}L
             </div>
@@ -539,28 +557,29 @@ export function TSMCommandDashboard({
             <div className="text-xs text-gray-600 mt-1">
               {metrics.leadStages.converted} won vs {metrics.leadStages.lost} lost
             </div>
-            <div className="text-xs text-amber-600 mt-1">
-              {/* B4 FIX: clarify this excludes active leads */}
-              (vs closed leads only — excludes {metrics.leadStages.new + metrics.leadStages.attempted + metrics.leadStages.followUp} active)
+            <div className="text-xs text-gray-400 mt-1">
+              Closed leads only (converted ÷ converted+lost)
+            </div>
+            <div className="text-xs text-amber-600 mt-0.5">
+              Note: Team Conversion Rate above uses total leads
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">Pipeline Value (Annual Est.)</div>
-            <div className="text-2xl font-bold text-indigo-600">
-              ₹
-              {(
-                ((metrics.leadStages.new +
-                  metrics.leadStages.attempted +
-                  metrics.leadStages.followUp) *
-                  DEAL_VALUE_DEFAULTS.AVERAGE) /
-                100000
-              ).toFixed(1)}
-              L
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {/* B2 FIX: DEAL_VALUE_DEFAULTS.AVERAGE=₹25K is annual; label as such */}
-              Est. at ₹{(DEAL_VALUE_DEFAULTS.AVERAGE / 1000).toFixed(0)}K avg annual value per lead
-            </div>
+            {(() => {
+              const liveAvg = getLiveAvgDealValue();
+              const activeleads = metrics.leadStages.new + metrics.leadStages.attempted + metrics.leadStages.followUp;
+              return (
+                <>
+                  <div className="text-2xl font-bold text-indigo-600">
+                    ₹{((activeleads * liveAvg) / 100000).toFixed(1)}L
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    Live avg ₹{(liveAvg / 1000).toFixed(1)}K/deal · 3mo · incl. GST
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       </Card>
