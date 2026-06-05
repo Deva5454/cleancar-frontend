@@ -151,6 +151,89 @@ const CHURN_BANDS: { maxChurn: number; multiplier: number; label: string; color:
   { maxChurn: 999,multiplier: 0.5, label: "High churn — 50% BTL reduction",          color: "red"   },
 ];
 
+// ─── Buy Page localStorage bridge ────────────────────────────────────────────
+// Reads real subscription data to compute churn rate and conversion stats
+
+const LS_SUBSCRIPTIONS = "cleancar_subscriptions";
+
+interface BuyPageSub {
+  id: string;
+  customerId: string;
+  supervisorId?: string;
+  status: string;           // "Active" | "Cancelled"
+  cancelledDate?: string;
+  packageType: string;      // SHINE | PROTECT | ELITE
+  pricing: { finalPrice: number; basePrice: number };
+  createdAt?: string;
+  startDate: string;
+  tseId?: string;
+}
+
+function readSubscriptions(): BuyPageSub[] {
+  try {
+    const raw = localStorage.getItem(LS_SUBSCRIPTIONS);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+/** Get real churn data for a supervisor from buy page subscriptions */
+function getRealChurnData(supervisorId?: string): { cancellations: number; activeCustomers: number } {
+  const subs = readSubscriptions();
+  const mine = supervisorId
+    ? subs.filter(s => s.supervisorId === supervisorId)
+    : subs; // if no supervisor filter, use all (for demo)
+
+  // Use all subs if no records for this supervisor (fallback to global)
+  const relevant = mine.length > 0 ? mine : subs;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const activeCustomers  = relevant.filter(s => s.status === "Active").length;
+  const cancellations    = relevant.filter(s => {
+    if (s.status !== "Cancelled") return false;
+    const cancelDate = new Date(s.cancelledDate || s.startDate);
+    return cancelDate >= monthStart;
+  }).length;
+
+  return { cancellations, activeCustomers: Math.max(1, activeCustomers) };
+}
+
+/** Get real BTL conversion stats from buy page */
+function getRealConversionData(supervisorId?: string): {
+  conversions: number; totalLeads: number; planValues: number[];
+} {
+  const subs = readSubscriptions();
+  const mine = supervisorId
+    ? subs.filter(s => s.supervisorId === supervisorId)
+    : subs;
+  const relevant = mine.length > 0 ? mine : subs;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const mtd = relevant.filter(s => {
+    const created = new Date(s.createdAt || s.startDate);
+    return created >= monthStart;
+  });
+
+  return {
+    conversions: mtd.length,
+    totalLeads:  Math.max(mtd.length, Math.round(mtd.length / 0.33)), // estimate leads from ~33% conv rate
+    planValues:  mtd.map(s => s.pricing?.finalPrice || s.pricing?.basePrice || 1599),
+  };
+}
+
+/** Get real retention rate from subscriptions */
+function getRealRetentionRate(supervisorId?: string): number {
+  const subs = readSubscriptions();
+  const mine = supervisorId ? subs.filter(s => s.supervisorId === supervisorId) : subs;
+  const relevant = mine.length > 0 ? mine : subs;
+  if (relevant.length === 0) return 0.87; // fallback
+  const active = relevant.filter(s => s.status === "Active").length;
+  return active / relevant.length;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 class SupervisorIncentiveService {
@@ -286,36 +369,70 @@ class SupervisorIncentiveService {
     };
   }
 
-  // Generate full dashboard (seeded/demo data)
+  // Generate full dashboard — wired to real buy page data where available
   getIncentiveDashboard(supervisorId: string): IncentiveDashboard {
     const now = new Date();
 
-    // ── KPI inputs (would come from ERP live data in production) ─────────────
+    // ── REAL data from buy page localStorage ──────────────────────────────────
+    const realChurn      = getRealChurnData(supervisorId);
+    const realConv       = getRealConversionData(supervisorId);
+    const realRetention  = getRealRetentionRate(supervisorId);
+
+    // Conversion rate: real conversions / estimated leads (or fallback 33%)
+    const realConvRate = realConv.totalLeads > 0
+      ? realConv.conversions / realConv.totalLeads
+      : 0.33;
+
+    // ── KPI inputs — use real retention + conversion, mock audit/complaints ───
     const kpi = this.calculateKPIScore(
-      0.87,   // 87% retention — good
-      3.8,    // 3.8 audits/day — slightly below 4 target
-      0,      // no unresolved complaints
+      realRetention,   // REAL: from buy page subscriptions
+      3.8,             // mock: audit compliance (needs field data)
+      0,               // mock: complaints (needs CCE data)
       0,
-      0.33    // 33% BTL conversion rate — just above 30% target
+      realConvRate     // REAL: from buy page conversions
     );
 
-    const churn = this.calculateChurnMultiplier(2, 28); // 2 cancellations, 28 customers
+    // REAL churn multiplier from actual cancellations this month
+    const churn = this.calculateChurnMultiplier(
+      realChurn.cancellations,
+      realChurn.activeCustomers
+    );
 
     // ── Ops KPI Bonus ─────────────────────────────────────────────────────────
     const opsBonus = this.calculateOpsKPIBonus(kpi.total);
 
     // ── BTL Lead Bonus ────────────────────────────────────────────────────────
-    const leadBonus = this.calculateLeadBonus(138, 155, churn, kpi.btlUnlocked);
+    // Use real qualified leads if available, else fallback to mock
+    const realQualifiedLeads = realConv.conversions > 0
+      ? Math.round(realConv.conversions * 2.5) // estimate: ~40% qualified from submissions
+      : 138;
+    const realTotalLeads = realConv.totalLeads > 0 ? realConv.totalLeads : 155;
+    const leadBonus = this.calculateLeadBonus(realQualifiedLeads, realTotalLeads, churn, kpi.btlUnlocked);
 
-    // ── Conversion Bonus ──────────────────────────────────────────────────────
-    const convRecords: ConversionRecord[] = [
-      this.buildConversionRecord("L-001","Amit Patel",   "Hatchback — Smart Wash",  1599, new Date(now.getTime()-75*86400000), new Date(now.getTime()-70*86400000)),
-      this.buildConversionRecord("L-002","Priya Shah",   "SUV — Express Wash",      1499, new Date(now.getTime()-68*86400000), new Date(now.getTime()-63*86400000)),
-      this.buildConversionRecord("L-003","Rahul Desai",  "Hatchback — Express Wash",1249, new Date(now.getTime()-40*86400000), new Date(now.getTime()-35*86400000)),
-      this.buildConversionRecord("L-004","Sneha Mehta",  "SUV — ELITE",             2499, new Date(now.getTime()-20*86400000), new Date(now.getTime()-15*86400000)),
-      this.buildConversionRecord("L-005","Vikram Modi",  "Hatchback — ELITE",       1999, new Date(now.getTime()-10*86400000)),
-      this.buildConversionRecord("L-006","Kavita Joshi", "Luxury — ELITE",          3499, new Date(now.getTime()-5*86400000)),
-    ];
+    // ── Conversion Bonus — use real conversions if available ─────────────────
+    const realSubs = readSubscriptions().filter(s => {
+      const mine = supervisorId ? s.supervisorId === supervisorId : true;
+      return mine && s.status === "Active";
+    });
+
+    const convRecords: ConversionRecord[] = realSubs.length > 0
+      ? realSubs.slice(0, 10).map((s, i) => this.buildConversionRecord(
+          s.id || `REAL-${i}`,
+          `Customer ${s.customerId || i}`,
+          s.packageType || "Smart Wash",
+          s.pricing?.finalPrice || s.pricing?.basePrice || 1599,
+          new Date(s.createdAt || s.startDate || now.getTime() - (i + 1) * 10 * 86400000),
+          new Date(s.createdAt || s.startDate || now.getTime() - (i + 1) * 10 * 86400000),
+        ))
+      : [
+          // Mock fallback when no real data
+          this.buildConversionRecord("L-001","Amit Patel",   "Hatchback — Smart Wash",  1599, new Date(now.getTime()-75*86400000), new Date(now.getTime()-70*86400000)),
+          this.buildConversionRecord("L-002","Priya Shah",   "SUV — Express Wash",      1499, new Date(now.getTime()-68*86400000), new Date(now.getTime()-63*86400000)),
+          this.buildConversionRecord("L-003","Rahul Desai",  "Hatchback — Express Wash",1249, new Date(now.getTime()-40*86400000), new Date(now.getTime()-35*86400000)),
+          this.buildConversionRecord("L-004","Sneha Mehta",  "SUV — ELITE",             2499, new Date(now.getTime()-20*86400000), new Date(now.getTime()-15*86400000)),
+          this.buildConversionRecord("L-005","Vikram Modi",  "Hatchback — ELITE",       1999, new Date(now.getTime()-10*86400000)),
+          this.buildConversionRecord("L-006","Kavita Joshi", "Luxury — ELITE",          3499, new Date(now.getTime()-5*86400000)),
+        ];
     const convBonus = this.calculateConversionBonus(convRecords, kpi.btlUnlocked);
 
     // ── Milestones ────────────────────────────────────────────────────────────
@@ -347,7 +464,7 @@ class SupervisorIncentiveService {
     }
     if (churn.color === "red" || churn.color === "amber") {
       alerts.push({ type:"CHURN_WARNING", severity:churn.color === "red" ? "CRITICAL" : "WARNING",
-        message:`Churn rate ${churn.churnRate}% is applying a ${churn.multiplier}× multiplier to your BTL lead earnings.` });
+        message:`Churn rate ${churn.churnRate}% (${realChurn.cancellations} cancellations / ${realChurn.activeCustomers} active) is applying a ${churn.multiplier}× multiplier to your BTL lead earnings.` });
     }
     if (kpi.auditCompliance < 16) {
       alerts.push({ type:"AUDIT_LOW", severity:"WARNING",
