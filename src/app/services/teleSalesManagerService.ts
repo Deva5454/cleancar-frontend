@@ -12,6 +12,151 @@
  * - All data flows through this centralized service
  */
 
+/**
+ * ─── Buy Page → TSM Data Bridge ──────────────────────────────────────────────
+ * Reads real conversion data written by CustomerPlanPage.tsx on subscription
+ * creation and feeds it into TSM metrics, pricing audit, and EBITDA alerts.
+ *
+ * Storage keys (written by buy page):
+ *   cleancar_subscriptions    — all subscription records
+ *   cleancar_incentive_records — TSE incentive records (incentiveV6)
+ *   cleancar_plan_page_config  — live plan prices (planSyncService)
+ */
+
+const LS_SUBSCRIPTIONS  = "cleancar_subscriptions";
+const LS_INCENTIVES     = "cleancar_incentive_records";
+const EBITDA_COST_RATIO = 0.65; // 65% cost of service → 35% EBITDA at list price
+const EBITDA_FLOOR      = 25;   // below this → CRITICAL
+const EBITDA_WARNING    = 35;   // below this → WARNING
+
+interface BuyPageSubscription {
+  id: string;
+  customerId: string;
+  customerName?: string;
+  packageType: string;        // SHINE | PROTECT | ELITE
+  packageName: string;        // Express Wash | Smart Wash | Elite Wash
+  vehicleCategory: string;    // hatchback | suv | luxury
+  commitmentMonths?: number;
+  pricing: {
+    basePrice: number;
+    discount: number;
+    addonTotal?: number;
+    subtotal?: number;
+    gst?: number;
+    finalPrice: number;
+  };
+  serviceDetails?: {
+    addOns?: unknown[];
+  };
+  tseId?: string;             // TSE who converted this lead
+  paymentStatus: string;
+  createdAt?: string;
+  startDate: string;
+}
+
+/** Read real subscriptions from buy page localStorage */
+function getRealSubscriptions(): BuyPageSubscription[] {
+  try {
+    const raw = localStorage.getItem(LS_SUBSCRIPTIONS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+/** Get current month subscriptions only */
+function getMTDSubscriptions(): BuyPageSubscription[] {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  return getRealSubscriptions().filter(s => {
+    const created = new Date(s.createdAt || s.startDate || "");
+    return created >= monthStart;
+  });
+}
+
+/** Calculate EBITDA % for a deal */
+function calcEBITDA(dealValue: number, basePrice: number): number {
+  if (!dealValue || !basePrice) return 35;
+  const costOfService = basePrice * EBITDA_COST_RATIO;
+  const profit = dealValue - costOfService;
+  return Math.round((profit / dealValue) * 100 * 10) / 10;
+}
+
+/** Get EBITDA status */
+function ebitdaStatus(pct: number): "HEALTHY" | "WARNING" | "CRITICAL" {
+  if (pct >= EBITDA_WARNING) return "HEALTHY";
+  if (pct >= EBITDA_FLOOR)   return "WARNING";
+  return "CRITICAL";
+}
+
+/** Build pricing audit entries from real buy page data */
+function buildRealPricingAudit(): PricingAuditEntry[] {
+  const subs = getMTDSubscriptions();
+  if (!subs.length) return [];
+  return subs.map((s, i) => {
+    const dealValue  = s.pricing.finalPrice || s.pricing.subtotal || s.pricing.basePrice;
+    const basePrice  = s.pricing.basePrice;
+    const ebitdaPct  = calcEBITDA(dealValue, basePrice);
+    const status     = ebitdaStatus(ebitdaPct);
+    const hasAddons  = (s.serviceDetails?.addOns?.length ?? 0) > 0;
+    const dealType: DealType = hasAddons
+      ? (s.packageType === "SHINE" ? "BASE" : "BUNDLE_MID")
+      : "BASE";
+    return {
+      id:               `AUDIT-REAL-${s.id || i}`,
+      leadId:           s.customerId,
+      customerName:     s.customerName || `Customer ${s.customerId}`,
+      tseId:            s.tseId || "TSE-DIRECT",
+      tseName:          s.tseId ? `TSE ${s.tseId}` : "Direct (Buy Page)",
+      dealType,
+      dealValue,
+      ebitdaPercentage: ebitdaPct,
+      ebitdaStatus:     status,
+      addOnUsed:        hasAddons,
+      systemBlockEvent: status === "CRITICAL",
+      blockReason:      status === "CRITICAL" ? `EBITDA ${ebitdaPct}% below ${EBITDA_FLOOR}% floor` : undefined,
+      overrideApproved: false,
+      closedAt:         new Date(s.createdAt || s.startDate || Date.now()),
+      flags:            [
+        ...(status === "CRITICAL" ? ["LOW_EBITDA"] : []),
+        ...(s.pricing.discount > basePrice * 0.15 ? ["HIGH_DISCOUNT"] : []),
+      ],
+    };
+  });
+}
+
+/** Build EBITDA_BREACH alert if any real deal is critical */
+function buildEBITDAAlerts(): TSMAlert[] {
+  const audit = buildRealPricingAudit();
+  const critical = audit.filter(a => a.ebitdaStatus === "CRITICAL");
+  if (!critical.length) return [];
+  return critical.map(a => ({
+    id:             `ALERT-EBITDA-${a.id}`,
+    type:           "EBITDA_BREACH_ATTEMPT" as const,
+    severity:       "CRITICAL" as const,
+    title:          `EBITDA Breach — ${a.customerName}`,
+    description:    `Deal closed at ₹${a.dealValue.toLocaleString("en-IN")} with EBITDA ${a.ebitdaPercentage}% (floor: ${EBITDA_FLOOR}%). Plan: ${a.dealType}. TSE: ${a.tseName}.`,
+    tseId:          a.tseId,
+    tseName:        a.tseName,
+    leadId:         a.leadId,
+    createdAt:      a.closedAt instanceof Date ? a.closedAt : new Date(a.closedAt),
+    actionRequired: `Review pricing for ${a.customerName}. Consider flagging for override audit.`,
+    autoEscalateIn: 30,
+  }));
+}
+
+/** Get real MTD revenue from buy page subscriptions (actual billed, excl. GST) */
+function getRealMTDRevenue(): number {
+  return getMTDSubscriptions().reduce((sum, s) => {
+    return sum + (s.pricing.subtotal || s.pricing.finalPrice || 0);
+  }, 0);
+}
+
+/** Get real conversion count from buy page */
+function getRealConversionCount(): number {
+  return getMTDSubscriptions().filter(s => s.paymentStatus === "Paid").length;
+}
+
 import type {
   TSMCommandMetrics,
   TSEPerformanceCard,
@@ -52,24 +197,33 @@ class TeleSalesManagerService {
 
   getCommandMetrics(): TSMCommandMetrics {
     // In production: GET /api/tsm/command-metrics
+    // WIRED: reads real conversion data from buy page localStorage
     const tseCards = this.getTSEPerformanceCards();
     const derivedRate = Math.round(
       tseCards.reduce((s, t) => s + t.kpis.conversionRate.rate, 0) / tseCards.length * 10
     ) / 10;
+
+    // Use real revenue if available, fallback to mock
+    const realRevenue = getRealMTDRevenue();
+    const realConversions = getRealConversionCount();
+    const ebitdaAlerts = buildEBITDAAlerts();
+
     return {
       leadStages: {
-        new: 45, attempted: 78, followUp: 112, converted: 35, lost: 23,
+        new: 45, attempted: 78, followUp: 112,
+        converted: realConversions > 0 ? realConversions : 35,
+        lost: 23,
       },
       teamConversionRate: derivedRate,
-      teamConversionTarget: 22,  // B1 FIX: business rule
+      teamConversionTarget: 22,
       slaBreachesToday: 12,
       revenue: {
-        mtd: 4850000,
+        mtd: realRevenue > 0 ? realRevenue : 4850000,
         target: 5500000,
-        percentage: 88.2,
+        percentage: realRevenue > 0 ? Math.round((realRevenue / 5500000) * 100 * 10) / 10 : 88.2,
       },
       openAlerts: {
-        critical: 3,
+        critical: 3 + ebitdaAlerts.length,  // real EBITDA breaches added
         warning: 7,
         info: 12,
       },
@@ -319,7 +473,9 @@ class TeleSalesManagerService {
 
   getPricingAuditLog(): PricingAuditEntry[] {
     // In production: GET /api/tsm/pricing-audit
-    return [
+    // WIRED: merges real buy page conversions with mock audit entries
+    const realAudit = buildRealPricingAudit();
+    const mockAudit = [
       {
         id: "AUDIT-001",
         leadId: "LEAD-004",
@@ -371,6 +527,8 @@ class TeleSalesManagerService {
         flags: [],
       },
     ];
+    // Real data first, then mock (real data takes priority)
+    return [...realAudit, ...mockAudit];
   }
 
   flagPricingAnomaly(auditId: string, tseId: string, reason: string): void {
@@ -560,6 +718,8 @@ class TeleSalesManagerService {
         createdAt: new Date(Date.now() - 60 * 60 * 1000),
         actionRequired: "Review and approve Lost status or reassign",
       },
+      // WIRED: real EBITDA breach alerts from buy page conversions
+      ...buildEBITDAAlerts(),
     ];
   }
 
