@@ -43,6 +43,14 @@ export const TIME_MODE_CONFIGS: TimeModeConfig[] = [
     primaryColor: "purple"
   },
   {
+    mode: "TEAM_REVIEW",
+    startHour: 18,
+    endHour: 19,
+    displayName: "Evening Review",
+    description: "Review day performance and plan tomorrow",
+    primaryColor: "orange"
+  },
+  {
     mode: "DAY_CLOSE",
     startHour: 19,
     endHour: 23,
@@ -207,4 +215,8 @@ export const DEFAULT_LOCATION = {
 // ACTOR ID (temporary for development)
 // ============================================
 
-export const CURRENT_OM_ID = "OM-001" as const;
+// Read OM ID from session — falls back to demo ID
+export const CURRENT_OM_ID = (() => {
+  try { return JSON.parse(localStorage.getItem("cc360_session") || "{}").employeeId || "EDB-OM-SUR1"; }
+  catch { return "EDB-OM-SUR1"; }
+})();
