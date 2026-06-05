@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CustomerPlanPage.tsx
  * Public-facing 6-step car wash plan purchase flow
  * - 4-wheelers only (no 2-wheelers)
