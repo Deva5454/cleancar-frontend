@@ -59,14 +59,27 @@ export interface HROverride {
 
 export interface IncentiveData {
   // Daily
-  baseUnits: number; // 25
-  completedUnits: number;
-  incentiveUnits: number; // Units above 25
+  baseUnits: number;           // 25 (from WASHER.BASE_QUOTA)
+  completedUnits: number;      // total weighted units (4W=1.0, 2W=0.4)
+  incentiveUnits: number;      // units above 25
   todayIncentiveEarnings: number;
+
+  // Unit breakdown — 4W vs 2W (NEW)
+  units4W?: number;            // count of 4-wheeler washes today
+  units2W?: number;            // count of 2-wheeler washes today
+  unitsWeighted4W?: number;    // units4W × 1.0
+  unitsWeighted2W?: number;    // units2W × 0.4
+
+  // Add-on incentive (NEW) — ₹20 per add-on executed (not in plan)
+  addOnCount?: number;         // add-ons performed today
+  addOnEarnings?: number;      // addOnCount × WASHER.ADDON_EXECUTION (₹20)
+  packBonus?: number;          // ₹5 (pack×2 final) or ₹10 (pack×4 final)
+  attendanceBonus?: number;    // ₹500 own + ₹1000 full team
 
   // Monthly
   monthlyIncentiveUnits: number;
   monthlyIncentiveEarnings: number;
+  monthlyAddOnEarnings?: number;   // monthly add-on total (NEW)
 
   // Time band
   timeBandStatus: TimeBandStatus;
@@ -80,10 +93,10 @@ export interface IncentiveData {
   lateMarksCount?: number;
   hasAttendanceImpact?: boolean;
 
-  // Job-wise breakdown (NEW)
+  // Job-wise breakdown
   jobBreakdowns?: JobIncentiveBreakdown[];
 
-  // HR Override (NEW)
+  // HR Override
   hrOverride?: HROverride;
 }
 
@@ -205,20 +218,89 @@ export function WasherIncentiveTracker({
               </div>
             </div>
 
-            {/* Today's Earnings */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <div className="h-12 w-12 rounded-full bg-green-200 flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-700" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Today's Incentive</p>
-                  <p className="text-2xl font-bold text-green-700">
-                    ₹{data.todayIncentiveEarnings.toFixed(0)}
-                  </p>
+            {/* Today's Earnings breakdown */}
+            <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-green-200 flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-green-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Today's Total Incentive</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      ₹{(data.todayIncentiveEarnings + (data.addOnEarnings ?? 0) + (data.packBonus ?? 0) + (data.attendanceBonus ?? 0)).toFixed(0)}
+                    </p>
+                  </div>
                 </div>
               </div>
+              {/* Breakdown rows */}
+              <div className="space-y-1 border-t border-green-200 pt-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-600">Unit incentive ({data.incentiveUnits} × ₹{WASHER.PER_UNIT_ABOVE})</span>
+                  <span className="font-semibold">₹{data.todayIncentiveEarnings.toFixed(0)}</span>
+                </div>
+                {(data.addOnEarnings ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">Add-ons ({data.addOnCount} × ₹{WASHER.ADDON_EXECUTION})</span>
+                    <span className="font-semibold text-teal-700">+₹{data.addOnEarnings}</span>
+                  </div>
+                )}
+                {(data.packBonus ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">Pack completion bonus</span>
+                    <span className="font-semibold text-amber-700">+₹{data.packBonus}</span>
+                  </div>
+                )}
+                {(data.attendanceBonus ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">Attendance bonus</span>
+                    <span className="font-semibold text-blue-700">+₹{data.attendanceBonus}</span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* 4W / 2W unit breakdown */}
+            {(data.units4W !== undefined || data.units2W !== undefined) && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+                  <p className="text-xs text-gray-500">4-Wheelers</p>
+                  <p className="text-xl font-bold text-blue-700">{data.units4W ?? 0}</p>
+                  <p className="text-xs text-gray-400">× 1.0 = {data.unitsWeighted4W ?? data.units4W ?? 0} units</p>
+                </div>
+                <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200 text-center">
+                  <p className="text-xs text-gray-500">2-Wheelers</p>
+                  <p className="text-xl font-bold text-indigo-700">{data.units2W ?? 0}</p>
+                  <p className="text-xs text-gray-400">× 0.4 = {data.unitsWeighted2W ?? (Math.round((data.units2W ?? 0) * 0.4 * 10) / 10)} units</p>
+                </div>
+              </div>
+            )}
+
+            {/* Add-on earnings — ₹20 per add-on */}
+            {(data.addOnCount !== undefined && data.addOnCount > 0) && (
+              <div className="p-3 bg-teal-50 rounded-lg border border-teal-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600">Add-ons Performed</p>
+                    <p className="text-lg font-bold text-teal-700">
+                      {data.addOnCount} × ₹{WASHER.ADDON_EXECUTION} = ₹{data.addOnEarnings ?? data.addOnCount * WASHER.ADDON_EXECUTION}
+                    </p>
+                    <p className="text-xs text-gray-400">₹20 per add-on not included in plan</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pack bonus */}
+            {(data.packBonus !== undefined && data.packBonus > 0) && (
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-600">Pack Completion Bonus</p>
+                  <p className="text-lg font-bold text-amber-700">+₹{data.packBonus}</p>
+                </div>
+                <p className="text-xs text-gray-400">₹5 (Pack×2 final) or ₹10 (Pack×4 final)</p>
+              </div>
+            )}
 
             {/* Progress to next unit */}
             {data.incentiveUnits === 0 && data.completedUnits < data.baseUnits && (
@@ -302,14 +384,28 @@ export function WasherIncentiveTracker({
             </div>
 
             {/* Monthly Earnings */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Total Incentive Earned</p>
-                <p className="text-3xl font-bold text-purple-700">
-                  ₹{data.monthlyIncentiveEarnings.toLocaleString('en-IN')}
-                </p>
+            <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Total Incentive Earned</p>
+                  <p className="text-3xl font-bold text-purple-700">
+                    ₹{(data.monthlyIncentiveEarnings + (data.monthlyAddOnEarnings ?? 0)).toLocaleString('en-IN')}
+                  </p>
+                </div>
+                <DollarSign className="h-8 w-8 text-purple-400" />
               </div>
-              <DollarSign className="h-8 w-8 text-purple-400" />
+              {(data.monthlyAddOnEarnings ?? 0) > 0 && (
+                <div className="border-t border-purple-200 pt-2 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">Unit incentive</span>
+                    <span className="font-medium">₹{data.monthlyIncentiveEarnings.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">Add-on earnings (₹20/add-on)</span>
+                    <span className="font-medium text-teal-700">+₹{data.monthlyAddOnEarnings?.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
