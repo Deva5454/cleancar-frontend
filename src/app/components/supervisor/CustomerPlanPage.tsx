@@ -84,22 +84,22 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     whatsappNumber: "918238705601",
   },
   hero: {
-    badge: "ðŸš— Surat's #1 Daily Car Wash Service",
+    badge: "🚗 Surat's #1 Daily Car Wash Service",
     headline: "Your car, clean",
     headlineAccent: "every single day.",
-    subheadline: "Professional doorstep car wash â€” before you wake up, after every drive. Photos after every wash on WhatsApp.",
+    subheadline: "Professional doorstep car wash — before you wake up, after every drive. Photos after every wash on WhatsApp.",
   },
-  trustItems: ["ðŸ“¸ Before & after photos every wash", "ðŸ”„ Free re-wash within 24h", "ðŸ  We come to you", "ðŸ“ž Cancel anytime"],
+  trustItems: ["📸 Before & after photos every wash", "ðŸ”„ Free re-wash within 24h", "ðŸ  We come to you", "📞 Cancel anytime"],
   trustStrip: [
     "ðŸ”’ Razorpay secured payments",
-    "ðŸ“¸ Before & after photos every wash",
+    "📸 Before & after photos every wash",
     "ðŸ”„ Free re-wash within 24 hours",
-    "ðŸ“ž 7-day cancellation â€” no questions asked",
-    "ðŸ  We come to you â€” home, office, society",
+    "📞 7-day cancellation — no questions asked",
+    "ðŸ  We come to you — home, office, society",
   ],
   vehicleCategories: [
-    { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "ðŸš—" },
-    { id: "suv",       label: "SUV / Sedan / MUV",         icon: "ðŸš™" },
+    { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "🚗" },
+    { id: "suv",       label: "SUV / Sedan / MUV",         icon: "🚙" },
     { id: "luxury",    label: "Luxury / Large SUV",         icon: "ðŸŽï¸" },
   ],
   carModelMap: {
@@ -124,14 +124,14 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {
       id: "water",
       name: "Express Wash",
-      tagline: "Chamakti Subah â€” your car, clean every morning",
+      tagline: "Chamakti Subah — your car, clean every morning",
       icon: "âœ¨",
       features: [
         // EVERY WASH (30Ã—/month)
         { text: "Full exterior water wash + microfibre dry", included: true },
         { text: "Mirrors, door handles, number plate cleaned", included: true },
         { text: "Before & after photo on WhatsApp daily", included: true },
-        { text: "Dedicated washer â€” same person every morning", included: true },
+        { text: "Dedicated washer — same person every morning", included: true },
         // WEEKLY (4Ã—/month)
         { text: "Tyre & rim spray-clean weekly (4Ã—/month)", included: true },
         // MONTHLY (1Ã—/month)
@@ -147,13 +147,13 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {
       id: "shampoo",
       name: "Smart Wash",
-      tagline: "Raksha Plan â€” clean daily, protected always",
-      icon: "ðŸ›¡ï¸",
+      tagline: "Raksha Plan — clean daily, protected always",
+      icon: "🛡️",
       popular: true,
       features: [
         // EVERY WASH (30Ã—/month)
         { text: "Everything in Express Wash daily", included: true },
-        { text: "Dedicated washer â€” same person, same time", included: true },
+        { text: "Dedicated washer — same person, same time", included: true },
         // FORTNIGHTLY (2Ã—/month)
         { text: "Shampoo wash 2Ã—/month (fortnightly)", included: true },
         { text: "Interior vacuum + mat clean 2Ã—/month", included: true },
@@ -169,12 +169,12 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {
       id: "wax",
       name: "Elite Wash",
-      tagline: "Raja Seva â€” showroom condition, every day",
+      tagline: "Raja Seva — showroom condition, every day",
       icon: "ðŸ‘‘",
       features: [
         // EVERY WASH (30Ã—/month)
         { text: "Everything in Smart Wash daily", included: true },
-        { text: "Dedicated personal washer â€” knows your car", included: true },
+        { text: "Dedicated personal washer — knows your car", included: true },
         // WEEKLY (4Ã—/month)
         { text: "Shampoo wash weekly (4Ã—/month)", included: true },
         // FORTNIGHTLY (2Ã—/month)
@@ -194,7 +194,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       id: "onetime",
       name: "One-Time Visit",
       icon: "1ï¸âƒ£",
-      description: "Single visit â€” Water Wash, Shampoo, or Shampoo+Wax",
+      description: "Single visit — Water Wash, Shampoo, or Shampoo+Wax",
       prices: {
         waterWash:   { hatchback: 199, suv: 299, luxury: 399 },
         shampoo:     { hatchback: 299, suv: 349, luxury: 499 },
@@ -207,7 +207,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       id: "pack2",
       name: "Pack of 2",
       icon: "ðŸ”",
-      description: "Pre-buy 2 visits â€” 8% saving. Use within 20 days.",
+      description: "Pre-buy 2 visits — 8% saving. Use within 20 days.",
       prices: {
         waterWash:   { hatchback: 370,  suv: 550,   luxury: 730   },
         shampoo:     { hatchback: 550,  suv: 640,   luxury: 920   },
@@ -215,13 +215,13 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       },
       discount: "8% off",
       validityDays: 20,
-      perVisitLabel: "Save â‚¹28â€“â‚¹68 per pack (Hatchback)",
+      perVisitLabel: "Save ₹28–₹68 per pack (Hatchback)",
     },
     {
       id: "pack4",
       name: "Pack of 4",
-      icon: "ðŸ“…",
-      description: "Pre-buy 4 visits â€” 15% saving. Use within 30 days.",
+      icon: "📅",
+      description: "Pre-buy 4 visits — 15% saving. Use within 30 days.",
       prices: {
         waterWash:   { hatchback: 680,  suv: 1020,  luxury: 1360  },
         shampoo:     { hatchback: 1020, suv: 1180,  luxury: 1700  },
@@ -229,39 +229,39 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       },
       discount: "15% off",
       validityDays: 30,
-      perVisitLabel: "Save â‚¹116â€“â‚¹236 per pack (Hatchback)",
+      perVisitLabel: "Save ₹116–₹236 per pack (Hatchback)",
     },
   ],
   commitments: [
     { id: "monthly",  term: "Month to Month", discountLabel: "No lock-in",  perk: "Cancel anytime. 7 days' notice." },
-    { id: "3month",   term: "3 Months",       discountLabel: "5% off",      perk: "On renewal. â‚¹225 saving on Hatchback Shampoo." },
+    { id: "3month",   term: "3 Months",       discountLabel: "5% off",      perk: "On renewal. ₹225 saving on Hatchback Shampoo." },
     { id: "6month",   term: "6 Months",       discountLabel: "10% off",     perk: "Renewal + free interior vacuum every month.", highlight: "great" },
     { id: "12month",  term: "12 Months",      discountLabel: "18% off",     perk: "Renewal + vacuum + tyre dressing monthly + priority slots.", highlight: "best" },
   ],
   addons: [
-    // Prices shown are for Hatchback. SUV: +â‚¹50â€“100. Luxury: +â‚¹100â€“200. See v1.9 doc Section 4.
+    // Prices shown are for Hatchback. SUV: +₹50–100. Luxury: +₹100–200. See v1.9 doc Section 4.
     { id: "vacuum",    name: "Interior Deep Vacuum",        price: 199, unit: "per visit",
-      description: "Glove box, door pad polish, seats, mats, footwells, boot. Before+after photo. (â‚¹199 H / â‚¹249 SUV / â‚¹349 Luxury)" },
+      description: "Glove box, door pad polish, seats, mats, footwells, boot. Before+after photo. (₹199 H / ₹249 SUV / ₹349 Luxury)" },
     { id: "dashboard", name: "Dashboard & Console Detail",  price: 149, unit: "per visit",
-      description: "Dashboard polish, console polish, door pads, console vents cleaned by blower. (â‚¹149 H / â‚¹199 SUV / â‚¹249 Luxury)" },
+      description: "Dashboard polish, console polish, door pads, console vents cleaned by blower. (₹149 H / ₹199 SUV / ₹249 Luxury)" },
     { id: "tyre",      name: "Tyre Dressing (all 4 tyres)", price: 99,  unit: "per visit",
-      description: "Shampoo wash tyre + mud guard + shine protect application. (â‚¹99 H / â‚¹149 SUV / â‚¹199 Luxury)" },
+      description: "Shampoo wash tyre + mud guard + shine protect application. (₹99 H / ₹149 SUV / ₹199 Luxury)" },
     { id: "waxpolish", name: "Full Hand Wax Polish",        price: 199, unit: "per visit",
-      description: "Shampoo wash + full body panel-by-panel wax application. Outer body only â€” no glass. (â‚¹199 H / â‚¹249 SUV / â‚¹399 Luxury)" },
+      description: "Shampoo wash + full body panel-by-panel wax application. Outer body only — no glass. (₹199 H / ₹249 SUV / ₹399 Luxury)" },
     { id: "underbody", name: "Underbody Wash",              price: 199, unit: "per visit",
-      description: "Under body water spray â€” removes mud, road grime, salt. (â‚¹199 H / â‚¹249 SUV / â‚¹349 Luxury)" },
+      description: "Under body water spray — removes mud, road grime, salt. (₹199 H / ₹249 SUV / ₹349 Luxury)" },
     { id: "enginebay", name: "Engine Bay Wipe-Down",        price: 99,  unit: "per visit",
-      description: "Dry blow of engine bay â€” no water. Removes dust and debris. Strictly dry process only. (â‚¹99 H / â‚¹149 SUV / â‚¹199 Luxury)" },
+      description: "Dry blow of engine bay — no water. Removes dust and debris. Strictly dry process only. (₹99 H / ₹149 SUV / ₹199 Luxury)" },
     { id: "fragrance", name: "Car Fragrance (standalone)",  price: 49,  unit: "per visit",
-      description: "Interior car fragrance spray â€” single fresh application. All vehicle types â‚¹49." },
-    // REMOVED: Glass Coating (RainX) â€” not in current pricing
+      description: "Interior car fragrance spray — single fresh application. All vehicle types ₹49." },
+    // REMOVED: Glass Coating (RainX) — not in current pricing
   ],
   timeSlots: [
-    "Early morning (5am â€“ 7am)",
-    "Morning (7am â€“ 9am)",
-    "Late morning (9am â€“ 11am)",
-    "Afternoon (11am â€“ 1pm)",
-    "Evening (5pm â€“ 7pm)",
+    "Early morning (5am – 7am)",
+    "Morning (7am – 9am)",
+    "Late morning (9am – 11am)",
+    "Afternoon (11am – 1pm)",
+    "Evening (5pm – 7pm)",
   ],
   postPaymentSteps: [
     "Receipt sent to your WhatsApp immediately",
@@ -282,8 +282,8 @@ function loadConfig(): PlanPageConfig {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // HELPERS
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const inr = (n: number) => "â‚¹" + n.toLocaleString("en-IN");
-const perWash = (price: number, washes = 30) => `â‚¹${Math.round(price / washes)} per wash Â· ${washes} washes/month`;
+const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
+const perWash = (price: number, washes = 30) => `₹${Math.round(price / washes)} per wash · ${washes} washes/month`;
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MAIN COMPONENT
@@ -325,7 +325,7 @@ export function CustomerPlanPage() {
   const [parking, setParking] = useState<"dedicated" | "random">("dedicated");
   const [notifyPref, setNotifyPref] = useState<"whatsapp" | "email" | "both">("whatsapp");
 
-  // Step 6.5 â€” T&C consent
+  // Step 6.5 — T&C consent
   const [consentTerms, setConsentTerms]     = useState(false);
   const [consentRefund, setConsentRefund]   = useState(false);
   const [consentCancel, setConsentCancel]   = useState(false);
@@ -372,10 +372,10 @@ export function CustomerPlanPage() {
    *
    * Booking context â†’ available slots
    * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   * Before 10 AM on a working day   â†’ today, ALL slots 5 AM â€“ 9 PM
-   * 10 AM â€“ 4 PM on a working day   â†’ today, slots that are â‰¥ 4 hours away
-   * After 4 PM on a working day     â†’ NEXT working day, from 1 PM â€“ 9 PM
-   * On a Sunday or public holiday   â†’ NEXT working day, from 1 PM â€“ 9 PM
+   * Before 10 AM on a working day   â†’ today, ALL slots 5 AM – 9 PM
+   * 10 AM – 4 PM on a working day   â†’ today, slots that are â‰¥ 4 hours away
+   * After 4 PM on a working day     â†’ NEXT working day, from 1 PM – 9 PM
+   * On a Sunday or public holiday   â†’ NEXT working day, from 1 PM – 9 PM
    */
   const getOneTimeSlots = (dateStr: string): string[] => {
     if (!dateStr) return [];
@@ -391,10 +391,10 @@ export function CustomerPlanPage() {
 
       if (isToday) {
         if (nowHour < 10) {
-          // Before 10 AM: slots from 12 noon â€“ 9 PM only
+          // Before 10 AM: slots from 12 noon – 9 PM only
           if (h >= 12) slots.push(padH);
         } else if (nowHour >= 10 && nowHour < 16) {
-          // 10 AMâ€“4 PM: only slots â‰¥ 4 hours from now
+          // 10 AM–4 PM: only slots â‰¥ 4 hours from now
           if (h >= nowHour + 4) slots.push(padH);
         }
         // After 4 PM (or 6:30 PM) on today â†’ no same-day slots (next working day only)
@@ -406,7 +406,7 @@ export function CustomerPlanPage() {
           // Next working day after cutoff â†’ from nwdMinHour onwards
           if (h >= nwdMinHour) slots.push(padH);
         } else {
-          // Any other future date â†’ all slots 5 AMâ€“9 PM
+          // Any other future date â†’ all slots 5 AM–9 PM
           slots.push(padH);
         }
       }
@@ -417,8 +417,8 @@ export function CustomerPlanPage() {
   /**
    * Cutoff rules (working day):
    *   Before 10:00     â†’ today from 12:00 noon
-   *   10:00 â€“ 15:59    â†’ today, slots â‰¥ 4h from now
-   *   16:00 â€“ 18:29    â†’ next working day from 18:00 (6 PM)
+   *   10:00 – 15:59    â†’ today, slots â‰¥ 4h from now
+   *   16:00 – 18:29    â†’ next working day from 18:00 (6 PM)
    *   18:30 or later   â†’ next working day from 13:00 (1 PM)
    *   Sunday / Holiday â†’ next working day from 13:00 (1 PM)
    */
@@ -431,7 +431,7 @@ export function CustomerPlanPage() {
       return { nextOnly: true, nwdMinHour: 13 };   // after 6:30 PM or holiday
     }
     if (totalMins >= 16 * 60) {
-      return { nextOnly: true, nwdMinHour: 18 };   // 4:00 PM â€“ 6:29 PM
+      return { nextOnly: true, nwdMinHour: 18 };   // 4:00 PM – 6:29 PM
     }
     return { nextOnly: false, nwdMinHour: 13 };    // before 4 PM, today available
   };
@@ -536,7 +536,7 @@ export function CustomerPlanPage() {
 
       const nameParts = custName.trim().split(" ");
       const firstName = nameParts[0] || custName;
-      const lastName  = nameParts.slice(1).join(" ") || "â€”";
+      const lastName  = nameParts.slice(1).join(" ") || "—";
 
       // 1ï¸âƒ£ Find or create customer record
       const existing = customers.find(c =>
@@ -565,7 +565,7 @@ export function CustomerPlanPage() {
             color: "",
             registrationNumber: custReg.toUpperCase(),
           } : undefined,
-          leadSource: "Website â€” Buy Page",
+          leadSource: "Website — Buy Page",
           status: "Active",
           tags: ["web-signup"],
         });
@@ -580,7 +580,7 @@ export function CustomerPlanPage() {
 
       const sub = createSubscription({
         customerId,
-        packageType: selectedPlan === "wax" ? "Premium" : selectedPlan === "shampoo" ? "Standard" : "Basic",
+        packageType: selectedPlan === "wax" ? "ELITE" : selectedPlan === "shampoo" ? "PROTECT" : "SHINE",
         packageName: planMode === "monthly"
           ? (planObj?.name || selectedPlan || "Plan")
           : (packObj?.name || selectedPack || "Pack"),
@@ -637,7 +637,7 @@ export function CustomerPlanPage() {
         pincode,
         items: [
           ...(planMode === "monthly"
-            ? [{ name: `${planObj?.name || selectedPlan} â€” Monthly Subscription (${catLabel})`, qty: 1, rate: planPrice, amount: planPrice }]
+            ? [{ name: `${planObj?.name || selectedPlan} — Monthly Subscription (${catLabel})`, qty: 1, rate: planPrice, amount: planPrice }]
             : [{ name: `${packObj?.name || selectedPack} Pack`, qty: 1, rate: packPrice, amount: packPrice }]
           ),
           ...addons.map(id => {
@@ -666,7 +666,7 @@ export function CustomerPlanPage() {
 
       // 6ï¸âƒ£ Simulate WhatsApp / Email dispatch
       const waMsg = encodeURIComponent(
-        `Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: â‚¹${invoice.grandTotal.toLocaleString("en-IN")} (incl. GST)\n\nService starts within 2 working days. Your washer will send before & after photos after every wash.\n\nThank you for choosing ${cfg.brand.name}! ðŸš—âœ¨`
+        `Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: ₹${invoice.grandTotal.toLocaleString("en-IN")} (incl. GST)\n\nService starts within 2 working days. Your washer will send before & after photos after every wash.\n\nThank you for choosing ${cfg.brand.name}! 🚗âœ¨`
       );
       if (notifyPref === "whatsapp" || notifyPref === "both") {
         window._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
@@ -727,7 +727,7 @@ export function CustomerPlanPage() {
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Bill To</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{inv.customerName}</div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>ðŸ“± {inv.customerPhone}</div>
+                    <div style={{ fontSize: 13, color: "#6B7280" }}>📋± {inv.customerPhone}</div>
                     {inv.customerEmail && <div style={{ fontSize: 13, color: "#6B7280" }}>âœ‰ï¸ {inv.customerEmail}</div>}
                     <div style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>{inv.address}</div>
                     <div style={{ fontSize: 13, color: "#6B7280" }}>Pin: {inv.pincode}</div>
@@ -755,7 +755,7 @@ export function CustomerPlanPage() {
                       <tr key={i} style={{ borderBottom: "1px solid #F3F4F6" }}>
                         <td style={{ padding: "10px", fontSize: 13 }}>{item.name}</td>
                         <td style={{ padding: "10px", textAlign: "center", fontSize: 13 }}>{item.qty}</td>
-                        <td style={{ padding: "10px", textAlign: "right", fontSize: 13, fontWeight: 600 }}>â‚¹{item.amount.toLocaleString("en-IN")}</td>
+                        <td style={{ padding: "10px", textAlign: "right", fontSize: 13, fontWeight: 600 }}>₹{item.amount.toLocaleString("en-IN")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -764,9 +764,9 @@ export function CustomerPlanPage() {
                 {/* Tax breakdown */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "14px 10px", background: "#F9FAFB", borderRadius: 10, marginBottom: 16 }}>
                   {[
-                    ["Subtotal (Taxable Value)", `â‚¹${inv.subtotal.toLocaleString("en-IN")}`],
-                    ["CGST @ 9%", `â‚¹${inv.cgst.toLocaleString("en-IN")}`],
-                    ["SGST @ 9%", `â‚¹${inv.sgst.toLocaleString("en-IN")}`],
+                    ["Subtotal (Taxable Value)", `₹${inv.subtotal.toLocaleString("en-IN")}`],
+                    ["CGST @ 9%", `₹${inv.cgst.toLocaleString("en-IN")}`],
+                    ["SGST @ 9%", `₹${inv.sgst.toLocaleString("en-IN")}`],
                   ].map(([k, v]) => (
                     <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280" }}>
                       <span>{k}</span><span>{v}</span>
@@ -774,7 +774,7 @@ export function CustomerPlanPage() {
                   ))}
                   <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, fontFamily: "'Poppins', sans-serif", color: "#1D4ED8", borderTop: "1px solid #E5E7EB", paddingTop: 10, marginTop: 4 }}>
                     <span>Grand Total</span>
-                    <span>â‚¹{inv.grandTotal.toLocaleString("en-IN")}</span>
+                    <span>₹{inv.grandTotal.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
 
@@ -789,7 +789,7 @@ export function CustomerPlanPage() {
 
               {/* Footer */}
               <div style={{ background: "#F9FAFB", borderTop: "1px solid #E5E7EB", padding: "14px 24px", fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>
-                ðŸ”’ This is a computer-generated invoice. {cfg.brand.name} Â· {cfg.brand.phone}
+                ðŸ”’ This is a computer-generated invoice. {cfg.brand.name} · {cfg.brand.phone}
               </div>
             </div>
           )}
@@ -797,18 +797,18 @@ export function CustomerPlanPage() {
           {/* Share buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 28 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-              ðŸ“¤ Share invoice via:
+              📋¤ Share invoice via:
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <a href={`https://wa.me/${cfg.brand.whatsappNumber}?text=${encodeURIComponent(`Hi! My invoice no. is ${inv?.invoiceNumber}. Amount paid: â‚¹${inv?.grandTotal}. Please confirm my ${cfg.brand.name} subscription.`)}`}
+              <a href={`https://wa.me/${cfg.brand.whatsappNumber}?text=${encodeURIComponent(`Hi! My invoice no. is ${inv?.invoiceNumber}. Amount paid: ₹${inv?.grandTotal}. Please confirm my ${cfg.brand.name} subscription.`)}`}
                 target="_blank" rel="noreferrer"
                 style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#25D366", color: "#fff", padding: "12px 20px", borderRadius: 50, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
                 ðŸ’¬ Send on WhatsApp
               </a>
               {inv?.customerEmail && (
-                <a href={`mailto:${inv.customerEmail}?subject=Invoice ${inv?.invoiceNumber} â€” ${cfg.brand.name}&body=Dear ${inv?.customerName},%0A%0AThank you for subscribing to ${cfg.brand.name}.%0A%0AInvoice No: ${inv?.invoiceNumber}%0AAmount: â‚¹${inv?.grandTotal} (incl. GST)%0A%0AYour service starts within 2 working days.`}
+                <a href={`mailto:${inv.customerEmail}?subject=Invoice ${inv?.invoiceNumber} — ${cfg.brand.name}&body=Dear ${inv?.customerName},%0A%0AThank you for subscribing to ${cfg.brand.name}.%0A%0AInvoice No: ${inv?.invoiceNumber}%0AAmount: ₹${inv?.grandTotal} (incl. GST)%0A%0AYour service starts within 2 working days.`}
                   style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#1D4ED8", color: "#fff", padding: "12px 20px", borderRadius: 50, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
-                  ðŸ“§ Send by Email
+                  📋§ Send by Email
                 </a>
               )}
             </div>
@@ -820,7 +820,7 @@ export function CustomerPlanPage() {
 
           {/* What happens next */}
           <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", borderRadius: 14, padding: "18px 20px", marginBottom: 24 }}>
-            <div style={{ fontWeight: 700, color: "#1B5E20", marginBottom: 12, fontSize: 14 }}>ðŸ“‹ What happens next:</div>
+            <div style={{ fontWeight: 700, color: "#1B5E20", marginBottom: 12, fontSize: 14 }}>📋‹ What happens next:</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {cfg.postPaymentSteps.map((s, i) => (
                 <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -847,7 +847,7 @@ export function CustomerPlanPage() {
           <span style={{ color: "#FFFFFF" }}>{cfg.brand.name.split(" ")[0]}<span style={{ color: "rgba(255,255,255,0.70)" }}> {cfg.brand.name.split(" ").slice(1).join(" ")}</span></span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.70)" }}>ðŸ“ž {cfg.brand.phone}</span>
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.70)" }}>📞 {cfg.brand.phone}</span>
           <a href={`https://wa.me/${cfg.brand.whatsappNumber}`} target="_blank" rel="noreferrer"
             style={{ background: "#16A34A", color: "#fff", padding: "9px 18px", borderRadius: 50, fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
             ðŸ’¬ WhatsApp
@@ -860,7 +860,7 @@ export function CustomerPlanPage() {
         <div style={{ position: "absolute", inset: 0, backgroundImage: "url(https://static.wixstatic.com/media/4ae675_a44950b3d59245f3b09dd9f9bd21a1d6~mv2.jpg/v1/fill/w_1440,h_600,al_c,q_85,usm_0.33_1.00_0.00,enc_avif/hero.jpg)", backgroundSize: "cover", backgroundPosition: "center", opacity: 0.12 }} />
         <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.20)", color: "#FBBF24", fontSize: 12, fontWeight: 600, padding: "6px 18px", borderRadius: 50, marginBottom: 20, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-          Trusted in Surat Â· 150+ Cars Serviced
+          Trusted in Surat · 150+ Cars Serviced
         </div>
         <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: "clamp(30px,4.5vw,54px)", fontWeight: 700, color: "#fff", lineHeight: 1.15, marginBottom: 16, letterSpacing: "-0.5px" }}>
           {cfg.hero.headline} <em style={{ fontStyle: "normal", color: "#FBBF24" }}>{cfg.hero.headlineAccent}</em>
@@ -896,11 +896,11 @@ export function CustomerPlanPage() {
         {step === 1 && (
           <div>
             <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 26, fontWeight: 600, marginBottom: 8, color: "#111827" }}>Tell us about your car</h2>
-            <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 32 }}>We only service 4-wheelers â€” cars, SUVs, and luxury vehicles. Enter your car model to get the right pricing.</p>
+            <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 32 }}>We only service 4-wheelers — cars, SUVs, and luxury vehicles. Enter your car model to get the right pricing.</p>
 
             {/* 4W Only notice */}
             <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px", marginBottom: 28, maxWidth: 520, fontSize: 14, color: "#1D4ED8", display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 20 }}>ðŸš—</span>
+              <span style={{ fontSize: 20 }}>🚗</span>
               <div>
                 <strong>4-Wheeler Service Only</strong><br />
                 <span style={{ fontWeight: 400 }}>Our service covers all cars, SUVs, MUVs, and luxury vehicles. Bikes and 2-wheelers are not included in our subscription plans.</span>
@@ -930,7 +930,7 @@ export function CustomerPlanPage() {
                 placeholder="e.g. Maruti Swift, Hyundai Creta, Toyota Fortuner"
                 style={{ width: "100%", padding: "13px 18px", border: "2px solid #E5E7EB", borderRadius: 12, fontFamily: "'Inter', sans-serif", fontSize: 15, outline: "none", background: "#fff" }}
               />
-              <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6 }}>Swift, Baleno, Creta, Innova, Fortuner, XUV700, Nexonâ€¦</p>
+              <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6 }}>Swift, Baleno, Creta, Innova, Fortuner, XUV700, Nexon…</p>
             </div>
 
             {/* Detected category badge */}
@@ -951,7 +951,7 @@ export function CustomerPlanPage() {
               </button>
               <a href={`https://wa.me/${cfg.brand.whatsappNumber}`} target="_blank" rel="noreferrer"
                 style={{ padding: "13px 24px", background: "#f5f5f5", color: "#6B7280", border: "none", borderRadius: 50, fontWeight: 600, fontSize: 14, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}>
-                ðŸ“ž Prefer a callback?
+                📞 Prefer a callback?
               </a>
             </div>
           </div>
@@ -981,7 +981,7 @@ export function CustomerPlanPage() {
             )}
             {pincodeStatus === "waitlist" && (
               <div style={{ background: "#FFF3E0", border: "1px solid #FFB74D", borderRadius: 12, padding: "13px 18px", marginBottom: 20, maxWidth: 480, fontSize: 14, color: "#E65100" }}>
-                âš ï¸ <strong>Monthly subscription not yet available</strong> in this area. One-time and repeat washes still possible â€” or join the <strong>waitlist</strong>.
+                âš ï¸ <strong>Monthly subscription not yet available</strong> in this area. One-time and repeat washes still possible — or join the <strong>waitlist</strong>.
               </div>
             )}
 
@@ -991,7 +991,7 @@ export function CustomerPlanPage() {
                 {cfg.serviceablePincodes.map(p => (
                   <button key={p.code} onClick={() => setPincode(p.code)}
                     style={{ background: "#fff", border: "1px solid #E5E7EB", padding: "6px 14px", borderRadius: 50, fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-                    ðŸ“ {p.label} â€” {p.code}
+                    📋 {p.label} — {p.code}
                   </button>
                 ))}
               </div>
@@ -1033,7 +1033,7 @@ export function CustomerPlanPage() {
                     return (
                       <div key={plan.id} onClick={() => setSelectedPlan(plan.id)}
                         style={{ border: `2px solid ${isSelected || plan.popular ? "#1D4ED8" : "#E5E7EB"}`, borderRadius: 16, background: "#fff", cursor: "pointer", overflow: "hidden", transition: "transform 0.2s, box-shadow 0.2s", transition: "all 0.2s", boxShadow: isSelected ? "0 8px 32px rgba(33,150,243,0.18)" : "none" }}>
-                        {plan.popular && <div style={{ background: "#0F172A", color: "#FBBF24", fontSize: 11, fontWeight: 700, padding: "5px 12px", textAlign: "center", letterSpacing: 0.8 }}>â­ Most Popular</div>}
+                        {plan.popular && <div style={{ background: "#0F172A", color: "#FBBF24", fontSize: 11, fontWeight: 700, padding: "5px 12px", textAlign: "center", letterSpacing: 0.8 }}>⭐ Most Popular</div>}
                         <div style={{ padding: 24 }}>
                           <div style={{ fontSize: 28, marginBottom: 10 }}>{plan.icon}</div>
                           <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{plan.name}</div>
@@ -1046,7 +1046,7 @@ export function CustomerPlanPage() {
                           <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
                             {plan.features.map((f, i) => (
                               <div key={i} style={{ fontSize: 13, color: "#6B7280", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                                <span style={{ color: f.included ? "#00C853" : "#90A4AE", flexShrink: 0 }}>{f.included ? "âœ“" : "â€“"}</span>
+                                <span style={{ color: f.included ? "#00C853" : "#90A4AE", flexShrink: 0 }}>{f.included ? "âœ“" : "–"}</span>
                                 {f.text}
                               </div>
                             ))}
@@ -1063,7 +1063,7 @@ export function CustomerPlanPage() {
                 {/* Commitments */}
                 <div style={{ marginBottom: 28 }}>
                   <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Commitment & loyalty rewards</h3>
-                  <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 18 }}>Rewards earned on renewal â€” no upfront lock-in. Cancel anytime with 7 days' notice.</p>
+                  <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 18 }}>Rewards earned on renewal — no upfront lock-in. Cancel anytime with 7 days' notice.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
                     {cfg.commitments.map(c => {
                       const isSelected = commitment === c.id;
@@ -1114,7 +1114,7 @@ export function CustomerPlanPage() {
                   <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", borderRadius: 12, padding: "13px 18px", fontSize: 13, color: "#2E7D32", marginBottom: 24, display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 18 }}>ðŸ”</span>
                     <div>
-                      <strong>Repeat Service</strong> â€” {
+                      <strong>Repeat Service</strong> — {
                         selectedPack === "pack2" ? "Your 2-visit pack is valid for 20 days from purchase." :
             selectedPack === "pack4" ? "Your 4-visit pack is valid for 30 days from purchase." :
             selectedPack === "biweekly" ? "Your car will be washed 2 times per month." :
@@ -1126,7 +1126,7 @@ export function CustomerPlanPage() {
                   </div>
                 )}
                 <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "13px 18px", fontSize: 13, color: "#1D4ED8", marginBottom: 24 }}>
-                  ðŸ’¡ <strong>Same â‚¹200 base price</strong> for all vehicle categories. Volume discount applied automatically. No lock-in.
+                  ðŸ’¡ <strong>Same ₹200 base price</strong> for all vehicle categories. Volume discount applied automatically. No lock-in.
                 </div>
               </>
             )}
@@ -1163,7 +1163,7 @@ export function CustomerPlanPage() {
                       </div>
                     </div>
                     <div style={{ fontSize: 12, color: "#6B7280", marginBottom: selected ? 12 : 0 }}>{addon.description}</div>
-                    {/* Frequency selector â€” only shown when addon is selected */}
+                    {/* Frequency selector — only shown when addon is selected */}
                     {selected && (
                       <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "#1D4ED8", marginBottom: 6 }}>
@@ -1235,13 +1235,13 @@ export function CustomerPlanPage() {
               <div style={{ gridColumn: "1 / -1" }}>
                 {/* â”€â”€ SMART TIME SLOT SELECTOR â”€â”€ */}
                 {isOneTime ? (
-                  /* ONE-TIME: date picker + hourly slots (5amâ€“9pm, 4h advance rule) */
+                  /* ONE-TIME: date picker + hourly slots (5am–9pm, 4h advance rule) */
                   <div style={{ background: "#FFF8E1", border: "2px solid #FFB300", borderRadius: 14, padding: "18px 20px" }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: "#E65100", marginBottom: 4, display: "flex", gap: 8, alignItems: "center" }}>
                       <span>ðŸ•</span> Schedule Your One-Time Wash
                     </div>
                     <p style={{ fontSize: 12, color: "#7B5800", marginBottom: 16, lineHeight: 1.5 }}>
-                      Select a date and time. Slots available 5 AM â€“ 9 PM.
+                      Select a date and time. Slots available 5 AM – 9 PM.
                       Must be booked at least 4 hours in advance.
                       Bookings after 4 PM or on Sundays / holidays show next working day from 1 PM.
                     </p>
@@ -1265,7 +1265,7 @@ export function CustomerPlanPage() {
                             </option>
                           ))}
                           {oneTimeDate && getOneTimeSlots(oneTimeDate).length === 0 && (
-                            <option value="" disabled>No slots available â€” select next day</option>
+                            <option value="" disabled>No slots available — select next day</option>
                           )}
                         </select>
                       </div>
@@ -1288,12 +1288,12 @@ export function CustomerPlanPage() {
                     </p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
                       {[
-                        { id: "05:00â€“07:00", label: "5 AM â€“ 7 AM", icon: "ðŸŒ…", note: "Early bird" },
-                        { id: "06:00â€“08:00", label: "6 AM â€“ 8 AM", icon: "â˜€ï¸",  note: "Most popular" },
-                        { id: "07:00â€“09:00", label: "7 AM â€“ 9 AM", icon: "ðŸŒ¤ï¸",  note: "Before office" },
-                        { id: "08:00â€“10:00", label: "8 AM â€“ 10 AM",icon: "ðŸ™ï¸",  note: "Weekend friendly" },
-                        { id: "17:00â€“19:00", label: "5 PM â€“ 7 PM", icon: "ðŸŒ†",  note: "Evening" },
-                        { id: "18:00â€“20:00", label: "6 PM â€“ 8 PM", icon: "ðŸŒ‡",  note: "After office" },
+                        { id: "05:00–07:00", label: "5 AM – 7 AM", icon: "ðŸŒ…", note: "Early bird" },
+                        { id: "06:00–08:00", label: "6 AM – 8 AM", icon: "â˜€ï¸",  note: "Most popular" },
+                        { id: "07:00–09:00", label: "7 AM – 9 AM", icon: "ðŸŒ¤ï¸",  note: "Before office" },
+                        { id: "08:00–10:00", label: "8 AM – 10 AM",icon: "ðŸ™ï¸",  note: "Weekend friendly" },
+                        { id: "17:00–19:00", label: "5 PM – 7 PM", icon: "ðŸŒ†",  note: "Evening" },
+                        { id: "18:00–20:00", label: "6 PM – 8 PM", icon: "ðŸŒ‡",  note: "After office" },
                       ].map(slot => (
                         <div key={slot.id} onClick={() => setPrefTime(slot.id)}
                           style={{ border: `2px solid ${prefTime === slot.id ? "#1D4ED8" : "#E5E7EB"}`,
@@ -1331,7 +1331,7 @@ export function CustomerPlanPage() {
               <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Parking type</label>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 {[
-                  { id: "dedicated", label: "Dedicated / Assigned Parking", icon: "ðŸ ", desc: "Fixed spot â€” washer comes to your exact spot every day." },
+                  { id: "dedicated", label: "Dedicated / Assigned Parking", icon: "ðŸ ", desc: "Fixed spot — washer comes to your exact spot every day." },
                   { id: "random",    label: "Open / Society Parking",        icon: "ðŸ¢", desc: "Our team will call you to confirm your spot each day." },
                 ].map(p => (
                   <div key={p.id} onClick={() => setParking(p.id as any)}
@@ -1350,8 +1350,8 @@ export function CustomerPlanPage() {
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 {[
                   { id: "whatsapp", label: "WhatsApp only", icon: "ðŸ’¬" },
-                  { id: "email",    label: "Email only",    icon: "ðŸ“§" },
-                  { id: "both",     label: "Both",          icon: "ðŸ“²" },
+                  { id: "email",    label: "Email only",    icon: "📋§" },
+                  { id: "both",     label: "Both",          icon: "📋²" },
                 ].map(opt => (
                   <div key={opt.id} onClick={() => setNotifyPref(opt.id as any)}
                     style={{ border: `2px solid ${notifyPref === opt.id ? "#1D4ED8" : "#E5E7EB"}`, borderRadius: 12, padding: "12px 20px", cursor: "pointer", background: notifyPref === opt.id ? "#EFF6FF" : "#fff", display: "flex", alignItems: "center", gap: 8, fontWeight: notifyPref === opt.id ? 700 : 500, fontSize: 14, transition: "all 0.15s" }}>
@@ -1382,24 +1382,24 @@ export function CustomerPlanPage() {
 
             {/* Photos promise */}
             <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 14, padding: "16px 20px", display: "flex", gap: 14, alignItems: "center", marginBottom: 24, maxWidth: 640 }}>
-              <span style={{ fontSize: 24 }}>ðŸ“¸</span>
+              <span style={{ fontSize: 24 }}>📸</span>
               <span style={{ fontSize: 14 }}>After <strong>every single wash</strong>, your washer will send <strong>before & after photos directly to your WhatsApp</strong>. You don't need to be present.</span>
             </div>
 
             <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, maxWidth: 640, marginBottom: 24, overflow: "hidden" }}>
               <div style={{ padding: "16px 20px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 16, borderBottom: "1px solid #E5E7EB" }}>Order Summary</div>
               {[
-                ["Vehicle", `${carModel} ${custReg ? "Â· " + custReg : ""}`],
+                ["Vehicle", `${carModel} ${custReg ? "· " + custReg : ""}`],
                 ["Category", catLabel],
                 ["Area", `${pincode}${pincodeStatus === "ok" ? " âœ…" : " (waitlist)"}`],
                 ["Plan", planMode === "monthly"
-                  ? `${cfg.monthlyPlans.find(p => p.id === selectedPlan)?.name} Â· Monthly Â· ${cfg.commitments.find(c => c.id === commitment)?.term}`
-                  : `${cfg.packs.find(p => p.id === selectedPack)?.name} Â· Repeat Pack`],
+                  ? `${cfg.monthlyPlans.find(p => p.id === selectedPlan)?.name} · Monthly · ${cfg.commitments.find(c => c.id === commitment)?.term}`
+                  : `${cfg.packs.find(p => p.id === selectedPack)?.name} · Repeat Pack`],
                 ["Add-ons", addons.length ? addons.map(id => `${cfg.addons.find(a => a.id === id)?.name}`).join(", ") : "None"],
-                ["Washes/month", planMode === "monthly" ? "30" : String(cfg.packs.find(p => p.id === selectedPack)?.perLabel?.split("Â·")[0].trim() || "1")],
+                ["Washes/month", planMode === "monthly" ? "30" : String(cfg.packs.find(p => p.id === selectedPack)?.perLabel?.split("·")[0].trim() || "1")],
                 ["Name", custName],
                 ["WhatsApp", custMobile],
-                ["Address", `${custAddress}${isOneTime ? (oneTimeDate && oneTimeHour ? " Â· " + oneTimeDate + " " + oneTimeHour : "") : prefTime ? " Â· " + prefTime : ""}`],
+                ["Address", `${custAddress}${isOneTime ? (oneTimeDate && oneTimeHour ? " · " + oneTimeDate + " " + oneTimeHour : "") : prefTime ? " · " + prefTime : ""}`],
                 ["Parking", parking === "dedicated" ? "Dedicated parking" : "Open / Society parking"],
               ].map(([k, v]) => (
                 <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "12px 20px", borderBottom: "1px solid #E5E7EB", fontSize: 14 }}>
@@ -1412,12 +1412,12 @@ export function CustomerPlanPage() {
                 <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 28, fontWeight: 700, color: "#1D4ED8" }}>{inr(total)}{planMode === "monthly" ? "/month" : ""}</span>
               </div>
               <div style={{ padding: "14px 20px", fontSize: 13, color: "#6B7280", background: "#F9FAFB", borderTop: "1px solid #E5E7EB" }}>
-                ðŸ”’ <strong>Razorpay secure payment</strong> â€” Cards, UPI, Net Banking, Wallets. No cash at doorstep.
+                ðŸ”’ <strong>Razorpay secure payment</strong> — Cards, UPI, Net Banking, Wallets. No cash at doorstep.
               </div>
             </div>
 
             <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", borderRadius: 12, padding: "16px 18px", marginBottom: 24, maxWidth: 640 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#1B5E20", marginBottom: 8 }}>ðŸ“‹ What happens after payment:</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#1B5E20", marginBottom: 8 }}>📋‹ What happens after payment:</div>
               <div style={{ fontSize: 13, color: "#2E7D32", lineHeight: 2 }}>
                 {cfg.postPaymentSteps.map((s, i) => <div key={i}>âœ“ {s}</div>)}
               </div>
@@ -1432,11 +1432,11 @@ export function CustomerPlanPage() {
               <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Terms & Policies</h3>
               <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Please read and accept all three policies before proceeding to payment.</p>
 
-              {/* T&C 1 â€” Terms of Service */}
+              {/* T&C 1 — Terms of Service */}
               <div style={{ border: `2px solid ${consentTerms ? "#16A34A" : "#E5E7EB"}`, borderRadius: 14, padding: "18px 20px", marginBottom: 12, background: consentTerms ? "#F0FDF4" : "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>ðŸ“„ Terms of Service</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>🔄 Terms of Service</div>
                     <div style={{ fontSize: 12, color: "#6B7280" }}>Service schedule, washer conduct, quality standards, service area</div>
                   </div>
                   <button onClick={() => setShowTnC("terms")}
@@ -1451,7 +1451,7 @@ export function CustomerPlanPage() {
                 </label>
               </div>
 
-              {/* T&C 2 â€” Refund Policy */}
+              {/* T&C 2 — Refund Policy */}
               <div style={{ border: `2px solid ${consentRefund ? "#16A34A" : "#E5E7EB"}`, borderRadius: 14, padding: "18px 20px", marginBottom: 12, background: consentRefund ? "#F0FDF4" : "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
@@ -1470,7 +1470,7 @@ export function CustomerPlanPage() {
                 </label>
               </div>
 
-              {/* T&C 3 â€” Cancellation Policy */}
+              {/* T&C 3 — Cancellation Policy */}
               <div style={{ border: `2px solid ${consentCancel ? "#16A34A" : "#E5E7EB"}`, borderRadius: 14, padding: "18px 20px", marginBottom: 24, background: consentCancel ? "#F0FDF4" : "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
@@ -1515,7 +1515,7 @@ export function CustomerPlanPage() {
                   transition: "all 0.2s",
                 }}>
                 {isProcessing ? (
-                  <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>â³</span> Processingâ€¦</>
+                  <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⏳</span> Processing…</>
                 ) : (
                   <>ðŸ”’ Pay {inr(parseFloat((total * 1.18).toFixed(2)))} Securely via Razorpay</>
                 )}
@@ -1533,7 +1533,7 @@ export function CustomerPlanPage() {
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: "20px 24px", borderBottom: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, margin: 0 }}>
-                      {showTnC === "terms" ? "ðŸ“„ Terms of Service" : showTnC === "refund" ? "ðŸ’° Refund Policy" : "ðŸš« Cancellation Policy"}
+                      {showTnC === "terms" ? "🔄 Terms of Service" : showTnC === "refund" ? "ðŸ’° Refund Policy" : "ðŸš« Cancellation Policy"}
                     </h3>
                     <button onClick={() => setShowTnC(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#6B7280" }}>âœ•</button>
                   </div>
@@ -1548,7 +1548,7 @@ export function CustomerPlanPage() {
                     </>}
                     {showTnC === "refund" && <>
                       <p><strong>1. Subscription Payments</strong><br />Subscription fees are charged monthly in advance. Payments are non-refundable for the current billing cycle except in the circumstances below.</p>
-                      <p><strong>2. Pro-rata Refund</strong><br />If you cancel within the first 7 days of a new subscription (not a renewal), a pro-rata refund for unused days will be processed within 5â€“7 business days to the original payment method.</p>
+                      <p><strong>2. Pro-rata Refund</strong><br />If you cancel within the first 7 days of a new subscription (not a renewal), a pro-rata refund for unused days will be processed within 5–7 business days to the original payment method.</p>
                       <p><strong>3. Service Failure Refund</strong><br />If we fail to deliver service for 3 or more consecutive days without prior notice, you are entitled to a pro-rata refund or credit for the affected days.</p>
                       <p><strong>4. Razorpay Processing</strong><br />All refunds are processed via Razorpay to your original payment source. We do not offer cash refunds.</p>
                       <p><strong>5. Dispute Resolution</strong><br />For disputes, contact us within 30 days of the transaction via WhatsApp or email. We aim to resolve all disputes within 5 business days.</p>
