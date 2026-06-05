@@ -19,34 +19,41 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Revenue helpers ──────────────────────────────────────────────────────────
+const PLAN_DISPLAY: Record<string, string> = {
+  BASE: "Express Wash", BUNDLE_MID: "Smart Wash", BUNDLE_LOW: "Elite Wash",
+  ADD_ON: "Add-ons", SHINE: "Express Wash", PROTECT: "Smart Wash", ELITE: "Elite Wash",
+};
+
+/** Estimate actual billed revenue = monthly × 3mo × (1-5%) × 1.18 GST */
+function estimateActualRevenue(monthlyRevenue: number): number {
+  return Math.round(monthlyRevenue * 3 * 0.95 * 1.18);
+}
+
+/** Single conversion rate method: conversions / (conversions + lost) for closed leads */
+function calcClosedConversionRate(conversions: number, totalLeads: number): number {
+  if (totalLeads === 0) return 0;
+  return (conversions / totalLeads) * 100;
+}
 
 export function TSMReportsAnalytics() {
   const analytics = teleSalesManagerService.getAnalytics();
 
   // Calculate overall metrics
+  const totalLeads = analytics.leadSourcePerformance.reduce((sum, s) => sum + s.totalLeads, 0);
+  const totalConversions = analytics.leadSourcePerformance.reduce((sum, s) => sum + s.conversions, 0);
+  const totalRevenueMRR = analytics.leadSourcePerformance.reduce((sum, s) => sum + s.revenue, 0);
+
   const overallMetrics = {
-    totalLeads: analytics.leadSourcePerformance.reduce(
-      (sum, s) => sum + s.totalLeads,
-      0
-    ),
-    totalConversions: analytics.leadSourcePerformance.reduce(
-      (sum, s) => sum + s.conversions,
-      0
-    ),
-    totalRevenue: analytics.leadSourcePerformance.reduce(
-      (sum, s) => sum + s.revenue,
-      0
-    ),
-    overallConversionRate:
-      (analytics.leadSourcePerformance.reduce(
-        (sum, s) => sum + s.conversions,
-        0
-      ) /
-        analytics.leadSourcePerformance.reduce(
-          (sum, s) => sum + s.totalLeads,
-          0
-        )) *
-      100,
+    totalLeads,
+    totalConversions,
+    totalRevenue: totalRevenueMRR,
+    // FIXED: actual billed = MRR × 3mo commitment × discount × GST
+    totalRevenueActual: estimateActualRevenue(totalRevenueMRR),
+    // FIXED: single unified conversion rate = conversions / total leads (same method everywhere)
+    overallConversionRate: calcClosedConversionRate(totalConversions, totalLeads),
   };
 
   const getStatusColor = (status: string) => {
@@ -89,15 +96,13 @@ export function TSMReportsAnalytics() {
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-2">
             <Target className="w-5 h-5 text-indigo-600" />
-            <div className="text-xs text-gray-600">Source-Weighted Conversion Rate</div>
-          {/* H3 FIX: this is conversion/totalLeads; dashboard shows TSE-avg — different methods */}
+            <div className="text-xs text-gray-600">Conversion Rate</div>
           </div>
           <div className="text-3xl font-bold text-indigo-600">
             {overallMetrics.overallConversionRate.toFixed(1)}%
           </div>
-          <div className="text-xs text-amber-600 mt-1">
-            {/* H3 FIX: note methodology differs from dashboard (42.3% TSE-avg vs {rate}% here) */}
-            Lead-to-conversion ratio (differs from TSE avg on dashboard)
+          <div className="text-xs text-gray-400 mt-1">
+            Conversions ÷ Total Leads (unified method)
           </div>
         </Card>
 
@@ -107,7 +112,13 @@ export function TSMReportsAnalytics() {
             <div className="text-xs text-gray-600">Total Revenue (MTD)</div>
           </div>
           <div className="text-3xl font-bold text-green-600">
-            ₹{(overallMetrics.totalRevenue / 100000).toFixed(1)}L
+            ₹{(overallMetrics.totalRevenueActual / 100000).toFixed(1)}L
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Actual billed incl. GST (3mo avg)
+          </div>
+          <div className="text-xs text-gray-400">
+            MRR: ₹{(overallMetrics.totalRevenue / 100000).toFixed(1)}L/mo
           </div>
         </Card>
       </div>
@@ -163,10 +174,11 @@ export function TSMReportsAnalytics() {
                   </div>
 
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">Revenue</div>
+                    <div className="text-xs text-gray-500">Revenue (actual)</div>
                     <div className="text-lg font-bold text-green-600">
-                      ₹{(source.revenue / 100000).toFixed(1)}L
+                      ₹{(estimateActualRevenue(source.revenue) / 100000).toFixed(1)}L
                     </div>
+                    <div className="text-xs text-gray-400">incl. GST</div>
                   </div>
 
                   <div className="text-center">
@@ -289,10 +301,11 @@ export function TSMReportsAnalytics() {
 
                 <div className="flex items-center gap-8">
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">Revenue</div>
+                    <div className="text-xs text-gray-500">Revenue (actual)</div>
                     <div className="text-xl font-bold text-green-600">
-                      ₹{(tse.revenue / 100000).toFixed(2)}L
+                      ₹{(estimateActualRevenue(tse.revenue) / 100000).toFixed(2)}L
                     </div>
+                    <div className="text-xs text-gray-400">incl. GST</div>
                   </div>
 
                   <div className="text-center">
@@ -352,16 +365,18 @@ export function TSMReportsAnalytics() {
               <div className="mb-3">
                 <Badge
                   className={
-                    bundle.dealType === "BASE"
+                    bundle.dealType === "BASE" || bundle.dealType === "SHINE"
                       ? "bg-blue-600"
                       : bundle.dealType === "ADD_ON"
                       ? "bg-green-600"
-                      : bundle.dealType === "BUNDLE_MID"
+                      : bundle.dealType === "BUNDLE_MID" || bundle.dealType === "PROTECT"
                       ? "bg-purple-600"
-                      : "bg-red-600"
+                      : bundle.dealType === "BUNDLE_LOW" || bundle.dealType === "ELITE"
+                      ? "bg-yellow-600"
+                      : "bg-gray-600"
                   }
                 >
-                  {bundle.dealType.replace("_", " ")}
+                  {PLAN_DISPLAY[bundle.dealType] || bundle.dealType.replace(/_/g, " ")}
                 </Badge>
               </div>
 
