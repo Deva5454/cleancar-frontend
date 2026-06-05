@@ -23,6 +23,36 @@ import {
   Filter,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const PLAN_LABELS: Record<string, string> = {
+  SHINE: "Express Wash", PROTECT: "Smart Wash", ELITE: "Elite Wash",
+  EXPRESS_WASH: "Express Wash", SMART_WASH: "Smart Wash", ELITE_WASH: "Elite Wash",
+  water: "Express Wash", shampoo: "Smart Wash", wax: "Elite Wash",
+};
+
+/** Get actual billed amount = monthly × commitMonths × (1-discount) × 1.18 GST */
+function getActualBilledAmount(monthlyValue: number, commitMonths: number = 3): {
+  billed: number; gst: number; subtotal: number; discountPct: number;
+} {
+  const discountPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
+  const base = monthlyValue * commitMonths;
+  const discount = Math.round(base * discountPct);
+  const subtotal = base - discount;
+  const gst = Math.round(subtotal * 0.18);
+  return { billed: subtotal + gst, gst, subtotal, discountPct: discountPct * 100 };
+}
+
+/** Revenue at risk = actual billed amount customer would need to pay on renewal */
+function getRevenueAtRisk(renewals: RenewalLead[]): number {
+  return renewals
+    .filter(r => r.status === "PENDING" || r.status === "CONTACTED")
+    .reduce((sum, r) => {
+      const { billed } = getActualBilledAmount(r.monthlyValue, r.commitMonths || 3);
+      return sum + billed;
+    }, 0);
+}
 import type { RenewalLead } from "../../types/teleSalesManager.types";
 
 export function TSMRenewalDashboard() {
@@ -87,7 +117,12 @@ export function TSMRenewalDashboard() {
     renewed: renewals.filter((r) => r.status === "RENEWED").length,
     upgraded: renewals.filter((r) => r.status === "UPGRADED").length,
     lapsed: renewals.filter((r) => r.status === "LAPSED").length,
-    totalValue: renewals.reduce((sum, r) => sum + r.monthlyValue, 0),
+    totalValue: renewals.reduce((sum, r) => sum + r.monthlyValue, 0), // monthly MRR
+    totalBilledValue: renewals.reduce((sum, r) => {
+      const { billed } = getActualBilledAmount(r.monthlyValue, r.commitMonths || 3);
+      return sum + billed;
+    }, 0), // actual cash collected incl. GST
+    revenueAtRisk: getRevenueAtRisk(renewals),
   };
 
   // Calculate renewal rate status
@@ -375,16 +410,34 @@ export function TSMRenewalDashboard() {
                   <div className="text-center">
                     <div className="text-xs text-gray-500">Current Plan</div>
                     <div className="text-sm font-semibold text-gray-900">
-                      {renewal.currentPlan}
+                      {PLAN_LABELS[renewal.currentPlan] || renewal.currentPlan}
                     </div>
+                    {renewal.vehicleCategory && (
+                      <div className="text-xs text-gray-400 capitalize">{renewal.vehicleCategory}</div>
+                    )}
                   </div>
 
                   <div className="text-center">
-                    <div className="text-xs text-gray-500">Monthly Value</div>
-                    <div className="text-sm font-semibold text-green-600 flex items-center gap-1">
-                      <DollarSign className="w-3 h-3" />
+                    <div className="text-xs text-gray-500">Monthly</div>
+                    <div className="text-sm font-semibold text-gray-700">
                       ₹{(renewal.monthlyValue / 1000).toFixed(1)}K
                     </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500">Renewal Amount</div>
+                    {(() => {
+                      const { billed, discountPct, gst } = getActualBilledAmount(renewal.monthlyValue, renewal.commitMonths || 3);
+                      return (
+                        <div>
+                          <div className="text-sm font-bold text-green-600">
+                            ₹{(billed / 1000).toFixed(1)}K
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {renewal.commitMonths || 3}mo · {discountPct}% off · +GST
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="text-center">
@@ -488,7 +541,10 @@ export function TSMRenewalDashboard() {
               {renewalStats.total}
             </div>
             <div className="text-xs text-gray-600 mt-1">
-              ₹{(renewalStats.totalValue / 100000).toFixed(1)}L monthly value
+              ₹{(renewalStats.totalBilledValue / 100000).toFixed(1)}L actual billed (incl. GST)
+            </div>
+            <div className="text-xs text-gray-400">
+              MRR: ₹{(renewalStats.totalValue / 100000).toFixed(1)}L/mo
             </div>
           </div>
           <div>
@@ -533,6 +589,9 @@ export function TSMRenewalDashboard() {
             </div>
             <div className="text-xs text-gray-600 mt-1">
               Require TSE follow-up
+            </div>
+            <div className="text-xs text-red-500 font-medium mt-1">
+              ₹{(renewalStats.revenueAtRisk / 100000).toFixed(1)}L at risk (incl. GST)
             </div>
           </div>
         </div>
