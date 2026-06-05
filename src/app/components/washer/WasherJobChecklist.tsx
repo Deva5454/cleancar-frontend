@@ -58,7 +58,7 @@ import { periodicScheduleService } from "../../services/periodicScheduleService"
 function buildChecklistSections(job: any): ChecklistSection[] {
   const flags = computePeriodicFlagsB(
     job.id,
-    job.packageType ?? "EXPRESS_WASH",
+    job.packageType ?? job.planType ?? "EXPRESS_WASH",
     job.subscriptionStartDate,
   );
 
@@ -186,7 +186,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
   const sections: ChecklistSection[] = [exteriorSection];
 
-  const pkg = job.packageType ?? "EXPRESS_WASH";
+  const pkg = job.packageType ?? job.planType ?? "EXPRESS_WASH";
 
     if (pkg === "SMART_WASH") {
     if (flags.isShampooDay)   sections.push(shampooSection);
@@ -230,7 +230,7 @@ export function WasherJobChecklist({ job, onChecklistChange, isInProgress }: Was
   // Option B periodic flags — computed from subscriptionStartDate via periodicScheduleService
   const periodicFlags = computePeriodicFlagsB(
     job.id,
-    job.packageType ?? "EXPRESS_WASH",
+    job.packageType ?? job.planType ?? "EXPRESS_WASH",
     job.subscriptionStartDate,
   );
   const hasPeriodicToday = periodicFlags.periodicServices.length > 0;

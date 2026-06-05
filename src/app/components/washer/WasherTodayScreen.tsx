@@ -423,7 +423,7 @@ export function WasherTodayScreen() {
   // Incentive unlock modal (overlay)
   const incentiveUnlockOverlay = showIncentiveUnlock && (
     <IncentiveUnlockBanner
-      incentiveRate={50}
+      incentiveRate={25}
       onAcknowledge={() => setShowIncentiveUnlock(false)}
     />
   );
