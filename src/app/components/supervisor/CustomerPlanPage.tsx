@@ -124,7 +124,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {
       id: "water",
       name: "Express Wash",
-      tagline: "Chamakti Subah — your car, clean every morning",
+      tagline: "Express Wash — your car, clean every morning",
       icon: "âœ¨",
       features: [
         // EVERY WASH (30Ã—/month)
@@ -597,7 +597,7 @@ export function CustomerPlanPage() {
 
       const sub = createSubscription({
         customerId,
-        packageType: selectedPlan === "wax" ? "ELITE" : selectedPlan === "shampoo" ? "PROTECT" : "SHINE",
+        packageType: selectedPlan === "wax" ? "ELITE_WASH" : selectedPlan === "shampoo" ? "SMART_WASH" : "EXPRESS_WASH",
         packageName: planMode === "monthly"
           ? (planObj?.name || selectedPlan || "Plan")
           : (packObj?.name || selectedPack || "Pack"),

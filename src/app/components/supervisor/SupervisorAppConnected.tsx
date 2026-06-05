@@ -369,7 +369,7 @@ export function SupervisorAppConnected() {
     if (result.success) {
       setCoverPlan({ ...coverPlan });
     } else {
-      console.error("Adjustment failed:", result.error);
+      logger.warn("Cover adjustment failed: " + result.error);
     }
   };
 
@@ -445,10 +445,10 @@ export function SupervisorAppConnected() {
 
   // Field audit handlers
   const [auditWashers, setAuditWashers] = useState(() => 
-    fieldAuditService.getAuditWashers("SUP-001")
+    fieldAuditService.getAuditWashers(supervisorSessionId)
   );
   const [auditSummary, setAuditSummary] = useState(() => 
-    fieldAuditService.getAuditSummary("SUP-001")
+    fieldAuditService.getAuditSummary(supervisorSessionId)
   );
   const [auditFlow, setAuditFlow] = useState<{
     active: boolean;
@@ -522,18 +522,22 @@ export function SupervisorAppConnected() {
     setAuditResult(null);
     navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app");
     // Refresh audit list
-    setAuditWashers(fieldAuditService.getAuditWashers("SUP-001"));
-    setAuditSummary(fieldAuditService.getAuditSummary("SUP-001"));
+    setAuditWashers(fieldAuditService.getAuditWashers(supervisorSessionId));
+    setAuditSummary(fieldAuditService.getAuditSummary(supervisorSessionId));
   };
 
-  // Incentive tracker
+  // Incentive tracker — reads session ID so real churn/conversion data is used
+  const supervisorSessionId = (() => {
+    try { return JSON.parse(localStorage.getItem("cc360_session") || "{}").employeeId || "EDB-SUP-SUR1"; }
+    catch { return "EDB-SUP-SUR1"; }
+  })();
   const [incentiveDashboard] = useState(() =>
-    supervisorIncentiveService.getIncentiveDashboard("SUP-001")
+    supervisorIncentiveService.getIncentiveDashboard(supervisorSessionId)
   );
 
   // BTL Lead handlers
   const [leadMetrics] = useState(() => {
-    const metrics = btlLeadService.getSupervisorMetrics("SUP-001");
+    const metrics = btlLeadService.getSupervisorMetrics(supervisorSessionId);
     return metrics;
   });
   const [selectedPipeline, setSelectedPipeline] = useState<{ lead: any; pipeline: any[] } | null>(null);

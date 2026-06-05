@@ -150,6 +150,17 @@ export function CancellationRequestPage() {
       const existing = JSON.parse(localStorage.getItem(key) || "[]");
       existing.unshift(req);
       localStorage.setItem(key, JSON.stringify(existing));
+      // Also mark subscription as Cancelled in cleancar_subscriptions for churn tracking
+      try {
+        const subs = JSON.parse(localStorage.getItem("cleancar_subscriptions") || "[]");
+        const updated = subs.map((sub: any) => {
+          if (sub.customerId === request.customerId || sub.id === request.subscriptionId) {
+            return { ...sub, status: "Cancelled", cancelledDate: new Date().toISOString().split("T")[0] };
+          }
+          return sub;
+        });
+        localStorage.setItem("cleancar_subscriptions", JSON.stringify(updated));
+      } catch {}
     } catch (_) {}
 
     setSubmittedReq(req);
