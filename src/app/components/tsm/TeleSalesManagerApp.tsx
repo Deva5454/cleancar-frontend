@@ -41,6 +41,7 @@ import { TSMIncentiveTracker } from "./TSMIncentiveTracker";
 import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
 import { TSMAlertSystem } from "./TSMAlertSystem";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { TATNotificationBell } from "../shared/TATNotificationBell";
 import {
   TIME_MODE_HOURS,
   REFRESH_INTERVALS,
@@ -241,6 +242,7 @@ export function TeleSalesManagerApp() {
                   <span className="text-xs">SLA Breaches:</span>
                   {metrics.slaBreachesToday}
                 </Badge>
+                <TATNotificationBell role="TSM" employeeId={CURRENT_TSM_ID} />
                 {criticalAlerts > 0 && (
                   <Badge
                     variant="destructive"

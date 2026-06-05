@@ -14,6 +14,8 @@ import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
+import { tatTrackingService } from "../../services/tatTrackingService";
+import { getBookingSlot } from "../../services/bookingWindowService";
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // CONFIG TYPES & DEFAULTS
@@ -662,6 +664,36 @@ export function CustomerPlanPage() {
         const stored = JSON.parse(localStorage.getItem("cleancar_web_invoices") || "[]");
         stored.unshift({ ...invoice, createdAt: now.toISOString(), status: "PAID" });
         localStorage.setItem("cleancar_web_invoices", JSON.stringify(stored.slice(0, 500)));
+
+        // ── TAT Tracking — notify Supervisor, TSM, OM, Super Admin + Customer ──
+        try {
+          const _bookingType =
+            planMode === "onetime" ? "ONE_TIME" :
+            planMode === "pack2"   ? "PACK_2"   :
+            planMode === "pack4"   ? "PACK_4"   : "SUBSCRIPTION";
+          const _planType =
+            selectedPlan === "wax"     ? "ELITE_WASH" :
+            selectedPlan === "shampoo" ? "SMART_WASH"  : "EXPRESS_WASH";
+          const _slot = getBookingSlot(
+            _bookingType, new Date(),
+            planObj?.name || selectedPlan || "Plan",
+            custName, selectedPincode || "",
+            grandTotalCalc?.grand ?? total,
+          );
+          tatTrackingService.createRecord({
+            subscriptionId: sub.subscriptionId,
+            customerId:     sub.customerId || custMobile,
+            customerName:   custName,
+            customerPhone:  custMobile,
+            planType:       _planType,
+            bookingType:    _bookingType,
+            area:           selectedPincode || "",
+            cityId:         "CITY-SURAT",
+            grandTotal:     grandTotalCalc?.grand ?? total,
+            scheduledDate:  planMode === "onetime" ? otDate : _slot.slotDate,
+            scheduledTime:  planMode === "onetime" ? otTime : _slot.slotTime,
+          });
+        } catch (e) { /* non-blocking */ }
       } catch (_) {}
 
       // 6ï¸âƒ£ Simulate WhatsApp / Email dispatch
@@ -1592,4 +1624,4 @@ export function CustomerPlanPage() {
     </div>
   );
 }
-
+
