@@ -509,11 +509,28 @@ export function CustomerPlanPage() {
     addons.reduce((s, id) => s + (cfg.addons.find(a => a.id === id)?.price ?? 0), 0),
     [addons, cfg.addons]);
 
+  // Addon frequency: 4 visits/month default (matches buy page)
+  const addonFreqPerMonth = 4;
+
   const basePrice = planMode === "monthly" ? planPrice : packPrice;
   const commitMonths = commitment === "3month" ? 3 : commitment === "6month" ? 6 : commitment === "12month" ? 12 : 1;
   const discountPct = planMode === "monthly" ? (commitment === "3month" ? 5 : commitment === "6month" ? 10 : commitment === "12month" ? 18 : 0) : 0;
   const discountAmt = Math.round((planMode === "monthly" ? planPrice * commitMonths : 0) * discountPct / 100);
-  const total = basePrice + addonTotal - (planMode === "monthly" ? Math.round(basePrice * discountPct / 100) : 0);
+
+  // Addon grand total = per-visit × 4 visits/month × commit months (matches buy page logic)
+  const addonGrandTotal = planMode === "monthly"
+    ? addonTotal * addonFreqPerMonth * commitMonths
+    : addonTotal;
+
+  // Plan subtotal (monthly × months - discount)
+  const planSubtotal = planMode === "monthly"
+    ? planPrice * commitMonths - discountAmt
+    : packPrice;
+
+  const subtotalBeforeGST = planSubtotal + addonGrandTotal;
+  const gstAmount = Math.round(subtotalBeforeGST * 0.18);
+  // total = grand total incl. GST (was previously pre-GST — fixes double-GST bug in invoice)
+  const total = subtotalBeforeGST + gstAmount;
 
   const step1Ok = !!activeCat && carModel.trim().length >= 2;
   const step2Ok = pincodeStatus !== null;
@@ -645,10 +662,10 @@ export function CustomerPlanPage() {
             return { name: a?.name || id, qty: 1, rate: a?.price || 0, amount: a?.price || 0 };
           }),
         ],
-        subtotal: total,
-        cgst: parseFloat((total * 0.09).toFixed(2)),
-        sgst: parseFloat((total * 0.09).toFixed(2)),
-        grandTotal: parseFloat((total * 1.18).toFixed(2)),
+        subtotal: subtotalBeforeGST,
+        cgst: parseFloat((subtotalBeforeGST * 0.09).toFixed(2)),
+        sgst: parseFloat((subtotalBeforeGST * 0.09).toFixed(2)),
+        grandTotal: total,  // total already includes 18% GST
         paymentMethod: "Razorpay (UPI/Card/NetBanking)",
         subscriptionId: sub.subscriptionId,
         customerId,
