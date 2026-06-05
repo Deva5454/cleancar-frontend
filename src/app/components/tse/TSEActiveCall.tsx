@@ -676,69 +676,101 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
               ))}
           </Card>
 
-          {/* Final Pricing & EBITDA */}
-          <Card className={`p-4 ${getEBITDABgColor(pricingCalculation.finalEBITDA)}`}>
-            <div className="text-sm font-semibold text-gray-900 mb-3">
-              Final Pricing
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-700">Final Price:</span>
-                <span className="text-2xl font-bold text-gray-900">
-                  ₹{pricingCalculation.finalPrice.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-700">EBITDA:</span>
-                <div className="flex items-center gap-2">
-                  <TrendingUp
-                    className={`w-4 h-4 ${getEBITDAColor(
-                      pricingCalculation.finalEBITDA
-                    )}`}
-                  />
-                  <span
-                    className={`text-xl font-bold ${getEBITDAColor(
-                      pricingCalculation.finalEBITDA
-                    )}`}
-                  >
-                    {pricingCalculation.finalEBITDA.toFixed(1)}%
-                  </span>
+          {/* Final Pricing & EBITDA — uses correct calculation with freq/months/GST */}
+          {(() => {
+            // Base monthly price (with bundle discount if selected)
+            const monthlyBase = selectedBundle ? selectedBundle.price : pricingCalculation.basePlan.monthlyPrice;
+            // Commitment discount
+            const commitDiscountPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
+            const planSubtotal = monthlyBase * commitMonths * (1 - commitDiscountPct);
+            // Addon grand total
+            const addonSubtotal = getTotalAddonCost();
+            // Subtotal before GST
+            const subtotalPreGST = planSubtotal + addonSubtotal;
+            // GST 18%
+            const gst = Math.round(subtotalPreGST * 0.18);
+            // Grand total
+            const grandTotal = subtotalPreGST + gst;
+            // EBITDA on grand total
+            const cost = subtotalPreGST * 0.65;
+            const ebitdaPct = Math.round(((subtotalPreGST - cost) / subtotalPreGST) * 100 * 10) / 10;
+
+            return (
+              <Card className={`p-4 ${getEBITDABgColor(ebitdaPct)}`}>
+                <div className="text-sm font-semibold text-gray-900 mb-3">Final Pricing</div>
+                <div className="space-y-1.5 text-sm">
+                  {/* Breakdown */}
+                  <div className="flex justify-between text-gray-600">
+                    <span>Plan ({commitMonths}mo{commitDiscountPct > 0 ? ` · ${commitDiscountPct * 100}% off` : ""})</span>
+                    <span>₹{Math.round(planSubtotal).toLocaleString()}</span>
+                  </div>
+                  {addonSubtotal > 0 && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
+                      <span>+₹{addonSubtotal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-gray-500 text-xs">
+                    <span>GST (18%)</span>
+                    <span>+₹{gst.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t pt-2 mt-1">
+                    <span className="text-gray-700 font-semibold">Grand Total (incl. GST):</span>
+                    <span className="text-2xl font-bold text-gray-900">
+                      ₹{grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Monthly equivalent</span>
+                    <span>₹{Math.round(grandTotal / commitMonths).toLocaleString()}/mo</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-700">Deal Type:</span>
-                <Badge>{pricingCalculation.dealType}</Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-700">Your Multiplier:</span>
-                <span className="font-semibold text-gray-900">
-                  {pricingCalculation.incentiveMultiplier}%
-                </span>
-              </div>
-            </div>
 
-            {pricingCalculation.finalEBITDA < EBITDA_FLOOR.MINIMUM_PERCENT && (
-              <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
-                <AlertTriangle className="w-4 h-4 inline mr-1" />
-                EBITDA below 30% floor. Payment link blocked.
-              </div>
-            )}
+                {/* EBITDA + Deal info */}
+                <div className="mt-3 pt-3 border-t space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 text-sm">EBITDA:</span>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className={`w-4 h-4 ${getEBITDAColor(ebitdaPct)}`} />
+                      <span className={`text-xl font-bold ${getEBITDAColor(ebitdaPct)}`}>
+                        {ebitdaPct.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 text-sm">Deal Type:</span>
+                    <Badge>{pricingCalculation.dealType}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700 text-sm">Your Multiplier:</span>
+                    <span className="font-semibold">{pricingCalculation.incentiveMultiplier}%</span>
+                  </div>
+                </div>
 
-            <Button
-              className="w-full mt-4 gap-2"
-              disabled={!pricingCalculation.paymentLinkEnabled}
-              onClick={generatePaymentLink}
-            >
-              <LinkIcon className="w-4 h-4" />
-              Generate Payment Link
-            </Button>
+                {ebitdaPct < EBITDA_FLOOR.MINIMUM_PERCENT && (
+                  <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
+                    <AlertTriangle className="w-4 h-4 inline mr-1" />
+                    EBITDA below 30% floor. Payment link blocked.
+                  </div>
+                )}
 
-            {pricingCalculation.paymentLinkEnabled && (
-              <div className="text-xs text-gray-600 mt-2 italic">
-                💡 {SCRIPTS.PAYMENT_LINK}
-              </div>
-            )}
-          </Card>
+                <Button
+                  className="w-full mt-4 gap-2"
+                  disabled={!pricingCalculation.paymentLinkEnabled}
+                  onClick={generatePaymentLink}
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Generate Payment Link
+                </Button>
+
+                {pricingCalculation.paymentLinkEnabled && (
+                  <div className="text-xs text-gray-600 mt-2 italic">
+                    💡 {SCRIPTS.PAYMENT_LINK}
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
         </div>
       </div>
     </div>
