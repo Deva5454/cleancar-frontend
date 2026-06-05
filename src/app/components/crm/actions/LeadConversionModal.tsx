@@ -49,9 +49,9 @@ interface LeadConversionModalProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PLAN_OPTIONS = [
-  { value: "SHINE",   label: "Express Wash", buyId: "water"   },
-  { value: "PROTECT", label: "Smart Wash",   buyId: "shampoo" },
-  { value: "ELITE",   label: "Elite Wash",   buyId: "wax"     },
+  { value: "EXPRESS_WASH", label: "Express Wash", buyId: "water"   },
+  { value: "SMART_WASH",   label: "Smart Wash",   buyId: "shampoo" },
+  { value: "ELITE_WASH",   label: "Elite Wash",   buyId: "wax"     },
 ];
 
 const COMMITMENT_OPTIONS = [
@@ -62,9 +62,9 @@ const COMMITMENT_OPTIONS = [
 ];
 
 const VEHICLE_OPTIONS = [
-  { value: "hatchback", label: "Hatchback"   },
-  { value: "suv",       label: "SUV / Sedan" },
-  { value: "luxury",    label: "Luxury SUV"  },
+  { value: "hatchback", label: "Hatchback / Compact Sedan" },
+  { value: "suv",       label: "SUV / Sedan / MUV"         },
+  { value: "luxury",    label: "Luxury / Large SUV"        },
 ];
 
 const ADDON_OPTIONS = [
@@ -89,13 +89,13 @@ const PACK_VALIDITY: Record<string, number> = { pack2: 20, pack4: 30 };
 
 // Pack prices (same as buy page)
 const PACK_PRICES: Record<string, Record<string, number>> = {
-  SHINE:   { pack2: 2298, pack4: 4296 }, // 1249 × 2 × 0.92, etc — buy page uses fixed pack prices
-  PROTECT: { pack2: 2938, pack4: 5436 },
-  ELITE:   { pack2: 3678, pack4: 6796 },
+  EXPRESS_WASH: { pack2: 2298, pack4: 4296 }, // 1249 × 2 × 0.92, etc — buy page uses fixed pack prices
+  SMART_WASH:   { pack2: 2938, pack4: 5436 },
+  ELITE_WASH:   { pack2: 3678, pack4: 6796 },
 };
 
 const ONE_TIME_PRICES: Record<string, number> = {
-  SHINE: 499, PROTECT: 699, ELITE: 999,
+  EXPRESS_WASH: 499, SMART_WASH: 699, ELITE_WASH: 999,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ function detectVehicleCat(lead: Lead): string {
   const cat = (lead?.vehicleCategory || lead?.carType || "").toLowerCase();
   if (cat.includes("luxury") || cat.includes("fortuner") || cat.includes("xuv700")) return "luxury";
   if (cat.includes("suv") || cat.includes("sedan") || cat.includes("muv")) return "suv";
-  return "hatchback";
+  return "hatchback"; // buy page uses: hatchback | suv | luxury
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -145,17 +145,17 @@ export function LeadConversionModal({
   const [planMode, setPlanMode] = useState<PlanMode>("monthly");
 
   // ── Monthly subscription state ─────────────────────────────────────────────
-  const [selectedPlan, setSelectedPlan] = useState("PROTECT");
+  const [selectedPlan, setSelectedPlan] = useState("SMART_WASH");
   const [vehicleCat, setVehicleCat] = useState(detectVehicleCat(lead));
   const [commitMonths, setCommitMonths] = useState(3);
   const [startDate, setStartDate] = useState(getTodayStr());
 
   // ── Visit pack state ───────────────────────────────────────────────────────
-  const [packPlan, setPackPlan] = useState("PROTECT");
+  const [packPlan, setPackPlan] = useState("SMART_WASH");
   const [packVehicle, setPackVehicle] = useState(detectVehicleCat(lead));
 
   // ── One-time wash state ────────────────────────────────────────────────────
-  const [otPlan, setOtPlan] = useState("PROTECT");
+  const [otPlan, setOtPlan] = useState("SMART_WASH");
   const [otVehicle, setOtVehicle] = useState(detectVehicleCat(lead));
   const [otDate, setOtDate] = useState("");
   const [otTime, setOtTime] = useState("");

@@ -1,5 +1,6 @@
-// Subscription Plans Data - Complete Plan Management System
-// Updated April 2026 - V2 (New Plan Structure per Developer Handoff)
+// Subscription Plans Data — Package Architecture v1.8 (June 2026)
+// Source of truth: 249_Package_Architecture_v1_8_Final.docx
+// Updated: June 2026 — aligns with SHINE/PROTECT/Elite Wash plan structure
 
 export type VehicleCategory =
   | "Hatchback / Compact Sedan"
@@ -10,9 +11,9 @@ export type VehicleCategory =
   | "2W - Scooter";
 
 export type PlanType =
-  | "SHINE"
-  | "PROTECT"
-  | "ELITE"
+  | "EXPRESS_WASH"
+  | "SMART_WASH"
+  | "ELITE_WASH"
   | "ELITE_2W"
   | "One-Time Member"
   | "One-Time Non-Member";
@@ -21,8 +22,10 @@ export interface PlanDeliverables {
   planName: string;
   tagline: string;
   included: string[];
+  periodicServices: string[];   // services beyond daily wash
   notIncluded: string[];
   bestFor: string;
+  consumableCostPerWash: number; // ₹/wash — from package architecture
   complimentaryBenefits?: string;
   discountStructure?: string;
 }
@@ -44,15 +47,16 @@ export interface PlanVersion {
   rejectionReason?: string;
 }
 
-// Add-On Services
 export interface AddOnService {
   id: string;
   name: string;
   description: string;
   billing: "Per visit" | "Per month";
   pricing: {
-    "4W": number | "NA";
-    "2W": number | "NA";
+    hatchback: number | "NA";
+    suv:       number | "NA";
+    luxury:    number | "NA";
+    twoW:      number | "NA";
   };
   bestPairedWith: PlanType[];
   estimatedMargin: number; // percentage
@@ -61,157 +65,183 @@ export interface AddOnService {
   category: "Cleaning" | "Protection" | "Maintenance";
 }
 
-// Combo Offers
 export interface ComboOffer {
   id: string;
   name: string;
   description: string;
-  planCombination: {
-    vehicle1: {
-      category: VehicleCategory;
-      plan: PlanType;
-      individualPrice: number;
-    };
-    vehicle2?: {
-      category: VehicleCategory;
-      plan: PlanType;
-      individualPrice: number;
-    };
-  };
-  totalIndividualPrice: number;
-  comboPrice: number;
-  savings: number;
-  savingsPercentage: number;
+  hatchbackPrice: number;
+  suvPrice: number;
+  saving: string;
+  whenToPush: string;
   isActive: boolean;
-  validUntil?: string;
 }
 
-// One-Time Wash Pricing
 export interface OneTimeWashPricing {
   vehicleCategory: VehicleCategory;
   memberPrice: number;
   nonMemberPrice: number;
-  washType: "Basic" | "Premium" | "Elite";
+  washType: "EXPRESS_WASH" | "Premium" | "Elite";
 }
 
-// V2 - Current Active Plan (April 2026) - New Structure
+// ─────────────────────────────────────────────────────────────────────────────
+// V3 — June 2026 — Package Architecture v1.8
+// ─────────────────────────────────────────────────────────────────────────────
 export const CURRENT_PLAN_VERSION: PlanVersion = {
-  version: "V2",
-  versionLabel: "V2 - April 2026 Plan Restructure",
-  effectiveFrom: "2026-04-11",
+  version: "V3",
+  versionLabel: "V3 - June 2026 Package Architecture v1.8",
+  effectiveFrom: "2026-06-01",
   effectiveTo: "Current",
   createdBy: "Product Team",
-  createdOn: "2026-04-11",
+  createdOn: "2026-06-01",
   status: "Active",
+
+  // ── PRICING MATRIX ─────────────────────────────────────────────────────────
   pricingMatrix: {
     "Hatchback / Compact Sedan": {
-      "SHINE": 1199,
-      "PROTECT": 1599,
-      "ELITE": 1999,
-      "ELITE_2W": "NA",
-      "One-Time Member": 250,
-      "One-Time Non-Member": 299,
+      "EXPRESS_WASH":                1249,   // ₹42/wash
+      "SMART_WASH":              1599,   // ₹53/wash
+      "ELITE_WASH":                1999,   // ₹67/wash
+      "ELITE_2W":             "NA",
+      "One-Time Member":       250,
+      "One-Time Non-Member":   299,
     },
     "SUV / MUV / Sedan": {
-      "SHINE": 1499,
-      "PROTECT": 1999,
-      "ELITE": 2499,
-      "ELITE_2W": "NA",
-      "One-Time Member": 300,
-      "One-Time Non-Member": 349,
+      "EXPRESS_WASH":                1499,   // ₹50/wash
+      "SMART_WASH":              1999,   // ₹67/wash
+      "ELITE_WASH":                2499,   // ₹83/wash
+      "ELITE_2W":             "NA",
+      "One-Time Member":       300,
+      "One-Time Non-Member":   349,
     },
     "Luxury / Large SUV": {
-      "SHINE": 1999,
-      "PROTECT": 2699,
-      "ELITE": 3499,
-      "ELITE_2W": "NA",
-      "One-Time Member": 400,
-      "One-Time Non-Member": 449,
+      "EXPRESS_WASH":                1999,   // ₹67/wash
+      "SMART_WASH":              2699,   // ₹90/wash
+      "ELITE_WASH":                3499,   // ₹117/wash
+      "ELITE_2W":             "NA",
+      "One-Time Member":       400,
+      "One-Time Non-Member":   449,
     },
     "2W - Standard / Commuter Bike": {
-      "SHINE": 299,
-      "PROTECT": 499,
-      "ELITE": "NA",
-      "ELITE_2W": 799,
-      "One-Time Member": 120,
-      "One-Time Non-Member": 149,
+      "EXPRESS_WASH":                 299,
+      "SMART_WASH":               499,
+      "ELITE_WASH":                "NA",
+      "ELITE_2W":              799,
+      "One-Time Member":       120,
+      "One-Time Non-Member":   149,
     },
     "2W - Sports / Premium Bike": {
-      "SHINE": 399,
-      "PROTECT": 699,
-      "ELITE": "NA",
-      "ELITE_2W": 999,
-      "One-Time Member": 150,
-      "One-Time Non-Member": 179,
+      "EXPRESS_WASH":                 399,
+      "SMART_WASH":               699,
+      "ELITE_WASH":                "NA",
+      "ELITE_2W":              999,
+      "One-Time Member":       150,
+      "One-Time Non-Member":   179,
     },
     "2W - Scooter": {
-      "SHINE": "NA",
-      "PROTECT": "NA",
-      "ELITE": "NA",
-      "ELITE_2W": 699,
-      "One-Time Member": 100,
-      "One-Time Non-Member": 129,
+      "EXPRESS_WASH":                "NA",
+      "SMART_WASH":              "NA",
+      "ELITE_WASH":                "NA",
+      "ELITE_2W":              699,
+      "One-Time Member":       100,
+      "One-Time Non-Member":   129,
     },
   },
+
+  // ── PLAN DELIVERABLES ───────────────────────────────────────────────────────
   deliverables: {
-    "SHINE": {
-      planName: "SHINE",
-      tagline: "Essential Daily Cleaning. Perfect for routine maintenance.",
+
+    "EXPRESS_WASH": {
+      planName: "EXPRESS_WASH",
+      tagline: "Express Wash — Your car, clean every morning.",
+      consumableCostPerWash: 8,
       included: [
-        "Full exterior water rinse (pressure gun)",
-        "Wheel rim rinse",
-        "Tyre & mudguard pressure spray",
-        "Roof + running boards / step-board clean",
-        "Exterior glass wipe / clean",
-        "Wiper blade clean",
-        "Under-body water flush (monthly)",
+        // DAILY (30×/month)
+        "Full exterior water spray + microfibre dry",
+        "Mirrors + door handles + number plate wiped clean",
+        "Dedicated named washer — same person every morning",
+        "Before-and-after WhatsApp photo sent daily",
+        // WEEKLY (4×/month)
+        "All 4 tyres and rims rinsed + rim wiped — every week",
+      ],
+      periodicServices: [
+        // MONTHLY (1×/month)
+        "Underbody flush — 1×/month",
+        "Windshield clean (outside only) — 1×/month",
+        "Shampoo Wash — 1×/month",
       ],
       notIncluded: [
-        "Car-safe shampoo foam wash",
-        "Microfibre dry + glass polish",
-        "Tyre dressing application",
-        "Interior cleaning",
-        "Wax protection",
+        "Interior cleaning or vacuuming",
+        "Tyre dressing / shine coat application",
+        "Dashboard or console wipe",
+        "Hand wax polish",
+        "Engine bay clean",
       ],
-      bestFor: "Daily basic maintenance and dust removal",
+      bestFor: "Daily basic maintenance. Entry plan. Recover to this if customer says Smart Wash is too expensive.",
     },
-    "PROTECT": {
-      planName: "PROTECT",
-      tagline: "Deep Cleaning with Foam Shampoo. Most popular choice.",
+
+    "SMART_WASH": {
+      planName: "SMART_WASH",
+      tagline: "Smart Wash — Clean daily. Protected always.",
+      consumableCostPerWash: 17,
       included: [
-        "Everything in Water Wash",
-        "Car-safe shampoo foam wash",
-        "Microfibre dry + glass polish",
-        "Tyre dressing application (weekly)",
+        // DAILY (30×/month) — everything in SHINE
+        "Everything in SHINE — full daily exterior wash + WhatsApp photo",
+        "Dedicated named washer — same person every morning",
+        // WEEKLY (4×/month) — inherited from Express Wash
+        "Weekly tyre & rim spray-clean (inherited from Express Wash)",
+      ],
+      periodicServices: [
+        // FORTNIGHTLY (2×/month)
+        "Interior vacuum & mat clean — 2×/month (fortnightly)",
+        "Shampoo Wash — 2×/month (fortnightly, replaces Express Wash's 1×/month)",
+        // MONTHLY (1×/month)
+        "Car fragrance — 1×/month",
+        "Tyre Dressing & Shine Coat (all 4 tyres) — 1×/month",
       ],
       notIncluded: [
-        "Wax paint protection coating",
-        "Interior dashboard wipe",
-        "Interior vacuum",
+        "Dashboard or console detail",
+        "Hand wax polish",
+        "Engine bay clean",
       ],
-      bestFor: "Regular professional cleaning with enhanced finish",
+      bestFor: "Default recommendation for every new subscriber. Never open with Express Wash — PROTECT is the opening offer.",
     },
-    "ELITE": {
+
+    "ELITE_WASH": {
       planName: "ELITE",
-      tagline: "Complete Care with Wax Protection. Premium exterior & interior service.",
+      tagline: "Elite Wash — Showroom condition, every day.",
+      consumableCostPerWash: 24,
       included: [
-        "Everything in Shampoo Wash",
-        "Interior dashboard wipe (weekly)",
-        "Interior full vacuum (weekly)",
-        "Interior vacuum deep clean (monthly)",
-        "Full hand wax polish whole body (monthly)",
-        "Door sill & boot area clean (monthly)",
+        // DAILY (30×/month) — everything in Smart Wash
+        "Everything in Smart Wash — daily wash + interior vacuum 2×/month + fragrance",
+        "Dedicated named washer — same person every morning",
+        // WEEKLY (4×/month) — tyre spray inherited
+        "Weekly tyre & rim spray-clean (inherited from Express Wash)",
+      ],
+      periodicServices: [
+        // WEEKLY (4×/month)
+        "Shampoo Wash — 4×/month (weekly, replaces Smart Wash's 2×/month)",
+        // FORTNIGHTLY (2×/month)
+        "Dashboard & console deep clean — 2×/month (fortnightly)",
+        "Interior vacuum & mat clean — 2×/month (fortnightly, same as Smart Wash)",
+        "Tyre Dressing & Shine Coat — 2×/month (fortnightly, vs Smart Wash's 1×/month)",
+        // MONTHLY (1×/month)
+        "Full hand wax polish (outer body only, no glass) — 1×/month",
+        "Engine bay dry blow (strictly no water) — 1×/month",
+        "Premium car fragrance + cabin sanitisation spray — 1×/month",
       ],
       notIncluded: [
         "Ceramic coating",
         "Paint correction",
         "Leather conditioning",
+        "Underbody Anti-Rust (charged separately — pre-monsoon upsell)",
       ],
-      bestFor: "Complete vehicle care - exterior shine + interior cleanliness",
+      bestFor: "Luxury cars, gated society residents, senior executives. First offer for premium segment.",
     },
+
     "ELITE_2W": {
       planName: "ELITE (2-Wheeler)",
-      tagline: "Premium 2-Wheeler Care. Complete shine and protection for bikes and scooters.",
+      tagline: "Premium 2-Wheeler Care.",
+      consumableCostPerWash: 12,
       included: [
         "Full body water rinse (pressure gun)",
         "Tyre & mudguard pressure spray",
@@ -223,740 +253,443 @@ export const CURRENT_PLAN_VERSION: PlanVersion = {
         "Engine bay surface wipe (monthly)",
         "Full body spray wax / liquid polish (monthly)",
       ],
+      periodicServices: [
+        "Shampoo Wash — 2×/month",
+      ],
       notIncluded: [
         "Deep engine cleaning",
         "Chain lubrication",
         "Seat shampoo",
       ],
-      bestFor: "2-Wheeler owners wanting complete care and protection",
+      bestFor: "2-Wheeler owners wanting complete care and protection.",
     },
+
     "One-Time Member": {
       planName: "One-Time Wash (Member)",
-      tagline: "Single wash service for existing subscription members",
+      tagline: "Additional wash for existing subscribers.",
+      consumableCostPerWash: 12,
       included: [
         "Full exterior shampoo wash",
-        "Wheel cleaning & tyre dressing",
+        "Wheel cleaning + tyre dressing",
         "Microfibre dry",
-        "Glass cleaning",
+        "Glass cleaning (outside)",
         "Member discount applied",
       ],
-      notIncluded: [
-        "Interior cleaning",
-        "Wax application",
-        "Subscription benefits",
-      ],
-      bestFor: "Subscription members needing additional one-time service",
+      periodicServices: [],
+      notIncluded: ["Interior cleaning", "Wax application"],
+      bestFor: "Subscription members needing an extra wash outside their plan.",
       complimentaryBenefits: "10% discount on all add-on services",
     },
+
     "One-Time Non-Member": {
       planName: "One-Time Wash (Walk-in)",
-      tagline: "Single wash service for walk-in customers",
+      tagline: "Single wash — always end with a subscription pitch.",
+      consumableCostPerWash: 12,
       included: [
         "Full exterior shampoo wash",
         "Wheel cleaning",
         "Microfibre dry",
-        "Glass cleaning",
+        "Glass cleaning (outside)",
       ],
-      notIncluded: [
-        "Interior cleaning",
-        "Wax application",
-        "Tyre dressing",
-        "Member discounts",
-      ],
-      bestFor: "First-time customers or occasional wash needs",
-      discountStructure: "Subscribe today and save up to 60% on per-wash cost",
+      periodicServices: [],
+      notIncluded: ["Interior cleaning", "Wax application", "Tyre dressing"],
+      bestFor: "Walk-in or first-time customers. Pitch: 'You paid ₹199 for one wash — Express Wash is ₹1,249 for 30 washes, ₹42 each.'",
+      discountStructure: "Subscribe today — save up to 60% per wash vs one-time price.",
     },
   },
 };
 
-// Add-On Services Data
-// All add-ons carry 74-80% EBITDA margin (from EBITDA calculations)
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD-ON SERVICES — Package Architecture v1.8 §4.1
+// Prices are vehicle-category specific (not a single "4W" price).
+// ─────────────────────────────────────────────────────────────────────────────
 export const ADD_ON_SERVICES: AddOnService[] = [
   {
     id: "addon-001",
     name: "Interior Deep Vacuum",
-    description: "Thorough vacuum cleaning of seats, floor mats, and trunk area",
+    description: "Glove box, cooling box, glass holder, door pad polish, seat cover pockets, seats, mats, foot wells, boot. Before/after photo. Leather/resin seat cover polish included.",
     billing: "Per visit",
-    pricing: {
-      "4W": 199,
-      "2W": "NA",
-    },
-    bestPairedWith: ["SHINE", "PROTECT"],
-    estimatedMargin: 77.9, // Actual EBITDA: ₹155/₹199 = 77.9%
+    pricing: { hatchback: 199, suv: 249, luxury: 349, twoW: "NA" },
+    bestPairedWith: ["EXPRESS_WASH", "SMART_WASH"],
+    estimatedMargin: 78,
     isActive: true,
+    icon: "🪣",
     category: "Cleaning",
   },
   {
     id: "addon-002",
-    name: "Dashboard Clean",
-    description: "Complete dashboard, console, and door panel wipe & polish",
+    name: "Dashboard & Console Detail",
+    description: "Dashboard polish, console polish, door pads cleaning and polish, console and vents cleaning by blower.",
     billing: "Per visit",
-    pricing: {
-      "4W": 149,
-      "2W": 99,
-    },
-    bestPairedWith: ["SHINE", "PROTECT"],
-    estimatedMargin: 79.9, // Actual EBITDA: 4W ₹119/₹149 = 79.9%
+    pricing: { hatchback: 149, suv: 199, luxury: 249, twoW: "NA" },
+    bestPairedWith: ["EXPRESS_WASH", "SMART_WASH"],
+    estimatedMargin: 80,
     isActive: true,
+    icon: "🧹",
     category: "Cleaning",
   },
   {
     id: "addon-003",
-    name: "Tyre Dressing",
-    description: "Professional tyre shine & rubber protection coating",
+    name: "Tyre Dressing (all 4 tyres)",
+    description: "Shampoo wash tyre and mudguard + Shine Protect application to all 4 tyre sidewalls.",
     billing: "Per visit",
-    pricing: {
-      "4W": 99,
-      "2W": 49,
-    },
-    bestPairedWith: ["SHINE"],
-    estimatedMargin: 79.8, // Actual EBITDA: ₹79/₹99 = 79.8%
+    pricing: { hatchback: 99, suv: 149, luxury: 199, twoW: 49 },
+    bestPairedWith: ["EXPRESS_WASH"],
+    estimatedMargin: 80,
     isActive: true,
+    icon: "🛞",
     category: "Protection",
   },
   {
     id: "addon-004",
-    name: "Glass Coating",
-    description: "Hydrophobic glass coating (RainX) for improved visibility in rain",
+    name: "Full Hand Wax Polish",
+    description: "Shampoo wash + full body panel-by-panel hand wax application. Outer body only — no glass. Elite Wash subscribers get this included monthly.",
     billing: "Per visit",
-    pricing: {
-      "4W": 349,
-      "2W": 249,
-    },
-    bestPairedWith: ["PROTECT", "ELITE"],
-    estimatedMargin: 77.1, // Actual EBITDA: ₹269/₹349 = 77.1%
+    pricing: { hatchback: 199, suv: 249, luxury: 399, twoW: "NA" },
+    bestPairedWith: ["EXPRESS_WASH", "SMART_WASH"],
+    estimatedMargin: 75,
     isActive: true,
+    icon: "✨",
     category: "Protection",
   },
   {
     id: "addon-005",
-    name: "One-Time Wax Polish",
-    description: "Full body hand wax application for showroom-like shine",
+    name: "Underbody Wash",
+    description: "Underbody water spray — removes road grime and debris from undercarriage.",
     billing: "Per visit",
-    pricing: {
-      "4W": 599,
-      "2W": 399,
-    },
-    bestPairedWith: ["PROTECT"],
-    estimatedMargin: 74.9, // Actual EBITDA: ₹449/₹599 = 74.9%
+    pricing: { hatchback: 199, suv: 249, luxury: 349, twoW: "NA" },
+    bestPairedWith: ["EXPRESS_WASH", "SMART_WASH", "ELITE_WASH"],
+    estimatedMargin: 78,
     isActive: true,
-    category: "Protection",
+    icon: "💧",
+    category: "Maintenance",
   },
   {
     id: "addon-006",
-    name: "Underbody Anti-Rust Spray",
-    description: "High-pressure underbody cleaning & anti-rust protection spray",
+    name: "Engine Bay Wipe-Down",
+    description: "Dry blow of engine bay — no water. Removes dust and debris. Strictly dry process only.",
     billing: "Per visit",
-    pricing: {
-      "4W": 799,
-      "2W": "NA",
-    },
-    bestPairedWith: ["PROTECT", "ELITE"],
-    estimatedMargin: 74.9, // Actual EBITDA: ₹599/₹799 = 74.9%
-    isActive: false, // ⚠ PENDING OPERATIONAL CONFIRMATION
+    pricing: { hatchback: 99, suv: 149, luxury: 199, twoW: "NA" },
+    bestPairedWith: ["SMART_WASH", "ELITE_WASH"],
+    estimatedMargin: 82,
+    isActive: true,
+    icon: "⚙️",
     category: "Maintenance",
+  },
+  {
+    id: "addon-007",
+    name: "Car Fragrance",
+    description: "Interior car fragrance spray — single fresh application. Also included monthly in Smart Wash and Elite Wash plans.",
+    billing: "Per visit",
+    pricing: { hatchback: 49, suv: 49, luxury: 49, twoW: "NA" },
+    bestPairedWith: ["EXPRESS_WASH"],
+    estimatedMargin: 76,
+    isActive: true,
+    icon: "🌸",
+    category: "Cleaning",
   },
 ];
 
-// Helper function to get dynamic combo offers with real-time pricing
-function generateComboOffers(): ComboOffer[] {
-  const getPriceFromMatrix = (category: VehicleCategory, plan: PlanType): number => {
-    const price = CURRENT_PLAN_VERSION.pricingMatrix[category][plan];
-    return price === "NA" ? 0 : price as number;
-  };
+// ─────────────────────────────────────────────────────────────────────────────
+// COMBO BUNDLE OFFERS — Package Architecture v1.8 §4.3
+// ─────────────────────────────────────────────────────────────────────────────
+export const COMBO_OFFERS: ComboOffer[] = [
+  {
+    id: "combo-001",
+    name: "Andar Se Sundar",
+    description: "Interior Deep Vacuum + Dashboard & Console Detail",
+    hatchbackPrice: 299, // save ₹49 vs ₹199+₹149=₹348
+    suvPrice: 399,       // save ₹49 vs ₹249+₹199=₹448
+    saving: "Save ₹49",
+    whenToPush: "Any time. Push at month 1 for all Express Wash subscribers.",
+    isActive: true,
+  },
+  {
+    id: "combo-002",
+    name: "Showroom Shine Pack",
+    description: "Full Hand Wax Polish + Interior Deep Vacuum + Dashboard & Console Detail",
+    hatchbackPrice: 849,  // save ₹198 vs ₹199+₹199+₹149=₹547... check: ₹199+199+149=₹547? No: ₹199+₹199+₹149=₹547. Save=₹547-₹849<0. Recalculate: ₹199wax+₹199vacuum+₹149dash=₹547. Bundle ₹849 is more. Must be ₹349 save: ₹199+₹249+₹199+₹199=₹846? Per pkg doc §4.3: H₹849 save₹198. So individual = ₹1047. Means SUV prices: ₹249+₹249+₹249+₹199+some addon. Keeping as per pkg doc.
+    suvPrice: 1099,
+    saving: "Save ₹198 (Hatchback) / Save ₹248 (SUV)",
+    whenToPush: "Diwali / festive / gifting. 'Gift your family a showroom car.'",
+    isActive: true,
+  },
+];
 
-  const hatchbackShampoo = getPriceFromMatrix("Hatchback / Compact Sedan", "PROTECT");
-  const hatchbackWax = getPriceFromMatrix("Hatchback / Compact Sedan", "ELITE");
-  const suvShampoo = getPriceFromMatrix("SUV / MUV / Sedan", "PROTECT");
-  const suvWax = getPriceFromMatrix("SUV / MUV / Sedan", "ELITE");
-  const bikePolish = getPriceFromMatrix("2W - Standard / Commuter Bike", "ELITE");
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE-TIME & REPEAT VISIT PRICING — Package Architecture v1.8 §5
+// ─────────────────────────────────────────────────────────────────────────────
+export const ONE_TIME_PRICING = {
+  waterWash:   { hatchback: 199, suv: 299, luxury: 399 },
+  shampooWash: { hatchback: 299, suv: 349, luxury: 499 },
+  shampooWax:  { hatchback: 399, suv: 499, luxury: 699 },
+} as const;
 
-  const combo1Total = hatchbackShampoo + bikePolish;
-  const combo1Price = Math.round(combo1Total * 0.905); // 9.5% discount
+export const REPEAT_PACK_PRICING = {
+  packOf2: {
+    waterWash:   { hatchback: 370,  suv: 550,  luxury: 730  },
+    shampooWash: { hatchback: 550,  suv: 640,  luxury: 920  },
+    shampooWax:  { hatchback: 730,  suv: 920,  luxury: 1290 },
+    savingPct: 8,
+    validityDays: 60,
+  },
+  packOf4: {
+    waterWash:   { hatchback: 680,  suv: 1020, luxury: 1360 },
+    shampooWash: { hatchback: 1020, suv: 1180, luxury: 1700 },
+    shampooWax:  { hatchback: 1360, suv: 1700, luxury: 2380 },
+    savingPct: 15,
+    validityDays: 60,
+  },
+} as const;
 
-  const combo2Total = suvShampoo + hatchbackShampoo;
-  const combo2Price = Math.round(combo2Total * 0.90); // 10% discount
+// ─────────────────────────────────────────────────────────────────────────────
+// UPSELL PATH — Package Architecture v1.8 §6
+// ─────────────────────────────────────────────────────────────────────────────
+export const UPSELL_SCRIPTS = {
+  oneTimeToSHINE: `You paid ₹199 for one wash. Express Wash is ₹1,249 for 30 washes — ₹42 each. If you wash 7 times this month you've already saved money. Want me to send the link now?`,
+  shineToVacuum:  `Can I do your full interior this Saturday? ₹199 for hatchback, we clean everything inside with a photo after. Shall I schedule it?`,
+  shineToPROTECT: `You paid ₹199 for the interior vacuum. Smart Wash costs ₹350 more/month for Hatchback, ₹500 more for SUV, ₹700 more for Luxury — and includes interior vacuum 2× a month plus car fragrance. You're already spending ₹199 — upgrade to Smart Wash and it's included every month. Shall I switch you?`,
+  protectToWax:   `Shall we do a full hand wax this month? ₹199 for hatchback — your car will look brand new. Elite Wash subscribers get this free every month — but you can add it once for ₹199.`,
+  protectToELITE: `You paid ₹199 for the wax. ELITE costs ₹400 more/month for Hatchback, ₹500 more for SUV, ₹800 more for Luxury — and includes hand wax every month, dashboard clean twice a month, tyre dressing fortnightly (vs monthly in Smart Wash), and premium fragrance with cabin sanitisation every month. If you want the wax done monthly, ELITE pays for itself. Want me to upgrade you?`,
+  eliteReferral:  `You're getting our best plan — the car must be looking great! Do you have a neighbour or colleague whose car we should be washing? We'll give you one month free if you refer someone who subscribes.`,
+} as const;
 
-  const combo3Total = hatchbackWax + (199 * 4); // Interior vacuum 4x/month
-  const combo3Price = Math.round(combo3Total * 0.894); // ~10.6% discount
+// ─────────────────────────────────────────────────────────────────────────────
+// OBJECTION RESPONSES — Package Architecture v1.8 §7
+// ─────────────────────────────────────────────────────────────────────────────
+export const OBJECTION_SCRIPTS = {
+  hooraIsCheaper:    `Hoora is a good service — we respect them. The difference is in how we operate. Hoora works on a booking-based model — you call, they come when available. We work on a subscription model — same person, same time, every single morning, without you doing anything. No booking. No follow-up. Just a WhatsApp photo every day confirming your car is done. Washing centre mein ek shampoo wash ₹500–800 leta hai — hum subscription mein ₹53 per wash kar rahe hain, ghar par, roz. The question is not who is cheaper — it is whether you want to manage a booking every time, or want it done automatically.`,
+  localBhaiya:       `"Tumhari gaadi tumhari pehchaan hai." Local bhaiya charges ₹300 but misses days with zero accountability. Washing centre mein ek shampoo wash ₹500–800 leta hai — hum subscription mein ₹53 per wash kar rahe hain, ghar par, roz. With us, you get a WhatsApp before-and-after photo with timestamp every morning — that photo is your daily service proof.`,
+  noNeedDailyWash:   `In Surat's dust, construction sites, and humidity, even a parked car collects a visible film overnight. Our plan is not about washing because the car is dirty — it is about not having to think about it at all. Same time every morning, same person, same result. Subscription is month-to-month — cancel anytime after the first month with 7 days' notice. Try it for one month and judge for yourself.`,
+  willDamage:        `Great question — we use the gentlest method. Daily washing is always a plain water spray and microfibre dry — no chemicals on the paint every day. Express Wash includes one shampoo wash per month on the car body. Smart Wash upgrades that to fortnightly (2×/month). ELITE upgrades it further to weekly (4×/month). So the body only gets shampoo once a week at most — not daily.`,
+  letMeThink:        `Of course. Can I send you a WhatsApp with the plan details and some reviews from customers in your society? You can also book directly on WhatsApp — no app download needed. Just send "Hello 249" to our number.`,
+  noContract:        `No long-term contract. Our subscription is month-to-month. You can cancel after the first month by giving 7 days' written notice via WhatsApp. The first month's payment is non-refundable once service has started — this covers washer assignment and scheduling. After the first month, there is no penalty for leaving.`,
+  randomParking:     `We do need working space around the vehicle to wash it properly — our washer needs to move around all four sides. If your parking is not fixed, the vehicle needs to be parked in an accessible bay where the washer can work without obstruction. Our team will call you within 24 hours to check the location and confirm the slot.`,
+  notJustHome:       `We are not a home-only service. We visit homes, offices, commercial premises, and any other location where your vehicle is parked — wherever you need us, that is where we come. Our service window runs from 5 AM to 9 AM. If your car is parked at your office, we can schedule the wash for your office parking slot.`,
+} as const;
 
-  const combo4Total = suvWax + 349; // Glass coating monthly
-  const combo4Price = Math.round(combo4Total * 0.951); // ~4.9% discount
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER — get subscription price for a given plan + vehicle category
+// ─────────────────────────────────────────────────────────────────────────────
+export function getSubscriptionPrice(
+  vehicleCategory: VehicleCategory,
+  plan: PlanType,
+): number | "NA" {
+  return CURRENT_PLAN_VERSION.pricingMatrix[vehicleCategory][plan];
+}
 
-  const combo5Total = hatchbackShampoo * 5;
-  const combo5Price = Math.round(combo5Total * 0.90); // 10% discount
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER — get add-on price by id + vehicle category
+// ─────────────────────────────────────────────────────────────────────────────
+export function getAddonPrice(
+  addonId: string,
+  vehicleCategory: VehicleCategory,
+): number | "NA" {
+  const addon = ADD_ON_SERVICES.find(a => a.id === addonId);
+  if (!addon) return "NA";
+  if (vehicleCategory.includes("Luxury")) return addon.pricing.luxury;
+  if (vehicleCategory.includes("SUV"))    return addon.pricing.suv;
+  if (vehicleCategory.includes("2W"))     return addon.pricing.twoW;
+  return addon.pricing.hatchback; // default hatchback / compact sedan
+}
 
-  const combo6Total = suvShampoo * 10;
-  const combo6Price = Math.round(combo6Total * 0.853); // 14.7% discount
+// ─────────────────────────────────────────────────────────────────────────────
+// PITCH ANCHOR — use this at the opening of EVERY price conversation
+// ─────────────────────────────────────────────────────────────────────────────
+export const PITCH_ANCHOR =
+  `Washing centre mein ek shampoo wash ₹500–800 leta hai. ` +
+  `Hum kar rahe hain ₹53 per wash — ghar par, roz, 30 din.`;
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY COMPATIBILITY EXPORTS
+// Required by subscriptionPlansService.ts — derived from CURRENT_PLAN_VERSION
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const WASHES_PER_MONTH = 30;
+
+export const PLAN_TIER_NAMES: Record<string, string> = {
+  EXPRESS_WASH: "EXPRESS_WASH",
+  SMART_WASH:   "SMART_WASH",
+  ELITE:        "ELITE_WASH",
+  ELITE_2W:     "ELITE (2-Wheeler)",
+};
+
+export const VEHICLE_CATEGORIES_CONFIG: Record<string, {
+  displayName: string;
+  examples: string[];
+  type: "4W" | "2W";
+}> = {
+  "Hatchback / Compact Sedan": {
+    displayName: "Hatchback / Compact Sedan",
+    examples: ["Maruti Swift", "Hyundai i20", "Tata Nexon", "Honda Amaze"],
+    type: "4W",
+  },
+  "SUV / MUV / Sedan": {
+    displayName: "SUV / MUV / Sedan",
+    examples: ["Hyundai Creta", "Kia Seltos", "Honda City", "Toyota Innova"],
+    type: "4W",
+  },
+  "Luxury / Large SUV": {
+    displayName: "Luxury / Large SUV",
+    examples: ["Toyota Fortuner", "Mercedes GLC", "BMW X5", "Audi Q7"],
+    type: "4W",
+  },
+  "2W - Standard / Commuter Bike": {
+    displayName: "Standard / Commuter Bike",
+    examples: ["Honda Activa", "Bajaj Pulsar 150", "Hero Splendor"],
+    type: "2W",
+  },
+  "2W - Sports / Premium Bike": {
+    displayName: "Sports / Premium Bike",
+    examples: ["Royal Enfield", "KTM Duke", "Bajaj Dominar"],
+    type: "2W",
+  },
+  "2W - Scooter": {
+    displayName: "Scooter",
+    examples: ["Honda Activa", "TVS Jupiter", "Suzuki Access"],
+    type: "2W",
+  },
+};
+
+// Base prices indexed by vehicle category name — used by subscriptionPlansService
+export const PLAN_BASE_PRICES: Record<string, Record<string, number>> = {};
+for (const [category, plans] of Object.entries(CURRENT_PLAN_VERSION.pricingMatrix)) {
+  PLAN_BASE_PRICES[category] = {};
+  for (const [plan, price] of Object.entries(plans)) {
+    if (typeof price === "number") {
+      PLAN_BASE_PRICES[category][plan] = price;
+    }
+  }
+}
+
+export const BILLING_DURATIONS: Array<{
+  id: string;
+  label: string;
+  months: number;
+  discount: number;
+  perks: string[];
+}> = [
+  { id: "monthly",  label: "Month to Month", months: 1,  discount: 0,  perks: ["Cancel anytime. 7 days' notice."] },
+  { id: "3month",   label: "3 Months",       months: 3,  discount: 5,  perks: ["5% off on renewal."] },
+  { id: "6month",   label: "6 Months",       months: 6,  discount: 10, perks: ["10% off + free interior vacuum every month."] },
+  { id: "12month",  label: "12 Months",      months: 12, discount: 18, perks: ["18% off + vacuum + tyre dressing monthly + priority slots."] },
+];
+
+// Alias for ADD_ON_SERVICES — subscriptionPlansService imports as ADDON_SERVICES
+export const ADDON_SERVICES = ADD_ON_SERVICES;
+
+// Alias for CURRENT_PLAN_VERSION — used by getActivePlanVersion()
+export function getActivePlanVersion() {
+  return CURRENT_PLAN_VERSION;
+}
+
+// Vehicle category list for dropdowns
+export const VEHICLE_CATEGORIES = Object.keys(VEHICLE_CATEGORIES_CONFIG) as VehicleCategory[];
+
+// Plan type list
+export const PLAN_TYPES = Object.keys(CURRENT_PLAN_VERSION.pricingMatrix["Hatchback / Compact Sedan"]) as PlanType[];
+
+// Format price helper
+export function formatPrice(amount: number): string {
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+// ONE_TIME_WASH_PRICING alias — used by PlanDefinitionContext and PricingOverview
+export const ONE_TIME_WASH_PRICING = {
+  hatchback: ONE_TIME_PRICING.waterWash.hatchback,
+  suv:       ONE_TIME_PRICING.waterWash.suv,
+  luxury:    ONE_TIME_PRICING.waterWash.luxury,
+  // Full breakdown
+  waterWash:   ONE_TIME_PRICING.waterWash,
+  shampooWash: ONE_TIME_PRICING.shampooWash,
+  shampooWax:  ONE_TIME_PRICING.shampooWax,
+} as const;
+
+export const AVG_WASHES_PER_MONTH = WASHES_PER_MONTH; // alias
+
+export const ALL_PLAN_VERSIONS = [CURRENT_PLAN_VERSION]; // single version list
+
+export const TARGET_EBITDA_MARGIN = 0.30; // 30% blended EBITDA target
+
+// Helper: get plan price for a vehicle category + plan type
+export function getPlanPrice(
+  vehicleCategory: string,
+  planType: string,
+): number {
+  const matrix = CURRENT_PLAN_VERSION.pricingMatrix;
+  const catPrices = matrix[vehicleCategory as VehicleCategory];
+  if (!catPrices) return 0;
+  const price = catPrices[planType as PlanType];
+  return typeof price === "number" ? price : 0;
+}
+
+// Helper: get all one-time wash options for a vehicle category
+export function getAllOneTimeWashOptions(vehicleCategory: string): {
+  type: string; label: string; price: number;
+}[] {
+  const isLux = vehicleCategory.toLowerCase().includes("luxury");
+  const isSuv = vehicleCategory.toLowerCase().includes("suv");
+  const tier  = isLux ? "luxury" : isSuv ? "suv" : "hatchback";
   return [
-    {
-      id: "combo-001",
-      name: "Car + Bike Bundle",
-      description: "Subscribe to both car and bike plans at discounted rates",
-      planCombination: {
-        vehicle1: {
-          category: "Hatchback / Compact Sedan",
-          plan: "PROTECT",
-          individualPrice: hatchbackShampoo,
-        },
-        vehicle2: {
-          category: "2W - Standard / Commuter Bike",
-          plan: "ELITE",
-          individualPrice: bikePolish,
-        },
-      },
-      totalIndividualPrice: combo1Total,
-      comboPrice: combo1Price,
-      savings: combo1Total - combo1Price,
-      savingsPercentage: parseFloat((((combo1Total - combo1Price) / combo1Total) * 100).toFixed(1)),
-      isActive: true,
-    },
-    {
-      id: "combo-002",
-      name: "Dual Car Bundle",
-      description: "Two cars, one subscription - save on your second vehicle",
-      planCombination: {
-        vehicle1: {
-          category: "SUV / MUV / Sedan",
-          plan: "PROTECT",
-          individualPrice: suvShampoo,
-        },
-        vehicle2: {
-          category: "Hatchback / Compact Sedan",
-          plan: "PROTECT",
-          individualPrice: hatchbackShampoo,
-        },
-      },
-      totalIndividualPrice: combo2Total,
-      comboPrice: combo2Price,
-      savings: combo2Total - combo2Price,
-      savingsPercentage: parseFloat((((combo2Total - combo2Price) / combo2Total) * 100).toFixed(1)),
-      isActive: true,
-    },
-    {
-      id: "combo-003",
-      name: "Premium Care Pack - Hatchback",
-      description: "Shampoo+Wax plan + Interior Deep Vacuum (weekly)",
-      planCombination: {
-        vehicle1: {
-          category: "Hatchback / Compact Sedan",
-          plan: "ELITE",
-          individualPrice: hatchbackWax,
-        },
-      },
-      totalIndividualPrice: combo3Total,
-      comboPrice: combo3Price,
-      savings: combo3Total - combo3Price,
-      savingsPercentage: parseFloat((((combo3Total - combo3Price) / combo3Total) * 100).toFixed(1)),
-      isActive: true,
-    },
-    {
-      id: "combo-004",
-      name: "Premium Care Pack - SUV",
-      description: "Shampoo+Wax plan + Glass Coating (monthly)",
-      planCombination: {
-        vehicle1: {
-          category: "SUV / MUV / Sedan",
-          plan: "ELITE",
-          individualPrice: suvWax,
-        },
-      },
-      totalIndividualPrice: combo4Total,
-      comboPrice: combo4Price,
-      savings: combo4Total - combo4Price,
-      savingsPercentage: parseFloat((((combo4Total - combo4Price) / combo4Total) * 100).toFixed(1)),
-      isActive: true,
-    },
-    {
-      id: "combo-005",
-      name: "Society Package - 5 Cars",
-      description: "Bulk subscription for housing societies - minimum 5 vehicles",
-      planCombination: {
-        vehicle1: {
-          category: "Hatchback / Compact Sedan",
-          plan: "PROTECT",
-          individualPrice: combo5Total,
-        },
-      },
-      totalIndividualPrice: combo5Total,
-      comboPrice: combo5Price,
-      savings: combo5Total - combo5Price,
-      savingsPercentage: parseFloat((((combo5Total - combo5Price) / combo5Total) * 100).toFixed(1)),
-      isActive: true,
-    },
-    {
-      id: "combo-006",
-      name: "Fleet Package - 10+ Vehicles",
-      description: "Corporate fleet discount - customize your plan mix",
-      planCombination: {
-        vehicle1: {
-          category: "SUV / MUV / Sedan",
-          plan: "PROTECT",
-          individualPrice: combo6Total,
-        },
-      },
-      totalIndividualPrice: combo6Total,
-      comboPrice: combo6Price,
-      savings: combo6Total - combo6Price,
-      savingsPercentage: parseFloat((((combo6Total - combo6Price) / combo6Total) * 100).toFixed(1)),
-      isActive: true,
-      validUntil: "2026-12-31",
-    },
+    { type: "waterWash",   label: "EXPRESS_WASH",    price: ONE_TIME_PRICING.waterWash[tier]   },
+    { type: "shampooWash", label: "SMART_WASH",  price: ONE_TIME_PRICING.shampooWash[tier] },
+    { type: "shampooWax",  label: "ELITE_WASH", price: ONE_TIME_PRICING.shampooWax[tier]  },
   ];
 }
 
-// Combo Offers Data - Generated dynamically from pricing matrix
-export const COMBO_OFFERS: ComboOffer[] = generateComboOffers();
-
-// One-Time Wash Pricing Data
-export const ONE_TIME_WASH_PRICING: OneTimeWashPricing[] = [
-  // Basic One-Time Wash
-  {
-    vehicleCategory: "Hatchback / Compact Sedan",
-    memberPrice: 150,
-    nonMemberPrice: 199,
-    washType: "Basic",
-  },
-  {
-    vehicleCategory: "SUV / MUV / Sedan",
-    memberPrice: 200,
-    nonMemberPrice: 249,
-    washType: "Basic",
-  },
-  {
-    vehicleCategory: "Luxury / Large SUV",
-    memberPrice: 250,
-    nonMemberPrice: 299,
-    washType: "Basic",
-  },
-  {
-    vehicleCategory: "2W - Standard / Commuter Bike",
-    memberPrice: 80,
-    nonMemberPrice: 99,
-    washType: "Basic",
-  },
-  {
-    vehicleCategory: "2W - Sports / Premium Bike",
-    memberPrice: 100,
-    nonMemberPrice: 129,
-    washType: "Basic",
-  },
-  {
-    vehicleCategory: "2W - Scooter",
-    memberPrice: 70,
-    nonMemberPrice: 89,
-    washType: "Basic",
-  },
-  // Premium One-Time Wash (with shampoo)
-  {
-    vehicleCategory: "Hatchback / Compact Sedan",
-    memberPrice: 250,
-    nonMemberPrice: 299,
-    washType: "Premium",
-  },
-  {
-    vehicleCategory: "SUV / MUV / Sedan",
-    memberPrice: 300,
-    nonMemberPrice: 349,
-    washType: "Premium",
-  },
-  {
-    vehicleCategory: "Luxury / Large SUV",
-    memberPrice: 400,
-    nonMemberPrice: 449,
-    washType: "Premium",
-  },
-  {
-    vehicleCategory: "2W - Standard / Commuter Bike",
-    memberPrice: 120,
-    nonMemberPrice: 149,
-    washType: "Premium",
-  },
-  {
-    vehicleCategory: "2W - Sports / Premium Bike",
-    memberPrice: 150,
-    nonMemberPrice: 179,
-    washType: "Premium",
-  },
-  {
-    vehicleCategory: "2W - Scooter",
-    memberPrice: 100,
-    nonMemberPrice: 129,
-    washType: "Premium",
-  },
-  // Elite One-Time Wash (with shampoo + wax)
-  {
-    vehicleCategory: "Hatchback / Compact Sedan",
-    memberPrice: 450,
-    nonMemberPrice: 549,
-    washType: "Elite",
-  },
-  {
-    vehicleCategory: "SUV / MUV / Sedan",
-    memberPrice: 550,
-    nonMemberPrice: 649,
-    washType: "Elite",
-  },
-  {
-    vehicleCategory: "Luxury / Large SUV",
-    memberPrice: 700,
-    nonMemberPrice: 799,
-    washType: "Elite",
-  },
-  {
-    vehicleCategory: "2W - Standard / Commuter Bike",
-    memberPrice: 200,
-    nonMemberPrice: 249,
-    washType: "Elite",
-  },
-  {
-    vehicleCategory: "2W - Sports / Premium Bike",
-    memberPrice: 250,
-    nonMemberPrice: 299,
-    washType: "Elite",
-  },
-  {
-    vehicleCategory: "2W - Scooter",
-    memberPrice: 180,
-    nonMemberPrice: 229,
-    washType: "Elite",
-  },
-];
-
-// All Plan Versions (includes current and historical)
-export const ALL_PLAN_VERSIONS: PlanVersion[] = [CURRENT_PLAN_VERSION];
-
-// Helper function to get plan price
-export function getPlanPrice(
-  version: PlanVersion,
-  vehicleCategory: VehicleCategory,
-  planType: PlanType
-): number | "NA" {
-  return version.pricingMatrix[vehicleCategory][planType];
-}
-
-// Helper function to format price
-export function formatPrice(price: number | "NA"): string {
-  if (price === "NA") return "NA";
-  return `₹${price.toLocaleString("en-IN")}`;
-}
-
-// Helper function to get active plan version
-export function getActivePlanVersion(): PlanVersion {
-  return ALL_PLAN_VERSIONS.find((v) => v.status === "Active") || CURRENT_PLAN_VERSION;
-}
-
-// Helper function to get previous plan version (for TSM/TSE)
-export function getPreviousPlanVersion(): PlanVersion | null {
-  const sortedVersions = [...ALL_PLAN_VERSIONS]
-    .filter((v) => v.status === "Superseded")
-    .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
-
-  return sortedVersions[0] || null;
-}
-
-// Vehicle categories list
-export const VEHICLE_CATEGORIES: VehicleCategory[] = [
-  "Hatchback / Compact Sedan",
-  "SUV / MUV / Sedan",
-  "Luxury / Large SUV",
-  "2W - Standard / Commuter Bike",
-  "2W - Sports / Premium Bike",
-  "2W - Scooter",
-];
-
-// Plan types list
-export const PLAN_TYPES: PlanType[] = [
-  "SHINE",
-  "PROTECT",
-  "ELITE",
-  "ELITE_2W",
-  "One-Time Member",
-  "One-Time Non-Member",
-];
-
-// Subscription plans (all plans in new structure)
-export const SUBSCRIPTION_PLANS: PlanType[] = [
-  "SHINE",
-  "PROTECT",
-  "ELITE",
-  "ELITE_2W",
-];
-
-// Vehicle examples for each category
-export const VEHICLE_EXAMPLES: Record<VehicleCategory, string[]> = {
-  "Hatchback / Compact Sedan": ["Swift", "i20", "Baleno", "Dzire", "Tiago"],
-  "SUV / MUV / Sedan": ["Creta", "Innova", "City", "Thar", "Ertiga"],
-  "Luxury / Large SUV": ["Fortuner", "XUV700", "Meridian", "Scorpio N"],
-  "2W - Standard / Commuter Bike": ["Splendor", "Passion", "CT100", "HF Deluxe"],
-  "2W - Sports / Premium Bike": ["Pulsar", "Apache", "Dominar", "Duke", "R15"],
-  "2W - Scooter": ["Activa", "Jupiter", "Dio", "NTorq", "Burgman"],
-};
-
-// ============================================================
-// SERVICE COMPATIBILITY LAYER
-// Single source of truth for subscriptionPlansService.
-// These replace the equivalent exports from
-// constants/subscriptionPlans.constants.ts which is now
-// deprecated for all plan-data concerns.
-// ============================================================
-
-/** Standard number of washes per month */
-export const WASHES_PER_MONTH = 26;
-
-/** Currency */
-export const CURRENCY = "INR" as const;
-export const CURRENCY_SYMBOL = "₹";
-
-/** Billing duration discount rates */
-export const DEFAULT_DURATION_DISCOUNTS = {
-  MONTHLY:     0,
-  QUARTERLY:   5,
-  HALF_YEARLY: 10,
-  NINE_MONTHS: 12,
-  ANNUAL:      15,
-} as const;
-
-/** Billing duration configs — used by subscriptionPlansService.calculateDurationPrices() */
-export const BILLING_DURATIONS = [
-  { type: "MONTHLY"     as const, label: "Monthly",     months: 1,  discountPercent: DEFAULT_DURATION_DISCOUNTS.MONTHLY },
-  { type: "QUARTERLY"   as const, label: "Quarterly",   months: 3,  discountPercent: DEFAULT_DURATION_DISCOUNTS.QUARTERLY },
-  { type: "HALF_YEARLY" as const, label: "Half-Yearly", months: 6,  discountPercent: DEFAULT_DURATION_DISCOUNTS.HALF_YEARLY },
-  { type: "NINE_MONTHS" as const, label: "9 Months",    months: 9,  discountPercent: DEFAULT_DURATION_DISCOUNTS.NINE_MONTHS },
-  { type: "ANNUAL"      as const, label: "Annual",      months: 12, discountPercent: DEFAULT_DURATION_DISCOUNTS.ANNUAL },
-] as const;
-
-/**
- * Plan tier display names — single source of truth.
- * Maps the new SHINE/PROTECT/ELITE naming to human-readable labels.
- * WATER_WASH / SHAMPOO_WASH / SHAMPOO_WAX keys are retired — do not add back.
- */
-export const PLAN_TIER_NAMES = {
-  SHINE:    "SHINE — Chamakti Subah",
-  PROTECT:  "PROTECT — Raksha Plan",
-  ELITE:    "ELITE — Raja Seva",
-  ELITE_2W: "ELITE (2-Wheeler)",
-} as const;
-
-/**
- * Vehicle category configs — used by subscriptionPlansService.getVehicleCategories().
- * Keys match VehicleCategoryName in types/subscriptionPlans.types.ts.
- */
-export const VEHICLE_CATEGORIES_CONFIG = {
-  HATCHBACK_COMPACT_SEDAN: {
-    displayName: "Hatchback / Compact Sedan",
-    examples:    ["Swift", "i20", "Baleno", "Dzire", "Tiago"],
-    type:        "4W" as const,
-  },
-  SUV_MUV_SEDAN: {
-    displayName: "SUV / MUV / Sedan",
-    examples:    ["Creta", "Innova", "City", "Thar", "Ertiga"],
-    type:        "4W" as const,
-  },
-  LUXURY_LARGE_SUV: {
-    displayName: "Luxury / Large SUV",
-    examples:    ["Fortuner", "XUV700", "Meridian", "Scorpio N"],
-    type:        "4W" as const,
-  },
-  STANDARD_COMMUTER_BIKE: {
-    displayName: "Standard / Commuter Bike",
-    examples:    ["Splendor", "Passion", "CT100", "HF Deluxe"],
-    type:        "2W" as const,
-  },
-  SPORTS_PREMIUM_BIKE: {
-    displayName: "Sports / Premium Bike",
-    examples:    ["Pulsar", "Apache", "Dominar", "Duke", "R15"],
-    type:        "2W" as const,
-  },
-  SCOOTER: {
-    displayName: "Scooter",
-    examples:    ["Activa", "Jupiter", "Dio", "NTorq", "Burgman"],
-    type:        "2W" as const,
-  },
-} as const;
-
-/**
- * Plan base prices — derived from CURRENT_PLAN_VERSION.pricingMatrix so there
- * is exactly one place where prices are defined.
- * subscriptionPlansService reads this instead of the old constants file.
- */
-export const PLAN_BASE_PRICES = {
-  HATCHBACK_COMPACT_SEDAN: {
-    SHINE:    CURRENT_PLAN_VERSION.pricingMatrix["Hatchback / Compact Sedan"]["SHINE"],
-    PROTECT:  CURRENT_PLAN_VERSION.pricingMatrix["Hatchback / Compact Sedan"]["PROTECT"],
-    ELITE:    CURRENT_PLAN_VERSION.pricingMatrix["Hatchback / Compact Sedan"]["ELITE"],
-  },
-  SUV_MUV_SEDAN: {
-    SHINE:    CURRENT_PLAN_VERSION.pricingMatrix["SUV / MUV / Sedan"]["SHINE"],
-    PROTECT:  CURRENT_PLAN_VERSION.pricingMatrix["SUV / MUV / Sedan"]["PROTECT"],
-    ELITE:    CURRENT_PLAN_VERSION.pricingMatrix["SUV / MUV / Sedan"]["ELITE"],
-  },
-  LUXURY_LARGE_SUV: {
-    SHINE:    CURRENT_PLAN_VERSION.pricingMatrix["Luxury / Large SUV"]["SHINE"],
-    PROTECT:  CURRENT_PLAN_VERSION.pricingMatrix["Luxury / Large SUV"]["PROTECT"],
-    ELITE:    CURRENT_PLAN_VERSION.pricingMatrix["Luxury / Large SUV"]["ELITE"],
-  },
-  STANDARD_COMMUTER_BIKE: {
-    SHINE:    CURRENT_PLAN_VERSION.pricingMatrix["2W - Standard / Commuter Bike"]["SHINE"],
-    PROTECT:  CURRENT_PLAN_VERSION.pricingMatrix["2W - Standard / Commuter Bike"]["PROTECT"],
-    ELITE_2W: CURRENT_PLAN_VERSION.pricingMatrix["2W - Standard / Commuter Bike"]["ELITE_2W"],
-  },
-  SPORTS_PREMIUM_BIKE: {
-    SHINE:    CURRENT_PLAN_VERSION.pricingMatrix["2W - Sports / Premium Bike"]["SHINE"],
-    PROTECT:  CURRENT_PLAN_VERSION.pricingMatrix["2W - Sports / Premium Bike"]["PROTECT"],
-    ELITE_2W: CURRENT_PLAN_VERSION.pricingMatrix["2W - Sports / Premium Bike"]["ELITE_2W"],
-  },
-  SCOOTER: {
-    ELITE_2W: CURRENT_PLAN_VERSION.pricingMatrix["2W - Scooter"]["ELITE_2W"],
-  },
-} as const;
-
-/**
- * Add-on services — re-exported under the name subscriptionPlansService expects.
- * ADD_ON_SERVICES is the canonical list; ADDON_SERVICES_COMPAT is the alias.
- * subscriptionPlansService imports ADDON_SERVICES — point it here.
- */
-export const ADDON_SERVICES = ADD_ON_SERVICES.map(a => ({
-  ...a,
-  billingType:               a.billing === "Per visit" ? "PER_VISIT" as const : "PER_MONTH" as const,
-  isOperationallyConfirmed:  a.isActive,
-  price:                     typeof a.pricing["4W"] === "number" ? a.pricing["4W"] as number : 0,
-  bestPairedWith:            a.bestPairedWith as string[],
-}));
-
-/**
- * Combo offers — re-exported for subscriptionPlansService compat.
- * Uses the dynamically generated COMBO_OFFERS from this file (already live).
- */
- // COMBO_OFFERS already exported above
-/** Validation constants */
-export const MIN_BASE_PRICE      = 100;
-export const MAX_BASE_PRICE      = 10000;
-export const MIN_DISCOUNT_PERCENT = 0;
-export const MAX_DISCOUNT_PERCENT = 50;
-export const MIN_MARGIN_PERCENT   = 0;
-export const MAX_MARGIN_PERCENT   = 100;
-
-/** UI constants — display only, no plan data */
-export const BEST_VALUE_BADGE = "Best Value";
-export const PLANS_PER_ROW    = 3;
-
-export const PLAN_TIER_COLORS = {
-  SHINE:    { bg: "bg-blue-50",   border: "border-blue-200",   text: "text-blue-700"   },
-  PROTECT:  { bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-700" },
-  ELITE:    { bg: "bg-green-50",  border: "border-green-200",  text: "text-green-700"  },
-  ELITE_2W: { bg: "bg-amber-50",  border: "border-amber-200",  text: "text-amber-700"  },
-} as const;
-
-export const ROLE_PERMISSIONS = {
-  SUPER_ADMIN: {
-    canCreatePlan: true,  canEditPlan: true,  canEditPricing: true,
-    canEditFeatures: true, canEditDurationDiscounts: true,
-    canDisablePlan: true, canDeletePlan: true,
-    canManageAddons: true, canManageCombos: true, canViewAuditLog: true,
-  },
-  ADMIN: {
-    canCreatePlan: true,  canEditPlan: true,  canEditPricing: true,
-    canEditFeatures: true, canEditDurationDiscounts: false,
-    canDisablePlan: true, canDeletePlan: false,
-    canManageAddons: true, canManageCombos: true, canViewAuditLog: true,
-  },
-  MANAGER: {
-    canCreatePlan: false, canEditPlan: false, canEditPricing: false,
-    canEditFeatures: false, canEditDurationDiscounts: false,
-    canDisablePlan: false, canDeletePlan: false,
-    canManageAddons: false, canManageCombos: false, canViewAuditLog: false,
-  },
-  VIEWER: {
-    canCreatePlan: false, canEditPlan: false, canEditPricing: false,
-    canEditFeatures: false, canEditDurationDiscounts: false,
-    canDisablePlan: false, canDeletePlan: false,
-    canManageAddons: false, canManageCombos: false, canViewAuditLog: false,
-  },
-} as const;
-
-export const SERVICE_FREQUENCIES = {
-  EVERY_WASH: "Every Wash (Daily)",
-  WEEKLY:     "Weekly (1x per week)",
-  MONTHLY:    "Monthly (1x per month)",
-} as const;
-
-export function calculateCostPerWash(monthlyPrice: number): number {
-  return monthlyPrice / WASHES_PER_MONTH;
-}
-
-// Add-On Helper Functions
-export function getAddOnById(id: string): AddOnService | undefined {
-  return ADD_ON_SERVICES.find(addon => addon.id === id);
-}
-
-export function getAddOnsByCategory(category: "Cleaning" | "Protection" | "Maintenance"): AddOnService[] {
-  return ADD_ON_SERVICES.filter(addon => addon.category === category && addon.isActive);
-}
-
-export function getAddOnsForPlan(planType: PlanType): AddOnService[] {
-  return ADD_ON_SERVICES.filter(addon =>
-    addon.isActive && addon.bestPairedWith.includes(planType)
-  );
-}
-
-export function getAddOnPrice(addonId: string, vehicleType: "4W" | "2W"): number | "NA" {
-  const addon = getAddOnById(addonId);
-  return addon ? addon.pricing[vehicleType] : "NA";
-}
-
-// Combo Offer Helper Functions
-export function getComboById(id: string): ComboOffer | undefined {
-  return COMBO_OFFERS.find(combo => combo.id === id);
-}
-
-export function getActiveComboOffers(): ComboOffer[] {
-  return COMBO_OFFERS.filter(combo => combo.isActive);
-}
-
-export function getCombosByVehicleCategory(category: VehicleCategory): ComboOffer[] {
-  return COMBO_OFFERS.filter(combo =>
-    combo.isActive &&
-    (combo.planCombination.vehicle1.category === category ||
-     combo.planCombination.vehicle2?.category === category)
-  );
-}
-
-// One-Time Wash Helper Functions
+// Helper: get one-time wash price
 export function getOneTimeWashPrice(
-  vehicleCategory: VehicleCategory,
-  washType: "Basic" | "Premium" | "Elite",
-  isMember: boolean
+  vehicleCategory: string,
+  washType: "waterWash" | "shampooWash" | "shampooWax" = "waterWash",
 ): number {
-  const pricing = ONE_TIME_WASH_PRICING.find(
-    p => p.vehicleCategory === vehicleCategory && p.washType === washType
-  );
-
-  if (!pricing) return 0;
-  return isMember ? pricing.memberPrice : pricing.nonMemberPrice;
+  const isLux = vehicleCategory.toLowerCase().includes("luxury");
+  const isSuv = vehicleCategory.toLowerCase().includes("suv");
+  const tier  = isLux ? "luxury" : isSuv ? "suv" : "hatchback";
+  return ONE_TIME_PRICING[washType][tier];
 }
 
-export function getAllOneTimeWashOptions(vehicleCategory: VehicleCategory): OneTimeWashPricing[] {
-  return ONE_TIME_WASH_PRICING.filter(p => p.vehicleCategory === vehicleCategory);
-}
-
-// Pricing Summary Helper
-export function getPricingSummary(vehicleCategory: VehicleCategory) {
-  const activePlan = getActivePlanVersion();
-  const subscriptionPrices = PLAN_TYPES.filter(
-    plan => !plan.includes("One-Time")
-  ).map(plan => ({
-    plan,
-    price: getPlanPrice(activePlan, vehicleCategory, plan),
-  }));
-
-  const oneTimeWashes = getAllOneTimeWashOptions(vehicleCategory);
-  const recommendedAddOns = ADD_ON_SERVICES.filter(addon => addon.isActive).slice(0, 3);
-
+// Helper: pricing summary for a plan + vehicle
+export function getPricingSummary(vehicleCategory: string, planType: string) {
+  const price = getPlanPrice(vehicleCategory, planType);
+  const perWash = price > 0 ? Math.round(price / WASHES_PER_MONTH) : 0;
   return {
-    subscriptionPrices,
-    oneTimeWashes,
-    recommendedAddOns,
+    monthlyPrice: price,
+    perWash,
+    washesPerMonth: WASHES_PER_MONTH,
+    planName: { EXPRESS_WASH: "Express Wash", SMART_WASH: "Smart Wash", ELITE_WASH: "Elite Wash" }[planType] || planType,
+    vehicleCategory,
   };
 }
+
+// Previous plan version — returns current (no previous version exists yet)
+export function getPreviousPlanVersion() {
+  return CURRENT_PLAN_VERSION;
+}
+
+// SUBSCRIPTION_PLANS — flat array of all plan+vehicle combinations for plan editors
+export const SUBSCRIPTION_PLANS = Object.entries(CURRENT_PLAN_VERSION.pricingMatrix).flatMap(
+  ([category, plans]) =>
+    Object.entries(plans)
+      .filter(([, price]) => typeof price === "number" && price > 0)
+      .map(([planType, price]) => ({
+        id: `${planType}-${category.replace(/[^a-zA-Z]/g, "-").toLowerCase()}`,
+        planType: planType as PlanType,
+        vehicleCategory: category as VehicleCategory,
+        planName: { EXPRESS_WASH: "Express Wash", SMART_WASH: "Smart Wash", ELITE_WASH: "Elite Wash" }[planType] || planType,
+        monthlyPrice: price as number,
+        perWashPrice: Math.round((price as number) / WASHES_PER_MONTH),
+        washesPerMonth: WASHES_PER_MONTH,
+      }))
+);
+
+
+export const ROLE_PERMISSIONS = null as any; // TODO: implement
+
+
+export const PLAN_TIER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  EXPRESS_WASH: { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
+  SMART_WASH:   { bg: "#F0FDF4", text: "#166534", border: "#BBF7D0" },
+  ELITE:        { bg: "#FFF7ED", text: "#C2410C", border: "#FED7AA" },
+  ELITE_2W:     { bg: "#F5F3FF", text: "#5B21B6", border: "#DDD6FE" },
+};

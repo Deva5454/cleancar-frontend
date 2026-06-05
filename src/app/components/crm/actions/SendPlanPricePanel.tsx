@@ -27,23 +27,22 @@ export function SendPlanPricePanel({
   const { appendLeadActivity } = useCustomers();
   const { currentUser } = useRole();
   const leadId = lead.leadId || lead.id;
-  const [selectedPlan, setSelectedPlan] = useState(lead.planOfInterest);
-  const [vehicleCategory, setVehicleCategory] = useState(lead.vehicleCategory);
+  const [selectedPlan, setSelectedPlan] = useState(lead.planOfInterest || "SMART_WASH");
+  const [vehicleCategory, setVehicleCategory] = useState(lead.vehicleCategory || "hatchback");
   const [channel, setChannel] = useState("both");
-  const [priceVersion, setPriceVersion] = useState("current");
 
   // Plan pricing — from subscriptionPlans.ts CURRENT_PLAN_VERSION (Package Architecture v1.8)
   const planPrices: Record<string, Record<string, number>> = {
-    "EXPRESS_WASH": { Hatchback: 1249, SUV: 1499, "Luxury SUV": 1999 },
-    "SMART_WASH":   { Hatchback: 1599, SUV: 1999, "Luxury SUV": 2699 },
-    "ELITE_WASH":        { Hatchback: 1999, SUV: 2499, "Luxury SUV": 3499 },
+    "EXPRESS_WASH": { hatchback: 1249, suv: 1499, luxury: 1999 },
+    "SMART_WASH":   { hatchback: 1599, suv: 1999, luxury: 2699 },
+    "ELITE_WASH":   { hatchback: 1999, suv: 2499, luxury: 3499 },
   };
 
   // Display names for plan keys
   const planDisplayNames: Record<string, string> = {
-    "EXPRESS_WASH": "Express Wash (Chamakti Subah)",
-    "SMART_WASH":   "Smart Wash (Raksha Plan)",
-    "ELITE_WASH":        "ELITE (Raja Seva)",
+    "EXPRESS_WASH": "Express Wash",
+    "SMART_WASH":   "Smart Wash",
+    "ELITE_WASH":   "Elite Wash",
   };
 
   const currentPrice = planPrices[selectedPlan]?.[vehicleCategory] || 0;
@@ -114,44 +113,13 @@ export function SendPlanPricePanel({
       </div>
 
       {/* Plan Version Warning */}
-      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-amber-900">
-            Previously quoted ₹{oldPrice}/month under Plan V1
-          </p>
-          <p className="text-sm text-amber-700 mt-1">
-            Current price is ₹{currentPrice}/month. Choose which price to send.
-          </p>
-          <div className="flex gap-3 mt-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="price-version"
-                value="current"
-                checked={priceVersion === "current"}
-                onChange={() => setPriceVersion("current")}
-                className="w-4 h-4"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Send Current Plan Price (₹{currentPrice})
-              </span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="price-version"
-                value="historical"
-                checked={priceVersion === "historical"}
-                onChange={() => setPriceVersion("historical")}
-                className="w-4 h-4"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Send Historical Quote (₹{oldPrice})
-              </span>
-            </label>
-          </div>
-        </div>
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm font-medium text-blue-900">
+          📋 Sending plan price to {lead.customerName || "customer"}
+        </p>
+        <p className="text-sm text-blue-700 mt-1">
+          Current price: ₹{currentPrice}/month for {vehicleCategory}
+        </p>
       </div>
 
       <div className="space-y-4">
@@ -163,9 +131,9 @@ export function SendPlanPricePanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="EXPRESS_WASH">CleanCar Basic</SelectItem>
-              <SelectItem value="SMART_WASH">CleanCar Premium</SelectItem>
-              <SelectItem value="ELITE_WASH">CleanCar Elite</SelectItem>
+              <SelectItem value="EXPRESS_WASH">Express Wash</SelectItem>
+              <SelectItem value="SMART_WASH">Smart Wash</SelectItem>
+              <SelectItem value="ELITE_WASH">Elite Wash</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -178,9 +146,9 @@ export function SendPlanPricePanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Hatchback">Hatchback</SelectItem>
-              <SelectItem value="Sedan">Sedan</SelectItem>
-              <SelectItem value="SUV">SUV</SelectItem>
+              <SelectItem value="hatchback">Hatchback / Compact Sedan</SelectItem>
+              <SelectItem value="suv">SUV / Sedan / MUV</SelectItem>
+              <SelectItem value="luxury">Luxury / Large SUV</SelectItem>
             </SelectContent>
           </Select>
         </div>
