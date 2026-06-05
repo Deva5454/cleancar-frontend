@@ -23,6 +23,43 @@ import {
   BarChart3,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { planSyncService } from "../../services/planSyncService";
+
+// ─── Plan revenue helpers ─────────────────────────────────────────────────────
+const PLAN_NAMES: Record<string, string> = {
+  SHINE: "Express Wash", PROTECT: "Smart Wash", ELITE: "Elite Wash",
+  EXPRESS_WASH: "Express Wash", SMART_WASH: "Smart Wash", ELITE_WASH: "Elite Wash",
+};
+const PLAN_COLORS_BAR: Record<string, string> = {
+  SHINE: "bg-blue-500", PROTECT: "bg-purple-500", ELITE: "bg-yellow-500",
+  EXPRESS_WASH: "bg-blue-500", SMART_WASH: "bg-purple-500", ELITE_WASH: "bg-yellow-500",
+};
+
+/** Average plan price across vehicle types for revenue quality indicator */
+function getAvgPlanPrice(planId: string): number {
+  try {
+    const plans = planSyncService.getAllPlanPrices();
+    const plan = plans.find(p => p.tierId === planId || p.id === planId);
+    if (!plan) return 0;
+    return Math.round((plan.hatchback + plan.suv + plan.luxury) / 3);
+  } catch { return 0; }
+}
+
+/** Revenue quality: avg deal value per conversion */
+function getRevenueQuality(planMix: Record<string, number>, totalConversions: number): {
+  avgDealValue: number; quality: "HIGH" | "MED" | "LOW"
+} {
+  if (!planMix || totalConversions === 0) return { avgDealValue: 0, quality: "LOW" };
+  const weighted = Object.entries(planMix).reduce((sum, [plan, pct]) => {
+    const price = getAvgPlanPrice(plan);
+    return sum + (price * pct / 100);
+  }, 0);
+  const avgDeal = Math.round(weighted * 3 * 1.18); // 3mo default × GST
+  return {
+    avgDealValue: avgDeal,
+    quality: avgDeal > 6000 ? "HIGH" : avgDeal > 4000 ? "MED" : "LOW",
+  };
+}
 import type { TSEPerformanceCard } from "../../types/teleSalesManager.types";
 
 interface TSMTeamPerformanceProps {
@@ -274,7 +311,7 @@ export function TSMTeamPerformance({ onSelectTSE }: TSMTeamPerformanceProps) {
                   </div>
                 </div>
 
-                {/* Revenue Generated */}
+                {/* Revenue Generated — with GST note */}
                 <div className="p-3 bg-white rounded-lg border border-gray-200">
                   <div className="flex items-center gap-2 mb-2">
                     <DollarSign className="w-4 h-4 text-green-600" />
@@ -286,6 +323,7 @@ export function TSMTeamPerformance({ onSelectTSE }: TSMTeamPerformanceProps) {
                   <div className="text-xs text-gray-500">
                     Target: ₹{(tse.kpis.revenueGenerated.target / 100000).toFixed(1)}L
                   </div>
+                  <div className="text-xs text-gray-400 mt-0.5">excl. GST</div>
                   <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                     <div
                       className={`h-1.5 rounded-full ${
@@ -308,56 +346,62 @@ export function TSMTeamPerformance({ onSelectTSE }: TSMTeamPerformanceProps) {
 
               {/* Bundle Mix & Incentives Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                {/* Bundle Mix */}
+                {/* Plan Mix — replaces old Base/AddOn/BundleMID/BundleLOW */}
                 <div className="p-3 bg-white rounded-lg border border-gray-200">
-                  <div className="flex items-center gap-2 mb-3">
-                    <BarChart3 className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-medium text-gray-700">
-                      Bundle Mix
-                    </span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-indigo-600" />
+                      <span className="text-xs font-medium text-gray-700">Plan Mix</span>
+                    </div>
+                    {(() => {
+                      const rq = getRevenueQuality(tse.planMix || {}, tse.kpis.conversionRate.rate);
+                      return (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                          rq.quality === "HIGH" ? "bg-green-100 text-green-700"
+                          : rq.quality === "MED" ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                        }`}>
+                          {rq.quality} quality · ₹{(rq.avgDealValue/1000).toFixed(1)}K avg
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">Base</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {tse.bundleMix.base}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">Add-On</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {tse.bundleMix.addOn}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">Bundle MID</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {tse.bundleMix.bundleMID}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">Bundle LOW</span>
-                      <span
-                        className={`text-sm font-semibold ${
-                          tse.bundleMix.bundleLOW > 30
-                            ? "text-red-600"
+                    {/* Plan mix bars from tse.planMix or fallback from bundleMix */}
+                    {[
+                      { id: "ELITE",   label: "Elite Wash",   pct: tse.planMix?.ELITE   ?? tse.bundleMix?.bundleMID ?? 0 },
+                      { id: "PROTECT", label: "Smart Wash",   pct: tse.planMix?.PROTECT ?? tse.bundleMix?.base      ?? 0 },
+                      { id: "SHINE",   label: "Express Wash", pct: tse.planMix?.SHINE   ?? tse.bundleMix?.bundleLOW ?? 0 },
+                    ].map(plan => (
+                      <div key={plan.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-600">{plan.label}</span>
+                          <span className={`text-xs font-semibold ${
+                            plan.id === "ELITE" && plan.pct > 30 ? "text-green-600"
+                            : plan.id === "SHINE" && plan.pct > 60 ? "text-red-600"
                             : "text-gray-900"
-                        }`}
-                      >
-                        {tse.bundleMix.bundleLOW}%
-                      </span>
+                          }`}>{plan.pct}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full ${PLAN_COLORS_BAR[plan.id]}`}
+                            style={{ width: `${Math.min(plan.pct, 100)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                    {/* Add-on attach rate */}
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <span className="text-xs text-gray-500">Add-on attach rate</span>
+                      <span className={`text-xs font-semibold ${
+                        (tse.bundleMix?.addOn ?? 0) >= 40 ? "text-green-600" : "text-amber-600"
+                      }`}>{tse.bundleMix?.addOn ?? 0}%</span>
                     </div>
-                    {tse.bundleMix.bundleLOW > 30 && (
+                    {(tse.planMix?.SHINE ?? tse.bundleMix?.bundleLOW ?? 0) > 60 && (
                       <div className="mt-1">
-                        <div className="text-xs text-red-600 font-medium">⚠ High LOW bundle dependency</div>
-                        {/* C3 FIX: add coaching action button */}
-                        <button
-                          className="text-xs text-blue-600 underline mt-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            alert(`Schedule coaching session with ${tse.name}:\nFocus: Bundle MID vs LOW pricing discipline.\nTarget: Reduce LOW bundle below 20%.`);
-                          }}
-                        >
+                        <div className="text-xs text-red-600 font-medium">⚠ Mostly selling Express Wash — coach to upsell</div>
+                        <button className="text-xs text-blue-600 underline mt-1"
+                          onClick={(e) => { e.stopPropagation();
+                            alert(`Coach ${tse.name}:\nFocus: Upsell Express → Smart/Elite Wash.\nRevenue impact: +₹${getAvgPlanPrice("PROTECT") - getAvgPlanPrice("SHINE")}/mo per upgrade.`);
+                          }}>
                           Schedule coaching →
                         </button>
                       </div>
