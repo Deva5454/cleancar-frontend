@@ -15,7 +15,7 @@ import { logger } from "../../services/logger";
 // ── Color map per plan tier (visual only, logic unchanged) ───────────────────
 const TIER_ACCENT: Record<string, { bg: string; border: string; text: string; btnBg: string; light: string }> = {
   EXPRESS_WASH:  { bg: "#E6F1FB", border: "#378ADD", text: "#0C447C", btnBg: "#185FA5", light: "#EFF8FF" },
-  SHAMPOO_WASH:  { bg: "#EEEDFE", border: "#534AB7", text: "#3C3489", btnBg: "#534AB7", light: "#F5F4FF" },
+  SMART_WASH:    { bg: "#EEEDFE", border: "#534AB7", text: "#3C3489", btnBg: "#534AB7", light: "#F5F4FF" },
   ELITE_WASH:    { bg: "#FAEEDA", border: "#BA7517", text: "#633806", btnBg: "#BA7517", light: "#FFF8ED" },
   DEFAULT:       { bg: "#F1EFE8", border: "#5F5E5A", text: "#2C2C2A", btnBg: "#444441", light: "#F8F7F3" },
 };
