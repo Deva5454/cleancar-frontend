@@ -81,6 +81,10 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
   // Multiple add-ons allowed (up to 3 per subscription)
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnOption[]>([]);
   const [selectedBundle, setSelectedBundle] = useState<BundleOption | undefined>();
+  // Add-on frequency: how many times per month (default 4x like buy page)
+  const [addonFreqPerMonth, setAddonFreqPerMonth] = useState<number>(4);
+  // Commitment months for total calculation (default 3 months)
+  const [commitMonths, setCommitMonths] = useState<number>(3);
   const [pricingCalculation, setPricingCalculation] = useState<PricingCalculation>(
     teleSalesExecutiveService.calculatePricingForLead(lead)
   );
@@ -153,15 +157,29 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
     }
   };
 
-  // Issue 8 FIX: get vehicle-aware add-on price (SUV/Luxury pay more)
-  const getAddOnPrice = (addOn: AddOnOption): number => {
+  // Get vehicle-aware add-on price per visit (SUV/Luxury pay more)
+  const getAddOnPricePerVisit = (addOn: AddOnOption): number => {
     const cat = lead.vehicleCategory?.toUpperCase() ?? "H";
-    // Use prices object if available, otherwise fall back to perceivedValue
     const p = (addOn as any).prices;
     if (!p) return addOn.perceivedValue;
     if (cat.includes("LUXURY") || cat.includes("LUX"))    return p.Lux ?? addOn.perceivedValue;
     if (cat.includes("SUV") || cat.includes("MUV") || cat.includes("SEDAN")) return p.SUV ?? addOn.perceivedValue;
     return p.H ?? addOn.perceivedValue;
+  };
+
+  // Get total add-on cost = per-visit × frequency/month × commit months
+  const getAddOnPrice = (addOn: AddOnOption): number => {
+    return getAddOnPricePerVisit(addOn); // per-visit price for display
+  };
+
+  // Total addon cost for the commitment period
+  const getTotalAddonCost = (): number => {
+    return selectedAddOns.reduce((sum, a) => sum + getAddOnPricePerVisit(a) * addonFreqPerMonth * commitMonths, 0);
+  };
+
+  // Monthly addon cost
+  const getMonthlyAddonCost = (): number => {
+    return selectedAddOns.reduce((sum, a) => sum + getAddOnPricePerVisit(a) * addonFreqPerMonth, 0);
   };
 
   // C2 FIX: generatePaymentLink was previously just a toast with no actual call
@@ -491,13 +509,27 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                 </div>
                 {selectedAddOns.map((a) => (
                   <div key={a.id} className="flex justify-between text-xs text-green-700">
-                    <span>{a.name}</span>
-  <span>+₹{getAddOnPrice(a)}</span>
+                    <span>{a.name} ({addonFreqPerMonth}×/mo)</span>
+                    <span>+₹{(getAddOnPricePerVisit(a) * addonFreqPerMonth).toLocaleString()}/mo</span>
                   </div>
                 ))}
-                <div className="flex justify-between text-xs font-bold text-green-900 mt-1 border-t border-green-200 pt-1">
-                  <span>Total with Add-Ons</span>
-                  <span>₹{(pricingCalculation.basePlan.monthlyPrice + selectedAddOns.reduce((s, a) => s + getAddOnPrice(a), 0)).toLocaleString()}  /* Issue 8+9 FIX */</span>
+                <div className="border-t border-green-200 pt-1 space-y-0.5">
+                  <div className="flex justify-between text-xs text-green-700">
+                    <span>Plan ({commitMonths}mo)</span>
+                    <span>₹{(pricingCalculation.basePlan.monthlyPrice * commitMonths).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-green-700">
+                    <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
+                    <span>+₹{getTotalAddonCost().toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-green-700">
+                    <span>GST (18%)</span>
+                    <span>+₹{Math.round((pricingCalculation.basePlan.monthlyPrice * commitMonths + getTotalAddonCost()) * 0.18).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-green-900 border-t border-green-200 pt-1">
+                    <span>Grand Total (incl. GST)</span>
+                    <span>₹{Math.round((pricingCalculation.basePlan.monthlyPrice * commitMonths + getTotalAddonCost()) * 1.18).toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -512,11 +544,40 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
 
           {/* Add-On Options */}
           <Card className="p-4">
-            <div className="text-sm font-semibold text-gray-900 mb-2">
-              Add-On Options
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold text-gray-900">Add-On Options</div>
+            </div>
+            {/* Frequency + Commitment selectors */}
+            <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+              <div>
+                <div className="text-xs text-gray-500 mb-1">Frequency/month</div>
+                <select
+                  value={addonFreqPerMonth}
+                  onChange={e => setAddonFreqPerMonth(Number(e.target.value))}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                >
+                  <option value={1}>1×/month</option>
+                  <option value={2}>2×/month</option>
+                  <option value={4}>4×/month (default)</option>
+                  <option value={8}>8×/month</option>
+                </select>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 mb-1">Commitment</div>
+                <select
+                  value={commitMonths}
+                  onChange={e => setCommitMonths(Number(e.target.value))}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 bg-white"
+                >
+                  <option value={1}>1 Month</option>
+                  <option value={3}>3 Months (5% off)</option>
+                  <option value={6}>6 Months (10% off)</option>
+                  <option value={12}>12 Months (18% off)</option>
+                </select>
+              </div>
             </div>
             <div className="text-xs text-green-700 mb-3 font-medium">
-              ✅ Select up to 3 add-ons per subscription ({selectedAddOns.length}/3 selected)
+              ✅ Select up to 3 add-ons ({selectedAddOns.length}/3) · {addonFreqPerMonth}×/mo × {commitMonths}mo
             </div>
             <div className="space-y-2">
               {(ADD_ON_OPTIONS || []).map((addOn) => (
@@ -538,8 +599,10 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold text-gray-900">
-                        {/* Issue 8 FIX: vehicle-aware price */}
-                        ₹{getAddOnPrice(addOn)}
+                        ₹{getAddOnPricePerVisit(addOn)}/visit
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        = ₹{(getAddOnPricePerVisit(addOn) * addonFreqPerMonth).toLocaleString()}/mo
                       </div>
                       {selectedAddOns.some((a) => a.id === addOn.id) && (
                         <Badge className="bg-blue-600 text-xs">ADDED</Badge>
@@ -547,7 +610,7 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    Margin: {addOn.marginPercent}%
+                    {addonFreqPerMonth}×/mo × {commitMonths}mo = ₹{(getAddOnPricePerVisit(addOn) * addonFreqPerMonth * commitMonths).toLocaleString()} total · Margin: {addOn.marginPercent}%
                   </div>
                 </div>
               ))}
