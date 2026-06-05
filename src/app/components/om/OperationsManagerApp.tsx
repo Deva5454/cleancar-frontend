@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OPERATIONS MANAGER APP - Complete Integration
  * Professional structure with time-based UI behavior
  * Philosophy: Business controller, not executor
@@ -147,7 +147,7 @@ export function OperationsManagerApp() {
       new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // Tomorrow
     );
   } catch (error) {
-    console.error("❌ Error loading OM data:", error);
+    logger.error("Error loading OM data: " + (error instanceof Error ? error.message : String(error)));
     // Return error state
     return (
       <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
