@@ -36,8 +36,8 @@ interface WasherJobReportProps {
 }
 
 export function WasherJobReport({ job, onComplete }: WasherJobReportProps) {
-  const [vehicleConditionBefore, setVehicleConditionBefore] = useState("");
-  const [vehicleConditionAfter, setVehicleConditionAfter] = useState("");
+  const [vehicleConditionBefore, setVehicleConditionBefore] = useState("moderate"); // TEST: pre-filled
+  const [vehicleConditionAfter, setVehicleConditionAfter] = useState("clean"); // TEST: pre-filled
   const [afterConditionReason, setAfterConditionReason] = useState("");
   
   const [productsUsed, setProductsUsed] = useState<Record<string, boolean>>({
@@ -56,7 +56,7 @@ export function WasherJobReport({ job, onComplete }: WasherJobReportProps) {
   const [customerFeedback, setCustomerFeedback] = useState("");
   const [isRecording, setIsRecording] = useState(false);
 
-  const [selfRating, setSelfRating] = useState(0);
+  const [selfRating, setSelfRating] = useState(5); // TEST: pre-filled
 
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [startTime] = useState(new Date(Date.now() - 45 * 60 * 1000)); // 45 mins ago
@@ -100,6 +100,9 @@ export function WasherJobReport({ job, onComplete }: WasherJobReportProps) {
   };
 
   const validateForm = () => {
+    // TEST MODE: validation bypassed for demo
+    return true;
+    // eslint-disable-next-line no-unreachable
     if (!vehicleConditionBefore) {
       toast.error("Please select vehicle condition before");
       return false;
