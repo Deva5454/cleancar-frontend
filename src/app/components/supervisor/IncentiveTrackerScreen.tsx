@@ -345,13 +345,103 @@ export function IncentiveTrackerScreenLegacy({ dashboard }: IncentiveTrackerScre
   );
 }
 
+// ── Read session ─────────────────────────────────────────────────────────────
+function getSession() {
+  try { return JSON.parse(localStorage.getItem("cc360_session") || "{}"); } catch { return {}; }
+}
+
+// ── Seed demo incentive records for supervisor if none exist ──────────────────
+function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string) {
+  const SEED_KEY = "cc360_incentive_v6_seeded_" + supervisorId;
+  const existing = incentiveV6.getAll();
+  const myRecords = existing.filter(r => r.supervisorId === supervisorId);
+  const hasValidRecords = myRecords.length > 0 &&
+    myRecords.some(r => r.tranches && r.tranches.length > 0 && r.poolTotal > 0);
+
+  if (hasValidRecords) return;
+
+  // Clear broken guard + records and re-seed
+  if (localStorage.getItem(SEED_KEY) && !hasValidRecords) {
+    localStorage.removeItem(SEED_KEY);
+    const others = existing.filter(r => r.supervisorId !== supervisorId);
+    try { localStorage.setItem("cleancar_incentive_v6_records", JSON.stringify(others)); } catch {}
+  }
+  if (localStorage.getItem(SEED_KEY)) return;
+
+  const today = new Date();
+  const ago = (months: number) => {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - months);
+    return d.toISOString().split("T")[0];
+  };
+
+  // Seed 4 demo BTL-sourced subscriptions (supervisor earns from BTL source)
+  const demos = [
+    {
+      subscriptionId: `DEMO-SUP-${supervisorId}-001`, customerId: "CUST-S001",
+      customerName: "Harsh Patel", planType: "SMART_WASH",
+      vehicleCategory: "Hatchback / Compact Sedan", monthlyAmount: 1599,
+      term: 3 as const, source: "BTL" as const, activationDate: ago(2),
+      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma",
+    },
+    {
+      subscriptionId: `DEMO-SUP-${supervisorId}-002`, customerId: "CUST-S002",
+      customerName: "Nilesh Shah", planType: "ELITE_WASH",
+      vehicleCategory: "SUV / MUV / Sedan", monthlyAmount: 2499,
+      term: 6 as const, source: "BTL" as const, activationDate: ago(1),
+      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma",
+    },
+    {
+      subscriptionId: `DEMO-SUP-${supervisorId}-003`, customerId: "CUST-S003",
+      customerName: "Rekha Mehta", planType: "SMART_WASH",
+      vehicleCategory: "Hatchback / Compact Sedan", monthlyAmount: 1599,
+      term: 3 as const, source: "BTL" as const, activationDate: ago(0),
+      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi",
+    },
+    {
+      subscriptionId: `DEMO-SUP-${supervisorId}-004`, customerId: "CUST-S004",
+      customerName: "Darshan Joshi", planType: "ELITE_WASH",
+      vehicleCategory: "Luxury / Large SUV", monthlyAmount: 3499,
+      term: 12 as const, source: "BTL" as const, activationDate: ago(1),
+      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi",
+    },
+  ];
+
+  demos.forEach(d => {
+    try { incentiveV6.createSubscriptionRecord(d); } catch {}
+  });
+
+  localStorage.setItem(SEED_KEY, "1");
+}
+
 export function IncentiveTrackerScreen({ supervisorId, name }: { supervisorId?: string; name?: string }) {
-  const id = supervisorId || "EDB-SUP-SUR1";
+  const session = getSession();
+  const id = session.employeeId || supervisorId || "EDB-SUP-SUR1";
+  const empName = session.employeeName || name || id;
+
+  // Seed demo data on first render + process due tranches
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    seedSupervisorDemoIfEmpty(id, empName);
+    incentiveV6.autoProcessDueTranches(new Date().toISOString().split("T")[0]);
+    setReady(true);
+  }, [id, empName]);
+
+  if (!ready) return (
+    <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+      Loading incentive data…
+    </div>
+  );
+
   return (
     <SubscriptionIncentiveTracker
       employeeId={id}
       role="SUPERVISOR"
-      employeeName={name || id}
+      employeeName={empName}
     />
   );
 }
