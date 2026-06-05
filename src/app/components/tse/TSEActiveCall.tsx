@@ -182,6 +182,18 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
     return selectedAddOns.reduce((sum, a) => sum + getAddOnPricePerVisit(a) * addonFreqPerMonth, 0);
   };
 
+  // ── Single source of truth for grand total ───────────────────────────────
+  // Computed once, used in both top "Selected Package" card and bottom "Final Pricing"
+  const grandTotalCalc = (() => {
+    const monthlyBase = selectedBundle ? selectedBundle.price : (selectedPlan?.baseMonthlyPrice || basePlanPrice);
+    const discPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
+    const planSub = Math.round(monthlyBase * commitMonths * (1 - discPct));
+    const addonSub = selectedAddOns.reduce((sum, a) => sum + getAddOnPricePerVisit(a) * addonFreqPerMonth * commitMonths, 0);
+    const gst = Math.round((planSub + addonSub) * 0.18);
+    const grand = planSub + addonSub + gst;
+    return { planSub, addonSub, gst, grand, discPct, monthlyBase };
+  })();
+
   // C2 FIX: generatePaymentLink was previously just a toast with no actual call
   const generatePaymentLink = () => {
     if (!pricingCalculation.paymentLinkEnabled) return;
@@ -513,36 +525,26 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                     <span>+₹{(getAddOnPricePerVisit(a) * addonFreqPerMonth).toLocaleString()}/mo</span>
                   </div>
                 ))}
-                {(() => {
-                  const monthlyBase = selectedBundle ? selectedBundle.price : pricingCalculation.basePlan.monthlyPrice;
-                  const discPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
-                  const planSub = Math.round(monthlyBase * commitMonths * (1 - discPct));
-                  const addonSub = getTotalAddonCost();
-                  const gstAmt = Math.round((planSub + addonSub) * 0.18);
-                  const grand = planSub + addonSub + gstAmt;
-                  return (
-                    <div className="border-t border-green-200 pt-1 space-y-0.5">
-                      <div className="flex justify-between text-xs text-green-700">
-                        <span>Plan ({commitMonths}mo{discPct > 0 ? ` · ${discPct * 100}% off` : ""})</span>
-                        <span>₹{planSub.toLocaleString()}</span>
-                      </div>
-                      {addonSub > 0 && (
-                        <div className="flex justify-between text-xs text-green-700">
-                          <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
-                          <span>+₹{addonSub.toLocaleString()}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xs text-green-600">
-                        <span>GST (18%)</span>
-                        <span>+₹{gstAmt.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-xs font-bold text-green-900 border-t border-green-200 pt-1">
-                        <span>Grand Total (incl. GST)</span>
-                        <span>₹{grand.toLocaleString()}</span>
-                      </div>
+                <div className="border-t border-green-200 pt-1 space-y-0.5">
+                  <div className="flex justify-between text-xs text-green-700">
+                    <span>Plan ({commitMonths}mo{grandTotalCalc.discPct > 0 ? ` · ${grandTotalCalc.discPct * 100}% off` : ""})</span>
+                    <span>₹{grandTotalCalc.planSub.toLocaleString()}</span>
+                  </div>
+                  {grandTotalCalc.addonSub > 0 && (
+                    <div className="flex justify-between text-xs text-green-700">
+                      <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
+                      <span>+₹{grandTotalCalc.addonSub.toLocaleString()}</span>
                     </div>
-                  );
-                })()}
+                  )}
+                  <div className="flex justify-between text-xs text-green-600">
+                    <span>GST (18%)</span>
+                    <span>+₹{grandTotalCalc.gst.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold text-green-900 border-t border-green-200 pt-1">
+                    <span>Grand Total (incl. GST)</span>
+                    <span>₹{grandTotalCalc.grand.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
             )}
             <div className="text-xs text-gray-600 mt-2 italic">
@@ -689,56 +691,39 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
           </Card>
 
           {/* Final Pricing & EBITDA — uses correct calculation with freq/months/GST */}
+          {/* Final Pricing — uses grandTotalCalc (single source of truth) */}
           {(() => {
-            // Base monthly price (with bundle discount if selected)
-            const monthlyBase = selectedBundle ? selectedBundle.price : pricingCalculation.basePlan.monthlyPrice;
-            // Commitment discount
-            const commitDiscountPct = commitMonths >= 12 ? 0.18 : commitMonths >= 6 ? 0.10 : commitMonths >= 3 ? 0.05 : 0;
-            const planSubtotal = monthlyBase * commitMonths * (1 - commitDiscountPct);
-            // Addon grand total
-            const addonSubtotal = getTotalAddonCost();
-            // Subtotal before GST
-            const subtotalPreGST = planSubtotal + addonSubtotal;
-            // GST 18%
-            const gst = Math.round(subtotalPreGST * 0.18);
-            // Grand total
-            const grandTotal = subtotalPreGST + gst;
-            // EBITDA on grand total
-            const cost = subtotalPreGST * 0.65;
-            const ebitdaPct = Math.round(((subtotalPreGST - cost) / subtotalPreGST) * 100 * 10) / 10;
-
+            const subtotalPreGST = grandTotalCalc.planSub + grandTotalCalc.addonSub;
+            const ebitdaPct = Math.round(((subtotalPreGST - subtotalPreGST * 0.65) / subtotalPreGST) * 100 * 10) / 10;
             return (
               <Card className={`p-4 ${getEBITDABgColor(ebitdaPct)}`}>
                 <div className="text-sm font-semibold text-gray-900 mb-3">Final Pricing</div>
                 <div className="space-y-1.5 text-sm">
-                  {/* Breakdown */}
                   <div className="flex justify-between text-gray-600">
-                    <span>Plan ({commitMonths}mo{commitDiscountPct > 0 ? ` · ${commitDiscountPct * 100}% off` : ""})</span>
-                    <span>₹{Math.round(planSubtotal).toLocaleString()}</span>
+                    <span>Plan ({commitMonths}mo{grandTotalCalc.discPct > 0 ? ` · ${grandTotalCalc.discPct * 100}% off` : ""})</span>
+                    <span>₹{grandTotalCalc.planSub.toLocaleString()}</span>
                   </div>
-                  {addonSubtotal > 0 && (
+                  {grandTotalCalc.addonSub > 0 && (
                     <div className="flex justify-between text-gray-600">
                       <span>Add-ons ({addonFreqPerMonth}×/mo × {commitMonths}mo)</span>
-                      <span>+₹{addonSubtotal.toLocaleString()}</span>
+                      <span>+₹{grandTotalCalc.addonSub.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-gray-500 text-xs">
                     <span>GST (18%)</span>
-                    <span>+₹{gst.toLocaleString()}</span>
+                    <span>+₹{grandTotalCalc.gst.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center border-t pt-2 mt-1">
                     <span className="text-gray-700 font-semibold">Grand Total (incl. GST):</span>
                     <span className="text-2xl font-bold text-gray-900">
-                      ₹{grandTotal.toLocaleString()}
+                      ₹{grandTotalCalc.grand.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>Monthly equivalent</span>
-                    <span>₹{Math.round(grandTotal / commitMonths).toLocaleString()}/mo</span>
+                    <span>₹{Math.round(grandTotalCalc.grand / commitMonths).toLocaleString()}/mo</span>
                   </div>
                 </div>
-
-                {/* EBITDA + Deal info */}
                 <div className="mt-3 pt-3 border-t space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-700 text-sm">EBITDA:</span>
@@ -758,27 +743,18 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                     <span className="font-semibold">{pricingCalculation.incentiveMultiplier}%</span>
                   </div>
                 </div>
-
                 {ebitdaPct < EBITDA_FLOOR.MINIMUM_PERCENT && (
                   <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
                     <AlertTriangle className="w-4 h-4 inline mr-1" />
                     EBITDA below 30% floor. Payment link blocked.
                   </div>
                 )}
-
-                <Button
-                  className="w-full mt-4 gap-2"
-                  disabled={!pricingCalculation.paymentLinkEnabled}
-                  onClick={generatePaymentLink}
-                >
+                <Button className="w-full mt-4 gap-2" disabled={!pricingCalculation.paymentLinkEnabled} onClick={generatePaymentLink}>
                   <LinkIcon className="w-4 h-4" />
                   Generate Payment Link
                 </Button>
-
                 {pricingCalculation.paymentLinkEnabled && (
-                  <div className="text-xs text-gray-600 mt-2 italic">
-                    💡 {SCRIPTS.PAYMENT_LINK}
-                  </div>
+                  <div className="text-xs text-gray-600 mt-2 italic">💡 {SCRIPTS.PAYMENT_LINK}</div>
                 )}
               </Card>
             );
