@@ -40,7 +40,6 @@ export function WasherCoreScreensConnected() {
     markConsumableUsed,
     completeJob,
     refreshData,
-    isLoading,
   } = useWasher();
 
   const { pendingJobs, completedJobs } = useWasherJobs();
@@ -49,6 +48,7 @@ export function WasherCoreScreensConnected() {
   const location = useLocation();
 
   // URL is the single source of truth for screen selection
+  // No useState for page navigation — derived from pathname only
   const currentScreen = useMemo(() => {
     const path = location.pathname;
     if (path.includes("/check-in") || path.includes("/checkin")) return "checkin" as const;
@@ -76,16 +76,6 @@ export function WasherCoreScreensConnected() {
     gps: ValidationState;
   }>({ face: "PENDING", gps: "PENDING" });
   const [checkOutPhoto, setCheckOutPhoto] = useState<string | null>(null);
-
-  // Show spinner while WasherContext resolves — after all hooks (Rules of Hooks)
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-500">Loading your dashboard...</p>
-      </div>
-    );
-  }
 
   // ========== HANDLERS ==========
 
