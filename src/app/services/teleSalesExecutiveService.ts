@@ -106,7 +106,7 @@ class TeleSalesExecutiveService {
 
     // Get plan tiers for this category — 2W not in scope, filter out
     const plans = subscriptionPlansService.getPlanTiersByCategory(matchedCategory.id);
-    return (plans || []).filter(p => !p.name.includes("2W") && !p.name.includes("SCOOTER") && !p.name.includes("BIKE"));
+    return (plans || []).filter(p => !p.name.includes("2W") && !p.name.includes("SCOOTER") && !p.name.includes("BIKE") && !p.name.includes("One-Time") && !p.name.includes("NA") && typeof p.baseMonthlyPrice === "number" && p.baseMonthlyPrice > 500);
   }
 
   /**
