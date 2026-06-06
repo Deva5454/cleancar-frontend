@@ -1,4 +1,4 @@
-// Subscription Plans Data — Package Architecture v1.8 (June 2026)
+﻿// Subscription Plans Data — Package Architecture v1.8 (June 2026)
 // Source of truth: 249_Package_Architecture_v1_8_Final.docx
 // Updated: June 2026 — aligns with SHINE/PROTECT/Elite Wash plan structure
 
@@ -509,9 +509,9 @@ export const PITCH_ANCHOR =
 export const WASHES_PER_MONTH = 30;
 
 export const PLAN_TIER_NAMES: Record<string, string> = {
-  EXPRESS_WASH: "EXPRESS_WASH",
-  SMART_WASH:   "SMART_WASH",
-  ELITE:        "ELITE_WASH",
+  EXPRESS_WASH: "Express Wash",
+  SMART_WASH:   "Smart Wash",
+  ELITE_WASH:   "Elite Wash",`n  ELITE:        "Elite Wash",
   ELITE_2W:     "ELITE (2-Wheeler)",
 };
 
