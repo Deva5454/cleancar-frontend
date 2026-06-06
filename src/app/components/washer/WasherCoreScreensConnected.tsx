@@ -23,7 +23,7 @@ export function WasherCoreScreensConnected() {
   const navigate = useNavigate();
 
   // Context — used for profile/stats display only
-  const { profile, dayStatus, stats, isLoading, refreshData } = useWasher();
+  const { profile, stats, refreshData } = useWasher();
   const { completedJobs } = useWasherJobs();
 
   // ── LOCAL FLOW STATE ──────────────────────────────────────────────────────
