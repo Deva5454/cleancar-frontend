@@ -162,11 +162,14 @@ class MockWasherDataService {
   }
 
   // Generate mock jobs
-  public getTodayJobs(washerId: string, count: number = 12): CustomerJob[] {
+  // Always produces exactly 3 jobs — one per plan type — starting from NOW.
+  // All start as "Assigned" so the washer can demo the full check-in → wash × 3 → check-out flow.
+  // Time slots are anchored to the current hour so no job is ever auto-completed.
+  public getTodayJobs(washerId: string, count: number = 3): CustomerJob[] {
     const today = new Date().toISOString().split("T")[0];
     const cacheKey = `${washerId}-${today}`;
 
-    // Return cached jobs if available, applying any status overrides
+    // Return cached jobs applying any status overrides
     if (this.jobCache.has(cacheKey)) {
       const cached = this.jobCache.get(cacheKey)!;
       return cached.map(job => ({
@@ -175,92 +178,96 @@ class MockWasherDataService {
       }));
     }
 
-    const jobs: CustomerJob[] = [];
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+    const h = now.getHours();
+    const m = now.getMinutes();
 
-    for (let i = 0; i < count; i++) {
-      const customerName = this.customerNames[Math.floor(Math.random() * this.customerNames.length)];
-      const area = this.areas[Math.floor(Math.random() * this.areas.length)];
-      const vehicleType = this.vehicleData[Math.floor(Math.random() * this.vehicleData.length)];
-      const brand = vehicleType.brands[Math.floor(Math.random() * vehicleType.brands.length)];
-      const color = vehicleType.colors[Math.floor(Math.random() * vehicleType.colors.length)];
-      const packageInfo = this.packages[Math.floor(Math.random() * this.packages.length)];
-      const timeSlot = this.generateTimeSlot(i);
-      const specialInst = this.specialInstructions[Math.floor(Math.random() * this.specialInstructions.length)];
-      const parking = this.parkingInstructions[Math.floor(Math.random() * this.parkingInstructions.length)];
+    // Helper: format HH:MM
+    const fmt = (hour: number, min: number) => {
+      const hh = hour % 24;
+      return `${String(hh).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    };
 
-      // Determine status based on time
-      const [startTime] = timeSlot.split(" - ")[0].split(":");
-      const slotHour = parseInt(startTime);
+    // 3 slots starting from now, 45 min apart
+    const slots = [0, 1, 2].map(i => {
+      const totalMin = h * 60 + m + i * 45;
+      const startH = Math.floor(totalMin / 60);
+      const startM = totalMin % 60;
+      const endH = Math.floor((totalMin + 30) / 60);
+      const endM = (totalMin + 30) % 60;
+      return `${fmt(startH, startM)} - ${fmt(endH, endM)}`;
+    });
 
-      let status: CustomerJob["status"] = "Assigned";
-      let startingSoon = false;
-      let overdue = false;
+    // Fixed 3 customers, one per plan — stable across session
+    const demoJobs: Array<{
+      name: string; area: string; reg: string; vehicle: string;
+      brand: string; color: string; address: string;
+      pkg: { name: string; type: string; price: number };
+      parking: string; note: string;
+      subStart: string;
+    }> = [
+      {
+        name: "Arjun", area: "Adajan", reg: "GJ-05-AK-1234",
+        vehicle: "Hatchback", brand: "Maruti", color: "White",
+        address: "B-204, Sunrise Residency, Adajan",
+        pkg: { name: "Express Wash | Chamakti Subah", type: "EXPRESS_WASH", price: 1249 },
+        parking: "Society parking - left side near gate",
+        note: "Park car in original spot after wash",
+        subStart: new Date(Date.now() - 10 * 86400000).toISOString().split("T")[0],
+      },
+      {
+        name: "Priya", area: "Vesu", reg: "GJ-05-BK-5678",
+        vehicle: "Mid-Size Sedan", brand: "Honda", color: "Silver",
+        address: "A-301, Royal Heights, Vesu",
+        pkg: { name: "Smart Wash | Raksha Plan", type: "SMART_WASH", price: 1599 },
+        parking: "Covered parking slot 15",
+        note: "Avoid using high pressure on windows",
+        subStart: new Date(Date.now() - 5 * 86400000).toISOString().split("T")[0],
+      },
+      {
+        name: "Vikram", area: "Citylight", reg: "GJ-05-CM-9012",
+        vehicle: "Mid/Large SUV", brand: "Toyota", color: "Black",
+        address: "C-101, Prime Apartments, Citylight",
+        pkg: { name: "Elite Wash | Raja Seva", type: "ELITE_WASH", price: 2499 },
+        parking: "Basement parking B2, Slot 42",
+        note: "Extra attention to wheel cleaning required",
+        subStart: new Date(Date.now() - 2 * 86400000).toISOString().split("T")[0],
+      },
+    ];
 
-      if (slotHour < currentHour - 1) {
-        status = "Completed";
-      } else if (slotHour === currentHour - 1 || (slotHour === currentHour && currentMinute > 30)) {
-        status = "In Progress";
-      } else if (slotHour === currentHour || (slotHour === currentHour + 1 && currentMinute > 30)) {
-        status = "Assigned";
-        startingSoon = true;
-      }
+    const jobs: CustomerJob[] = demoJobs.map((d, i) => ({
+      id: `JOB-00${i + 1}`,
+      timeSlot: slots[i],
+      customerFirstName: d.name,
+      area: d.area,
+      pinCode: `39500${i + 1}`,
+      city: "Surat",
+      addressLine1: d.address,
+      vehicleCategory: d.vehicle,
+      vehicleColor: d.color,
+      vehicleBrand: d.brand,
+      vehicleRegistration: d.reg,
+      packageName: d.pkg.name,
+      packageType: d.pkg.type,
+      serviceFrequency: "Daily",
+      subscriptionMonth: "6-month plan — Month 1 of 6",
+      subscriptionStartDate: d.subStart,
+      complimentaryBenefits: i === 2 ? "2 of 3 Interior Clean-Ups remaining" : undefined,
+      jobType: "Regular" as const,
+      status: "Assigned" as const,   // Always Assigned — washer starts fresh
+      specialInstructions: d.note,
+      specialNotes: `${d.note}. ${d.parking}`,
+      startingSoon: i === 0,
+      overdue: false,
+      memberSince: "Jan 2026",
+      totalWashesCompleted: (i + 1) * 10,
+      parkingInstructions: d.parking,
+      ...computePeriodicFlagsB(`JOB-00${i + 1}`, d.pkg.type, d.subStart),
+    }));
 
-      // Random subscription details
-      const monthsInPlan = [3, 6, 12][Math.floor(Math.random() * 3)];
-      const currentMonth = Math.floor(Math.random() * monthsInPlan) + 1;
-      const memberSinceMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const memberSince = `${memberSinceMonths[Math.floor(Math.random() * 12)]} ${2025 + Math.floor(Math.random() * 2)}`;
-      const totalWashes = Math.floor(Math.random() * 150) + 10;
-
-      jobs.push({
-        id: `JOB-${(i + 1).toString().padStart(3, '0')}`,
-        timeSlot,
-        customerFirstName: customerName,
-        area,
-        pinCode: this.generatePinCode(),
-        city: "Surat",
-        addressLine1: `${String.fromCharCode(65 + Math.floor(Math.random() * 5))}-${Math.floor(Math.random() * 900) + 100}, ${["Sunrise", "Royal", "Green", "City", "Prime"][Math.floor(Math.random() * 5)]} ${["Residency", "Heights", "Valley", "Plaza", "Apartments"][Math.floor(Math.random() * 5)]}`,
-        vehicleCategory: vehicleType.category,
-        vehicleColor: color,
-        vehicleBrand: brand,
-        vehicleRegistration: this.generateRegNumber(),
-        packageName: packageInfo.name,
-        packageType: packageInfo.type,
-        serviceFrequency: packageInfo.frequency,
-        subscriptionMonth: `${monthsInPlan}-month plan — Month ${currentMonth} of ${monthsInPlan}`,
-        // Subscription start date: randomised 1–90 days ago so customers have varied anchor dates
-        subscriptionStartDate: new Date(
-          Date.now() - (Math.floor(Math.random() * 90) + 1) * 86400000
-        ).toISOString().split("T")[0],
-        complimentaryBenefits: Math.random() > 0.5 ? `${Math.floor(Math.random() * 3) + 1} of 3 Interior Clean-Ups remaining` : undefined,
-        jobType: Math.random() > 0.9 ? "One-Time Demo" : "Regular",
-        status,
-        specialInstructions: specialInst || undefined,
-        specialNotes: specialInst ? `${specialInst}. ${parking ? parking : ""}` : parking || undefined,
-        startingSoon,
-        overdue,
-        memberSince,
-        totalWashesCompleted: totalWashes,
-        nextScheduledWash: status === "Completed" ? "Tomorrow" : undefined,
-        parkingInstructions: parking,
-        // Periodic service flags — Option B: computed from subscriptionStartDate via periodicScheduleService
-        // Supervisor can reschedule these within the month without exceeding the plan cap.
-        ...computePeriodicFlagsB(
-          `job-${i}`,
-          packageInfo.type,
-          new Date(Date.now() - (Math.floor(Math.random() * 90) + 1) * 86400000)
-            .toISOString().split("T")[0]
-        ),
-      });
-    }
-
-    // Cache generated jobs so they're stable for the rest of the session
+    // Cache so status overrides are stable
     this.jobCache.set(cacheKey, jobs);
 
-    // Apply any status overrides (e.g. jobs completed mid-session)
     return jobs.map(job => ({
       ...job,
       status: this.jobStatusOverrides.get(job.id) ?? job.status,
@@ -301,7 +308,16 @@ class MockWasherDataService {
   public completeJob(jobId: string): void {
     this.updateJobStatus(jobId, "Completed");
   }
+
+  // Clear cache — forces fresh job generation on next getTodayJobs call
+  public clearCache(): void {
+    this.jobCache.clear();
+    this.jobStatusOverrides.clear();
+  }
 }
 
 // Singleton instance
 export const mockWasherDataService = new MockWasherDataService();
+
+// Clear stale cache on load so fresh demo data is always generated
+mockWasherDataService.clearCache();

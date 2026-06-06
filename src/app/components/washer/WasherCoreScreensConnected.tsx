@@ -211,9 +211,9 @@ export function WasherCoreScreensConnected() {
               job.status === "Completed" ? "DONE" :
               job.status === "Cancelled" ? "ISSUE" : "PENDING",
       isCover: false,
-      isLocked: !isCheckedIn || (activeJob !== null && job.id !== activeJob.id),
+      isLocked: !isCheckedIn || (activeJob !== null && activeJob.id !== job.id && job.status !== "Completed"),
       lockReason: !isCheckedIn ? "Complete check-in first" :
-                  activeJob && job.id !== activeJob.id ? "Complete active job first" : undefined,
+                  (activeJob !== null && activeJob.id !== job.id) ? "Complete active job first" : undefined,
       sequenceNumber: index + 1,
       scheduledTime: job.timeSlot.split(" - ")[0],
       completedTime: job.status === "Completed" ? "Completed" : undefined,
