@@ -6,6 +6,8 @@ import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
+import { tatTrackingService } from "../../services/tatTrackingService";
+import { getBookingSlot } from "../../services/bookingWindowService";
 import { planSyncService } from "../../services/planSyncService";
 
 // ─── CONFIG TYPES ─────────────────────────────────────────────────────────────
