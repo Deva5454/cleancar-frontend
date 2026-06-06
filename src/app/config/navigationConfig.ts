@@ -373,6 +373,7 @@ export const NAV_CONFIG: NavItem[] = [
  * All use prefix matching since they're simple links
  */
 export const QUICK_ACTIONS: NavItem[] = [
+  { label: "My Work Screen", path: "/washer-core-screens", icon: LayoutDashboard, module: "car-washer", match: "prefix" },
   { label: "My Payslip", path: "/hr/self-service", icon: IdCard, module: "payroll-self-service", match: "prefix" },
   { label: "My Leaves", path: "/hr/professional-leave", icon: Calendar, module: "leave", match: "prefix" },
   { label: "My Advances", path: "/advance/my-advances", icon: Banknote, module: "advance", match: "prefix" },
