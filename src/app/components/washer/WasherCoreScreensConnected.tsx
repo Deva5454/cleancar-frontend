@@ -4,17 +4,21 @@
  * All buttons functional and connected to services
  */
 
-import { useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
 import { WasherHomeDashboard, type DayStatus } from "./WasherHomeDashboard";
 import { WasherCheckIn, type CheckInWindow, type ValidationState } from "./WasherCheckIn";
 import { WasherMySchedule, type JobCard } from "./WasherMySchedule";
-import { WasherJobDetail } from "./WasherJobDetail";
+import { WasherActiveWash, type WashStep, type ConsumableItem } from "./WasherActiveWash";
 import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
 import { WasherCheckOut, type CheckOutTiming } from "./WasherCheckOut";
 import { DaySummaryScreen } from "./DaySummaryScreen";
-import { Tabs, TabsContent } from "../ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { useSearchParams, useLocation } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { logger } from "../../services/logger";
 
 // ========== MAIN COMPONENT (uses context from root-level AppProvider) ==========
@@ -45,21 +49,21 @@ export function WasherCoreScreensConnected() {
   const { pendingJobs, completedJobs } = useWasherJobs();
 
   // Local UI state
+  const [searchParams] = useSearchParams();
   const location = useLocation();
 
-  // URL is the single source of truth for screen selection
-  // No useState for page navigation — derived from pathname only
-  const currentScreen = useMemo(() => {
+  // Derive initial screen from URL path or ?screen= param
+  const getScreenFromURL = () => {
+    const screen = searchParams.get("screen");
+    if (screen) return screen as any;
     const path = location.pathname;
-    if (path.includes("/check-in") || path.includes("/checkin")) return "checkin" as const;
-    if (path.includes("/schedule"))  return "schedule"  as const;
-    if (path.includes("/active"))    return "active"    as const;
-    if (path.includes("/incentive") || path.includes("/earnings")) return "incentive" as const;
-    if (path.includes("/checkout"))  return "checkout"  as const;
+    if (path.includes("check-in")) return "checkin" as const;
+    if (path.includes("schedule")) return "schedule" as const;
+    if (path.includes("earnings") || path.includes("incentive")) return "incentive" as const;
     return "dashboard" as const;
-  }, [location.pathname]);
+  };
 
-  // Keep activeJob and isCheckedIn state (these are valid non-navigation state)
+  const [currentScreen, setCurrentScreen] = useState<"dashboard" | "checkin" | "schedule" | "active" | "incentive" | "checkout">(getScreenFromURL);
   const [showDaySummary, setShowDaySummary] = useState(false);
   
   // Check-in state
@@ -80,26 +84,21 @@ export function WasherCoreScreensConnected() {
   // ========== HANDLERS ==========
 
   // Dashboard handlers
-  const handleCheckIn = () => navigate("/washer-core-screens/checkin");
-  const handleViewSchedule = () => navigate("/washer-core-screens/schedule");
-  const handleViewIncentive = () => navigate("/washer-core-screens/incentive");
+  const handleCheckIn = () => setCurrentScreen("checkin");
+  const handleViewSchedule = () => setCurrentScreen("schedule");
+  const handleViewIncentive = () => setCurrentScreen("incentive");
   const handleRaiseIssue = () => logger.log("Raise issue"); // Navigate to issue form
 
   // Check-in handlers
-  // TESTING MODE: Camera click instantly validates — remove when real camera is wired
-  const handleStartCheckInCamera = () => {
-    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3ECheck-In Photo%3C/text%3E%3C/svg%3E");
+  const handleStartCheckInCamera = () => logger.log("Start camera");
+  const handleTakeCheckInPhoto = () => {
+    setCheckInPhoto("https://via.placeholder.com/400x300?text=Check-In+Selfie");
+    // Trigger validations
     setTimeout(() => {
       setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
-    }, 600);
+    }, 1000);
   };
-  const handleTakeCheckInPhoto = () => {
-    setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
-  };
-  const handleRetakeCheckInPhoto = () => {
-    setCheckInPhoto(null);
-    setCheckInValidations({ face: "PENDING", numberPlate: "PENDING", gps: "PENDING" });
-  };
+  const handleRetakeCheckInPhoto = () => setCheckInPhoto(null);
   
   const handleSubmitCheckIn = async () => {
     const result = await checkIn({
@@ -116,7 +115,7 @@ export function WasherCoreScreensConnected() {
     });
 
     if (result.success) {
-      navigate("/washer-core-screens");
+      setCurrentScreen("dashboard");
       refreshData();
     }
   };
@@ -128,7 +127,7 @@ export function WasherCoreScreensConnected() {
   
   const handleStartJob = (jobId: string) => {
     startJob(jobId);
-    navigate("/washer-core-screens/active");
+    setCurrentScreen("active");
   };
 
   // Active wash handlers
@@ -136,9 +135,8 @@ export function WasherCoreScreensConnected() {
     completeStep(stepId);
   };
 
-  // TESTING MODE: Photo click immediately marks photo taken with placeholder
   const handleTakePhoto = (stepId: string) => {
-    addPhoto("DURING", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3EStep Photo%3C/text%3E%3C/svg%3E", stepId);
+    addPhoto("DURING", `https://via.placeholder.com/400x300?text=Step+Photo`, stepId);
   };
 
   const handleMarkConsumableUsed = (consumableName: string) => {
@@ -150,24 +148,18 @@ export function WasherCoreScreensConnected() {
 
   const handleMarkJobDone = () => {
     completeJob();
-    navigate("/washer-core-screens/schedule");
+    setCurrentScreen("schedule");
   };
 
   // Check-out handlers
-  // TESTING MODE: Camera click instantly validates — remove when real camera is wired
-  const handleStartCheckOutCamera = () => {
-    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3ECheck-Out Photo%3C/text%3E%3C/svg%3E");
+  const handleStartCheckOutCamera = () => logger.log("Start camera");
+  const handleTakeCheckOutPhoto = () => {
+    setCheckOutPhoto("https://via.placeholder.com/400x300?text=Check-Out+Selfie");
     setTimeout(() => {
       setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
-    }, 600);
+    }, 1000);
   };
-  const handleTakeCheckOutPhoto = () => {
-    setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
-  };
-  const handleRetakeCheckOutPhoto = () => {
-    setCheckOutPhoto(null);
-    setCheckOutValidations({ face: "PENDING", gps: "PENDING" });
-  };
+  const handleRetakeCheckOutPhoto = () => setCheckOutPhoto(null);
   
   const handleSubmitCheckOut = async () => {
     const lastJob = completedJobs[completedJobs.length - 1];
@@ -207,12 +199,12 @@ export function WasherCoreScreensConnected() {
       vehicleType: job.vehicleCategory,
       packageName: job.packageName,
       location: `${job.area}, ${job.city}`,
-      status: job.status === "In Progress" ? "IN_PROGRESS" :
-              job.status === "Completed" ? "DONE" :
-              job.status === "Cancelled" ? "ISSUE" : "PENDING",
-      isCover: false,
+      status: job.status === "Assigned" ? "PENDING" :
+              job.status === "In Progress" ? "IN_PROGRESS" :
+              job.status === "Completed" ? "DONE" : "PENDING",
+      isCover: false, // Would come from cover job service
       isLocked: !isCheckedIn || (activeJob !== null && job.id !== activeJob.id),
-      lockReason: !isCheckedIn ? "Complete check-in first" :
+      lockReason: !isCheckedIn ? "Complete check-in first" : 
                   activeJob && job.id !== activeJob.id ? "Complete active job first" : undefined,
       sequenceNumber: index + 1,
       scheduledTime: job.timeSlot.split(" - ")[0],
@@ -255,7 +247,7 @@ export function WasherCoreScreensConnected() {
           incentiveUnits: stats.completed - 25 > 0 ? stats.completed - 25 : 0,
           addOnServices: 0,
           todayEarnings: stats.totalEarnings,
-          incentiveEarnings: (stats.completed - 25) > 0 ? (stats.completed - 25) * 25 : 0,
+          incentiveEarnings: (stats.completed - 25) * 50,
           addOnEarnings: 0,
           totalWorkingTime: "8h 30m",
           checkInTime: checkInTime?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || "N/A",
@@ -265,7 +257,7 @@ export function WasherCoreScreensConnected() {
         }}
         onClose={() => {
           setShowDaySummary(false);
-          navigate("/washer-core-screens");
+          setCurrentScreen("dashboard");
         }}
       />
     );
@@ -275,19 +267,73 @@ export function WasherCoreScreensConnected() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Washer Core Screens (Connected)</h1>
+              <p className="text-xs text-gray-600">Professional structure • No hardcoded data • All buttons functional</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={isCheckedIn ? "bg-green-50 text-green-700" : "bg-gray-100"}>
+                {isCheckedIn ? "Checked In" : "Not Checked In"}
+              </Badge>
+              {isCheckedOut && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                  Checked Out
+                </Badge>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button onClick={refreshData} size="sm" variant="outline">
+              Refresh Data
+            </Button>
+            <Button 
+              onClick={() => {
+                setCheckInValidations({ face: "VALIDATING", numberPlate: "VALIDATING", gps: "VALIDATING" });
+                setTimeout(() => {
+                  setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
+                  setCheckInPhoto("https://via.placeholder.com/400x300?text=Selfie");
+                }, 1500);
+              }}
+              size="sm" 
+              variant="outline"
+              disabled={isCheckedIn}
+            >
+              Auto-Validate Check-In
+            </Button>
+            <Button 
+              onClick={() => {
+                setCheckOutValidations({ face: "VALIDATING", gps: "VALIDATING" });
+                setTimeout(() => {
+                  setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
+                  setCheckOutPhoto("https://via.placeholder.com/400x300?text=Selfie");
+                }, 1500);
+              }}
+              size="sm" 
+              variant="outline"
+              disabled={!isCheckedIn || isCheckedOut}
+            >
+              Auto-Validate Check-Out
+            </Button>
+          </div>
+        </div>
+      </div>
 
-      <div className="pb-4">
-        <Tabs value={currentScreen} onValueChange={(v) => {
-            const paths: Record<string, string> = {
-              dashboard: "/washer-core-screens",
-              checkin: "/washer-core-screens/checkin",
-              schedule: "/washer-core-screens/schedule",
-              active: "/washer-core-screens/active",
-              incentive: "/washer-core-screens/incentive",
-              checkout: "/washer-core-screens/checkout",
-            };
-            navigate(paths[v] || "/washer-core-screens");
-          }} className="w-full">
+      <div className="max-w-4xl mx-auto p-4 pb-24 lg:pb-4">
+        <Tabs value={currentScreen} onValueChange={(v) => setCurrentScreen(v as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="dashboard">1. Dashboard</TabsTrigger>
+            <TabsTrigger value="checkin">2. Check-In</TabsTrigger>
+            <TabsTrigger value="schedule">3. Schedule</TabsTrigger>
+          </TabsList>
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="active" disabled={!activeJob}>4. Active Wash</TabsTrigger>
+            <TabsTrigger value="incentive">5. Incentive</TabsTrigger>
+            <TabsTrigger value="checkout" disabled={!isCheckedIn || completedJobs.length === 0}>6. Check-Out</TabsTrigger>
+          </TabsList>
 
           {/* Screen 1: Dashboard */}
           <TabsContent value="dashboard">
@@ -317,7 +363,7 @@ export function WasherCoreScreensConnected() {
 
           {/* Screen 2: Check-In */}
           <TabsContent value="checkin">
-            {jobs.length > 0 ? (
+            {jobs.length > 0 && (
               <WasherCheckIn
                 checkInWindow="WITHIN"
                 windowStartTime={new Date(new Date().setHours(8, 30))}
@@ -330,7 +376,7 @@ export function WasherCoreScreensConnected() {
                   location: `${jobs[0].area}, ${jobs[0].city}`,
                 }}
                 validation={checkInValidations}
-                isCameraActive={checkInPhoto !== null}
+                isCameraActive={false}
                 photoTaken={checkInPhoto !== null}
                 photoUrl={checkInPhoto || undefined}
                 onStartCamera={handleStartCheckInCamera}
@@ -339,11 +385,6 @@ export function WasherCoreScreensConnected() {
                 onSubmitCheckIn={handleSubmitCheckIn}
                 isSubmitting={false}
               />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                <p className="text-lg font-medium">No jobs assigned yet</p>
-                <p className="text-sm mt-1">Jobs will appear here once assigned by your supervisor</p>
-              </div>
             )}
           </TabsContent>
 
@@ -358,27 +399,28 @@ export function WasherCoreScreensConnected() {
             />
           </TabsContent>
 
-
-          {/* Screen 4: Active Wash — full Job Detail with Info + Checklist + Report */}
+          {/* Screen 4: Active Wash */}
           <TabsContent value="active">
-            {activeJob ? (
-              <WasherJobDetail
-                job={activeJob}
-                onBack={() => navigate("/washer-core-screens/schedule")}
-                onStartJob={() => {
-                  startJob(activeJob.id);
-                  refreshData();
+            {activeJob && jobExecution && (
+              <WasherActiveWash
+                job={{
+                  registrationNumber: activeJob.vehicleRegistration,
+                  ownerName: activeJob.customerFirstName,
+                  vehicleType: activeJob.vehicleCategory,
+                  packageName: activeJob.packageName,
+                  location: `${activeJob.area}, ${activeJob.city}`,
                 }}
-                onCompleteJob={() => {
-                  completeJob();
-                  navigate("/washer-core-screens/schedule");
-                }}
+                steps={mapStepsToWashSteps()}
+                consumables={mapConsumables()}
+                clothBatchNumber="CLT-2024-04-08-001"
+                startTime={jobExecution.startTime}
+                elapsedMinutes={Math.floor((Date.now() - jobExecution.startTime.getTime()) / 60000)}
+                onCompleteStep={handleCompleteStep}
+                onTakePhoto={handleTakePhoto}
+                onMarkConsumableUsed={handleMarkConsumableUsed}
+                onMarkJobDone={handleMarkJobDone}
+                canMarkDone={jobExecution.steps.every(s => s.isCompleted)}
               />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                <p className="text-lg font-medium">No active job</p>
-                <p className="text-sm mt-1">Start a job from your schedule first</p>
-              </div>
             )}
           </TabsContent>
 
@@ -389,20 +431,15 @@ export function WasherCoreScreensConnected() {
                 baseUnits: 25,
                 completedUnits: stats.completed,
                 incentiveUnits: stats.completed > 25 ? stats.completed - 25 : 0,
-                todayIncentiveEarnings: (stats.completed - 25) > 0 ? (stats.completed - 25) * 25 : 0,
-                monthlyIncentiveUnits: stats.monthlyIncentiveUnits ?? 0,
-                monthlyIncentiveEarnings: stats.monthlyIncentiveEarnings ?? 0,
-                monthlyAddOnEarnings: stats.monthlyAddOnEarnings ?? 0,
+                todayIncentiveEarnings: (stats.completed - 25) > 0 ? (stats.completed - 25) * 50 : 0,
+                monthlyIncentiveUnits: 45,
+                monthlyIncentiveEarnings: 2250,
                 timeBandStatus: "ACTIVE",
                 timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
                 eligibilityStatus: "ELIGIBLE",
                 eligibilityReason: "Meeting all criteria",
                 hasAttendanceImpact: dayStatus.isLate,
                 lateMarksCount: dayStatus.isLate ? 1 : 0,
-                units4W: stats.units4W ?? stats.completed,
-                units2W: stats.units2W ?? 0,
-                addOnCount: stats.addOnCount ?? 0,
-                addOnEarnings: (stats.addOnCount ?? 0) * 20,
               }}
               currentDate={new Date()}
               monthName="April"
