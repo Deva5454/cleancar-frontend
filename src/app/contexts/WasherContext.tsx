@@ -142,7 +142,7 @@ export function WasherProvider({ children }: WasherProviderProps) {
     totalEarnings: 0,
     todayEarnings: 0,
   });
-  const [isLoading, setIsLoading] = useState(!shouldActivate);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // W11: Auto-logout state — only fires for Part-Time washers
   const [isAppLocked, setIsAppLocked] = useState(false);
