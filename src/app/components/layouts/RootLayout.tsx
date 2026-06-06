@@ -1,6 +1,5 @@
-import { ErrorBoundary } from "../ErrorBoundary";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { Outlet, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import {
   Users, BarChart3, UserCircle, Car, ClipboardList,
   AlertCircle, Package, DollarSign, UserCog, Menu, X,
@@ -21,6 +20,7 @@ import {
 } from "../ui/select";
 import { useRole } from "../../contexts/RoleContext";
 import { roleConfigurations, type Role } from "../../lib/roleConfig";
+import { useRoleBasedRedirect } from "../../hooks/useRoleBasedRedirect";
 import { GlobalFilterBar, GlobalFiltersProvider } from "../navigation/GlobalFilterBar";
 import { NotificationDrawer } from "../shared/NotificationDrawer";
 import { buildNavigation, buildQuickActions, type NavEmployee } from "../../utils/navigationBuilder";
@@ -33,53 +33,32 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  TooltipProvider,
 } from "../ui/tooltip";
 import { toast } from "sonner";
+import { checkStorageQuota } from "../../services/logger";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
 
 // Navigation is now fully dynamic - built from navigationConfig.ts
 // No hardcoded navigation modules needed here!
 
-// Role → dedicated app route. Roles absent from this map land on "/" (main dashboard).
-const ROLE_HOME_ROUTES: Partial<Record<Role, string>> = {
-  "Supervisor":          "/supervisor-app",
-  "TSM":                 "/tsm-app",
-  "TSE":                 "/tse-app",
-  "CCE":                 "/cce-app",
-  "Sales Head":          "/sh-app",
-  "Sales Manager":       "/sm-app-alliance",
-  "Operations Manager":  "/om-app",
-  "Cluster Manager":     "/cm-app",
-  "City Manager":        "/city-app",
-};
-
 export function RootLayout() {
   const isPreview = import.meta.env.MODE === "development"
     || window.location.hostname === "localhost"
     || window.location.hostname.includes("figma")
-    || window.location.hash.includes("preview-route");
+    || new URLSearchParams(window.location.search).get("preview-route") !== null;
 
-  // ── Session guard ────────────────────────────────────────────────────────
-  // Skipped in dev/preview mode so localhost and Figma Make still work without login.
-  // In production, a valid cc360_session with an employeeId is required to render
-  // any authenticated page. Unauthenticated requests are sent to /login.
-  const _isDevMode = import.meta.env.MODE === "development"
-    || window.location.hostname === "localhost"
-    || window.location.hostname.includes("figma");
-  if (!_isDevMode) {
-    const _session = (() => {
-      try { return JSON.parse(localStorage.getItem("cc360_session") || "null"); }
-      catch { return null; }
-    })();
-    if (!_session?.employeeId) {
-      return <Navigate to="/login" replace />;
+  if (!isPreview) {
+    const session = localStorage.getItem("cc360_session");
+    // FIX: use hash-router-compatible check (hash contains the route, not pathname)
+    // window.location.replace("/login") was breaking hash router navigation
+    const currentHash = window.location.hash.replace("#", "");
+    const isOnLogin = currentHash.startsWith("/login") || window.location.pathname === "/login";
+    if (!session && !isOnLogin) {
+      // Use hash-compatible redirect instead of window.location.replace
+      window.location.hash = "/login";
+      return null;
     }
   }
-  // ── End session guard ────────────────────────────────────────────────────
-
-  // Auth redirect removed — HashRouter pathname is always "/"
-  // Route-level auth is handled by ProtectedRoute in routes.tsx
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
@@ -127,7 +106,6 @@ export function RootLayout() {
   const { currentRole, setCurrentRole, currentUser } = useRole();
   const { city } = useCity();
   const location = useLocation();
-  const navigate = useNavigate();
   const {
     collapsed,
     setCollapsed,
@@ -148,45 +126,38 @@ export function RootLayout() {
     cityId: currentUser.cityId || "CITY-SURAT",
   };
 
-  // Safe role setter — validates then navigates to the role's dedicated route.
-  // navigate() here is the single source of truth for role-change routing.
-  // useRoleBasedRedirect is NOT called from here — it would race with this navigate.
-  const setSafeRole = useCallback((role: string) => {
+  // Auto-redirect users to their role-specific landing page
+  useRoleBasedRedirect(currentRole);
+
+  // Safe role setter - prevents invalid roles from entering state
+  const setSafeRole = (role: string) => {
     if (roleConfigurations[role as Role]) {
       setCurrentRole(role as Role);
-      navigate(ROLE_HOME_ROUTES[role as Role] ?? "/");
     } else {
       console.error(`❌ Invalid role selected: "${role}". Falling back to Super Admin.`);
       setCurrentRole("Super Admin");
-      navigate("/");
     }
-  }, [setCurrentRole, navigate]);
+  };
 
   // Get valid roles from roleConfigurations (single source of truth)
   const validRoles = Object.keys(roleConfigurations) as Role[];
 
   // Notification handlers
-  const handleMarkAsRead = useCallback((id: string) => {
-    setNotifications(prev => prev.map(n =>
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(notifications.map(n =>
       n.id === id ? { ...n, isRead: true } : n
     ));
-  }, []);
+  };
 
-  const handleMarkAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  }, []);
+  const handleMarkAllAsRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  };
 
   // Build dynamic navigation based on user permissions with city context
-  const userNavigation = useMemo(
-    () => buildNavigation(currentEmployee, city),
-    [currentRole, city] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-  const userQuickActions = useMemo(
-    () => buildQuickActions(currentEmployee, city),
-    [currentRole, city] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const userNavigation = buildNavigation(currentEmployee, city);
+  const userQuickActions = buildQuickActions(currentEmployee, city);
 
-  const filteredNavigation = useMemo(() => sidebarSearch.trim()
+  const filteredNavigation = sidebarSearch.trim()
     ? userNavigation.flatMap(section => {
         const q = sidebarSearch.toLowerCase();
         // Check if section label matches
@@ -200,24 +171,9 @@ export function RootLayout() {
         }
         return [];
       })
-    : userNavigation, [userNavigation, sidebarSearch]);
+    : userNavigation;
 
   // ✅ Smart Auto-Collapse Engine
-  // Startup storage purge
-  useEffect(() => {
-    ['cc360_error_log','SYNC_RETRY_QUEUE','cc360_retry_queue','cc360_audit_trail',
-     'cc360_payroll_approved_event','cc360_mrr_event'].forEach(k => {
-      try { localStorage.removeItem(k); } catch {}
-    });
-    try {
-      const raw = localStorage.getItem('attendance_records');
-      if (raw) {
-        const recs = JSON.parse(raw);
-        if (recs.length > 90) localStorage.setItem('attendance_records', JSON.stringify(recs.slice(-90)));
-      }
-    } catch {}
-  }, []);
-
   useEffect(() => {
     // Skip auto-collapse if user manually toggled
     if (userToggled) return;
@@ -253,10 +209,47 @@ export function RootLayout() {
     });
   }, [location.pathname, location.search]);
 
+  // Storage management — purge old data on every startup to prevent quota errors
+  useEffect(() => {
+    // Step 1: Always purge low-priority data first
+    const purgeable = [
+      'cc360_error_log', 'SYNC_RETRY_QUEUE', 'cc360_retry_queue',
+      'cc360_audit_trail', 'cc360_monthly_snapshots',
+      'cc360_payroll_approved_event', 'cc360_mrr_event', 'cc360_mrr_remove_event',
+    ];
+    purgeable.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+
+    // Step 2: Trim attendance records to last 90 (remove old bulk data)
+    try {
+      const attKey = 'attendance_records';
+      const raw = localStorage.getItem(attKey);
+      if (raw) {
+        const records = JSON.parse(raw);
+        if (records.length > 90) {
+          // Keep most recent 90 records
+          const trimmed = records.slice(-90);
+          localStorage.setItem(attKey, JSON.stringify(trimmed));
+          console.log(`[Storage] Trimmed attendance: ${records.length} → ${trimmed.length}`);
+        }
+      }
+    } catch {}
+
+    // Step 3: Check quota — only warn if genuinely over 90% after purge
+    setTimeout(() => {
+      const quota = checkStorageQuota();
+      if (quota.percentUsed > 90) {
+        toast.warning(
+          `Storage ${quota.percentUsed.toFixed(0)}% full. Consider clearing browser cache.`,
+          { duration: 5000 }
+        );
+      }
+    }, 3000);
+  }, []); // run once on mount
+
+
   return (
-    <TooltipProvider delayDuration={300}>
     <GlobalFiltersProvider>
-      <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+      <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
           <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
@@ -356,14 +349,17 @@ export function RootLayout() {
           <GlobalFilterBar />
         )}
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex">
         {/* Sidebar - Smart Collapsible */}
         <aside
           className={`
-            hidden md:flex flex-col flex-shrink-0 overflow-hidden
+            ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
+            fixed lg:sticky top-[57px] left-0 z-30 h-[calc(100vh-57px)]
             bg-white border-r border-gray-200
-            transition-[width] duration-200 ease-in-out
-            ${collapsed ? "w-16" : "w-64"}
+            transition-all duration-300 ease-in-out
+            overflow-hidden flex flex-col
+            lg:translate-x-0
+            ${collapsed ? "lg:w-16 w-64" : "w-64"}
           `}
         >
           {/* City Context Header */}
@@ -547,7 +543,7 @@ export function RootLayout() {
               // Expanded mode: accordion group
               const isOpen = openGroups.has(navItem.label) || childrenActive;
               return (
-                <div key={navItem.label} className={`mb-1 rounded-lg ${
+                <div key={navItem.label} className={`mb-1 rounded-lg overflow-hidden ${
                   childrenActive ? "border-l-2 border-blue-600" : "border-l-2 border-transparent"
                 }`}>
                   {/* Clickable section header */}
@@ -702,82 +698,19 @@ export function RootLayout() {
           </div>
         </aside>
 
-        {/* Mobile Sidebar - Full overlay drawer */}
+        {/* Mobile Sidebar Backdrop */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <div
-              className="absolute inset-0 bg-black/50"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <div className="absolute left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden shadow-xl">
-              {/* Reuse sidebar content - city header */}
-              <div className="p-3 border-b border-gray-200 bg-blue-50">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-blue-600" />
-                  <div>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">City</p>
-                    <p className="text-sm font-semibold text-blue-700">{CITIES[city].displayName}</p>
-                  </div>
-                </div>
-              </div>
-              <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-                {filteredNavigation.map((navItem) => {
-                  const Icon = navItem.icon;
-                  const active = isActiveRoute(location.pathname, location.search, navItem.path, navItem.match);
-                  if (!navItem.children || navItem.children.length === 0) {
-                    return (
-                      <Link
-                        key={navItem.path}
-                        to={navItem.path}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                          active ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                        <span>{navItem.label}</span>
-                      </Link>
-                    );
-                  }
-                  const childActive = hasActiveChild(location.pathname, location.search, navItem.children);
-                  return (
-                    <div key={navItem.label}>
-                      <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${childActive ? "text-blue-600" : "text-gray-400"}`}>
-                        <Icon className="w-4 h-4" />
-                        {navItem.label}
-                      </div>
-                      {navItem.children.map((child) => {
-                        const CIcon = child.icon;
-                        const cActive = isActiveRoute(location.pathname, location.search, child.path, child.match);
-                        return (
-                          <Link
-                            key={child.path}
-                            to={child.path}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2 pl-8 rounded-lg text-sm transition-colors ${
-                              cActive ? "bg-blue-50 text-blue-600 font-medium" : "text-gray-600 hover:bg-gray-50"
-                            }`}
-                          >
-                            <CIcon className="w-4 h-4" />
-                            <span>{child.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </nav>
-            </div>
-          </div>
+          <div
+            className="fixed inset-0 bg-black/40 z-20 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
         )}
 
-        {/* Main Content — key forces remount on every route/role change */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 min-w-0">
+        {/* Main Content - Adjusts based on sidebar state */}
+        <main className={`flex-1 p-3 sm:p-4 md:p-6 lg:p-8 transition-all duration-300 min-w-0`}>
+          {/* Route Guard - Protects all routes automatically */}
           <RouteGuard />
-          {/* key forces remount on path change OR role change */}
-          <ErrorBoundary key={`eb__${location.pathname}__${currentRole}`}>
-            <Outlet key={`${location.pathname}__${currentRole}`} />
-          </ErrorBoundary>
+          <Outlet />
         </main>
       </div>
 
@@ -799,6 +732,5 @@ export function RootLayout() {
       />
     </div>
     </GlobalFiltersProvider>
-    </TooltipProvider>
   );
 }
