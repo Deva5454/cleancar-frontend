@@ -2,6 +2,14 @@ import { DataService } from "./DataService";
 /**
  * Cloth Tracking Service
  * Manages cloth state, scanning, and exchange logic
+ *
+ * FIXES applied:
+ *  1A. clothMap key: was c.barcode (undefined) → now c.id (correct)
+ *  1B. seedMockData: was writing to discarded Map → now writes via DataService.setAll
+ *  1C. saveClothMap/saveExchanges: were never called → now called after every mutation
+ *  2.  Removed "LOCKED" from ClothStatus type (locking is isLocked boolean on ClothItem)
+ *  6.  getClothCategory default: was returning "CLEAN" causing misleading error msg
+ *      → now returns actual cloth status in error message
  */
 
 import type {
@@ -9,199 +17,160 @@ import type {
   ClothType,
   ClothStatus,
   ScanResult,
-  ScanError,
-  ScanErrorType,
   MatchStatus,
   ClothExchange,
 } from "../types/clothTracking";
 
 class ClothTrackingService {
-  private scanTimestamps: Map<string, number> = new Map(); // in-memory only (scan rate limiting)
+  private scanTimestamps: Map<string, number> = new Map(); // session-only scan timing
 
-  private get clothMap(): Map<string, ClothItem> {
+  // ── Persistence helpers ────────────────────────────────────────────────────
+
+  /** Load all cloths from DataService as an id-keyed Map */
+  private loadClothMap(): Map<string, ClothItem> {
     const stored = DataService.get<ClothItem>("CLOTH_ITEMS");
-    return new Map(stored.map(c => [c.barcode, c]));
+    return new Map(stored.map(c => [c.id, c])); // FIX 1A: was c.barcode
   }
-  private get exchangeList(): ClothExchange[] {
-    return DataService.get<ClothExchange>("CLOTH_EXCHANGES");
-  }
+
+  /** Persist cloth Map back to DataService */
   private saveClothMap(map: Map<string, ClothItem>): void {
     DataService.setAll("CLOTH_ITEMS", Array.from(map.values()));
   }
+
+  /** Load all exchanges from DataService */
+  private loadExchanges(): ClothExchange[] {
+    return DataService.get<ClothExchange>("CLOTH_EXCHANGES");
+  }
+
+  /** Persist exchange list back to DataService */
   private saveExchanges(exchanges: ClothExchange[]): void {
     DataService.setAll("CLOTH_EXCHANGES", exchanges);
   }
 
+  // ── Constructor ────────────────────────────────────────────────────────────
+
   constructor() {
-    // Only seed if no data exists
     const existing = DataService.get<ClothItem>("CLOTH_ITEMS");
     if (existing.length === 0) {
-      this.seedMockData();
+      this.seedMockData(); // FIX 1B: seedMockData now writes via DataService.setAll
     }
   }
 
-  // === CORE SCAN LOGIC ===
+  // ── Core scan logic ────────────────────────────────────────────────────────
 
   /**
-   * Scan a cloth barcode
-   * Auto-classifies as DIRTY or CLEAN based on status
+   * Scan a cloth barcode.
+   * Auto-classifies as DIRTY or CLEAN based on current status.
+   * Validates: NOT_FOUND → LOCKED → EXPIRED → INVALID_STAGE
    */
   scanCloth(barcode: string, expectedCategory: "DIRTY" | "CLEAN"): ScanResult {
     const startTime = Date.now();
+    const clothMap = this.loadClothMap(); // FIX 1A: load from DataService with correct key
+    const cloth = clothMap.get(barcode);
 
-    // Find cloth
-    const cloth = this.clothMap.get(barcode);
     if (!cloth) {
-      return {
-        success: false,
-        error: {
-          type: "NOT_FOUND",
-          message: "Barcode not recognized",
-          clothId: barcode,
-        },
-      };
+      return { success: false, error: { type: "NOT_FOUND", message: "Barcode not recognized", clothId: barcode } };
     }
 
-    // Check if locked
+    // FIX 2: locking uses isLocked boolean only ("LOCKED" removed from ClothStatus)
     if (cloth.isLocked) {
-      return {
-        success: false,
-        error: {
-          type: "LOCKED",
-          message: `Cloth in another process (${cloth.lockedBy})`,
-          clothId: barcode,
-        },
-      };
+      return { success: false, error: { type: "LOCKED", message: `Cloth locked by ${cloth.lockedBy || "another process"}`, clothId: barcode } };
     }
 
-    // Check if expired
     if (cloth.status === "EXPIRED" || this.isExpired(cloth)) {
-      return {
-        success: false,
-        error: {
-          type: "EXPIRED",
-          message: "Cloth expired – replace",
-          clothId: barcode,
-        },
-      };
+      return { success: false, error: { type: "EXPIRED", message: "Cloth expired — replace with new batch", clothId: barcode } };
     }
 
-    // Auto-classify based on status
-    const actualCategory = this.getClothCategory(cloth);
-
-    // Validate against expected category
-    if (actualCategory !== expectedCategory) {
-      return {
-        success: false,
-        error: {
-          type: "INVALID_STAGE",
-          message: `Cloth not allowed at this stage (is ${actualCategory})`,
-          clothId: barcode,
-        },
-      };
+    // FIX 6: getClothCategory now returns the actual status in the error message
+    const scanCategory = this.getClothScanCategory(cloth);
+    if (!scanCategory) {
+      return { success: false, error: { type: "INVALID_STAGE", message: `Cloth not available for exchange (current status: ${cloth.status})`, clothId: barcode } };
+    }
+    if (scanCategory !== expectedCategory) {
+      return { success: false, error: { type: "INVALID_STAGE", message: `Cloth is ${scanCategory} — scan on the ${scanCategory} panel`, clothId: barcode } };
     }
 
-    // Record scan time
-    const scanTime = Date.now() - startTime;
-    this.scanTimestamps.set(barcode, scanTime);
+    // Record scan time (session-only)
+    this.scanTimestamps.set(barcode, Date.now() - startTime);
 
-    return {
-      success: true,
-      cloth,
-    };
+    return { success: true, cloth };
   }
 
   /**
-   * Auto-classify cloth as DIRTY or CLEAN
+   * Returns "DIRTY" | "CLEAN" if the cloth can be scanned, null otherwise.
+   * FIX 6: null instead of defaulting to "CLEAN" (which produced misleading errors)
    */
-  private getClothCategory(cloth: ClothItem): "DIRTY" | "CLEAN" {
+  private getClothScanCategory(cloth: ClothItem): "DIRTY" | "CLEAN" | null {
     switch (cloth.status) {
-      case "USED_PENDING_COLLECTION":
-        return "DIRTY";
-      case "CLEAN_PACKED":
-        return "CLEAN";
-      default:
-        // Block scan for other statuses
-        return "CLEAN"; // Default to trigger error
+      case "USED_PENDING_COLLECTION": return "DIRTY";
+      case "CLEAN_PACKED":            return "CLEAN";
+      default:                        return null; // ISSUED, IN_LAUNDRY_PROCESS, EXPIRED → blocked
     }
   }
 
-  /**
-   * Check if cloth is expired
-   */
   private isExpired(cloth: ClothItem): boolean {
     if (!cloth.expiryDate) return false;
     return new Date(cloth.expiryDate) < new Date();
   }
 
-  // === MATCH CALCULATION ===
+  // ── Match calculation ──────────────────────────────────────────────────────
 
-  /**
-   * Calculate match status for dirty/clean quantities
-   */
   calculateMatch(dirtyIds: string[], cleanIds: string[]): MatchStatus {
-    // Count by type
-    const dirtyExterior = this.countByType(dirtyIds, "EXTERIOR");
-    const dirtyInterior = this.countByType(dirtyIds, "INTERIOR");
-    const cleanExterior = this.countByType(cleanIds, "EXTERIOR");
-    const cleanInterior = this.countByType(cleanIds, "INTERIOR");
+    const clothMap = this.loadClothMap();
+    const count = (ids: string[], type: ClothType) =>
+      ids.filter(id => clothMap.get(id)?.type === type).length;
+
+    const dirtyExterior = count(dirtyIds, "EXTERIOR");
+    const dirtyInterior = count(dirtyIds, "INTERIOR");
+    const cleanExterior = count(cleanIds, "EXTERIOR");
+    const cleanInterior = count(cleanIds, "INTERIOR");
 
     return {
-      exterior: {
-        dirty: dirtyExterior,
-        clean: cleanExterior,
-        matched: dirtyExterior === cleanExterior,
-      },
-      interior: {
-        dirty: dirtyInterior,
-        clean: cleanInterior,
-        matched: dirtyInterior === cleanInterior,
-      },
-      allMatched:
-        dirtyExterior === cleanExterior && dirtyInterior === cleanInterior,
+      exterior: { dirty: dirtyExterior, clean: cleanExterior, matched: dirtyExterior === cleanExterior },
+      interior: { dirty: dirtyInterior, clean: cleanInterior, matched: dirtyInterior === cleanInterior },
+      allMatched: dirtyExterior === cleanExterior && dirtyInterior === cleanInterior,
     };
   }
 
-  private countByType(clothIds: string[], type: ClothType): number {
-    return clothIds.filter((id) => {
-      const cloth = this.clothMap.get(id);
-      return cloth && cloth.type === type;
-    }).length;
-  }
-
-  // === CLOTH OPERATIONS ===
+  // ── Cloth operations ───────────────────────────────────────────────────────
 
   getCloth(id: string): ClothItem | undefined {
-    return this.clothMap.get(id);
+    return this.loadClothMap().get(id);
   }
 
   lockCloth(id: string, lockedBy: string): void {
-    const cloth = this.clothMap.get(id);
+    const map = this.loadClothMap();
+    const cloth = map.get(id);
     if (cloth) {
       cloth.isLocked = true;
       cloth.lockedBy = lockedBy;
       cloth.updatedAt = new Date().toISOString();
+      this.saveClothMap(map); // FIX 1C: always save after mutation
     }
   }
 
   unlockCloth(id: string): void {
-    const cloth = this.clothMap.get(id);
+    const map = this.loadClothMap();
+    const cloth = map.get(id);
     if (cloth) {
       cloth.isLocked = false;
       cloth.lockedBy = undefined;
       cloth.updatedAt = new Date().toISOString();
+      this.saveClothMap(map); // FIX 1C
     }
   }
 
   updateClothStatus(id: string, status: ClothStatus): void {
-    const cloth = this.clothMap.get(id);
+    const map = this.loadClothMap();
+    const cloth = map.get(id);
     if (cloth) {
       cloth.status = status;
       cloth.updatedAt = new Date().toISOString();
+      this.saveClothMap(map); // FIX 1C
     }
   }
 
-  // === EXCHANGE OPERATIONS ===
+  // ── Exchange operations ────────────────────────────────────────────────────
 
   createExchange(
     employeeId: string,
@@ -217,39 +186,48 @@ class ClothTrackingService {
       employeeId,
       employeeName,
       role,
-      dirtyClothIds: dirtyIds,
-      dirtyExterior: match.exterior.dirty,
-      dirtyInterior: match.interior.dirty,
-      cleanClothIds: cleanIds,
-      cleanExterior: match.exterior.clean,
-      cleanInterior: match.interior.clean,
+      dirtyClothIds:  dirtyIds,
+      dirtyExterior:  match.exterior.dirty,
+      dirtyInterior:  match.interior.dirty,
+      cleanClothIds:  cleanIds,
+      cleanExterior:  match.exterior.clean,
+      cleanInterior:  match.interior.clean,
       exteriorMatched: match.exterior.matched,
       interiorMatched: match.interior.matched,
-      isComplete: match.allMatched,
-      timestamp: new Date().toISOString(),
+      isComplete:     match.allMatched,
+      timestamp:      new Date().toISOString(),
     };
 
-    this.exchangeList.push(exchange);
+    // FIX 1C: load → push → save (not push to getter-returned temp array)
+    const exchanges = this.loadExchanges();
+    exchanges.push(exchange);
+    this.saveExchanges(exchanges);
 
-    // Update cloth statuses
-    dirtyIds.forEach((id) => this.updateClothStatus(id, "IN_LAUNDRY_PROCESS"));
-    cleanIds.forEach((id) => this.updateClothStatus(id, "ISSUED"));
+    // Update cloth statuses — each call loads, mutates, and saves the map
+    // Batch them into a single load+save for performance
+    const map = this.loadClothMap();
+    dirtyIds.forEach(id => {
+      const cloth = map.get(id);
+      if (cloth) { cloth.status = "IN_LAUNDRY_PROCESS"; cloth.updatedAt = new Date().toISOString(); }
+    });
+    cleanIds.forEach(id => {
+      const cloth = map.get(id);
+      if (cloth) { cloth.status = "ISSUED"; cloth.updatedAt = new Date().toISOString(); }
+    });
+    this.saveClothMap(map); // single save for all status updates
 
     return exchange;
   }
 
   getExchanges(): ClothExchange[] {
-    return this.exchangeList;
+    return this.loadExchanges();
   }
 
-  // === ANALYTICS ===
+  // ── Analytics ──────────────────────────────────────────────────────────────
 
   getAvgScanTime(): number {
     if (this.scanTimestamps.size === 0) return 0;
-    const total = Array.from(this.scanTimestamps.values()).reduce(
-      (sum, time) => sum + time,
-      0
-    );
+    const total = Array.from(this.scanTimestamps.values()).reduce((s, t) => s + t, 0);
     return Math.round(total / this.scanTimestamps.size);
   }
 
@@ -257,53 +235,44 @@ class ClothTrackingService {
     return this.scanTimestamps.size;
   }
 
-  // === MOCK DATA ===
+  // ── Queries ────────────────────────────────────────────────────────────────
 
+  getClothsByStatus(status: ClothStatus): ClothItem[] {
+    return Array.from(this.loadClothMap().values()).filter(c => c.status === status);
+  }
+
+  getClothsByTypeAndStatus(type: ClothType, status: ClothStatus): ClothItem[] {
+    return Array.from(this.loadClothMap().values()).filter(c => c.type === type && c.status === status);
+  }
+
+  // ── Seed data ──────────────────────────────────────────────────────────────
+
+  /**
+   * FIX 1B: Builds cloth array in memory then writes once via DataService.setAll.
+   * Previous implementation used clothMap.set() on a getter-returned Map
+   * that was immediately discarded — DataService was never written.
+   */
   private seedMockData() {
-    // Create 50 cloths (30 dirty, 20 clean)
+    const cloths: ClothItem[] = [];
+
     for (let i = 1; i <= 50; i++) {
       const id = `CLO${String(i).padStart(8, "0")}`;
-      const type: ClothType = i % 2 === 0 ? "EXTERIOR" : "INTERIOR";
-      const status: ClothStatus =
-        i <= 30 ? "USED_PENDING_COLLECTION" : "CLEAN_PACKED";
-
-      const cloth: ClothItem = {
+      cloths.push({
         id,
         shortId: id.slice(-4),
-        type,
-        status,
-        isLocked: false,
+        type:    i % 2 === 0 ? "EXTERIOR" : "INTERIOR",
+        status:  i === 15 ? "EXPIRED" : i <= 30 ? "USED_PENDING_COLLECTION" : "CLEAN_PACKED",
+        isLocked: i === 5 || i === 10,   // CLO00000005 and CLO00000010 locked
+        lockedBy: i === 5 ? "EXCHANGE-001" : i === 10 ? "LAUNDRY-BATCH-1" : undefined,
+        expiryDate: i === 15 ? "2026-01-01" : undefined, // CLO00000015 expired
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      };
-
-      this.clothMap.set(id, cloth);
+      } as ClothItem);
     }
 
-    // Add some locked cloths
-    this.lockCloth("CLO00000005", "EXCHANGE-001");
-    this.lockCloth("CLO00000010", "LAUNDRY-BATCH-1");
-
-    // Add some expired cloths
-    const expiredCloth = this.clothMap.get("CLO00000015");
-    if (expiredCloth) {
-      expiredCloth.status = "EXPIRED";
-      expiredCloth.expiryDate = "2026-01-01";
-    }
-  }
-
-  // Get all cloths by status
-  getClothsByStatus(status: ClothStatus): ClothItem[] {
-    return Array.from(this.clothMap.values()).filter((c) => c.status === status);
-  }
-
-  // Get all cloths by type and status
-  getClothsByTypeAndStatus(type: ClothType, status: ClothStatus): ClothItem[] {
-    return Array.from(this.clothMap.values()).filter(
-      (c) => c.type === type && c.status === status
-    );
+    DataService.setAll("CLOTH_ITEMS", cloths); // FIX 1B: write to DataService directly
   }
 }
 
-// Singleton instance
+// Singleton
 export const clothTrackingService = new ClothTrackingService();

@@ -30,6 +30,8 @@ export function ClothExchange() {
 
   // UI State
   const [scanFeedback, setScanFeedback] = useState<ScanFeedback | null>(null);
+  const [lastDirtyCount, setLastDirtyCount] = useState(0);  // captured before reset
+  const [lastCleanCount, setLastCleanCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [matchStatus, setMatchStatus] = useState<MatchStatus>({
@@ -154,12 +156,16 @@ export function ClothExchange() {
 
     // Create exchange record
     clothTrackingService.createExchange(
-      currentUser.name,
+      currentUser.employeeId || currentUser.name,
       currentUser.name,
       currentRole,
       dirtyClothIds,
       cleanClothIds
     );
+
+    // Capture counts before reset so dialog shows correct values
+    setLastDirtyCount(dirtyClothIds.length);
+    setLastCleanCount(cleanClothIds.length);
 
     // Show success dialog
     setSuccessDialogOpen(true);
@@ -462,11 +468,11 @@ export function ClothExchange() {
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-600">Dirty Collected</p>
-                <p className="text-3xl font-bold text-amber-900">{dirtyClothIds.length}</p>
+                <p className="text-3xl font-bold text-amber-900">{lastDirtyCount}</p>
               </div>
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-sm text-green-600">Clean Issued</p>
-                <p className="text-3xl font-bold text-green-900">{cleanClothIds.length}</p>
+                <p className="text-3xl font-bold text-green-900">{lastCleanCount}</p>
               </div>
             </div>
 

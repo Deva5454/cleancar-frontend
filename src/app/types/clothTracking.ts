@@ -9,11 +9,11 @@ export type ClothType = "EXTERIOR" | "INTERIOR";
 // Cloth Status
 export type ClothStatus =
   | "CLEAN_PACKED"              // Ready for issue
-  | "ISSUED"                    // Given to washer
-  | "USED_PENDING_COLLECTION"   // Dirty, awaiting collection
-  | "IN_LAUNDRY_PROCESS"        // Being cleaned
-  | "EXPIRED"                   // Past usable date
-  | "LOCKED";                   // In another process
+  | "ISSUED"                    // Given to washer (clean cloth sent out)
+  | "USED_PENDING_COLLECTION"   // Dirty, awaiting collection at exchange point
+  | "IN_LAUNDRY_PROCESS"        // Sent to laundry for cleaning
+  | "EXPIRED";                  // Past usable date — must be replaced
+  // NOTE: Locking is NOT a status — use isLocked boolean + lockedBy string on ClothItem
 
 // User Roles
 export type ClothTrackingRole = "WASHER" | "SUPERVISOR" | "STORE" | "LAUNDRY";
