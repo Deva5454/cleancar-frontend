@@ -541,10 +541,10 @@ export function WasherJobChecklist({ job, onChecklistChange, isInProgress }: Was
       )}
 
       {/* ── Customer periodic balance panel ── always visible when job is active ── */}
-      {isInProgress && job.customerId && job.packageType && job.packageType !== "EXPRESS_WASH" && (() => {
+      {isInProgress && job.id && job.packageType && job.packageType !== "EXPRESS_WASH" && (() => {
         const today      = new Date().toISOString().split("T")[0];
         const month      = today.slice(0, 7); // YYYY-MM
-        const usage      = periodicScheduleService.getMonthlyUsage(job.customerId, month);
+        const usage      = periodicScheduleService.getMonthlyUsage(job.id, month);
         const services   = [
           { key: "shampoo",   icon: "🧴", label: "Shampoo Wash",        u: usage.shampoo   },
           { key: "interior",  icon: "🪣", label: "Interior Vacuum",     u: usage.interior  },

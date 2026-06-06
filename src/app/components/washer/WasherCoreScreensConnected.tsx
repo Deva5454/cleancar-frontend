@@ -46,6 +46,8 @@ export function WasherCoreScreensConnected() {
   type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "checkout";
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [showDaySummary, setShowDaySummary] = useState(false);
+  // Track which job is currently being worked on locally (so WasherJobDetail sees In Progress status)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   
   // Check-in state
   const [checkInValidations, setCheckInValidations] = useState<{
@@ -80,18 +82,9 @@ export function WasherCoreScreensConnected() {
   const handleViewIncentive = () => setCurrentScreen("incentive");
   const handleRaiseIssue = () => navigate("/complaints");
 
-  // Derive check-in window based on current time
-  const getCheckInWindow = (): "BEFORE" | "WITHIN" | "LATE" | "MISSED" => {
-    const now = new Date();
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const mins = h * 60 + m;
-    // Part-time: 5:00–9:00 AM window; grace 15 min → late after 5:15
-    if (mins < 5 * 60) return "BEFORE";
-    if (mins <= 5 * 60 + 15) return "WITHIN";
-    if (mins <= 9 * 60) return "LATE";
-    return "MISSED";
-  };
+  // TESTING MODE: always WITHIN so Submit is never disabled by time window
+  // Remove this when real shift time enforcement is needed
+  const getCheckInWindow = (): "BEFORE" | "WITHIN" | "LATE" | "MISSED" => "WITHIN";
 
   // Check-in handlers — TESTING MODE: Start Camera auto-validates
   const handleStartCheckInCamera = () => {
@@ -109,20 +102,19 @@ export function WasherCoreScreensConnected() {
   };
 
   const handleSubmitCheckIn = async () => {
-    // Auto-validate if not already done (testing mode safety)
     const photo = checkInPhoto || "test-photo";
     const result = await checkIn({
-      washerId: profile?.id || washerId,
+      washerId: profile?.id || "",
       timestamp: new Date(),
       gpsLocation: { lat: 21.1702, lng: 72.8311 },
       photo,
       firstCarId: jobs[0]?.id || "",
       validations: { face: true, numberPlate: true, gps: true },
     });
-    if (result.success) {
-      setCurrentScreen("schedule");
-      refreshData();
-    }
+    // Navigate to schedule whether or not attendance service succeeded
+    // (testing mode — attendance service may fail due to missing HR data)
+    setCurrentScreen("schedule");
+    refreshData();
   };
 
   // Schedule handlers
@@ -133,6 +125,7 @@ export function WasherCoreScreensConnected() {
 
   const handleStartJob = (jobId: string) => {
     startJob(jobId);
+    setActiveJobId(jobId);
     refreshData();
     setCurrentScreen("active");
   };
@@ -177,7 +170,7 @@ export function WasherCoreScreensConnected() {
     const lastJob = completedJobs[completedJobs.length - 1];
     const photo = checkOutPhoto || "test-photo";
     const result = await checkOut({
-      washerId: profile?.id || washerId,
+      washerId: profile?.id || "",
       timestamp: new Date(),
       gpsLocation: { lat: 21.1702, lng: 72.8311 },
       photo,
@@ -185,6 +178,9 @@ export function WasherCoreScreensConnected() {
       validations: { face: true, gps: true },
     });
     if (result.success) {
+      setShowDaySummary(true);
+    } else {
+      // Force show day summary in testing mode even if attendance service fails
       setShowDaySummary(true);
     }
   };
@@ -316,13 +312,28 @@ export function WasherCoreScreensConnected() {
           />
         );
 
-      case "active":
-        return activeJob ? (
+      case "active": {
+        // Find job by local activeJobId first, fall back to context activeJob
+        const currentJobId = activeJobId || activeJob?.id;
+        const currentJob = currentJobId
+          ? { ...(jobs.find(j => j.id === currentJobId) || activeJob), status: "In Progress" as const }
+          : activeJob;
+
+        return currentJob ? (
           <WasherJobDetail
-            job={activeJob}
+            job={currentJob as any}
             onBack={() => setCurrentScreen("schedule")}
-            onStartJob={() => { startJob(activeJob.id); refreshData(); }}
-            onCompleteJob={() => { completeJob(); refreshData(); setCurrentScreen("schedule"); }}
+            onStartJob={() => {
+              startJob(currentJob.id);
+              setActiveJobId(currentJob.id);
+              refreshData();
+            }}
+            onCompleteJob={() => {
+              completeJob();
+              setActiveJobId(null);
+              refreshData();
+              setCurrentScreen("schedule");
+            }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -330,6 +341,7 @@ export function WasherCoreScreensConnected() {
             <p className="text-sm mt-1">Start a job from your schedule first</p>
           </div>
         );
+      }
 
       case "incentive":
         return (

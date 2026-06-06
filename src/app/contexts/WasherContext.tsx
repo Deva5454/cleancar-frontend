@@ -350,6 +350,7 @@ export function WasherProvider({ children }: WasherProviderProps) {
       const result = await WasherAttendanceService.checkIn(
         {
           employeeId: washerId,
+          cityId: currentUser.cityId || "CITY-SURAT",
           date: new Date().toISOString().split('T')[0],
           checkInTime: data.timestamp.toTimeString().split(' ')[0],
           location: {
