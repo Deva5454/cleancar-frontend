@@ -67,6 +67,12 @@ export interface WasherStats {
 }
 
 class MockWasherDataService {
+  // Job cache — keyed by "washerId-date" so jobs are stable within a session
+  private jobCache: Map<string, CustomerJob[]> = new Map();
+
+  // Job status overrides — persists mutations from updateJobStatus/completeJob
+  private jobStatusOverrides: Map<string, CustomerJob["status"]> = new Map();
+
   // Customer names pool
   private customerNames = [
     "Arjun", "Priya", "Rajesh", "Anjali", "Karan", "Sneha", "Vikram", "Pooja",
@@ -157,6 +163,18 @@ class MockWasherDataService {
 
   // Generate mock jobs
   public getTodayJobs(washerId: string, count: number = 12): CustomerJob[] {
+    const today = new Date().toISOString().split("T")[0];
+    const cacheKey = `${washerId}-${today}`;
+
+    // Return cached jobs if available, applying any status overrides
+    if (this.jobCache.has(cacheKey)) {
+      const cached = this.jobCache.get(cacheKey)!;
+      return cached.map(job => ({
+        ...job,
+        status: this.jobStatusOverrides.get(job.id) ?? job.status,
+      }));
+    }
+
     const jobs: CustomerJob[] = [];
     const now = new Date();
     const currentHour = now.getHours();
@@ -239,7 +257,14 @@ class MockWasherDataService {
       });
     }
 
-    return jobs;
+    // Cache generated jobs so they're stable for the rest of the session
+    this.jobCache.set(cacheKey, jobs);
+
+    // Apply any status overrides (e.g. jobs completed mid-session)
+    return jobs.map(job => ({
+      ...job,
+      status: this.jobStatusOverrides.get(job.id) ?? job.status,
+    }));
   }
 
   // Get washer stats
@@ -267,10 +292,9 @@ class MockWasherDataService {
     return inProgressJobs.length > 0 ? inProgressJobs[0] : null;
   }
 
-  // Update job status (for testing)
+  // Update job status (persists via override map)
   public updateJobStatus(jobId: string, newStatus: CustomerJob["status"]): void {
-    // In real app, this would update the backend
-    console.log(`Job ${jobId} status updated to ${newStatus}`);
+    this.jobStatusOverrides.set(jobId, newStatus);
   }
 
   // Simulate job completion

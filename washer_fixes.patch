@@ -1,0 +1,915 @@
+diff --git a/src/app/components/dashboards/RoleDashboard.tsx b/src/app/components/dashboards/RoleDashboard.tsx
+index 3f86dd2..bdf486c 100644
+--- a/src/app/components/dashboards/RoleDashboard.tsx
++++ b/src/app/components/dashboards/RoleDashboard.tsx
+@@ -1,8 +1,9 @@
+ // Dynamic dashboard component that renders based on role
+ import { useRole } from "../../contexts/RoleContext";
+ import { useCity } from "../../contexts/CityContext";
++import { useNavigate } from "react-router-dom";
++import { useEffect } from "react";
+ import { ExecutiveDashboard } from "./ExecutiveDashboard";
+-import { WasherDashboard } from "./WasherDashboard";
+ import { SupervisorDashboard } from "./SupervisorDashboard";
+ import { SalesDashboard } from "./SalesDashboard";
+ import { CustomerCareDashboard } from "./CustomerCareDashboard";
+@@ -16,22 +17,28 @@ import { ProcurementDashboard } from "./ProcurementDashboard";
+ export function RoleDashboard() {
+   const { roleConfig, currentRole } = useRole();
+   const { city } = useCity();
++  const navigate = useNavigate();
++
++  // Car Washer always goes straight to the mobile shell
++  useEffect(() => {
++    if (roleConfig?.dashboardType === "washer") {
++      navigate("/washer-core-screens", { replace: true });
++    }
++  }, [roleConfig?.dashboardType, navigate]);
+ 
+   // Safety check for roleConfig
+   if (!roleConfig || !roleConfig.dashboardType) {
+     return <ExecutiveDashboard key={`exec__${currentRole}__${city}`} />;
+   }
+ 
+-  // key prop forces full remount when role or city changes
+-  // Without this, switching from "executive" to "hr" keeps the old
+-  // ExecutiveDashboard DOM alive and only swaps the content inside
++  // Car Washer is handled by the useEffect redirect above
++  if (roleConfig.dashboardType === "washer") return null;
++
+   const dashKey = `${roleConfig.dashboardType}__${currentRole}__${city}`;
+ 
+   switch (roleConfig.dashboardType) {
+     case "executive":
+       return <ExecutiveDashboard key={dashKey} />;
+-    case "washer":
+-      return <WasherDashboard key={dashKey} />;
+     case "supervisor":
+       return <SupervisorDashboard key={dashKey} />;
+     case "sales":
+@@ -57,10 +64,8 @@ export function RoleDashboard() {
+     case "admin":
+     case "super-admin":
+       return <ExecutiveDashboard key={dashKey} />;
+-    // Added: "Manager" role uses dashboardType "operational"
+     case "operational":
+       return <OperationsDashboard key={dashKey} />;
+-    // Added: "Marketing Agency" role uses dashboardType "marketing"
+     case "marketing":
+       return <SalesDashboard key={dashKey} />;
+     default:
+diff --git a/src/app/components/washer/WasherCoreScreensConnected.tsx b/src/app/components/washer/WasherCoreScreensConnected.tsx
+index 76d7c20..95b6242 100644
+--- a/src/app/components/washer/WasherCoreScreensConnected.tsx
++++ b/src/app/components/washer/WasherCoreScreensConnected.tsx
+@@ -10,15 +10,11 @@ import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
+ import { WasherHomeDashboard, type DayStatus } from "./WasherHomeDashboard";
+ import { WasherCheckIn, type CheckInWindow, type ValidationState } from "./WasherCheckIn";
+ import { WasherMySchedule, type JobCard } from "./WasherMySchedule";
+-import { WasherActiveWash, type WashStep, type ConsumableItem } from "./WasherActiveWash";
++import { WasherJobDetail } from "./WasherJobDetail";
+ import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
+ import { WasherCheckOut, type CheckOutTiming } from "./WasherCheckOut";
+ import { DaySummaryScreen } from "./DaySummaryScreen";
+-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+-
+-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+-import { Badge } from "../ui/badge";
+-import { Button } from "../ui/button";
++import { Tabs, TabsContent } from "../ui/tabs";
+ import { logger } from "../../services/logger";
+ 
+ // ========== MAIN COMPONENT (uses context from root-level AppProvider) ==========
+@@ -90,15 +86,20 @@ export function WasherCoreScreensConnected() {
+   const handleRaiseIssue = () => logger.log("Raise issue"); // Navigate to issue form
+ 
+   // Check-in handlers
+-  const handleStartCheckInCamera = () => logger.log("Start camera");
+-  const handleTakeCheckInPhoto = () => {
+-    setCheckInPhoto("https://via.placeholder.com/400x300?text=Check-In+Selfie");
+-    // Trigger validations
++  // TESTING MODE: Camera click instantly validates — remove when real camera is wired
++  const handleStartCheckInCamera = () => {
++    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3ECheck-In Photo%3C/text%3E%3C/svg%3E");
+     setTimeout(() => {
+       setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
+-    }, 1000);
++    }, 600);
++  };
++  const handleTakeCheckInPhoto = () => {
++    setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
++  };
++  const handleRetakeCheckInPhoto = () => {
++    setCheckInPhoto(null);
++    setCheckInValidations({ face: "PENDING", numberPlate: "PENDING", gps: "PENDING" });
+   };
+-  const handleRetakeCheckInPhoto = () => setCheckInPhoto(null);
+   
+   const handleSubmitCheckIn = async () => {
+     const result = await checkIn({
+@@ -135,8 +136,9 @@ export function WasherCoreScreensConnected() {
+     completeStep(stepId);
+   };
+ 
++  // TESTING MODE: Photo click immediately marks photo taken with placeholder
+   const handleTakePhoto = (stepId: string) => {
+-    addPhoto("DURING", `https://via.placeholder.com/400x300?text=Step+Photo`, stepId);
++    addPhoto("DURING", "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3EStep Photo%3C/text%3E%3C/svg%3E", stepId);
+   };
+ 
+   const handleMarkConsumableUsed = (consumableName: string) => {
+@@ -152,14 +154,20 @@ export function WasherCoreScreensConnected() {
+   };
+ 
+   // Check-out handlers
+-  const handleStartCheckOutCamera = () => logger.log("Start camera");
+-  const handleTakeCheckOutPhoto = () => {
+-    setCheckOutPhoto("https://via.placeholder.com/400x300?text=Check-Out+Selfie");
++  // TESTING MODE: Camera click instantly validates — remove when real camera is wired
++  const handleStartCheckOutCamera = () => {
++    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23e5e7eb'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%236b7280'%3ECheck-Out Photo%3C/text%3E%3C/svg%3E");
+     setTimeout(() => {
+       setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
+-    }, 1000);
++    }, 600);
++  };
++  const handleTakeCheckOutPhoto = () => {
++    setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
++  };
++  const handleRetakeCheckOutPhoto = () => {
++    setCheckOutPhoto(null);
++    setCheckOutValidations({ face: "PENDING", gps: "PENDING" });
+   };
+-  const handleRetakeCheckOutPhoto = () => setCheckOutPhoto(null);
+   
+   const handleSubmitCheckOut = async () => {
+     const lastJob = completedJobs[completedJobs.length - 1];
+@@ -199,12 +207,12 @@ export function WasherCoreScreensConnected() {
+       vehicleType: job.vehicleCategory,
+       packageName: job.packageName,
+       location: `${job.area}, ${job.city}`,
+-      status: job.status === "Assigned" ? "PENDING" :
+-              job.status === "In Progress" ? "IN_PROGRESS" :
+-              job.status === "Completed" ? "DONE" : "PENDING",
+-      isCover: false, // Would come from cover job service
++      status: job.status === "In Progress" ? "IN_PROGRESS" :
++              job.status === "Completed" ? "DONE" :
++              job.status === "Cancelled" ? "ISSUE" : "PENDING",
++      isCover: false,
+       isLocked: !isCheckedIn || (activeJob !== null && job.id !== activeJob.id),
+-      lockReason: !isCheckedIn ? "Complete check-in first" : 
++      lockReason: !isCheckedIn ? "Complete check-in first" :
+                   activeJob && job.id !== activeJob.id ? "Complete active job first" : undefined,
+       sequenceNumber: index + 1,
+       scheduledTime: job.timeSlot.split(" - ")[0],
+@@ -267,62 +275,8 @@ export function WasherCoreScreensConnected() {
+ 
+   return (
+     <div className="min-h-screen bg-gray-50">
+-      <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
+-        <div className="max-w-4xl mx-auto p-4">
+-          <div className="flex items-center justify-between mb-3">
+-            <div>
+-              <h1 className="text-xl font-bold text-gray-900">Washer Core Screens (Connected)</h1>
+-              <p className="text-xs text-gray-600">Professional structure • No hardcoded data • All buttons functional</p>
+-            </div>
+-            <div className="flex items-center gap-2">
+-              <Badge variant="outline" className={isCheckedIn ? "bg-green-50 text-green-700" : "bg-gray-100"}>
+-                {isCheckedIn ? "Checked In" : "Not Checked In"}
+-              </Badge>
+-              {isCheckedOut && (
+-                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+-                  Checked Out
+-                </Badge>
+-              )}
+-            </div>
+-          </div>
+-          
+-          <div className="flex gap-2">
+-            <Button onClick={refreshData} size="sm" variant="outline">
+-              Refresh Data
+-            </Button>
+-            <Button 
+-              onClick={() => {
+-                setCheckInValidations({ face: "VALIDATING", numberPlate: "VALIDATING", gps: "VALIDATING" });
+-                setTimeout(() => {
+-                  setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" });
+-                  setCheckInPhoto("https://via.placeholder.com/400x300?text=Selfie");
+-                }, 1500);
+-              }}
+-              size="sm" 
+-              variant="outline"
+-              disabled={isCheckedIn}
+-            >
+-              Auto-Validate Check-In
+-            </Button>
+-            <Button 
+-              onClick={() => {
+-                setCheckOutValidations({ face: "VALIDATING", gps: "VALIDATING" });
+-                setTimeout(() => {
+-                  setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" });
+-                  setCheckOutPhoto("https://via.placeholder.com/400x300?text=Selfie");
+-                }, 1500);
+-              }}
+-              size="sm" 
+-              variant="outline"
+-              disabled={!isCheckedIn || isCheckedOut}
+-            >
+-              Auto-Validate Check-Out
+-            </Button>
+-          </div>
+-        </div>
+-      </div>
+ 
+-      <div className="max-w-4xl mx-auto p-4 pb-24 lg:pb-4">
++      <div className="pb-4">
+         <Tabs value={currentScreen} onValueChange={(v) => {
+             const paths: Record<string, string> = {
+               dashboard: "/washer-core-screens",
+@@ -334,16 +288,6 @@ export function WasherCoreScreensConnected() {
+             };
+             navigate(paths[v] || "/washer-core-screens");
+           }} className="w-full">
+-          <TabsList className="grid w-full grid-cols-3 mb-6">
+-            <TabsTrigger value="dashboard">1. Dashboard</TabsTrigger>
+-            <TabsTrigger value="checkin">2. Check-In</TabsTrigger>
+-            <TabsTrigger value="schedule">3. Schedule</TabsTrigger>
+-          </TabsList>
+-          <TabsList className="grid w-full grid-cols-3 mb-6">
+-            <TabsTrigger value="active" disabled={!activeJob}>4. Active Wash</TabsTrigger>
+-            <TabsTrigger value="incentive">5. Incentive</TabsTrigger>
+-            <TabsTrigger value="checkout" disabled={!isCheckedIn || completedJobs.length === 0}>6. Check-Out</TabsTrigger>
+-          </TabsList>
+ 
+           {/* Screen 1: Dashboard */}
+           <TabsContent value="dashboard">
+@@ -373,7 +317,7 @@ export function WasherCoreScreensConnected() {
+ 
+           {/* Screen 2: Check-In */}
+           <TabsContent value="checkin">
+-            {jobs.length > 0 && (
++            {jobs.length > 0 ? (
+               <WasherCheckIn
+                 checkInWindow="WITHIN"
+                 windowStartTime={new Date(new Date().setHours(8, 30))}
+@@ -386,7 +330,7 @@ export function WasherCoreScreensConnected() {
+                   location: `${jobs[0].area}, ${jobs[0].city}`,
+                 }}
+                 validation={checkInValidations}
+-                isCameraActive={false}
++                isCameraActive={checkInPhoto !== null}
+                 photoTaken={checkInPhoto !== null}
+                 photoUrl={checkInPhoto || undefined}
+                 onStartCamera={handleStartCheckInCamera}
+@@ -395,6 +339,11 @@ export function WasherCoreScreensConnected() {
+                 onSubmitCheckIn={handleSubmitCheckIn}
+                 isSubmitting={false}
+               />
++            ) : (
++              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
++                <p className="text-lg font-medium">No jobs assigned yet</p>
++                <p className="text-sm mt-1">Jobs will appear here once assigned by your supervisor</p>
++              </div>
+             )}
+           </TabsContent>
+ 
+@@ -409,28 +358,27 @@ export function WasherCoreScreensConnected() {
+             />
+           </TabsContent>
+ 
+-          {/* Screen 4: Active Wash */}
++
++          {/* Screen 4: Active Wash — full Job Detail with Info + Checklist + Report */}
+           <TabsContent value="active">
+-            {activeJob && jobExecution && (
+-              <WasherActiveWash
+-                job={{
+-                  registrationNumber: activeJob.vehicleRegistration,
+-                  ownerName: activeJob.customerFirstName,
+-                  vehicleType: activeJob.vehicleCategory,
+-                  packageName: activeJob.packageName,
+-                  location: `${activeJob.area}, ${activeJob.city}`,
++            {activeJob ? (
++              <WasherJobDetail
++                job={activeJob}
++                onBack={() => navigate("/washer-core-screens/schedule")}
++                onStartJob={() => {
++                  startJob(activeJob.id);
++                  refreshData();
++                }}
++                onCompleteJob={() => {
++                  completeJob();
++                  navigate("/washer-core-screens/schedule");
+                 }}
+-                steps={mapStepsToWashSteps()}
+-                consumables={mapConsumables()}
+-                clothBatchNumber="CLT-2024-04-08-001"
+-                startTime={jobExecution.startTime}
+-                elapsedMinutes={Math.floor((Date.now() - jobExecution.startTime.getTime()) / 60000)}
+-                onCompleteStep={handleCompleteStep}
+-                onTakePhoto={handleTakePhoto}
+-                onMarkConsumableUsed={handleMarkConsumableUsed}
+-                onMarkJobDone={handleMarkJobDone}
+-                canMarkDone={jobExecution.steps.every(s => s.isCompleted)}
+               />
++            ) : (
++              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
++                <p className="text-lg font-medium">No active job</p>
++                <p className="text-sm mt-1">Start a job from your schedule first</p>
++              </div>
+             )}
+           </TabsContent>
+ 
+diff --git a/src/app/components/washer/WasherJobChecklist.tsx b/src/app/components/washer/WasherJobChecklist.tsx
+index 38b4ede..a05f8a2 100644
+--- a/src/app/components/washer/WasherJobChecklist.tsx
++++ b/src/app/components/washer/WasherJobChecklist.tsx
+@@ -77,7 +77,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
+ 
+     const shampooSection: ChecklistSection = {
+     id: "shampoo",
+-    title: "🧴 Shampoo Wash",
++    name: "🧴 Shampoo Wash", isOpen: true,
+     items: [
+       { id: "sha-1", name: "Apply car-safe shampoo foam — spray evenly, all panels",         completed: false, skipped: false },
+       { id: "sha-2", name: "Work foam with microfibre mitt — circular motion, panel by panel", completed: false, skipped: false },
+@@ -90,7 +90,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
+ 
+     const waxSection: ChecklistSection = {
+     id: "wax",
+-    title: "✨ Full Hand Wax Polish",
++    name: "✨ Full Hand Wax Polish", isOpen: true,
+     items: [
+       { id: "wax-1", name: "Shampoo wash complete first — car must be clean and dry",          completed: false, skipped: false },
+       { id: "wax-2", name: "Apply wax one panel at a time — do not spread over whole car",      completed: false, skipped: false },
+@@ -115,7 +115,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
+ 
+     const dashboardSection: ChecklistSection = {
+     id: "dashboard",
+-    title: "🧹 Dashboard & Console Deep Clean",
++    name: "🧹 Dashboard & Console Deep Clean", isOpen: true,
+     items: [
+       { id: "dash-1", name: "Dashboard polish — wipe panel by panel",                         completed: false, skipped: false },
+       { id: "dash-2", name: "Console polish — gear surround, centre console, cupholders",      completed: false, skipped: false },
+@@ -152,7 +152,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
+ 
+     const engineSection: ChecklistSection = {
+     id: "engine",
+-    title: "⚙️ Engine Bay Dry Blow",
++    name: "⚙️ Engine Bay Dry Blow", isOpen: true,
+     items: [
+       { id: "eng-1", name: "⚠️ STRICTLY DRY ONLY — no water in engine bay under any circumstances", completed: false, skipped: false },
+       { id: "eng-2", name: "Dry blow with compressed air / blower — remove dust and debris",   completed: false, skipped: false },
+@@ -164,7 +164,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
+ 
+   const fragranceSection: ChecklistSection = {
+     id: "fragrance",
+-    title: "🌸 Car Fragrance Application",
++    name: "🌸 Car Fragrance Application", isOpen: true,
+     items: [
+       { id: "fra-1", name: "Interior dry and windows up before applying fragrance",    completed: false, skipped: false },
+       { id: "fra-2", name: "Spray fragrance — 2-3 short bursts, not directly on seats", completed: false, skipped: false },
+diff --git a/src/app/components/washer/WasherMobileShell.tsx b/src/app/components/washer/WasherMobileShell.tsx
+index 46558f0..8bcea4f 100644
+--- a/src/app/components/washer/WasherMobileShell.tsx
++++ b/src/app/components/washer/WasherMobileShell.tsx
+@@ -1,161 +1,132 @@
+ // Mobile-first Washer Module Shell with Bottom Navigation
+-// Optimized for field use with wet hands, bright sunlight, offline operation
++// Optimized for field use: large touch targets, bottom nav, full-screen flow
+ import { useState } from "react";
+-import { Home, Camera, Package, User, Bell } from "lucide-react";
++import { Home, CalendarDays, TrendingUp, Package, User } from "lucide-react";
+ import { Badge } from "../ui/badge";
+-import { WasherTodayScreen } from "./WasherTodayScreen";
+-import { WasherDemoTab } from "./WasherDemoTab";
++import { WasherCoreScreensConnected } from "./WasherCoreScreensConnected";
+ import { WasherMyStock } from "./WasherMyStock";
+ import { WasherProfile } from "./WasherProfile";
+-import { WasherNotifications } from "./WasherNotifications";
+-import { useRole } from "../../contexts/RoleContext";
++import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
++import { useWasher } from "../../contexts/WasherContext";
+ 
+-type TabType = "today" | "demo" | "stock" | "profile" | "notifications";
++type TabType = "home" | "schedule" | "incentive" | "stock" | "profile";
+ 
+ export function WasherMobileShell() {
+-  const { currentUser } = useRole();
+-  const [activeTab, setActiveTab] = useState<TabType>("today");
+-  const [isOnline, setIsOnline] = useState(true); // In real app: navigator.onLine
+-  const [unreadNotifications, setUnreadNotifications] = useState(3);
+-  const [unreadDemos, setUnreadDemos] = useState(1);
++  const [activeTab, setActiveTab] = useState<TabType>("home");
++  const { stats, dayStatus, isCheckedIn } = useWasher();
++
++  const incentiveUnits = stats.completed > 25 ? stats.completed - 25 : 0;
+ 
+   const renderActiveTab = () => {
+     switch (activeTab) {
+-      case "today":
+-        return <WasherTodayScreen />;
+-      case "demo":
+-        return <WasherDemoTab />;
++      case "home":
++      case "schedule":
++        // WasherCoreScreensConnected handles its own internal navigation
++        // (dashboard → check-in → schedule → active wash → check-out)
++        // Tab "home" and "schedule" both enter the connected flow;
++        // the flow itself manages which screen is shown.
++        return <WasherCoreScreensConnected />;
++      case "incentive":
++        return (
++          <WasherIncentiveTracker
++            data={{
++              baseUnits: 25,
++              completedUnits: stats.completed,
++              incentiveUnits,
++              todayIncentiveEarnings: incentiveUnits * 25,
++              monthlyIncentiveUnits: 0,
++              monthlyIncentiveEarnings: 0,
++              timeBandStatus: "ACTIVE",
++              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
++              eligibilityStatus: incentiveUnits > 0 ? "ELIGIBLE" : "NOT_ELIGIBLE",
++              eligibilityReason: incentiveUnits > 0 ? "Meeting all criteria" : "Complete 25 base units first",
++              hasAttendanceImpact: dayStatus.isLate,
++              lateMarksCount: dayStatus.isLate ? 1 : 0,
++            }}
++            currentDate={new Date()}
++            monthName={new Date().toLocaleString("en-IN", { month: "long" })}
++          />
++        );
+       case "stock":
+         return <WasherMyStock />;
+       case "profile":
+         return <WasherProfile />;
+-      case "notifications":
+-        return <WasherNotifications unreadCount={unreadNotifications} />;
+       default:
+-        return <WasherTodayScreen />;
++        return <WasherCoreScreensConnected />;
+     }
+   };
+ 
+   return (
+     <div className="min-h-screen bg-gray-50 pb-20">
+-      {/* Connectivity Indicator */}
+-      <div
+-        className={`fixed top-0 left-0 right-0 z-50 px-4 py-2 text-center text-sm font-medium ${
+-          isOnline
+-            ? "bg-green-50 text-green-800 border-b border-green-200"
+-            : "bg-amber-50 text-amber-800 border-b border-amber-200"
+-        }`}
+-      >
+-        <div className="flex items-center justify-center gap-2">
+-          <div
+-            className={`w-2 h-2 rounded-full ${
+-              isOnline ? "bg-green-600" : "bg-amber-600 animate-pulse"
+-            }`}
+-          />
+-          {isOnline ? "Online" : "Offline — actions will sync when connected"}
+-        </div>
+-      </div>
++      {/* Main Content */}
++      <div className="h-full">{renderActiveTab()}</div>
+ 
+-      {/* Main Content Area */}
+-      <div className="pt-10">{renderActiveTab()}</div>
++      {/* Bottom Navigation Bar */}
++      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
++        <div className="grid grid-cols-5 h-16">
+ 
+-      {/* Bottom Navigation Bar - Fixed at bottom */}
+-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+-        <div className="grid grid-cols-5 h-20">
+-          {/* Today Tab */}
++          {/* Home / Dashboard */}
+           <button
+-            onClick={() => setActiveTab("today")}
++            onClick={() => setActiveTab("home")}
+             className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+-              activeTab === "today"
+-                ? "text-teal-600"
+-                : "text-gray-400 hover:text-gray-600"
++              activeTab === "home" ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
+             }`}
+           >
+-            <Home
+-              className={`w-6 h-6 ${
+-                activeTab === "today" ? "fill-current" : ""
+-              }`}
+-            />
+-            <span className="text-xs font-medium">Today</span>
++            <Home className={`w-5 h-5 ${activeTab === "home" ? "fill-current" : ""}`} />
++            <span className="text-xs font-medium">Home</span>
+           </button>
+ 
+-          {/* Demo Tab */}
++          {/* Schedule */}
+           <button
+-            onClick={() => setActiveTab("demo")}
++            onClick={() => setActiveTab("schedule")}
++            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
++              activeTab === "schedule" ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
++            }`}
++          >
++            <CalendarDays className={`w-5 h-5 ${activeTab === "schedule" ? "fill-current" : ""}`} />
++            <span className="text-xs font-medium">Schedule</span>
++          </button>
++
++          {/* Incentive */}
++          <button
++            onClick={() => setActiveTab("incentive")}
+             className={`flex flex-col items-center justify-center gap-1 transition-colors relative ${
+-              activeTab === "demo"
+-                ? "text-teal-600"
+-                : "text-gray-400 hover:text-gray-600"
++              activeTab === "incentive" ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
+             }`}
+           >
+-            {unreadDemos > 0 && (
+-              <Badge className="absolute top-2 right-8 bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center">
+-                {unreadDemos}
++            {incentiveUnits > 0 && (
++              <Badge className="absolute -top-1 right-3 bg-green-500 text-white text-xs px-1 min-w-[18px] h-4 flex items-center justify-center">
++                {incentiveUnits}
+               </Badge>
+             )}
+-            <Camera
+-              className={`w-6 h-6 ${activeTab === "demo" ? "fill-current" : ""}`}
+-            />
+-            <span className="text-xs font-medium">Demo</span>
++            <TrendingUp className={`w-5 h-5 ${activeTab === "incentive" ? "fill-current" : ""}`} />
++            <span className="text-xs font-medium">Earnings</span>
+           </button>
+ 
+-          {/* My Stock Tab */}
++          {/* My Stock */}
+           <button
+             onClick={() => setActiveTab("stock")}
+             className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+-              activeTab === "stock"
+-                ? "text-teal-600"
+-                : "text-gray-400 hover:text-gray-600"
++              activeTab === "stock" ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
+             }`}
+           >
+-            <Package
+-              className={`w-6 h-6 ${
+-                activeTab === "stock" ? "fill-current" : ""
+-              }`}
+-            />
+-            <span className="text-xs font-medium">My Stock</span>
++            <Package className={`w-5 h-5 ${activeTab === "stock" ? "fill-current" : ""}`} />
++            <span className="text-xs font-medium">Stock</span>
+           </button>
+ 
+-          {/* My Profile Tab */}
++          {/* Profile */}
+           <button
+             onClick={() => setActiveTab("profile")}
+             className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+-              activeTab === "profile"
+-                ? "text-teal-600"
+-                : "text-gray-400 hover:text-gray-600"
++              activeTab === "profile" ? "text-blue-600" : "text-gray-400 hover:text-gray-600"
+             }`}
+           >
+-            <User
+-              className={`w-6 h-6 ${
+-                activeTab === "profile" ? "fill-current" : ""
+-              }`}
+-            />
++            <User className={`w-5 h-5 ${activeTab === "profile" ? "fill-current" : ""}`} />
+             <span className="text-xs font-medium">Profile</span>
+           </button>
+ 
+-          {/* Notifications Tab */}
+-          <button
+-            onClick={() => setActiveTab("notifications")}
+-            className={`flex flex-col items-center justify-center gap-1 transition-colors relative ${
+-              activeTab === "notifications"
+-                ? "text-teal-600"
+-                : "text-gray-400 hover:text-gray-600"
+-            }`}
+-          >
+-            {unreadNotifications > 0 && (
+-              <Badge className="absolute top-2 right-8 bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[20px] h-5 flex items-center justify-center">
+-                {unreadNotifications}
+-              </Badge>
+-            )}
+-            <Bell
+-              className={`w-6 h-6 ${
+-                activeTab === "notifications" ? "fill-current" : ""
+-              }`}
+-            />
+-            <span className="text-xs font-medium">Alerts</span>
+-          </button>
+         </div>
+       </div>
+     </div>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/src/app/contexts/WasherContext.tsx b/src/app/contexts/WasherContext.tsx
+index 0a9fa83..90d66ee 100644
+--- a/src/app/contexts/WasherContext.tsx
++++ b/src/app/contexts/WasherContext.tsx
+@@ -136,11 +136,12 @@ export function WasherProvider({ children }: WasherProviderProps) {
+   const [activeJob, setActiveJob] = useState<CustomerJob | null>(null);
+   const [jobExecution, setJobExecution] = useState<JobExecution | null>(null);
+   const [stats, setStats] = useState<WasherStats>({
++    jobsToday: 0,
+     completed: 0,
+     inProgress: 0,
+-    pending: 0,
++    remaining: 0,
+     totalEarnings: 0,
+-    todayEarnings: 0,
++    unitsCompleted: 0,
+   });
+   const [isLoading, setIsLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+@@ -446,7 +447,13 @@ export function WasherProvider({ children }: WasherProviderProps) {
+   const addPhoto = (type: "BEFORE" | "DURING" | "AFTER", url: string, stepId?: string) => {
+     if (!shouldActivate || !activeJob) return;
+ 
+-    washerDataService.addJobPhoto(activeJob.id, type, url, stepId);
++    washerDataService.addJobPhoto(activeJob.id, {
++      id: `photo-${Date.now()}`,
++      type,
++      url,
++      timestamp: new Date(),
++      stepId,
++    });
+     const updatedExecution = washerDataService.getJobExecution(activeJob.id);
+     setJobExecution(updatedExecution);
+   };
+diff --git a/src/app/routes.tsx b/src/app/routes.tsx
+index 52a0be1..717f815 100644
+--- a/src/app/routes.tsx
++++ b/src/app/routes.tsx
+@@ -205,7 +205,7 @@ const WeekOffCoverDemo = lazy(retryLazy(() => import("./components/washer/WeekOf
+ const SystemIntegrationDemo = lazy(retryLazy(() => import("./components/washer/SystemIntegrationDemo").then(m => ({default: m.SystemIntegrationDemo || m.default}))));
+ const WasherCoreScreensDemo = lazy(retryLazy(() => import("./components/washer/WasherCoreScreensDemo").then(m => ({default: m.WasherCoreScreensDemo || m.default}))));
+ const WasherCoreScreensConnected = lazy(retryLazy(() => import("./components/washer/WasherCoreScreensConnected").then(m => ({default: m.WasherCoreScreensConnected || m.default}))));
+-const SupervisorAppConnected = lazy(retryLazy(() => import("./components/supervisor/SupervisorAppConnected").then(m => ({default: m.SupervisorAppConnected || m.default}))));
++const WasherMobileShell = lazy(retryLazy(() => import("./components/washer/WasherMobileShell").then(m => ({default: m.WasherMobileShell || m.default}))));const SupervisorAppConnected = lazy(retryLazy(() => import("./components/supervisor/SupervisorAppConnected").then(m => ({default: m.SupervisorAppConnected || m.default}))));
+ const SupervisorLayout = lazy(retryLazy(() => import("./components/supervisor/SupervisorLayout").then(m => ({default: m.SupervisorLayout || m.default}))));
+ const ClusterManagerApp = lazy(retryLazy(() => import("./components/cm/ClusterManagerApp").then(m => ({default: m.ClusterManagerApp || m.default}))));
+ const CityManagerApp = lazy(retryLazy(() => import("./components/city/CityManagerApp").then(m => ({default: m.CityManagerApp || m.default}))));
+@@ -531,9 +531,12 @@ export const router = createHashRouter([
+ 
+       // Washer Core Screens Demo
+       { path: "washer-core-screens-demo", element: <DevOnlyRoute element={<WasherCoreScreensDemo />} /> },
+-      
+-      // Washer Core Screens Connected (Production)
+-      { path: "washer-core-screens", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense></ErrorBoundary> },
++
++      // Washer Mobile Shell — production entry point for Car Washer role
++      { path: "washer-core-screens", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherMobileShell /></Suspense></ErrorBoundary> },
++
++      // Washer Core Screens Connected — accessible from within the shell via nested navigation
++      { path: "washer-core-screens/connected", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense></ErrorBoundary> },
+ 
+       // Washer Attendance History
+       { path: "washer/attendance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherAttendanceHistory /></Suspense></ErrorBoundary> },
+diff --git a/src/app/services/mockWasherDataService.ts b/src/app/services/mockWasherDataService.ts
+index 47dc562..02ad509 100644
+--- a/src/app/services/mockWasherDataService.ts
++++ b/src/app/services/mockWasherDataService.ts
+@@ -67,6 +67,12 @@ export interface WasherStats {
+ }
+ 
+ class MockWasherDataService {
++  // Job cache — keyed by "washerId-date" so jobs are stable within a session
++  private jobCache: Map<string, CustomerJob[]> = new Map();
++
++  // Job status overrides — persists mutations from updateJobStatus/completeJob
++  private jobStatusOverrides: Map<string, CustomerJob["status"]> = new Map();
++
+   // Customer names pool
+   private customerNames = [
+     "Arjun", "Priya", "Rajesh", "Anjali", "Karan", "Sneha", "Vikram", "Pooja",
+@@ -157,6 +163,18 @@ class MockWasherDataService {
+ 
+   // Generate mock jobs
+   public getTodayJobs(washerId: string, count: number = 12): CustomerJob[] {
++    const today = new Date().toISOString().split("T")[0];
++    const cacheKey = `${washerId}-${today}`;
++
++    // Return cached jobs if available, applying any status overrides
++    if (this.jobCache.has(cacheKey)) {
++      const cached = this.jobCache.get(cacheKey)!;
++      return cached.map(job => ({
++        ...job,
++        status: this.jobStatusOverrides.get(job.id) ?? job.status,
++      }));
++    }
++
+     const jobs: CustomerJob[] = [];
+     const now = new Date();
+     const currentHour = now.getHours();
+@@ -239,7 +257,14 @@ class MockWasherDataService {
+       });
+     }
+ 
+-    return jobs;
++    // Cache generated jobs so they're stable for the rest of the session
++    this.jobCache.set(cacheKey, jobs);
++
++    // Apply any status overrides (e.g. jobs completed mid-session)
++    return jobs.map(job => ({
++      ...job,
++      status: this.jobStatusOverrides.get(job.id) ?? job.status,
++    }));
+   }
+ 
+   // Get washer stats
+@@ -267,10 +292,9 @@ class MockWasherDataService {
+     return inProgressJobs.length > 0 ? inProgressJobs[0] : null;
+   }
+ 
+-  // Update job status (for testing)
++  // Update job status (persists via override map)
+   public updateJobStatus(jobId: string, newStatus: CustomerJob["status"]): void {
+-    // In real app, this would update the backend
+-    console.log(`Job ${jobId} status updated to ${newStatus}`);
++    this.jobStatusOverrides.set(jobId, newStatus);
+   }
+ 
+   // Simulate job completion
+diff --git a/src/app/services/periodicScheduleService.ts b/src/app/services/periodicScheduleService.ts
+index afc9365..a42b68c 100644
+--- a/src/app/services/periodicScheduleService.ts
++++ b/src/app/services/periodicScheduleService.ts
+@@ -187,7 +187,24 @@ class PeriodicScheduleService {
+     return `${customerId}-${serviceType}-${billingMonth}-${index}`;
+   }
+ 
+-  // ── Generate all occurrences for a customer from startDate → 12 months ahead
++  // ── Rolling 30-day month: day offsets per frequency ──────────────────────
++  // "month" here = 30-day window from subscriptionStartDate, repeated.
++  // Customer month N starts at: subscriptionStartDate + (N-1)*30 days
++  //
++  // Day offsets within the 30-day window:
++  //   1×/month  → [10]              (e.g. wax, engine, fragrance, tyre in PROTECT)
++  //   2×/month  → [1, 15]           (e.g. shampoo/interior in PROTECT, tyre/dashboard in ELITE)
++  //   4×/month  → [1, 8, 15, 22]   (e.g. shampoo in ELITE)
++  //
++  // Cap from PLAN_CONFIG drives which offsets array is used.
++
++  private getDayOffsets(cap: number): number[] {
++    if (cap >= 4) return [1, 8, 15, 22];
++    if (cap === 2) return [1, 15];
++    return [10]; // cap === 1
++  }
++
++  // ── Generate all occurrences for a customer from startDate → 3 rolling months
+ 
+   private generateOccurrences(
+     customerId: string,
+@@ -198,38 +215,24 @@ class PeriodicScheduleService {
+     if (!config || config.services.length === 0) return [];
+ 
+     const occurrences: PeriodicOccurrence[] = [];
+-    const horizonMonths = 3; // generate 3 months ahead
+-    const today = this.today();
+-    const [sy, sm] = today.split("-").map(Number);
+ 
+-    for (let mOffset = 0; mOffset <= horizonMonths; mOffset++) {
+-      const year  = sm + mOffset > 12 ? sy + 1 : sy;
+-      const month = ((sm - 1 + mOffset) % 12) + 1;
+-      const billingMonth = `${year}-${String(month).padStart(2, "0")}`;
++    // Generate for months 1–4 (current + 3 ahead)
++    // Month N = days [(N-1)*30 .. N*30-1] from subscriptionStartDate (0-indexed)
++    for (let monthIdx = 0; monthIdx < 4; monthIdx++) {
++      const monthWindowStart = this.addDays(subscriptionStartDate, monthIdx * 30);
++      const billingMonth = `M${monthIdx + 1}`; // M1, M2, M3, M4 — rolling label
+ 
+-      // For each service in the plan, compute how many times it falls in this month
+       for (const svc of config.services) {
+-        const interval = svc === "wax" ? WAX_INTERVAL_DAYS : config.intervalDays;
+-        const cap      = config.monthlyCaps[svc];
+-        if (cap === 0) continue;
+-
+-        // Walk from subscriptionStartDate forward in interval steps until we pass this month
+-        let cursor = subscriptionStartDate;
+-        // Advance cursor to first occurrence after subscription start
+-        cursor = this.addDays(cursor, interval);
+-
+-        // Collect all occurrences in this billing month
+-        const inMonth: string[] = [];
+-        // Max 366 iterations safety
+-        for (let iter = 0; iter < 366 && inMonth.length < cap; iter++) {
+-          if (cursor > `${billingMonth}-31`) break;
+-          if (this.toYM(cursor) === billingMonth) inMonth.push(cursor);
+-          cursor = this.addDays(cursor, interval);
+-        }
+-
+-        inMonth.slice(0, cap).forEach((date, idx) => {
++        const cap = config.monthlyCaps[svc];
++        if (!cap || cap === 0) continue;
++
++        const offsets = this.getDayOffsets(cap);
++
++        offsets.forEach((dayOffset, idx) => {
++          // Day offset is 1-based within the 30-day window
++          const date = this.addDays(monthWindowStart, dayOffset - 1);
+           occurrences.push({
+-            id:            this.occId(customerId, svc, billingMonth, idx),
++            id:            this.occId(customerId, svc, `${billingMonth}`, idx),
+             customerId,
+             serviceType:   svc,
+             scheduledDate: date,
+@@ -272,17 +275,34 @@ class PeriodicScheduleService {
+   getTodayServices(customerId: string, today?: string): PeriodicOccurrence[] {
+     const d = today ?? this.today();
+     return this.getCustomerOccurrences(customerId)
+-      .filter(o => o.scheduledDate === d && o.status === "scheduled");
++      .filter(o => o.scheduledDate === d && (o.status === "scheduled" || o.status === "rescheduled"));
++  }
++
++  // ── Public: derive rolling billing month label for today ──────────────────
++  // Returns "M1", "M2", etc. based on how many 30-day periods have elapsed
++  // since subscriptionStartDate.
++
++  private getRollingBillingMonth(subscriptionStartDate: string, forDate?: string): string {
++    const start = new Date(subscriptionStartDate);
++    const check = new Date(forDate ?? this.today());
++    const diffDays = Math.floor((check.getTime() - start.getTime()) / 86400000);
++    if (diffDays < 0) return "M1";
++    const monthIdx = Math.floor(diffDays / 30); // 0-based
++    return `M${monthIdx + 1}`;
+   }
+ 
+   // ── Public: monthly usage summary ─────────────────────────────────────────
+ 
+   getMonthlyUsage(customerId: string, billingMonth?: string): MonthlyUsage {
+-    const month = billingMonth ?? this.toYM(this.today());
+-    const occs  = this.getCustomerOccurrences(customerId)
++    const schedule = this.readCustomer(customerId);
++    // Derive current rolling billing month from subscription start date
++    const month = billingMonth
++      ?? (schedule ? this.getRollingBillingMonth(schedule.subscriptionStartDate) : "M1");
++
++    const occs = this.getCustomerOccurrences(customerId)
+       .filter(o => o.billingMonth === month);
+ 
+-    const pkg    = this.readCustomer(customerId)?.packageType ?? "EXPRESS_WASH";
++    const pkg    = schedule?.packageType ?? "EXPRESS_WASH";
+     const config = PLAN_CONFIG[pkg] ?? PLAN_CONFIG.EXPRESS_WASH;
+ 
+     const count = (svc: PeriodicServiceType, statuses: string[]) =>
+@@ -292,11 +312,13 @@ class PeriodicScheduleService {
+       count(svc, ["completed", "rescheduled", "scheduled"]);
+ 
+     return {
+-      shampoo:  { used: used("shampoo"),  cap: config.monthlyCaps.shampoo  },
+-      wax:      { used: used("wax"),      cap: config.monthlyCaps.wax      },
+-      glass:    { used: used("dashboard"),    cap: config.monthlyCaps.glass    },
+-      tyre:     { used: used("tyre"),     cap: config.monthlyCaps.tyre     },
+-      interior: { used: used("interior"), cap: config.monthlyCaps.interior },
++      shampoo:   { used: used("shampoo"),   cap: config.monthlyCaps.shampoo   },
++      wax:       { used: used("wax"),       cap: config.monthlyCaps.wax       },
++      interior:  { used: used("interior"),  cap: config.monthlyCaps.interior  },
++      tyre:      { used: used("tyre"),       cap: config.monthlyCaps.tyre      },
++      dashboard: { used: used("dashboard"), cap: config.monthlyCaps.dashboard },
++      engine:    { used: used("engine"),    cap: config.monthlyCaps.engine    },
++      fragrance: { used: used("fragrance"), cap: config.monthlyCaps.fragrance },
+     };
+   }
+ 
+@@ -334,10 +356,12 @@ class PeriodicScheduleService {
+         message: `${PERIODIC_SERVICE_META[occ.serviceType].name} on ${occ.scheduledDate} is already completed. Cannot reschedule.` };
+     }
+ 
+-    // Rule (a): must stay in same billing month
+-    if (!this.isInMonth(newDate, occ.billingMonth)) {
++    // Rule (a): new date must fall in the same 30-day rolling window as the original
++    const schedule2 = this.readCustomer(customerId)!;
++    const expectedMonth = this.getRollingBillingMonth(schedule2.subscriptionStartDate, newDate);
++    if (expectedMonth !== occ.billingMonth) {
+       return { success: false, error: "out_of_month",
+-        message: `New date must be within billing month ${occ.billingMonth}. Requested: ${newDate}.` };
++        message: `New date must be within the same 30-day billing window (${occ.billingMonth}). Requested date falls in ${expectedMonth}.` };
+     }
+ 
+     // Rule (c): cap — check if another occurrence of same type already exists in this month
+diff --git a/src/app/services/washerDataService.ts b/src/app/services/washerDataService.ts
+index 482a134..90099c7 100644
+--- a/src/app/services/washerDataService.ts
++++ b/src/app/services/washerDataService.ts
+@@ -258,7 +258,10 @@ class WasherDataService {
+ 
+   startJob(jobId: string, washerId: string = this.currentWasherId): JobExecution {
+     // In production: POST /api/washer/job/:jobId/start
+-    
++
++    // Persist status change so getInProgressJob() finds it after loadData()
++    mockWasherDataService.updateJobStatus(jobId, "In Progress");
++
+     const execution: JobExecution = {
+       jobId,
+       washerId,

@@ -258,7 +258,10 @@ class WasherDataService {
 
   startJob(jobId: string, washerId: string = this.currentWasherId): JobExecution {
     // In production: POST /api/washer/job/:jobId/start
-    
+
+    // Persist status change so getInProgressJob() finds it after loadData()
+    mockWasherDataService.updateJobStatus(jobId, "In Progress");
+
     const execution: JobExecution = {
       jobId,
       washerId,

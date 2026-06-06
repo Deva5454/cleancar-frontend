@@ -205,7 +205,7 @@ const WeekOffCoverDemo = lazy(retryLazy(() => import("./components/washer/WeekOf
 const SystemIntegrationDemo = lazy(retryLazy(() => import("./components/washer/SystemIntegrationDemo").then(m => ({default: m.SystemIntegrationDemo || m.default}))));
 const WasherCoreScreensDemo = lazy(retryLazy(() => import("./components/washer/WasherCoreScreensDemo").then(m => ({default: m.WasherCoreScreensDemo || m.default}))));
 const WasherCoreScreensConnected = lazy(retryLazy(() => import("./components/washer/WasherCoreScreensConnected").then(m => ({default: m.WasherCoreScreensConnected || m.default}))));
-const SupervisorAppConnected = lazy(retryLazy(() => import("./components/supervisor/SupervisorAppConnected").then(m => ({default: m.SupervisorAppConnected || m.default}))));
+const WasherMobileShell = lazy(retryLazy(() => import("./components/washer/WasherMobileShell").then(m => ({default: m.WasherMobileShell || m.default}))));const SupervisorAppConnected = lazy(retryLazy(() => import("./components/supervisor/SupervisorAppConnected").then(m => ({default: m.SupervisorAppConnected || m.default}))));
 const SupervisorLayout = lazy(retryLazy(() => import("./components/supervisor/SupervisorLayout").then(m => ({default: m.SupervisorLayout || m.default}))));
 const ClusterManagerApp = lazy(retryLazy(() => import("./components/cm/ClusterManagerApp").then(m => ({default: m.ClusterManagerApp || m.default}))));
 const CityManagerApp = lazy(retryLazy(() => import("./components/city/CityManagerApp").then(m => ({default: m.CityManagerApp || m.default}))));
@@ -531,9 +531,12 @@ export const router = createHashRouter([
 
       // Washer Core Screens Demo
       { path: "washer-core-screens-demo", element: <DevOnlyRoute element={<WasherCoreScreensDemo />} /> },
-      
-      // Washer Core Screens Connected (Production)
-      { path: "washer-core-screens", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense></ErrorBoundary> },
+
+      // Washer Mobile Shell — production entry point for Car Washer role
+      { path: "washer-core-screens", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherMobileShell /></Suspense></ErrorBoundary> },
+
+      // Washer Core Screens Connected — accessible from within the shell via nested navigation
+      { path: "washer-core-screens/connected", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense></ErrorBoundary> },
 
       // Washer Attendance History
       { path: "washer/attendance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherAttendanceHistory /></Suspense></ErrorBoundary> },

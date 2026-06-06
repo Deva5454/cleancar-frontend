@@ -136,11 +136,12 @@ export function WasherProvider({ children }: WasherProviderProps) {
   const [activeJob, setActiveJob] = useState<CustomerJob | null>(null);
   const [jobExecution, setJobExecution] = useState<JobExecution | null>(null);
   const [stats, setStats] = useState<WasherStats>({
+    jobsToday: 0,
     completed: 0,
     inProgress: 0,
-    pending: 0,
+    remaining: 0,
     totalEarnings: 0,
-    todayEarnings: 0,
+    unitsCompleted: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -446,7 +447,13 @@ export function WasherProvider({ children }: WasherProviderProps) {
   const addPhoto = (type: "BEFORE" | "DURING" | "AFTER", url: string, stepId?: string) => {
     if (!shouldActivate || !activeJob) return;
 
-    washerDataService.addJobPhoto(activeJob.id, type, url, stepId);
+    washerDataService.addJobPhoto(activeJob.id, {
+      id: `photo-${Date.now()}`,
+      type,
+      url,
+      timestamp: new Date(),
+      stepId,
+    });
     const updatedExecution = washerDataService.getJobExecution(activeJob.id);
     setJobExecution(updatedExecution);
   };

@@ -187,7 +187,24 @@ class PeriodicScheduleService {
     return `${customerId}-${serviceType}-${billingMonth}-${index}`;
   }
 
-  // ── Generate all occurrences for a customer from startDate → 12 months ahead
+  // ── Rolling 30-day month: day offsets per frequency ──────────────────────
+  // "month" here = 30-day window from subscriptionStartDate, repeated.
+  // Customer month N starts at: subscriptionStartDate + (N-1)*30 days
+  //
+  // Day offsets within the 30-day window:
+  //   1×/month  → [10]              (e.g. wax, engine, fragrance, tyre in PROTECT)
+  //   2×/month  → [1, 15]           (e.g. shampoo/interior in PROTECT, tyre/dashboard in ELITE)
+  //   4×/month  → [1, 8, 15, 22]   (e.g. shampoo in ELITE)
+  //
+  // Cap from PLAN_CONFIG drives which offsets array is used.
+
+  private getDayOffsets(cap: number): number[] {
+    if (cap >= 4) return [1, 8, 15, 22];
+    if (cap === 2) return [1, 15];
+    return [10]; // cap === 1
+  }
+
+  // ── Generate all occurrences for a customer from startDate → 3 rolling months
 
   private generateOccurrences(
     customerId: string,
@@ -198,38 +215,24 @@ class PeriodicScheduleService {
     if (!config || config.services.length === 0) return [];
 
     const occurrences: PeriodicOccurrence[] = [];
-    const horizonMonths = 3; // generate 3 months ahead
-    const today = this.today();
-    const [sy, sm] = today.split("-").map(Number);
 
-    for (let mOffset = 0; mOffset <= horizonMonths; mOffset++) {
-      const year  = sm + mOffset > 12 ? sy + 1 : sy;
-      const month = ((sm - 1 + mOffset) % 12) + 1;
-      const billingMonth = `${year}-${String(month).padStart(2, "0")}`;
+    // Generate for months 1–4 (current + 3 ahead)
+    // Month N = days [(N-1)*30 .. N*30-1] from subscriptionStartDate (0-indexed)
+    for (let monthIdx = 0; monthIdx < 4; monthIdx++) {
+      const monthWindowStart = this.addDays(subscriptionStartDate, monthIdx * 30);
+      const billingMonth = `M${monthIdx + 1}`; // M1, M2, M3, M4 — rolling label
 
-      // For each service in the plan, compute how many times it falls in this month
       for (const svc of config.services) {
-        const interval = svc === "wax" ? WAX_INTERVAL_DAYS : config.intervalDays;
-        const cap      = config.monthlyCaps[svc];
-        if (cap === 0) continue;
+        const cap = config.monthlyCaps[svc];
+        if (!cap || cap === 0) continue;
 
-        // Walk from subscriptionStartDate forward in interval steps until we pass this month
-        let cursor = subscriptionStartDate;
-        // Advance cursor to first occurrence after subscription start
-        cursor = this.addDays(cursor, interval);
+        const offsets = this.getDayOffsets(cap);
 
-        // Collect all occurrences in this billing month
-        const inMonth: string[] = [];
-        // Max 366 iterations safety
-        for (let iter = 0; iter < 366 && inMonth.length < cap; iter++) {
-          if (cursor > `${billingMonth}-31`) break;
-          if (this.toYM(cursor) === billingMonth) inMonth.push(cursor);
-          cursor = this.addDays(cursor, interval);
-        }
-
-        inMonth.slice(0, cap).forEach((date, idx) => {
+        offsets.forEach((dayOffset, idx) => {
+          // Day offset is 1-based within the 30-day window
+          const date = this.addDays(monthWindowStart, dayOffset - 1);
           occurrences.push({
-            id:            this.occId(customerId, svc, billingMonth, idx),
+            id:            this.occId(customerId, svc, `${billingMonth}`, idx),
             customerId,
             serviceType:   svc,
             scheduledDate: date,
@@ -272,17 +275,34 @@ class PeriodicScheduleService {
   getTodayServices(customerId: string, today?: string): PeriodicOccurrence[] {
     const d = today ?? this.today();
     return this.getCustomerOccurrences(customerId)
-      .filter(o => o.scheduledDate === d && o.status === "scheduled");
+      .filter(o => o.scheduledDate === d && (o.status === "scheduled" || o.status === "rescheduled"));
+  }
+
+  // ── Public: derive rolling billing month label for today ──────────────────
+  // Returns "M1", "M2", etc. based on how many 30-day periods have elapsed
+  // since subscriptionStartDate.
+
+  private getRollingBillingMonth(subscriptionStartDate: string, forDate?: string): string {
+    const start = new Date(subscriptionStartDate);
+    const check = new Date(forDate ?? this.today());
+    const diffDays = Math.floor((check.getTime() - start.getTime()) / 86400000);
+    if (diffDays < 0) return "M1";
+    const monthIdx = Math.floor(diffDays / 30); // 0-based
+    return `M${monthIdx + 1}`;
   }
 
   // ── Public: monthly usage summary ─────────────────────────────────────────
 
   getMonthlyUsage(customerId: string, billingMonth?: string): MonthlyUsage {
-    const month = billingMonth ?? this.toYM(this.today());
-    const occs  = this.getCustomerOccurrences(customerId)
+    const schedule = this.readCustomer(customerId);
+    // Derive current rolling billing month from subscription start date
+    const month = billingMonth
+      ?? (schedule ? this.getRollingBillingMonth(schedule.subscriptionStartDate) : "M1");
+
+    const occs = this.getCustomerOccurrences(customerId)
       .filter(o => o.billingMonth === month);
 
-    const pkg    = this.readCustomer(customerId)?.packageType ?? "EXPRESS_WASH";
+    const pkg    = schedule?.packageType ?? "EXPRESS_WASH";
     const config = PLAN_CONFIG[pkg] ?? PLAN_CONFIG.EXPRESS_WASH;
 
     const count = (svc: PeriodicServiceType, statuses: string[]) =>
@@ -292,11 +312,13 @@ class PeriodicScheduleService {
       count(svc, ["completed", "rescheduled", "scheduled"]);
 
     return {
-      shampoo:  { used: used("shampoo"),  cap: config.monthlyCaps.shampoo  },
-      wax:      { used: used("wax"),      cap: config.monthlyCaps.wax      },
-      glass:    { used: used("dashboard"),    cap: config.monthlyCaps.glass    },
-      tyre:     { used: used("tyre"),     cap: config.monthlyCaps.tyre     },
-      interior: { used: used("interior"), cap: config.monthlyCaps.interior },
+      shampoo:   { used: used("shampoo"),   cap: config.monthlyCaps.shampoo   },
+      wax:       { used: used("wax"),       cap: config.monthlyCaps.wax       },
+      interior:  { used: used("interior"),  cap: config.monthlyCaps.interior  },
+      tyre:      { used: used("tyre"),       cap: config.monthlyCaps.tyre      },
+      dashboard: { used: used("dashboard"), cap: config.monthlyCaps.dashboard },
+      engine:    { used: used("engine"),    cap: config.monthlyCaps.engine    },
+      fragrance: { used: used("fragrance"), cap: config.monthlyCaps.fragrance },
     };
   }
 
@@ -334,10 +356,12 @@ class PeriodicScheduleService {
         message: `${PERIODIC_SERVICE_META[occ.serviceType].name} on ${occ.scheduledDate} is already completed. Cannot reschedule.` };
     }
 
-    // Rule (a): must stay in same billing month
-    if (!this.isInMonth(newDate, occ.billingMonth)) {
+    // Rule (a): new date must fall in the same 30-day rolling window as the original
+    const schedule2 = this.readCustomer(customerId)!;
+    const expectedMonth = this.getRollingBillingMonth(schedule2.subscriptionStartDate, newDate);
+    if (expectedMonth !== occ.billingMonth) {
       return { success: false, error: "out_of_month",
-        message: `New date must be within billing month ${occ.billingMonth}. Requested: ${newDate}.` };
+        message: `New date must be within the same 30-day billing window (${occ.billingMonth}). Requested date falls in ${expectedMonth}.` };
     }
 
     // Rule (c): cap — check if another occurrence of same type already exists in this month

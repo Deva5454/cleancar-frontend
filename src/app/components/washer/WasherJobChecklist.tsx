@@ -77,7 +77,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
     const shampooSection: ChecklistSection = {
     id: "shampoo",
-    title: "🧴 Shampoo Wash",
+    name: "🧴 Shampoo Wash", isOpen: true,
     items: [
       { id: "sha-1", name: "Apply car-safe shampoo foam — spray evenly, all panels",         completed: false, skipped: false },
       { id: "sha-2", name: "Work foam with microfibre mitt — circular motion, panel by panel", completed: false, skipped: false },
@@ -90,7 +90,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
     const waxSection: ChecklistSection = {
     id: "wax",
-    title: "✨ Full Hand Wax Polish",
+    name: "✨ Full Hand Wax Polish", isOpen: true,
     items: [
       { id: "wax-1", name: "Shampoo wash complete first — car must be clean and dry",          completed: false, skipped: false },
       { id: "wax-2", name: "Apply wax one panel at a time — do not spread over whole car",      completed: false, skipped: false },
@@ -115,7 +115,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
     const dashboardSection: ChecklistSection = {
     id: "dashboard",
-    title: "🧹 Dashboard & Console Deep Clean",
+    name: "🧹 Dashboard & Console Deep Clean", isOpen: true,
     items: [
       { id: "dash-1", name: "Dashboard polish — wipe panel by panel",                         completed: false, skipped: false },
       { id: "dash-2", name: "Console polish — gear surround, centre console, cupholders",      completed: false, skipped: false },
@@ -152,7 +152,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
     const engineSection: ChecklistSection = {
     id: "engine",
-    title: "⚙️ Engine Bay Dry Blow",
+    name: "⚙️ Engine Bay Dry Blow", isOpen: true,
     items: [
       { id: "eng-1", name: "⚠️ STRICTLY DRY ONLY — no water in engine bay under any circumstances", completed: false, skipped: false },
       { id: "eng-2", name: "Dry blow with compressed air / blower — remove dust and debris",   completed: false, skipped: false },
@@ -164,7 +164,7 @@ function buildChecklistSections(job: any): ChecklistSection[] {
 
   const fragranceSection: ChecklistSection = {
     id: "fragrance",
-    title: "🌸 Car Fragrance Application",
+    name: "🌸 Car Fragrance Application", isOpen: true,
     items: [
       { id: "fra-1", name: "Interior dry and windows up before applying fragrance",    completed: false, skipped: false },
       { id: "fra-2", name: "Spray fragrance — 2-3 short bursts, not directly on seats", completed: false, skipped: false },
