@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TELE SALES EXECUTIVE (TSE) SERVICE
  * Central data service for TSE operations
  *
@@ -104,9 +104,9 @@ class TeleSalesExecutiveService {
       return [];
     }
 
-    // Get plan tiers for this category
+    // Get plan tiers for this category — 2W not in scope, filter out
     const plans = subscriptionPlansService.getPlanTiersByCategory(matchedCategory.id);
-    return plans || [];
+    return (plans || []).filter(p => !p.name.includes("2W") && !p.name.includes("SCOOTER") && !p.name.includes("BIKE"));
   }
 
   /**
