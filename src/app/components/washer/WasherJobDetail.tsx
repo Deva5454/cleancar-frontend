@@ -14,17 +14,18 @@ interface WasherJobDetailProps {
   onBack: () => void;
   onStartJob: () => void;
   onCompleteJob: () => void;
+  forceInProgress?: boolean;
 }
 
-export function WasherJobDetail({ job, onBack, onStartJob, onCompleteJob }: WasherJobDetailProps) {
-  const [activeTab, setActiveTab] = useState("info");
+export function WasherJobDetail({ job, onBack, onStartJob, onCompleteJob, forceInProgress = false }: WasherJobDetailProps) {
+  const [activeTab, setActiveTab] = useState(forceInProgress ? "checklist" : "info");
   const [checklistComplete, setChecklistComplete] = useState(false);
   const [photosComplete, setPhotosComplete] = useState(false);
 
-  const canStartJob = job.status === "Assigned" || job.status === "Acknowledged";
-  const isInProgress = job.status === "In Progress";
-  const isCompleted = job.status === "Completed";
-  const isVerified = job.status === "Verified";
+  const canStartJob = !forceInProgress && (job.status === "Assigned" || job.status === "Acknowledged");
+  const isInProgress = forceInProgress || job.status === "In Progress";
+  const isCompleted = !forceInProgress && job.status === "Completed";
+  const isVerified = !forceInProgress && job.status === "Verified";
   const isReportUnlocked = isCompleted || isVerified || (checklistComplete && photosComplete);
 
   const handleChecklistChange = (complete: boolean, photos: boolean, autoAdvance?: string) => {

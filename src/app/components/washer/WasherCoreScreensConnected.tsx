@@ -238,6 +238,7 @@ export function WasherCoreScreensConnected() {
         return currentJob ? (
           <WasherJobDetail
             job={currentJob}
+            forceInProgress={true}
             onBack={() => setScreen("schedule")}
             onStartJob={() => {
               updateJobStatus(currentJob.id, "In Progress");
