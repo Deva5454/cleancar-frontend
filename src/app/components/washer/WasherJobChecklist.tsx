@@ -411,7 +411,7 @@ export function WasherJobChecklist({ job, onChecklistChange, isInProgress }: Was
   };
 
   return (
-    <div className="space-y-4 p-4 pb-24">
+    <div className="space-y-4 p-4 pb-40">
       {/* Hidden file inputs for photo upload */}
       <input
         ref={beforePhotoInputRef}

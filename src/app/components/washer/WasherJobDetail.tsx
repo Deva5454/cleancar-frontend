@@ -38,7 +38,7 @@ export function WasherJobDetail({ job, onBack, onStartJob, onCompleteJob }: Wash
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-32">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">
@@ -106,7 +106,7 @@ export function WasherJobDetail({ job, onBack, onStartJob, onCompleteJob }: Wash
 
       {/* Bottom Action Button */}
       {!isCompleted && !isVerified && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
           {canStartJob && (
             <Button
               onClick={onStartJob}
@@ -117,15 +117,16 @@ export function WasherJobDetail({ job, onBack, onStartJob, onCompleteJob }: Wash
           )}
           {isInProgress && (
             <Button
+              onClick={() => {}}
               className="w-full h-14 bg-amber-500 hover:bg-amber-600 text-white text-lg font-semibold"
             >
-              Resume Job
+              Job In Progress — Complete Checklist Above
             </Button>
           )}
         </div>
       )}
       {(isCompleted || isVerified) && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
           <div className="space-y-2">
             <Button
               onClick={() => setActiveTab("report")}
