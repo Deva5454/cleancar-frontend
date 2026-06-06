@@ -511,7 +511,7 @@ export const WASHES_PER_MONTH = 30;
 export const PLAN_TIER_NAMES: Record<string, string> = {
   EXPRESS_WASH: "Express Wash",
   SMART_WASH:   "Smart Wash",
-  ELITE_WASH:   "Elite Wash",`n  ELITE:        "Elite Wash",
+  ELITE_WASH:   "Elite Wash",
   ELITE_2W:     "ELITE (2-Wheeler)",
 };
 
