@@ -7,8 +7,8 @@
 
 import { DataService } from "./DataService";
 import { logger } from "./logger";
-// PayrollStatus is the canonical type from payrollWorkflow
-// Mapping: Draft→draft, Processed→under_review, Approved→approved, Paid→disbursed, Rejected→rejected
+import type { PayrollStatus } from "../utils/payrollWorkflow";
+// PayrollStatus canonical type — imported above and re-exported for consumers
 export type { PayrollStatus } from "../utils/payrollWorkflow";
 
 // ========== TYPES ==========
