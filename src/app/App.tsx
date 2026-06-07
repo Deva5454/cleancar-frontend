@@ -1,12 +1,7 @@
 import { RouterProvider } from "react-router-dom";
 import { router } from "./routes";
 import { Toaster } from "sonner";
-import { Component, ErrorInfo, ReactNode, useEffect } from "react";
-import { initializeHRData } from "./utils/hr-data-initializer";
-import { EventMonitor } from "./components/crm/EventMonitor";
-import { useGlobalEventHandlers } from "./hooks/useGlobalEventHandlers";
-import { AppProvider } from "./contexts/AppProvider";
-
+import { Component, ErrorInfo, ReactNode } from "react";
 class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean; error: Error | null}> {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
@@ -30,15 +25,10 @@ class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean;
 }
 
 function AppContent() {
-  useEffect(() => {
-    try { initializeHRData(); } catch (e) { console.error("HR init failed:", e); }
-  }, []);
-  useGlobalEventHandlers();
   return (
     <>
       <RouterProvider router={router} />
       <Toaster position="top-right" richColors />
-      <EventMonitor />
     </>
   );
 }
@@ -46,9 +36,7 @@ function AppContent() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
+      <AppContent />
     </ErrorBoundary>
   );
 }
