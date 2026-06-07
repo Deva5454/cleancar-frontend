@@ -59,6 +59,7 @@ export function RootLayout() {
   const isPreview = import.meta.env.MODE === "development"
     || window.location.hostname === "localhost"
     || window.location.hostname.includes("figma")
+    || window.location.hostname.includes("vercel.app")
     || window.location.hash.includes("preview-route");
 
   // ── Session guard ────────────────────────────────────────────────────────
@@ -67,7 +68,8 @@ export function RootLayout() {
   // any authenticated page. Unauthenticated requests are sent to /login.
   const _isDevMode = import.meta.env.MODE === "development"
     || window.location.hostname === "localhost"
-    || window.location.hostname.includes("figma");
+    || window.location.hostname.includes("figma")
+    || window.location.hostname.includes("vercel.app");
   if (!_isDevMode) {
     const _session = (() => {
       try { return JSON.parse(localStorage.getItem("cc360_session") || "null"); }

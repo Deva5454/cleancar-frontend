@@ -45,6 +45,7 @@ export function RootLayout() {
   const isPreview = import.meta.env.MODE === "development"
     || window.location.hostname === "localhost"
     || window.location.hostname.includes("figma")
+    || window.location.hostname.includes("vercel.app")
     || new URLSearchParams(window.location.search).get("preview-route") !== null;
 
   const session = localStorage.getItem("cc360_session");
