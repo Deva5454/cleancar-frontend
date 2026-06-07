@@ -28,18 +28,16 @@ export function RouteGuard() {
     const SELF_SERVICE = ["dashboard", "travel"];
     if (SELF_SERVICE.includes(routeConfig.module) && currentUser) return;
 
-    const currentEmployee = currentUser
-      ? employees.find(e =>
-          e.employeeId === currentUser.employeeId ||
-          e.id === currentUser.employeeId
-        ) || null
-      : null;
-
-    const empForCheck = currentEmployee || (currentUser ? {
+    // Build permission check object from currentUser directly (role-based).
+    // Searching employees[] by employeeId is unreliable in preview/demo mode
+    // because stub IDs (EMP-001) never match seeded IDs (EDB-SA-01).
+    // Role-based check is sufficient — employee lookup is only needed for
+    // custom per-employee overrides which are rare.
+    const empForCheck = currentUser ? {
       role: currentUser.role,
       cityId: currentUser.cityId || "CITY-SURAT",
       customPermissions: (currentUser as any).customPermissions,
-    } : null);
+    } : null;
 
     const hasAccess = empForCheck
       ? hasPermission(empForCheck, routeConfig.module, "view")
