@@ -431,18 +431,31 @@ class AccountingEntryService {
   }
 
   private getEntries(): AccountingEntry[] {
-    try { return JSON.parse(localStorage.getItem(this.ENTRIES_KEY) || "[]"); }
-    catch { return []; }
+    // Fix 17: use DataService for consistency — migrate raw key on first access
+    const ds = DataService.get<AccountingEntry>("ACCOUNTING_ENTRIES");
+    if (ds.length === 0) {
+      try {
+        const raw: AccountingEntry[] = JSON.parse(localStorage.getItem(this.ENTRIES_KEY) || "[]");
+        if (raw.length > 0) { DataService.setAll("ACCOUNTING_ENTRIES", raw); localStorage.removeItem(this.ENTRIES_KEY); return raw; }
+      } catch { /* ignore */ }
+    }
+    return ds;
   }
   private saveEntries(entries: AccountingEntry[]): void {
-    localStorage.setItem(this.ENTRIES_KEY, JSON.stringify(entries));
+    DataService.setAll("ACCOUNTING_ENTRIES", entries);
   }
   private getJournals(): JournalEntry[] {
-    try { return JSON.parse(localStorage.getItem(this.JOURNAL_KEY) || "[]"); }
-    catch { return []; }
+    const ds = DataService.get<JournalEntry>("JOURNAL_ENTRIES");
+    if (ds.length === 0) {
+      try {
+        const raw: JournalEntry[] = JSON.parse(localStorage.getItem(this.JOURNAL_KEY) || "[]");
+        if (raw.length > 0) { DataService.setAll("JOURNAL_ENTRIES", raw); localStorage.removeItem(this.JOURNAL_KEY); return raw; }
+      } catch { /* ignore */ }
+    }
+    return ds;
   }
   private saveJournals(journals: JournalEntry[]): void {
-    localStorage.setItem(this.JOURNAL_KEY, JSON.stringify(journals));
+    DataService.setAll("JOURNAL_ENTRIES", journals);
   }
 
   createEntry(
@@ -597,14 +610,21 @@ class AccountingEntryService {
   }
 
   getLedgers(cityId?: string): LedgerMaster[] {
-    const all: LedgerMaster[] = JSON.parse(localStorage.getItem(this.LEDGER_KEY) || "[]");
-    // Ensure system ledgers always exist for the requested city
+    // Fix 12: use DataService; auto-migrate raw localStorage on first access
+    let all: LedgerMaster[] = DataService.get<LedgerMaster>("LEDGER_MASTERS");
+    if (all.length === 0) {
+      try {
+        const raw: LedgerMaster[] = JSON.parse(localStorage.getItem(this.LEDGER_KEY) || "[]");
+        if (raw.length > 0) {
+          DataService.setAll("LEDGER_MASTERS", raw);
+          localStorage.removeItem(this.LEDGER_KEY);
+          all = raw;
+        }
+      } catch { /* ignore */ }
+    }
     const effectiveCityId = cityId || "CITY-SURAT";
     const withSystem = this.ensureSystemLedgers(all, effectiveCityId);
-    // FIX: filter system ledgers by city too — prevents Mumbai ledgers bleeding into Surat view
-    return cityId
-      ? withSystem.filter(l => l.cityId === cityId)
-      : withSystem;
+    return cityId ? withSystem.filter(l => l.cityId === cityId) : withSystem;
   }
 
   private ensureSystemLedgers(existing: LedgerMaster[], cityId: string): LedgerMaster[] {
@@ -752,17 +772,18 @@ class AccountingEntryService {
   }
 
   saveLedger(ledger: LedgerMaster): void {
+    // Fix 12: DataService instead of raw localStorage
     const all = this.getLedgers();
     const idx = all.findIndex(l => l.id === ledger.id);
     idx >= 0 ? all.splice(idx, 1, ledger) : all.push(ledger);
-    localStorage.setItem(this.LEDGER_KEY, JSON.stringify(all));
+    DataService.setAll("LEDGER_MASTERS", all);
   }
 
   deleteLedger(id: string): boolean {
     const all = this.getLedgers();
     const ledger = all.find(l => l.id === id);
     if (!ledger || ledger.isSystem) return false;
-    localStorage.setItem(this.LEDGER_KEY, JSON.stringify(all.filter(l => l.id !== id)));
+    DataService.setAll("LEDGER_MASTERS", all.filter(l => l.id !== id));
     return true;
   }
 

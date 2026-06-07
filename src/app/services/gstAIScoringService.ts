@@ -139,11 +139,27 @@ export function analyzeTransaction(transaction: any): ScoringResult {
     corrections.some(c => !c.autoApplicable) ||
     transaction.invoiceTotal > HIGH_VALUE_THRESHOLD;
 
-  return {
+  const result: ScoringResult = {
     totalScore,
     riskLevel,
     factors,
     corrections,
     requiresManagerReview
   };
+
+  // Fix 16: persist score to vendor record so it survives page reload
+  if (transaction.partyId) {
+    try {
+      const vendor = gstComplianceService.getVendors().find(v => v.id === transaction.partyId);
+      if (vendor) {
+        gstComplianceService.saveVendor({
+          ...vendor,
+          riskScore: totalScore,
+          riskLevel,
+        });
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  return result;
 }

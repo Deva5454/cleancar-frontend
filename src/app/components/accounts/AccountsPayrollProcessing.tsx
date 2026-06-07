@@ -107,7 +107,7 @@ export function AccountsPayrollProcessing() {
   const navigate = useNavigate();
   const { city, cityInfo } = useCity();
   const { currentUser } = useRole();
-  const { payrollRuns } = usePayroll();
+  const { payrollRuns, updatePayrollStatus } = usePayroll();
   const { employees } = useEmployee();
 
   // Get the latest approved payroll run for this city
@@ -279,6 +279,13 @@ export function AccountsPayrollProcessing() {
         },
       }));
     });
+
+    // ── Fix 13: Update PayrollContext status to "disbursed" ─────────────────
+    // This propagates the payment status back to the canonical payroll record
+    // so PayrollProcessingTab, PayrollReviewScreen, and payslips all reflect paid status
+    if (latestRun?.id && updatePayrollStatus) {
+      updatePayrollStatus(latestRun.id, "disbursed");
+    }
 
     // ── Mark snapshot as paid ────────────────────────────────────────────────
     setSnapshot({

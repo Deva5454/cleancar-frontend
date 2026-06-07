@@ -34,6 +34,7 @@ import { AlertCircle, Upload, CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { gstComplianceService } from "../../services/gstComplianceService";
+import { DataService } from "../../services/DataService";
 import { accountingEntryService } from "../../services/accountingEntryService";
 import { useCity } from "../../contexts/CityContext";
 
@@ -45,8 +46,15 @@ export function VendorPayment() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [documentUploaded, setDocumentUploaded] = useState(false);
 
-  const [payments, setPayments] = useState(
-    gstComplianceService.getVendors().flatMap(v =>
+  // Fix 15: merge payment status from DataService so paid status survives reload
+  const [payments, setPayments] = useState(() => {
+    const savedStatuses: Record<string, any> = (() => {
+      try {
+        const saved = DataService.get<{ id: string; status: string; paymentRef?: string }>("VENDOR_PAYMENT_STATUS");
+        return Object.fromEntries(saved.map(s => [s.id, s]));
+      } catch { return {}; }
+    })();
+    return gstComplianceService.getVendors().flatMap(v =>
       gstComplianceService.getTransactions()
         .filter(t => t.partyId === v.id && t.transactionType === "Purchase")
         .map(t => ({
@@ -55,12 +63,13 @@ export function VendorPayment() {
           invoice: t.invoiceNumber,
           amount: t.invoiceTotal,
           grn: "Complete",
-          status: "Pending Approval",
+          status: savedStatuses[t.id]?.status || "Pending Approval",
+          paymentRef: savedStatuses[t.id]?.paymentRef,
           date: t.invoiceDate,
           paymentMode: "Bank Transfer",
         }))
-    )
-  );
+    );
+  });
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,7 +93,12 @@ export function VendorPayment() {
   };
 
   const handleMarkPaid = (payment: any, paymentRef: string) => {
-    // Update local state
+    // Fix 15: persist payment status to DataService so it survives reload
+    const allStatuses = DataService.get<{ id: string; status: string; paymentRef?: string }>("VENDOR_PAYMENT_STATUS");
+    const updated = allStatuses.filter(s => s.id !== payment.id);
+    updated.push({ id: payment.id, status: "Paid", paymentRef });
+    DataService.setAll("VENDOR_PAYMENT_STATUS", updated);
+
     setPayments(prev => prev.map(p =>
       p.id === payment.id ? { ...p, status: "Paid", paymentRef } : p
     ));
