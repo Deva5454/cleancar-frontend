@@ -1,6 +1,6 @@
 // Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
-import { createHashRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
@@ -252,7 +252,7 @@ const MobileChangeRequest = lazy(() => import("./components/hr/MobileChangeReque
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage").then(m => ({default: m.MyAccountPage || m.default})));
 
 
-export const router = createHashRouter([
+export const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
