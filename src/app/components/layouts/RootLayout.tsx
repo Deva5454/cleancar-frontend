@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation , Navigate } from "react-router-dom";
 import {
   Users, BarChart3, UserCircle, Car, ClipboardList,
   AlertCircle, Package, DollarSign, UserCog, Menu, X,
@@ -47,17 +47,9 @@ export function RootLayout() {
     || window.location.hostname.includes("figma")
     || new URLSearchParams(window.location.search).get("preview-route") !== null;
 
-  if (!isPreview) {
-    const session = localStorage.getItem("cc360_session");
-    // FIX: use hash-router-compatible check (hash contains the route, not pathname)
-    // window.location.replace("/login") was breaking hash router navigation
-    const currentHash = window.location.hash.replace("#", "");
-    const isOnLogin = currentHash.startsWith("/login") || window.location.pathname === "/login";
-    if (!session && !isOnLogin) {
-      // Use hash-compatible redirect instead of window.location.replace
-      window.location.hash = "/login";
-      return null;
-    }
+  const session = localStorage.getItem("cc360_session");
+  if (!isPreview && !session && window.location.pathname !== "/login") {
+    return <Navigate to="/login" replace />;
   }
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
