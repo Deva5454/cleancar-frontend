@@ -7,6 +7,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  // Exclude junk directories from the build
+  server: {
+    fs: {
+      allow: ["src/app", "src/main.tsx", "node_modules"],
+    },
+  },
   esbuild: {
     charset: 'utf8',
   },
