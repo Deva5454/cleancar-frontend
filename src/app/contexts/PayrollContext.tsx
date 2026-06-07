@@ -50,9 +50,10 @@ export interface PayrollRun {
   penalties: number;
   totalDeductions: number;
 
-  // Attendance
-  daysWorked?: number;  // Days present in the pay period
-  totalDays?: number;   // Total working days in the pay period
+  // Attendance — required for LOP calculation (Loss of Pay)
+  daysWorked: number;   // Days present in the pay period (same as payDays in PayrollMaster)
+  totalDays: number;    // Total working days in the pay period
+  payDays?: number;     // Alias for daysWorked — for compatibility with PayrollMaster
 
   // Net
   netSalary: number;
@@ -69,13 +70,6 @@ export interface PayrollRun {
   disbursedBy?: string;
   disbursedAt?: string;
   paymentReference?: string;
-
-  // Legacy fields (deprecated - kept for backward compatibility)
-  hrApprovedBy?: string;
-  hrApprovedAt?: string;
-  financeApprovedBy?: string;
-  financeApprovedAt?: string;
-  paidAt?: string;
 
   // HR Override
   hrOverride?: {

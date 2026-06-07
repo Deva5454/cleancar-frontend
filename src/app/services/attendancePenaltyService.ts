@@ -21,14 +21,17 @@ class AttendancePenaltyService {
   private penaltyCounter = 1;
 
   constructor() {
-    this.initializeSampleData();
+    // Only seed sample data in development — never in production
+    if (import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+      this.initializeSampleData();
+    }
   }
 
   /**
-   * Initialize with sample violation data
+   * Initialize with sample violation data (DEV only)
    */
   private initializeSampleData() {
-    // Sample violations for demonstration
+    // Sample violations for demonstration — only runs in dev mode
     const sampleViolations: AttendanceViolation[] = [
       {
         id: "VIOL-001",

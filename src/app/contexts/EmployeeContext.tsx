@@ -302,12 +302,10 @@ export function useEmployee() {
         cityEmployees: [],
         getEmployeeById: () => undefined,
         getEmployeesByRole: () => [],
-        addEmployee: () => {},
-        updateEmployee: () => {},
-        deleteEmployee: () => {},
+        // Write methods intentionally removed — use HRDataContext instead
         getEmployeesByCity: () => [],
         getEmployeesByDepartment: () => [],
-      };
+      } as any;
     }
 
     console.warn("[useEmployee] Called outside EmployeeProvider — returning fallback"); return context as any;

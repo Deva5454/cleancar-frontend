@@ -7,10 +7,14 @@
 
 import { DataService } from "./DataService";
 import { logger } from "./logger";
+// PayrollStatus is the canonical type from payrollWorkflow
+// Mapping: Draft→draft, Processed→under_review, Approved→approved, Paid→disbursed, Rejected→rejected
+export type { PayrollStatus } from "../utils/payrollWorkflow";
 
 // ========== TYPES ==========
 
-export type PayrollStatus = "Draft" | "Processed" | "Approved" | "Paid" | "Rejected";
+// PayrollStatus imported from payrollWorkflow.ts above
+// Legacy values: "Draft"→"draft", "Processed"→"under_review", "Approved"→"approved", "Paid"→"disbursed"
 
 /**
  * Unified Payroll Master Record

@@ -1,4 +1,17 @@
 /**
+ * ⚠️ DEPRECATED FILE — DO NOT USE
+ *
+ * Manual payroll processing is DISABLED in this file.
+ * All payroll must flow through PayrollAutomationEngine.autoProcessPayroll()
+ *
+ * This file blocks all non-Auto calls:
+ *   if (sourceModule !== "Auto") → returns error
+ *
+ * Scheduled for deletion after confirming no routes import it.
+ * Use: src/app/services/PayrollAutomationEngine.ts
+ */
+
+/**
  * Payroll Engine - Single Point of Execution for Payroll Operations
  *
  * All payroll processing, updates, and approvals flow through this service

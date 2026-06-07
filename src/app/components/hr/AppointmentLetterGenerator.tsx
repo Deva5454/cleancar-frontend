@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { toast } from "sonner";
-import { calculateCTCFromGross, getSalaryConfigurationSummary } from "../../config/salaryConfiguration";
+import { calculateCTCFromGross, getSalaryConfigurationSummary } from "../../config/salaryComponentConfiguration";
 import { Link, useNavigate } from "react-router-dom";
 import { salaryStructureService } from "../../services/salaryStructureService";
 import type { SalaryStructure, SalaryComponents } from "../../services/salaryStructureService";

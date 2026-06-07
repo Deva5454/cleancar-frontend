@@ -34,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { calculateCTCFromGross, getSalaryConfigurationSummary } from "../../config/salaryConfiguration";
+import { calculateCTCFromGross, getSalaryConfigurationSummary } from "../../config/salaryComponentConfiguration";
 import { Link } from "react-router-dom";
 import { salaryStructureService } from "../../services/salaryStructureService";
 import type { SalaryStructure, SalaryComponents } from "../../services/salaryStructureService";

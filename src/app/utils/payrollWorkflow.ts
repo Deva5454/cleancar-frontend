@@ -19,7 +19,8 @@ export type PayrollStatus =
   | "draft"           // Initial state - being prepared
   | "under_review"    // Submitted for review
   | "approved"        // Approved and ready for disbursement
-  | "disbursed";      // Paid out - IMMUTABLE
+  | "disbursed"       // Paid out - IMMUTABLE
+  | "rejected";       // Rejected back for correction (terminal unless reopened by HR)
 
 // ========== WORKFLOW TRANSITIONS ==========
 
@@ -29,9 +30,10 @@ export type PayrollStatus =
  */
 const VALID_TRANSITIONS: Record<PayrollStatus, PayrollStatus[]> = {
   draft: ["under_review"],
-  under_review: ["draft", "approved"], // Can reject back to draft
+  under_review: ["draft", "approved", "rejected"],
   approved: ["disbursed"],
   disbursed: [], // Terminal state - no transitions allowed
+  rejected: ["draft"], // HR can reopen a rejected payroll back to draft
 };
 
 /**
@@ -43,6 +45,7 @@ const ROLE_PERMISSIONS: Record<PayrollStatus, Role[]> = {
   under_review: ["HR", "Super Admin", "Admin"],
   approved: ["Accounts", "Super Admin", "Admin"],
   disbursed: [], // No one can modify disbursed payroll
+  rejected: ["HR", "Super Admin", "Admin"], // HR can reopen
 };
 
 // ========== WORKFLOW VALIDATION ==========

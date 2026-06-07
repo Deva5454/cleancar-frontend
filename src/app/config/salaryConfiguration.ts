@@ -1,4 +1,20 @@
 /**
+ * ⚠️ DEPRECATED FILE — DO NOT IMPORT FROM HERE
+ *
+ * This file is scheduled for deletion.
+ * All imports have been migrated to:
+ *   src/app/config/salaryComponentConfiguration.ts
+ *
+ * The SalaryComponent interface in this file conflicts with
+ * salaryComponentConfiguration.ts (different field shapes, same name).
+ *
+ * Functions moved: calculateCTCFromGross, calculateCTCFromBasic,
+ *                  getSalaryConfigurationSummary
+ *
+ * If you are seeing this, update your import path and delete this file.
+ */
+
+/**
  * Centralized Salary Configuration
  * 
  * ⚠️ IMPORTANT: This is the SINGLE SOURCE OF TRUTH for all salary calculations

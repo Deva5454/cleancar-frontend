@@ -11,12 +11,12 @@
 
 export type LeaveType =
   | "PL"           // Privilege Leave
-  | "CL"           // Casual Leave
-  | "CSL"          // Casual/Sick Leave (combined)
+  | "CSL"          // Casual/Sick Leave (maps to ATTENDANCE_TYPES.CASUAL_LEAVE = "CSL" in payrollConstants)
   | "LWP"          // Leave Without Pay
   | "COMP OFF"     // Compensatory Off
   | "MTL"          // Maternity Leave
   | "UPL";         // Unpaid Leave
+  // NOTE: "CL" removed — use "CSL" everywhere (payrollConstants only defines CSL)
 
 export type EmployeeStatus = "Probation" | "Confirmed";
 
@@ -27,7 +27,7 @@ export interface LeaveGlobalSettings {
     applyTo: "all" | "specific";
     specificEmployeeId?: string;
   };
-  CL: {
+  CSL: {
     globallyEnabled: boolean;
     applyTo: "all" | "specific";
     specificEmployeeId?: string;
@@ -42,7 +42,7 @@ export interface LeaveGlobalSettings {
 // Global settings instance (can be modified via settings panel)
 export let LEAVE_GLOBAL_SETTINGS: LeaveGlobalSettings = {
   PL: { globallyEnabled: true, applyTo: "all" },
-  CL: { globallyEnabled: true, applyTo: "all" },
+  CSL: { globallyEnabled: true, applyTo: "all" },
   "COMP OFF": { globallyEnabled: true, applyTo: "all" },
 };
 
@@ -53,7 +53,7 @@ export function updateLeaveGlobalSettings(newSettings: LeaveGlobalSettings): voi
 
 // Function to check if a leave type is enabled for a specific employee
 export function isLeaveTypeEnabledForEmployee(
-  leaveType: "PL" | "CL" | "COMP OFF",
+  leaveType: "PL" | "CSL" | "COMP OFF",
   employeeId: string
 ): boolean {
   const settings = LEAVE_GLOBAL_SETTINGS[leaveType];

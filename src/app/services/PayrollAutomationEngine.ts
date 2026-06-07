@@ -16,7 +16,8 @@ import { employeeMasterService } from "./employeeMaster";
 import { hrMasterValidator } from "./hrMasterValidator";
 import { logger } from "./logger";
 import { auditLogService } from "./auditLogService";
-import { exitWorkflowService } from "./ExitWorkflowService";
+import { exitWorkflowService } from "./exitWorkflowService";
+import { salaryHoldService } from "./salaryHoldService";
 
 // ========== TYPES ==========
 
@@ -145,6 +146,17 @@ class PayrollAutomationEngineClass {
     if (exitWorkflowService.isEmployeeLocked(employeeId)) {
       result.valid = false;
       result.errors.push("Employee is locked due to active exit workflow. Cannot process payroll.");
+      return result;
+    }
+
+    // Check if salary is on hold
+    const holdRecord = salaryHoldService.getHoldRecord(employeeId);
+    if (holdRecord && holdRecord.status === "Active") {
+      result.valid = false;
+      result.errors.push(
+        `Salary on hold: ${holdRecord.holdReason || "HR hold active"}. ` +
+        `Release hold before processing payroll.`
+      );
       return result;
     }
 
@@ -332,7 +344,7 @@ class PayrollAutomationEngineClass {
     ];
     const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
 
-    // Absent deduction
+    // Absent deduction — push BEFORE computing total
     if (inputs.attendance.absentDays > 0) {
       const absentDeduction = inputs.attendance.absentDays * perDayRate;
       deductions.push({
@@ -341,9 +353,20 @@ class PayrollAutomationEngineClass {
       });
     }
 
+    // Penalty deductions — itemised into deductions array (not subtracted separately)
+    // This prevents double-deduction if penalties are already tallied elsewhere
+    if (inputs.penalties.breakdown.length > 0) {
+      inputs.penalties.breakdown.forEach(p => {
+        deductions.push({ name: p.type, amount: p.amount });
+      });
+    }
+
+    // Recompute totalDeductions now that all items are pushed
+    const totalDeductionsFinal = deductions.reduce((sum, d) => sum + d.amount, 0);
+
     // Calculate totals
     const grossPay = earnedBasicSalary + totalAllowances + inputs.incentives.total;
-    const netPay = grossPay - totalDeductions - inputs.penalties.total;
+    const netPay = grossPay - totalDeductionsFinal;  // penalties now inside deductions
 
     return {
       employeeId: inputs.employeeId,

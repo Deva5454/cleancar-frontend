@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { calculateCTCFromBasic } from "../../config/salaryConfiguration";
+import { calculateCTCFromBasic } from "../../config/salaryComponentConfiguration";
 import type { SalaryStructure } from "../../services/salaryStructureService";
 
 interface Props {
