@@ -1,4 +1,5 @@
 import { BackButton } from "../ui/back-button";
+import { accountingEntryService } from "../../services/accountingEntryService";
 /**
  * Finance Transactions - Transaction-based model
  *
@@ -400,7 +401,7 @@ export function FinanceTransactions() {
   function buildLiveTransactions(cityName: string): FinanceTransaction[] {
     // 1. Accounting entries (sales, purchases, expenses, journals)
     const entries: any[] = (() => {
-      try { return JSON.parse(localStorage.getItem("cleancar_accounting_entries") || "[]"); }
+      try { return accountingEntryService.getAllEntries ? accountingEntryService.getAllEntries() : JSON.parse(localStorage.getItem("cleancar_accounting_entries") || "[]"); }
       catch { return []; }
     })();
     const cityEntries = entries.filter((e: any) =>

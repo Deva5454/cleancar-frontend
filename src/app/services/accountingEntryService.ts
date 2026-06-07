@@ -97,6 +97,10 @@ export interface AccountingEntry {
   rcmIgst?: number;
   debitAccount: string;
   creditAccount: string;
+  // TDS fields — Fix 3: net TDS from vendor payments in accounting entry
+  tdsSection?: string;      // "194C" | "194J" | "194A" etc.
+  tdsRate?: number;         // percentage e.g. 2 for 194C company
+  tdsAmount?: number;       // computed deduction (netted from vendor payment)
   narration?: string;
   city: string;
   cityId: string;
@@ -268,7 +272,10 @@ export function calculateGST(
     return { cgst: 0, sgst: 0, igst: 0, totalBillValue: taxableValue };
   }
   const companyStateCode = companyCityId
-    ? (CITY_STATE_CODES[companyCityId] || DEFAULT_STATE_CODE)
+    ? (CITY_STATE_CODES[companyCityId] || (() => {
+        console.warn(`[GST] Unknown cityId "${companyCityId}" — defaulting to Gujarat (24). Add to CITY_STATE_CODES.`);
+        return DEFAULT_STATE_CODE;
+      })())
     : DEFAULT_STATE_CODE;
   const totalTax = Math.round(taxableValue * gstRate) / 100;
   const isSameState = vendorStateCode === companyStateCode;
@@ -295,15 +302,15 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
       // Dr Fixed Asset — base taxable value only (NOT grandTotal)
       { accountHead: entry.debitAccount, accountLabel: "Fixed Asset", debit: entry.taxableValue, credit: 0 },
     ];
-    // Dr Input GST ledgers separately (asset, not expense)
+    // Dr Input GST — separate heads per tax type for correct ITC offset (Section 49 CGST Act)
     if ((entry.cgst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input CGST", debit: entry.cgst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_cgst", accountLabel: "Input CGST", debit: entry.cgst ?? 0, credit: 0 });
     }
     if ((entry.sgst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input SGST", debit: entry.sgst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_sgst", accountLabel: "Input SGST", debit: entry.sgst ?? 0, credit: 0 });
     }
     if ((entry.igst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input IGST", debit: entry.igst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_igst", accountLabel: "Input IGST", debit: entry.igst ?? 0, credit: 0 });
     }
     // FIX 9: Cr Accounts Payable (not Bank) when payment mode is credit
     const isCreditPayment = entry.paymentMode !== "Bank" && entry.paymentMode !== "Cash" && entry.paymentMode !== "PettyCash";
@@ -313,23 +320,28 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
     return lines;
   }
 
-  // FIX 8: Expense/Purchase — split GST to gst_input (asset), not to expense ledger
+  // FIX 8 + 5: Expense/Purchase — separate GST heads (Section 49 CGST Act ITC offset rules)
   if (entry.entryType === "Expense" || entry.entryType === "Purchase") {
     const lines: JournalLine[] = [
-      // Dr Expense — taxable value only
       { accountHead: entry.debitAccount, accountLabel: entry.debitAccount, debit: entry.taxableValue, credit: 0 },
     ];
     if ((entry.cgst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input CGST", debit: entry.cgst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_cgst", accountLabel: "Input CGST", debit: entry.cgst ?? 0, credit: 0 });
     }
     if ((entry.sgst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input SGST", debit: entry.sgst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_sgst", accountLabel: "Input SGST", debit: entry.sgst ?? 0, credit: 0 });
     }
     if ((entry.igst ?? 0) > 0) {
-      lines.push({ accountHead: "gst_input", accountLabel: "Input IGST", debit: entry.igst ?? 0, credit: 0 });
+      lines.push({ accountHead: "gst_input_igst", accountLabel: "Input IGST", debit: entry.igst ?? 0, credit: 0 });
     }
-    // Cr vendor/bank for full invoice value
-    lines.push({ accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.totalBillValue });
+    // Fix 3: Net TDS from vendor payment
+    if ((entry as any).tdsAmount && (entry as any).tdsAmount > 0) {
+      const tdsAmt = (entry as any).tdsAmount as number;
+      lines.push({ accountHead: "tds_payable", accountLabel: `TDS Payable u/s ${(entry as any).tdsSection || "194C"}`, debit: 0, credit: tdsAmt });
+      lines.push({ accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.totalBillValue - tdsAmt });
+    } else {
+      lines.push({ accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.totalBillValue });
+    }
     return lines;
   }
 
@@ -340,6 +352,54 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
   ];
 }
 
+/**
+ * autoPostSalesEntry — Fix 1: Post Output GST when customer revenue is recognised.
+ * Fixes the critical gap where Output CGST/SGST/IGST were never posted to the ledger.
+ * Call from RazorpayFlow, InvoiceManagement, and RevenueCaptureSystem on every sale.
+ */
+export function autoPostSalesEntry(params: {
+  invoiceNumber: string;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalAmount: number;
+}): JournalLine[] {
+  const { taxableValue, cgst, sgst, igst, totalAmount } = params;
+  const lines: JournalLine[] = [
+    // Dr Bank / Accounts Receivable — full invoice value received
+    { accountHead: "bank", accountLabel: "Bank Account", debit: totalAmount, credit: 0 },
+    // Cr Revenue — base taxable value
+    { accountHead: "sales", accountLabel: "Revenue", debit: 0, credit: taxableValue },
+  ];
+  // Cr Output CGST (separate head — cannot be mixed with SGST for ITC offset)
+  if (cgst > 0) lines.push({ accountHead: "gst_output_cgst", accountLabel: "Output CGST", debit: 0, credit: cgst });
+  // Cr Output SGST
+  if (sgst > 0) lines.push({ accountHead: "gst_output_sgst", accountLabel: "Output SGST", debit: 0, credit: sgst });
+  // Cr Output IGST (interstate — most flexible for ITC offset)
+  if (igst > 0) lines.push({ accountHead: "gst_output_igst", accountLabel: "Output IGST", debit: 0, credit: igst });
+  return lines;
+}
+
+/**
+ * generateInvoiceNumber — Fix 14: Sequential, gap-safe invoice number per Indian GST law (CGST Rule 46).
+ * Uses max(existing)+1, not count, so deletions don't create duplicates.
+ */
+export function generateInvoiceNumber(cityName: string, existingInvoiceNumbers: string[]): string {
+  const fy = (() => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return `${String(year).slice(-2)}-${String(year + 1).slice(-2)}`;
+  })();
+  const prefix = `CC/${cityName.toUpperCase()}/${fy}/`;
+  const maxNum = existingInvoiceNumbers
+    .filter(n => n.startsWith(prefix))
+    .map(n => parseInt(n.replace(prefix, ""), 10))
+    .filter(n => !isNaN(n))
+    .reduce((max, n) => Math.max(max, n), 0);
+  return `${prefix}${String(maxNum + 1).padStart(4, "0")}`;
+}
+
 // ─── Service Class ────────────────────────────────────────────────────────────
 
 class AccountingEntryService {
@@ -347,6 +407,16 @@ class AccountingEntryService {
   private readonly JOURNAL_KEY = "cleancar_journal_entries";
   private readonly LEDGER_KEY = "cleancar_ledger_masters";
   // ITEM_MASTER now uses DataService (was bare localStorage key - fixed)
+  // Public accessor for all entries (used by FinanceTransactions, EBITDA, P&L)
+  getAllEntries(cityId?: string): AccountingEntry[] {
+    const all = this.getEntries();
+    return cityId ? all.filter(e => e.cityId === cityId) : all;
+  }
+
+  getAll(cityId?: string): AccountingEntry[] {
+    return this.getAllEntries(cityId);
+  }
+
   getItems(): ItemMaster[] {
     return DataService.get<ItemMaster>("INVENTORY_ITEMS");
   }
@@ -564,11 +634,11 @@ class AccountingEntryService {
       { name: "Furniture and Equipment", accountHead: "fixed_assets", accountHeadLabel: "Fixed Assets", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "WFH Table", accountHead: "fixed_assets", accountHeadLabel: "Fixed Assets", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
-      // ASSETS - GST Input (ITC)
-      { name: "Input Tax Credits", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Input IGST", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Input CGST", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Input SGST", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      // ASSETS - GST Input (ITC) — separate heads per tax type (Section 49 CGST Act)
+      { name: "Input Tax Credits (Summary)", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Input IGST", accountHead: "gst_input_igst", accountHeadLabel: "GST Input IGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Input CGST", accountHead: "gst_input_cgst", accountHeadLabel: "GST Input CGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Input SGST", accountHead: "gst_input_sgst", accountHeadLabel: "GST Input SGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Reverse Charge Tax Input not due", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // LIABILITIES - TDS Payable
@@ -576,10 +646,10 @@ class AccountingEntryService {
       { name: "Intermediate TDS Payable", accountHead: "tds_payable", accountHeadLabel: "TDS Payable", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // LIABILITIES - Duties & Taxes
-      { name: "GST Payable", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Output IGST", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Output CGST", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Output SGST", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "GST Payable (Summary)", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Output IGST", accountHead: "gst_output_igst", accountHeadLabel: "Output GST IGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Output CGST", accountHead: "gst_output_cgst", accountHeadLabel: "Output GST CGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Output SGST", accountHead: "gst_output_sgst", accountHeadLabel: "Output GST SGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "CGST RCM Output", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "SGST RCM Output", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Tax Payable", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },

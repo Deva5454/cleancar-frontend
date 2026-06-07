@@ -30,6 +30,8 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import {
   accountingEntryService,
+  autoPostSalesEntry,
+  calculateGST,
   type JournalEntry,
   type JournalLine
 } from "../../services/accountingEntryService";
@@ -222,6 +224,30 @@ export function RazorpayFlow() {
       createdBy: "System",
     }, currentCity);
     voucherNumbers.push(entry1.voucherNumber);
+
+    // Entry 1b — Output GST posting (Fix 1: post Output CGST/SGST to ledger)
+    if (totalSales > 0) {
+      const taxableBase = Math.round(totalSales / 1.18);
+      const gst = calculateGST(taxableBase, 18, "24", "B2C", currentCityId);
+      const outputGSTLines = autoPostSalesEntry({
+        invoiceNumber: entry1.voucherNumber,
+        taxableValue: taxableBase,
+        cgst: gst.cgst,
+        sgst: gst.sgst,
+        igst: gst.igst,
+        totalAmount: totalSales,
+      });
+      if (outputGSTLines.length > 0) {
+        accountingEntryService.createJournal({
+          date: salesDate,
+          narration: `Output GST on sales — CGST ₹${gst.cgst} + SGST ₹${gst.sgst}`,
+          lines: outputGSTLines,
+          city: currentCity,
+          cityId: currentCityId,
+          createdBy: "System",
+        }, currentCity);
+      }
+    }
 
     // Entry 2 - Collection Entry (Razorpay Dr, Customers Cr)
     const razorpayLedger = accountingEntryService.getLedgers(currentCityId)

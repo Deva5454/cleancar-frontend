@@ -25,6 +25,10 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { BackButton } from "../ui/back-button";
 import { toast } from "sonner";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../../services/accountingEntryService";
+import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../../services/accountingEntryService";
+import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 
 const COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899"];
@@ -104,6 +108,35 @@ export function RevenueCaptureSystem() {
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const allRevenues = getRevenueByCity(filterCityId);
+
+  // Fix 7: On mount, ensure revenue records have corresponding Output GST accounting entries
+  const { cityId } = useCity();
+  useEffect(() => {
+    if (!cityId) return;
+    const thisMonth = selectedMonth;
+    const monthRevenues = allRevenues.filter(r => r.receivedDate?.startsWith(thisMonth));
+    if (monthRevenues.length === 0) return;
+    const existingEntries = accountingEntryService.getAll
+      ? accountingEntryService.getAll(cityId).filter((e: any) => e.entryType === "Revenue")
+      : [];
+    const postedInvoices = new Set(existingEntries.map((e: any) => e.invoiceNumber));
+    const existingNums = existingEntries.map((e: any) => e.invoiceNumber).filter(Boolean);
+
+    monthRevenues.forEach(r => {
+      const invoiceRef = r.invoiceNumber || r.revenueId;
+      if (postedInvoices.has(invoiceRef)) return; // already posted
+      try {
+        const taxable = r.amount / 1.18;
+        const gst = calculateGST(taxable, 18, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+        const invNum = r.invoiceNumber || generateInvoiceNumber(city || "SURAT", existingNums);
+        existingNums.push(invNum);
+        const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: r.amount });
+        if (lines.length > 0 && accountingEntryService.createJournal) {
+          accountingEntryService.createJournal({ date: r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0], narration: `Revenue — Invoice ${invNum}`, lines, city: city || "Surat", cityId, createdBy: "System" }, city || "Surat");
+        }
+      } catch(e) { console.warn("[RevCapture] GST post error", e); }
+    });
+  }, [selectedMonth, cityId]);
 
   // Current month revenues filtered
   const revenues = useMemo(() =>

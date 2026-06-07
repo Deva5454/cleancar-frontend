@@ -19,15 +19,51 @@ import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
+import { accountingEntryService } from "../../services/accountingEntryService";
+import { useCity } from "../../contexts/CityContext";
 import { useCustomerSubscriptions, useCustomers } from "../../contexts/AppProvider";
 import { gstComplianceService } from "../../services/gstComplianceService";
 
 export function GSTDashboard() {
   const { subscriptions: customerSubscriptions } = useCustomerSubscriptions();
   const { customers } = useCustomers();
+  const { cityId } = useCity();
   const savedTransactions = gstComplianceService.getTransactions();
   const savedVendors = gstComplianceService.getVendors();
+
+  // Fix 4: Load real ITC (Input Tax Credits) from accounting entries
+  const [itcSummary, setItcSummary] = useState({ cgst: 0, sgst: 0, igst: 0, total: 0 });
+  const [gstFilingStatus, setGSTFilingStatus] = useState({
+    gstr1Due: "", gstr3bDue: "", daysToGSTR1: 0, daysToGSTR3B: 0
+  });
+
+  useEffect(() => {
+    // Compute ITC from purchase/expense accounting entries
+    const entries = accountingEntryService.getAll ? accountingEntryService.getAll(cityId || "CITY-SURAT") : [];
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const monthEntries = entries.filter((e: any) =>
+      e.date?.startsWith(currentMonth) &&
+      ["Expense", "Purchase", "AssetPurchase"].includes(e.entryType)
+    );
+    const itcCGST = monthEntries.reduce((s: number, e: any) => s + (e.cgst || 0), 0);
+    const itcSGST = monthEntries.reduce((s: number, e: any) => s + (e.sgst || 0), 0);
+    const itcIGST = monthEntries.reduce((s: number, e: any) => s + (e.igst || 0), 0);
+    setItcSummary({ cgst: itcCGST, sgst: itcSGST, igst: itcIGST, total: itcCGST + itcSGST + itcIGST });
+
+    // Compute filing due dates (GSTR-1: 11th, GSTR-3B: 20th of next month)
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const gstr1Date = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 11);
+    const gstr3bDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 20);
+    const msDay = 86400000;
+    setGSTFilingStatus({
+      gstr1Due: gstr1Date.toLocaleDateString("en-IN"),
+      gstr3bDue: gstr3bDate.toLocaleDateString("en-IN"),
+      daysToGSTR1: Math.ceil((gstr1Date.getTime() - now.getTime()) / msDay),
+      daysToGSTR3B: Math.ceil((gstr3bDate.getTime() - now.getTime()) / msDay),
+    });
+  }, [cityId]);
 
   // Calculate GST from real subscription data (18% GST rate)
   const gstPayableLedger = useMemo(() =>
@@ -66,14 +102,15 @@ export function GSTDashboard() {
     [totalRevenue]
   );
 
+  // Fix 4: Show real current month — previous months are historical (kept as indicative)
   const gstPayableData = useMemo(() => [
     { month: "Oct", payable: 65000, credit: 35000, net: 30000, id: "gst-oct" },
     { month: "Nov", payable: 72000, credit: 38000, net: 34000, id: "gst-nov" },
     { month: "Dec", payable: 68000, credit: 36000, net: 32000, id: "gst-dec" },
     { month: "Jan", payable: 82000, credit: 45000, net: 37000, id: "gst-jan" },
     { month: "Feb", payable: 78000, credit: 42000, net: 36000, id: "gst-feb" },
-    { month: "Mar", payable: 78000, credit: 42000, net: 36000, id: "gst-mar" }
-  ], []);
+    { month: "Current", payable: totalGST, credit: itcSummary.total, net: Math.max(0, totalGST - itcSummary.total), id: "gst-current" },
+  ], [totalGST, itcSummary]);
 
   const inputCreditData = savedTransactions
     .filter(t => t.transactionType === "Purchase" && t.totalTax > 0)
