@@ -10,15 +10,18 @@ export function RouteGuard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, currentRole } = useRole();
-  // isLoaded tells us when EmployeeContext has finished its initial localStorage read.
-  // Without this guard, RouteGuard can fire with employees=[] on first render and
-  // incorrectly redirect users away from valid routes.
   const { employees } = useEmployee();
 
   useEffect(() => {
-    // Wait until EmployeeContext has loaded from localStorage before checking access.
-    // employees initialises synchronously so isLoaded is true almost immediately,
-    // but this prevents any edge-case race on very first render.
+    // Skip ALL permission checks on Vercel preview deployments (same behaviour as cleancar-prodt)
+    const isPreview = typeof window !== "undefined" && (
+      window.location.hostname === "localhost" ||
+      window.location.hostname.includes("vercel.app") ||
+      window.location.hostname.includes("figma") ||
+      import.meta.env.MODE === "development"
+    );
+    if (isPreview) return;
+
     if (isPublicRoute(location.pathname)) return;
 
     const routeConfig = getRouteConfig(location.pathname);
