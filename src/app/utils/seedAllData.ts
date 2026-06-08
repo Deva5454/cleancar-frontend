@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V9";
+const SEED_FLAG = "ALL_DATA_SEEDED_V10";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -376,42 +376,139 @@ for (let i = 0; i < 100; i++) CUSTOMERS.push(makeCust(i, "Surat"));
 for (let i = 0; i < 100; i++) CUSTOMERS.push(makeCust(i, "Mumbai"));
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 8. LEADS — 120 leads (40 per month × 2 cities)
+// 8. LEADS — realistic seeded leads with proper field structure for CRM + TSM pool
 // ═════════════════════════════════════════════════════════════════════════════
-const LEAD_SOURCES = ["Walk-in","WhatsApp","Google Ads","Referral","Cold Call","Website","Instagram"];
-const LEAD_STAGES  = ["New","Contacted","Demo Scheduled","Demo Done","Converted","Lost"];
+const LEAD_SOURCES = ["Website","WhatsApp","Google Ads","Referral","Cold Call","Instagram","Walk-in"];
+const LEAD_TEMPS   = ["hot","warm","cold"] as const;
+
+// Real Surat customer names for realistic demo
+const SURAT_FIRST = ["Rahul","Priya","Amit","Sneha","Vikas","Kavita","Suresh","Nita","Deepak","Pooja","Kiran","Rajan","Meena","Jignesh","Bhavna","Harsh","Neha","Tejas","Alpa","Dhruv","Minal","Chirag","Dimple","Nilesh","Rekha","Paresh","Hiral","Umesh","Sonal","Vinod"];
+const SURAT_LAST  = ["Patel","Shah","Mehta","Desai","Joshi","Trivedi","Modi","Parmar","Kapoor","Sharma","Yadav","Doshi","Thakkar","Soni","Pandya","Dave","Bhatt","Nair","Agarwal","Gupta"];
+const LEAD_VEHICLES = ["Hatchback / Compact Sedan","SUV / MUV / Sedan","Luxury / Large SUV"];
+const LEAD_PLANS  = ["SHINE","PROTECT","ELITE"];
+const LOST_REASON = ["Price too high","Not interested","Competitor","Area not serviceable","No response after 3 attempts"];
+
+// TSE assignments for Surat — spread leads across 2 TSEs + leave some unassigned (pool)
+// TSE-SUR1 = Pooja Sharma | TSE-SUR2 = Ankit Trivedi | null = overnight pool
+const SUR_TSE_ASSIGN = [
+  { tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma" },
+  { tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma" },
+  { tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi" },
+  { tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi" },
+  { tseId: null,            tseName: null },            // unassigned pool
+  { tseId: null,            tseName: null },            // unassigned pool
+  { tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma" },
+];
+
 const LEADS: any[] = [];
 let leadIdx = 1;
-for (const city of ["Surat","Mumbai"] as const) {
-  const cid  = city === "Surat" ? "CITY-SURAT" : "CITY-MUMBAI";
-  const tse  = city === "Surat" ? "EDB-TSE-SUR1" : "EDB-TSE-MUM1";
-  const areas = city === "Surat" ? AREAS_SUR : AREAS_MUM;
-  const pins  = city === "Surat" ? PINS_SUR  : PINS_MUM;
-  for (const m of MONTHS) {
-    for (let i = 0; i < 80; i++) {
-      const stage = LEAD_STAGES[i % LEAD_STAGES.length];
-      LEADS.push({
-        leadId:     `LEAD-${city.slice(0,3).toUpperCase()}-${String(leadIdx++).padStart(3,"0")}`,
-        name:       `Lead ${city.slice(0,3)} ${leadIdx}`,
-        mobile:     `98765${String(43200+leadIdx).slice(-5)}`,
-        email:      `lead${leadIdx}@example.com`,
-        area:       areas[i%7],
-        pinCode:    pins[i%7],
-        source:     LEAD_SOURCES[i%LEAD_SOURCES.length],
-        stage,
-        status:     stage,
-        assignedTo: tse,
-        cityId:     cid, city,
-        vehicleCategory: i%3===0?"SUV":i%3===1?"Sedan":"Hatchback",
-        planOfInterest: ["SHINE","PROTECT","ELITE"][i%3],
-        createdAt:  new Date(2026,m-1,1+(i%28)).toISOString(),
-        followUpDate: new Date(2026,m-1,5+(i%20)).toISOString(),
-        convertedAt: stage==="Converted" ? new Date(2026,m-1,15+(i%10)).toISOString() : undefined,
-        lostReason: stage==="Lost" ? ["Price too high","Not interested","Competitor","Area not serviceable"][i%4] : undefined,
-        notes: `Status: ${stage}.`,
-      });
-    }
-  }
+
+// ── Surat leads ────────────────────────────────────────────────────────────
+const SUR_STAGES = [
+  // Historical months: mix of converted/lost/in-progress
+  ...Array(15).fill("Converted"),
+  ...Array(8).fill("Demo Completed"),
+  ...Array(6).fill("Demo Scheduled"),
+  ...Array(8).fill("Contacted"),
+  ...Array(8).fill("Lost"),
+  // Current month (April 2026): fresh pipeline + overnight pool
+  ...Array(12).fill("New"),         // 12 new leads — should appear in pool (6 unassigned)
+  ...Array(8).fill("Contacted"),
+  ...Array(5).fill("Demo Scheduled"),
+  ...Array(4).fill("Demo Completed"),
+];
+
+for (let i = 0; i < 80; i++) {
+  const stage   = SUR_STAGES[i] || "New";
+  const assign  = SUR_TSE_ASSIGN[i % SUR_TSE_ASSIGN.length];
+  const fn      = SURAT_FIRST[i % SURAT_FIRST.length];
+  const ln      = SURAT_LAST[i % SURAT_LAST.length];
+  const area    = AREAS_SUR[i % AREAS_SUR.length];
+  const pin     = PINS_SUR[i % PINS_SUR.length];
+  const vehicle = LEAD_VEHICLES[i % LEAD_VEHICLES.length];
+  const plan    = LEAD_PLANS[i % LEAD_PLANS.length];
+  const source  = LEAD_SOURCES[i % LEAD_SOURCES.length];
+  const temp    = LEAD_TEMPS[i % LEAD_TEMPS.length];
+
+  // Dates: older leads in Jan-Mar, fresh leads in Apr 2026
+  const isRecent  = i >= 47;  // last 33 leads are April 2026
+  const isOvernight = stage === "New" && !assign.tseId; // unassigned new = overnight pool
+  const createdDt = isOvernight
+    ? new Date(2026, 3, 8, 22 + (i % 2), (i * 17) % 60) // 10pm-midnight overnight
+    : isRecent
+      ? new Date(2026, 3, 1 + (i % 7), 9 + (i % 8))
+      : new Date(2026, (i % 3), 1 + (i % 28), 10);
+
+  LEADS.push({
+    leadId:    `LEAD-SUR-${String(leadIdx++).padStart(3,"0")}`,
+    firstName: fn,
+    lastName:  ln,
+    email:     `${fn.toLowerCase()}.${ln.toLowerCase()}${i}@gmail.com`,
+    phone:     `9${String(876543210 + i).slice(-9)}`,
+    address: {
+      line1:   `${100+i}, ${area} Society`,
+      area,
+      city:    "Surat",
+      pinCode: pin,
+    },
+    vehicleDetails: {
+      category:           vehicle,
+      brand:              ["Maruti","Hyundai","Honda","Toyota","Tata","Kia"][i%6],
+      color:              ["White","Silver","Black","Grey","Blue"][i%5],
+      registrationNumber: `GJ05${String.fromCharCode(65+i%26)}${String(1000+i)}`,
+    },
+    leadSource:  source,
+    status:      stage as any,
+    stage:       (stage === "Converted" ? "converted" : stage === "Lost" ? "lost" : stage === "Demo Completed" ? "demo_completed" : stage === "Demo Scheduled" ? "demo_scheduled" : stage === "Contacted" ? "contacted" : "new") as any,
+    assignedTo:  assign.tseId  || undefined,
+    assignedTSE: assign.tseName || undefined,
+    assignedAt:  assign.tseId  ? new Date(createdDt.getTime() + 3600000).toISOString() : undefined,
+    temperature: temp,
+    cityId:      "CITY-SURAT",
+    city:        "Surat",
+    planOfInterest: plan,
+    createdAt:   createdDt.toISOString(),
+    followUpDate: stage !== "Converted" && stage !== "Lost"
+      ? new Date(createdDt.getTime() + 86400000).toISOString()
+      : undefined,
+    convertedAt: stage === "Converted"
+      ? new Date(createdDt.getTime() + 5 * 86400000).toISOString()
+      : undefined,
+    lostReason:  stage === "Lost" ? LOST_REASON[i % LOST_REASON.length] : undefined,
+    notes: isOvernight
+      ? `Overnight lead from ${source}. Needs morning follow-up.`
+      : `${stage} — ${source} lead in ${area}.`,
+  });
+}
+
+// ── Mumbai leads (assigned, no pool for simplicity) ────────────────────────
+for (let i = 0; i < 40; i++) {
+  const stage   = ["New","Contacted","Demo Scheduled","Converted","Lost"][i % 5];
+  const fn      = SURAT_FIRST[(i+10) % SURAT_FIRST.length];
+  const ln      = SURAT_LAST[(i+5)  % SURAT_LAST.length];
+  const area    = AREAS_MUM[i % AREAS_MUM.length];
+  const pin     = PINS_MUM[i % PINS_MUM.length];
+  const createdDt = new Date(2026, i%4, 1+(i%28));
+  LEADS.push({
+    leadId:    `LEAD-MUM-${String(leadIdx++).padStart(3,"0")}`,
+    firstName: fn,
+    lastName:  ln,
+    email:     `${fn.toLowerCase()}${i}@gmail.com`,
+    phone:     `9${String(876543300 + i).slice(-9)}`,
+    address:   { line1: `${200+i}, ${area}`, area, city: "Mumbai", pinCode: pin },
+    vehicleDetails: { category: VEHICLES[i%3], brand: "Maruti", color: "White", registrationNumber: `MH01AA${String(1000+i)}` },
+    leadSource:  LEAD_SOURCES[i % LEAD_SOURCES.length],
+    status:      stage as any,
+    stage:       (stage === "Converted" ? "converted" : stage === "Lost" ? "lost" : stage === "Demo Scheduled" ? "demo_scheduled" : stage === "Contacted" ? "contacted" : "new") as any,
+    assignedTo:  "EDB-TSE-MUM1",
+    assignedTSE: "Rahul Verma",
+    temperature: LEAD_TEMPS[i%3],
+    cityId:      "CITY-MUMBAI",
+    city:        "Mumbai",
+    planOfInterest: LEAD_PLANS[i%3],
+    createdAt:   createdDt.toISOString(),
+    notes:       `${stage} — Mumbai lead.`,
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
