@@ -857,3 +857,5 @@ export function SalesManagerApp() {
     </div>
   );
 }
+
+export default SalesManagerApp;

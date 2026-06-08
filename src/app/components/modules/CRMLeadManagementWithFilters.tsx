@@ -1124,3 +1124,5 @@ export function CRMLeadManagementWithFilters() {
     </div>
   );
 }
+
+export default CRMLeadManagementWithFilters;

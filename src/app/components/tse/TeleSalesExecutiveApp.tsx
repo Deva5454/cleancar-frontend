@@ -442,3 +442,5 @@ export function TeleSalesExecutiveApp() {
     </div>
   );
 }
+
+export default TeleSalesExecutiveApp;

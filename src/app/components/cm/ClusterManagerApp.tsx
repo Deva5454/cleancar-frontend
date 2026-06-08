@@ -421,3 +421,5 @@ export function ClusterManagerApp() {
     </div>
   );
 }
+
+export default ClusterManagerApp;

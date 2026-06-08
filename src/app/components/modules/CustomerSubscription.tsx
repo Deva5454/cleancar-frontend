@@ -290,3 +290,5 @@ export function CustomerSubscription() {
     </div>
   );
 }
+
+export default CustomerSubscription;

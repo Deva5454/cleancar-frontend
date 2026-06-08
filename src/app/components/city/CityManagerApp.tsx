@@ -1028,3 +1028,5 @@ function IncentiveTracker() {
     </div>
   );
 }
+
+export default CityManagerApp;

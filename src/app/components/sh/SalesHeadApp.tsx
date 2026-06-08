@@ -656,3 +656,5 @@ export function SalesHeadApp() {
     </div>
   );
 }
+
+export default SalesHeadApp;

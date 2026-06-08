@@ -368,3 +368,5 @@ export function WasherCoreScreensConnected() {
     </div>
   );
 }
+
+export default WasherCoreScreensConnected;

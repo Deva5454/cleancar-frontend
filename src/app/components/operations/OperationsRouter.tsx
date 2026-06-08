@@ -83,3 +83,5 @@ function MultiCityOperationsView() {
     </div>
   );
 }
+
+export default OperationsRouter;

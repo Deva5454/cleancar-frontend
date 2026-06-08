@@ -1483,4 +1483,4 @@ export function TeleSalesManagerApp() {
 
 }
 
-
+export default TeleSalesManagerApp;

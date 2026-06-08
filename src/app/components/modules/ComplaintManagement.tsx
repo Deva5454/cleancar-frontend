@@ -524,3 +524,5 @@ export function ComplaintManagement() {
     </div>
   );
 }
+
+export default ComplaintManagement;

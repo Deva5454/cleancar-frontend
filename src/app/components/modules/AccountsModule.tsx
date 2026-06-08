@@ -373,3 +373,5 @@ export function AccountsModule() {
     </div>
   );
 }
+
+export default AccountsModule;
