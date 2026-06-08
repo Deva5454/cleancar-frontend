@@ -144,7 +144,7 @@ export function CRMLeadManagementWithFilters() {
     area: lead.address?.area || "",
     carType: lead.vehicleDetails?.category || "Unknown",
     status: (lead.status === "Converted" ? "Converted" : lead.status === "Rejected" ? "Lost" : (lead.status === "Demo Scheduled" || lead.status === "Contacted" || lead.status === "Demo Completed") ? "In Progress" : "New") as Lead["status"],
-    assignedTo: lead.assignedTo || "Unassigned",
+    assignedTo: lead.assignedTSE || lead.assignedTo || "Unassigned",
     createdAt: lead.createdAt,
     sla: "2h remaining",
     notes: lead.notes,
