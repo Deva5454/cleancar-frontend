@@ -56,6 +56,7 @@
 
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -191,7 +192,9 @@ type TimeMode = "MORNING" | "MIDDAY" | "AFTERNOON" | "EVENING" | "OFF_HOURS";
 export function TeleSalesManagerApp() {
 
 
-  const [currentScreen, setCurrentScreen] = useState<string>("dashboard");
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "dashboard";
+  const [currentScreen, setCurrentScreen] = useState<string>(initialTab);
 
 
   // A3 FIX: track pre-selected stage so drill-down actually filters

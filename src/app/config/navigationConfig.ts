@@ -381,4 +381,24 @@ export const QUICK_ACTIONS: NavItem[] = [
   { label: "Cloth Exchange", path: "/cloth-tracking/exchange", icon: Scan, module: "cloth-tracking", match: "prefix" },
   { label: "Approvals", path: "/approvals", icon: CheckSquare, module: "approvals", match: "prefix" },
   { label: "Performance", path: "/performance", icon: TrendingUp, module: "performance", match: "prefix" },
+,
+
+  // TSM - Tele Sales Manager App
+  {
+    label: "TSM App",
+    path: "/tsm-app",
+    icon: Target,
+    module: "crm",
+    match: "prefix",
+    description: "TSM workspace — lead pool assignment, pipeline governance, team performance",
+    children: [
+      { label: "🎯 Lead Pool",       path: "/tsm-app?tab=pool",       icon: Inbox,         module: "crm", match: "exact" },
+      { label: "Command Dashboard",  path: "/tsm-app?tab=dashboard",  icon: LayoutDashboard, module: "crm", match: "exact" },
+      { label: "Team Performance",   path: "/tsm-app?tab=team",       icon: Users,         module: "crm", match: "exact" },
+      { label: "Lead Pipeline",      path: "/tsm-app?tab=pipeline",   icon: ListTree,      module: "crm", match: "exact" },
+      { label: "Renewals",           path: "/tsm-app?tab=renewals",   icon: RefreshCw,     module: "crm", match: "exact" },
+      { label: "Incentives",         path: "/tsm-app?tab=incentives", icon: TrendingUp,    module: "crm", match: "exact" },
+      { label: "Reports",            path: "/tsm-app?tab=reports",    icon: BarChart3,     module: "crm", match: "exact" },
+    ]
+  },
 ];
