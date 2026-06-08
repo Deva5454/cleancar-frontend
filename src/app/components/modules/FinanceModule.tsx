@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 import { useCustomerSubscriptions, useFinance } from "../../contexts/AppProvider";
 import { useBusinessFlows } from "../../hooks/useBusinessFlows";
 import { useRole } from "../../contexts/RoleContext";

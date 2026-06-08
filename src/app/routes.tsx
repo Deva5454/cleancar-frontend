@@ -60,14 +60,15 @@ import { MonthEndVerification } from "./components/inventory/MonthEndVerificatio
 import { MyStock } from "./components/washer/MyStock";
 import { StoreModule } from "./components/modules/StoreModule";
 import { ProcurementModule } from "./components/modules/ProcurementModule";
-const FinanceModule = lazy(() => import("./components/modules/FinanceModule"));
-import { RevenueCaptureSystem } from "./components/finance/RevenueCaptureSystem";
+import FinanceModuleDirect from "./components/modules/FinanceModule";
+const FinanceModule = FinanceModuleDirect;
+const RevenueCaptureSystem = lazy(() => import("./components/finance/RevenueCaptureSystem").then(m=>({default:m.RevenueCaptureSystem||m.default})));
 import { PackageCostMatrix } from "./components/finance/PackageCostMatrix";
 import { CostPerWashModule } from "./components/finance/CostPerWashModule";
 import { ActualCostInputs } from "./components/finance/ActualCostInputs";
-import { FinanceTransactions } from "./components/finance/FinanceTransactions";
+const FinanceTransactions = lazy(() => import("./components/finance/FinanceTransactions").then(m=>({default:m.FinanceTransactions||m.default})));
 import { LedgerEntriesView } from "./components/finance/LedgerEntriesView";
-import { FinanceAnalyticsDashboard } from "./components/finance/FinanceAnalyticsDashboard";
+const FinanceAnalyticsDashboard = lazy(() => import("./components/finance/FinanceAnalyticsDashboard").then(m=>({default:m.FinanceAnalyticsDashboard||m.default})));
 import { FinancialReportsModule } from "./components/finance/FinancialReportsModule";
 import { LeavePolicyEngine } from "./components/hr/LeavePolicyEngine";
 import { EmployeeOnboarding } from "./components/hr/EmployeeOnboarding";
@@ -118,7 +119,7 @@ import { PurchaseOrderCreation } from "./components/store-manager/PurchaseOrderC
 import { MOQManagement } from "./components/store-manager/MOQManagement";
 import { InventoryMonitoring } from "./components/store-manager/InventoryMonitoring";
 import { VendorRequest } from "./components/store-manager/VendorRequest";
-import { AnalyticsDashboardWithDrillDown } from "./components/dashboards/AnalyticsDashboardWithDrillDown";
+const AnalyticsDashboardWithDrillDown = lazy(() => import("./components/dashboards/AnalyticsDashboardWithDrillDown").then(m=>({default:m.AnalyticsDashboardWithDrillDown||m.default})));
 import { RoleBasedAnalyticsDashboard } from "./components/examples/RoleBasedAnalyticsDashboard";
 import { CostPerWashReport } from "./components/reports/CostPerWashReport";
 import { ActivityTimelineWrapper } from "./components/crm/ActivityTimelineWrapper";
@@ -127,7 +128,7 @@ import { PayrollConfiguration } from "./components/payroll/PayrollConfiguration"
 import { PayrollConfigTest } from "./components/payroll/PayrollConfigTest";
 import { PayrollRun } from "./components/payroll/PayrollRun";
 import { PayrollProcessing } from "./components/payroll/PayrollProcessing";
-import { PayrollProcessingAdvanced } from "./components/payroll/PayrollProcessingAdvanced";
+const PayrollProcessingAdvanced = lazy(() => import("./components/payroll/PayrollProcessingAdvanced").then(m=>({default:m.PayrollProcessingAdvanced||m.default})));
 import { PayrollReviewApproval } from "./components/payroll/PayrollReviewApproval";
 import { SalaryPayableView } from "./components/payroll/SalaryPayableView";
 import { SalaryPaymentScreen } from "./components/payroll/SalaryPaymentScreen";
@@ -158,7 +159,7 @@ import { WeekOffCoverDemo } from "./components/washer/WeekOffCoverDemo";
 import { SystemIntegrationDemo } from "./components/washer/SystemIntegrationDemo";
 import { WasherCoreScreensDemo } from "./components/washer/WasherCoreScreensDemo";
 import { WasherCoreScreensConnected } from "./components/washer/WasherCoreScreensConnected";
-const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppConnected"));
+import { SupervisorAppLazy as SupervisorAppConnected } from "./components/supervisor/SupervisorAppLazy";
 import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
 import { ClusterManagerApp } from "./components/cm/ClusterManagerApp";
 import { CityManagerApp } from "./components/city/CityManagerApp";
@@ -170,7 +171,7 @@ import { TSEDiagnostics } from "./components/tse/TSEDiagnostics";
 import { CustomerCareExecutiveApp } from "./components/cce/CustomerCareExecutiveApp";
 import { SubscriptionApp } from "./components/subscription/SubscriptionApp";
 import { PlanSelectionScreen } from "./components/subscription/PlanSelectionScreen";
-import { CustomerPlanPage } from "./components/subscription/CustomerPlanPage";
+const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage").then(m => ({ default: m.CustomerPlanPage || m.default })));
 import { SuperAdminPlanEditor } from "./components/admin/SuperAdminPlanEditor";
 import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionDiagnostics";
 import { HierarchyDashboard } from "./components/hierarchy/HierarchyDashboard";
@@ -196,7 +197,7 @@ import { RolePermissionManager } from "./components/admin/RolePermissionManager"
 import { IncentiveVisibilityAdmin } from "./components/admin/IncentiveVisibilityAdmin";
 import { RoleSuggestionsPage } from "./components/hr/RoleSuggestionsPage";
 import { HRIntelligenceDashboard } from "./components/hr/HRIntelligenceDashboard";
-import { AccountsPayrollProcessing } from "./components/accounts/AccountsPayrollProcessing";
+const AccountsPayrollProcessing = lazy(() => import("./components/accounts/AccountsPayrollProcessing").then(m=>({default:m.AccountsPayrollProcessing||m.default})));
 import { GSTOverview } from "./components/gst/GSTOverview";
 import { GSTVendorMaster } from "./components/gst/GSTVendorMaster";
 import { GSTCustomerMaster } from "./components/gst/GSTCustomerMaster";
@@ -499,16 +500,16 @@ export const router = createBrowserRouter([
       { path: "inventory/my-stock", element: <ErrorBoundary><MyStock /></ErrorBoundary> },
       { path: "store", element: <ErrorBoundary><StoreModule /></ErrorBoundary> },
       { path: "procurement", element: <ErrorBoundary><ProcurementModule /></ErrorBoundary> },
-      { path: "finance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceModule /></Suspense></ErrorBoundary> },
-      { path: "finance/analytics", element: <ErrorBoundary><FinanceAnalyticsDashboard /></ErrorBoundary> },
+      { path: "finance", element: <ErrorBoundary><FinanceModule /></ErrorBoundary> },
+      { path: "finance/analytics", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceAnalyticsDashboard /></Suspense></ErrorBoundary> },
       { path: "finance/reports", element: <ErrorBoundary><FinancialReportsModule /></ErrorBoundary> },
-      { path: "finance/transactions", element: <ErrorBoundary><FinanceTransactions /></ErrorBoundary> },
+      { path: "finance/transactions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceTransactions /></Suspense></ErrorBoundary> },
       { path: "finance/ledger-entries", element: <ErrorBoundary><LedgerEntriesView /></ErrorBoundary> },
       { path: "finance/chart-of-accounts", element: <ErrorBoundary><ChartOfAccounts /></ErrorBoundary> },
       { path: "finance/invoices", element: <ErrorBoundary><InvoiceManagement /></ErrorBoundary> },
       { path: "finance/invoices/:id", element: <ErrorBoundary><InvoiceDetail /></ErrorBoundary> },
       { path: "finance/payments", element: <ErrorBoundary><PaymentManagement /></ErrorBoundary> },
-      { path: "finance/revenue-capture", element: <ErrorBoundary><RevenueCaptureSystem /></ErrorBoundary> },
+      { path: "finance/revenue-capture", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RevenueCaptureSystem /></Suspense></ErrorBoundary> },
       { path: "finance/package-cost-matrix", element: <ErrorBoundary><PackageCostMatrix /></ErrorBoundary> },
       { path: "finance/cost-per-wash", element: <ErrorBoundary><CostPerWashModule /></ErrorBoundary> },
       { path: "finance/cost-per-wash/actual-inputs", element: <ErrorBoundary><ActualCostInputs /></ErrorBoundary> },
@@ -544,7 +545,7 @@ export const router = createBrowserRouter([
       { path: "accounts/vendor-payment", element: <ErrorBoundary><VendorPayment /></ErrorBoundary> },
       { path: "accounts/gst-dashboard", element: <ErrorBoundary><GSTDashboard /></ErrorBoundary> },
       { path: "accounts/gst-sub-types", element: <ErrorBoundary><TransactionSubTypeManager /></ErrorBoundary> },
-      { path: "accounts/payroll-processing", element: <ErrorBoundary><AccountsPayrollProcessing /></ErrorBoundary> },
+      { path: "accounts/payroll-processing", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountsPayrollProcessing /></Suspense></ErrorBoundary> },
       { path: "accounts/accounting-entry", element: <ErrorBoundary><AccountingEntry /></ErrorBoundary> },
       { path: "accounts/expense-voucher", element: <ErrorBoundary><ExpenseVoucher /></ErrorBoundary> },
       { path: "accounts/item-master", element: <ErrorBoundary><ItemMaster /></ErrorBoundary> },
@@ -597,7 +598,7 @@ export const router = createBrowserRouter([
         element: <GlobalFiltersProvider><Outlet /></GlobalFiltersProvider>,
         children: [
           { index: true, element: <Navigate to="/analytics/dashboard" replace /> },
-          { path: "dashboard", element: <ErrorBoundary><AnalyticsDashboardWithDrillDown /></ErrorBoundary> },
+          { path: "dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AnalyticsDashboardWithDrillDown /></Suspense></ErrorBoundary> },
           { path: "unit-economics", element: <ErrorBoundary><UnitEconomicsDashboard /></ErrorBoundary> },
           { path: "customer-ltv", element: <ErrorBoundary><CustomerLTVAnalysis /></ErrorBoundary> },
           { path: "cac", element: <ErrorBoundary><CACDashboard /></ErrorBoundary> },
@@ -698,29 +699,29 @@ export const router = createBrowserRouter([
       { path: "washer/schedule", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "washer/earnings", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "washer/raise-issue", element: <Navigate to="/washer-core-screens" replace /> },
-      { path: "finance/collections", element: <ErrorBoundary><FinanceTransactions /></ErrorBoundary> },
+      { path: "finance/collections", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceTransactions /></Suspense></ErrorBoundary> },
 
       // Supervisor App - Nested routes with layout
       {
         path: "supervisor-app",
         element: <SupervisorLayout />,
         children: [
-          { index: true, element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
+          { index: true, element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "dashboard", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
           // R5 FIX NOTE: deep-linking to specific tabs requires SupervisorAppConnected
           // to read useLocation().pathname and set its initial active tab.
           // See SupervisorAppConnected fix in supervisor-fixes.
-          { path: "team", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "audit", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "cloth", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "leads", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "incentive", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "issues", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "alerts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "cover", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "visibility", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "audit-trail", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
-          { path: "kpi-dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorAppConnected /></Suspense></ErrorBoundary> },
+          { path: "team", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "audit", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "cloth", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "leads", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "incentive", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "issues", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "alerts", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "cover", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "visibility", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "audit-trail", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
+          { path: "kpi-dashboard", element: <ErrorBoundary><SupervisorAppConnected /></ErrorBoundary> },
         ]
       },
 
@@ -754,7 +755,7 @@ export const router = createBrowserRouter([
       // Subscription Management System (Production) - Dynamic plan system
       { path: "subscription-app", element: <ErrorBoundary><SubscriptionApp /></ErrorBoundary> },
       { path: "plans", element: <ErrorBoundary><PlanSelectionScreen /></ErrorBoundary> },
-      { path: "buy",   element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary> },
+      { path: "buy",   element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerPlanPage /></Suspense></ErrorBoundary> },
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><SuperAdminPlanEditor /></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },

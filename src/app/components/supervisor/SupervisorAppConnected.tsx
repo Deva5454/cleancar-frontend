@@ -1789,6 +1789,12 @@ export function SupervisorAppConnected() {
 
 
 
+  // supervisorSessionId must be defined before the useState calls that reference it
+  const supervisorSessionId = (() => {
+    try { return JSON.parse(localStorage.getItem("cc360_session") || "{}").employeeId || "EDB-SUP-SUR1"; }
+    catch { return "EDB-SUP-SUR1"; }
+  })();
+
   const [auditWashers, setAuditWashers] = useState(() => 
 
 
@@ -2117,23 +2123,7 @@ export function SupervisorAppConnected() {
 
 
 
-  // Incentive tracker — reads session ID so real churn/conversion data is used
-
-
-
-  const supervisorSessionId = (() => {
-
-
-
-    try { return JSON.parse(localStorage.getItem("cc360_session") || "{}").employeeId || "EDB-SUP-SUR1"; }
-
-
-
-    catch { return "EDB-SUP-SUR1"; }
-
-
-
-  })();
+  // supervisorSessionId is defined earlier in the component (moved to fix TDZ)
 
 
 
