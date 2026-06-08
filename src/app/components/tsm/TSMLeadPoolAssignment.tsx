@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { calcPoolSLA, isBusinessHoursNow, SLA_CONFIG } from "../../utils/leadSLA";
+import { SupervisorPincodePanel } from "../shared/SupervisorPincodePanel";
 
 function timeAgo(iso: string): string {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
@@ -43,6 +44,7 @@ export function TSMLeadPoolAssignment() {
   const [bulkTSEId, setBulkTSEId] = useState<string>("");
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [perLeadTSE, setPerLeadTSE] = useState<Record<string, string>>({});
+  const [expandedLead, setExpandedLead] = useState<string | null>(null); // show supervisor panel
 
   const bizHoursNow = isBusinessHoursNow();
 

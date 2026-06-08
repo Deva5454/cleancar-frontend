@@ -8,6 +8,7 @@ import { useCustomerSubscriptions } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
 import { tatTrackingService } from "../../services/tatTrackingService";
 import { getBookingSlot } from "../../services/bookingWindowService";
+import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
 
 // ─── CONFIG TYPES ─────────────────────────────────────────────────────────────
@@ -450,6 +451,7 @@ export function CustomerPlanPage() {
   const [custEmail,setCustEmail]=useState(""); const [custReg,setCustReg]=useState("");
   const [custAddress,setCustAddress]=useState(""); const [prefTime,setPrefTime]=useState("");
   const [oneTimeDate,setOneTimeDate]=useState(""); const [oneTimeHour,setOneTimeHour]=useState("");
+  const [packStartOption,setPackStartOption]=useState<"immediate"|"schedule">("immediate"); // REVISED: immediate is default per owner decision
   const [parking,setParking]=useState<"dedicated"|"random">("dedicated");
   const [notifyPref,setNotifyPref]=useState<"whatsapp"|"email"|"both">("whatsapp");
   const [consentTerms,setConsentTerms]=useState(false); const [consentRefund,setConsentRefund]=useState(false); const [consentCancel,setConsentCancel]=useState(false);
@@ -519,7 +521,21 @@ export function CustomerPlanPage() {
   const nextWorkingDay=(from:Date):Date=>{ const d=new Date(from); d.setDate(d.getDate()+1); while(isHoliday(d))d.setDate(d.getDate()+1); return d; };
   const nowCutoffInfo=()=>{ const n=new Date(),h=n.getHours(),m=n.getMinutes(),t=h*60+m; if(isHoliday(n)||t>=18*60+30)return{nextOnly:true,nwdMinHour:13}; if(t>=16*60)return{nextOnly:true,nwdMinHour:18}; return{nextOnly:false,nwdMinHour:13}; };
   const minOneTimeDate=useMemo(()=>{ const{nextOnly}=nowCutoffInfo(); return nextOnly?nextWorkingDay(new Date()).toISOString().slice(0,10):new Date().toISOString().slice(0,10); },[PUBLIC_HOLIDAYS]);
-  const getOneTimeSlots=(ds:string):string[]=>{ if(!ds)return[]; const now=new Date(),nh=now.getHours(),ts=now.toISOString().slice(0,10),iT=ds===ts; const sl:string[]=[]; for(let h=5;h<=21;h++){const pH=String(h).padStart(2,"0")+":00"; if(iT){if(nh<10){if(h>=12)sl.push(pH);}else if(nh<16){if(h>=nh+4)sl.push(pH);}}else{const{nextOnly,nwdMinHour}=nowCutoffInfo();const nS=nextWorkingDay(now).toISOString().slice(0,10);if(nextOnly&&ds===nS){if(h>=nwdMinHour)sl.push(pH);}else{sl.push(pH);}}} return sl; };
+  const getOneTimeSlots=(ds:string):string[]=>{
+    // Slots 5AM-9PM, 1-hr each. 3-hr TAT same-day. Filters slots where all washers booked.
+    if(!ds)return[];
+    const now=new Date(),nh=now.getHours(),nm=now.getMinutes(),ts=now.toISOString().slice(0,10),iT=ds===ts;
+    const availHours=getAvailableHours(pincode||"",ds); // washer-availability filter
+    const sl:string[]=[];
+    for(let h=5;h<=21;h++){
+      const pH=String(h).padStart(2,"0")+":00";
+      if(iT){const cutoff=nh+(nm/60)+3;if(h<Math.ceil(cutoff))continue;}
+      else{const{nextOnly}=nowCutoffInfo();const nS=nextWorkingDay(now).toISOString().slice(0,10);if(nextOnly&&ds===nS&&h<5)continue;}
+      if(availHours.size>0&&!availHours.has(h))continue; // hide if all washers booked
+      sl.push(pH);
+    }
+    return sl;
+  };
   const handleOneTimeDateChange=(ds:string)=>{ setOneTimeDate(ds); const{nextOnly,nwdMinHour}=nowCutoffInfo(),nS=nextWorkingDay(new Date()).toISOString().slice(0,10); if(nextOnly&&ds===nS){setOneTimeHour(`${String(nwdMinHour).padStart(2,"0")}:00`);}else{setOneTimeHour("");} };
 
   const scrollRef=useRef<HTMLDivElement>(null);

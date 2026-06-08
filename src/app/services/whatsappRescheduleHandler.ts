@@ -1,0 +1,154 @@
+/**
+ * whatsappRescheduleHandler.ts
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Handles incoming WhatsApp replies from customers requesting reschedule.
+ *
+ * In production: Interakt/Wati webhook calls POST /api/whatsapp/webhook
+ *   with the customer's reply text.
+ *
+ * Currently: simulated as a client-side handler that processes
+ *   the intent (RESCHEDULE / CANCEL) and creates a reschedule record.
+ *
+ * Trigger words recognised (case-insensitive):
+ *   RESCHEDULE, CHANGE, POSTPONE, SHIFT, DELAY — intent: reschedule
+ *   CANCEL, STOP, NO                           — intent: cancel
+ *
+ * Reschedule flow:
+ *   1. Customer replies "RESCHEDULE" to booking confirmation WA
+ *   2. System finds their active upcoming job
+ *   3. Creates a RescheduleRequest record in DataService
+ *   4. Notifies Supervisor + TSM: "Customer requested reschedule — action needed"
+ *   5. Customer receives: "Got it! Our team will contact you within 1 hr to confirm your new slot"
+ *   6. Supervisor assigns new slot → marks reschedule as resolved
+ *
+ * IVR reschedule: same RescheduleRequest record created via the IVR API.
+ * Parameters already set by Admin in the IVR system.
+ */
+
+import { DataService } from "./DataService";
+
+export interface RescheduleRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  jobId?: string;
+  subscriptionId?: string;
+  source: "WHATSAPP_REPLY" | "IVR" | "APP";
+  requestedAt: string;    // ISO
+  status: "PENDING" | "CONFIRMED" | "CANCELLED";
+  resolvedAt?: string;
+  resolvedBy?: string;    // supervisorId who assigned new slot
+  newDate?: string;
+  newSlot?: string;
+  notes?: string;
+}
+
+const KEY = "RESCHEDULE_REQUESTS";
+
+function readRequests(): RescheduleRequest[] {
+  return DataService.get<RescheduleRequest>(KEY) || [];
+}
+function writeRequests(r: RescheduleRequest[]): void {
+  DataService.setAll(KEY, r);
+}
+function genId() { return "RSC-" + Date.now().toString(36).toUpperCase(); }
+
+export const RESCHEDULE_TRIGGERS = ["RESCHEDULE","CHANGE","POSTPONE","SHIFT","DELAY","REBOOK"];
+export const CANCEL_TRIGGERS     = ["CANCEL","STOP","NO"];
+
+/**
+ * Process incoming WhatsApp message from a customer.
+ * Called by webhook handler or IVR bridge.
+ */
+export function processIncomingMessage(
+  phone: string,
+  messageText: string,
+  source: RescheduleRequest["source"] = "WHATSAPP_REPLY"
+): { intent: "reschedule" | "cancel" | "unknown"; replyText: string } {
+  const text = messageText.trim().toUpperCase();
+
+  if (RESCHEDULE_TRIGGERS.some(t => text.includes(t))) {
+    createRescheduleRequest(phone, source);
+    return {
+      intent: "reschedule",
+      replyText:
+        "Got it! ✅ Your reschedule request has been received.\n" +
+        "Our team will contact you within 1 hour to confirm your new slot.\n" +
+        "If urgent, call: 91-XXXXXXXXXX",
+    };
+  }
+
+  if (CANCEL_TRIGGERS.some(t => text.includes(t))) {
+    return {
+      intent: "cancel",
+      replyText:
+        "To cancel your booking, please call us at 91-XXXXXXXXXX or\n" +
+        "reply with your booking ID and CANCEL to confirm.\n" +
+        "Cancellations within 2 hours of the slot may not be refunded.",
+    };
+  }
+
+  return {
+    intent: "unknown",
+    replyText:
+      "Hi! To reschedule your wash, reply RESCHEDULE.\n" +
+      "To cancel, reply CANCEL.\n" +
+      "For other queries, call: 91-XXXXXXXXXX",
+  };
+}
+
+function createRescheduleRequest(phone: string, source: RescheduleRequest["source"]): void {
+  // Find customer by phone
+  const customers = DataService.get<any>("CUSTOMERS") || [];
+  const customer = customers.find((c: any) =>
+    (c.phone || c.mobile || "").replace(/\D/g, "").slice(-10) === phone.replace(/\D/g, "").slice(-10)
+  );
+
+  const req: RescheduleRequest = {
+    id: genId(),
+    customerId: customer?.customerId || "UNKNOWN",
+    customerName: customer ? `${customer.firstName || ""} ${customer.lastName || ""}`.trim() : "Unknown",
+    customerPhone: phone,
+    source,
+    requestedAt: new Date().toISOString(),
+    status: "PENDING",
+  };
+
+  const requests = readRequests();
+  requests.push(req);
+  writeRequests(requests);
+
+  // Fire DOM event for real-time UI update
+  window.dispatchEvent(new CustomEvent("cc360:reschedule_requested", { detail: req }));
+}
+
+export const rescheduleService = {
+  getPendingRequests(): RescheduleRequest[] {
+    return readRequests().filter(r => r.status === "PENDING");
+  },
+
+  getAllRequests(): RescheduleRequest[] {
+    return readRequests();
+  },
+
+  resolveRequest(id: string, supervisorId: string, newDate: string, newSlot: string): void {
+    const reqs = readRequests();
+    const idx = reqs.findIndex(r => r.id === id);
+    if (idx < 0) return;
+    reqs[idx] = {
+      ...reqs[idx],
+      status: "CONFIRMED",
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: supervisorId,
+      newDate,
+      newSlot,
+    };
+    writeRequests(reqs);
+    window.dispatchEvent(new CustomEvent("cc360:reschedule_resolved", { detail: { id, newDate, newSlot } }));
+  },
+
+  getPendingCount(): number {
+    return readRequests().filter(r => r.status === "PENDING").length;
+  },
+};

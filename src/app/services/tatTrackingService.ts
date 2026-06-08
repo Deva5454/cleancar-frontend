@@ -76,6 +76,9 @@ export interface TATNotification {
   actionRequired: boolean;
   actionLabel?:  string;
   read:         boolean;
+  acknowledged: boolean;        // Distinct from read — requires explicit tap of Acknowledge button
+  acknowledgedAt?: string;      // ISO timestamp when acknowledged
+  acknowledgedBy?: string;      // employeeId who acknowledged
   createdAt:    string;
 }
 
@@ -306,7 +309,7 @@ class TATTrackingService {
       type: "NEW_BOOKING", severity: "INFO",
       title: `New ${typeLabel} — Pending Assignment`,
       message: `${record.customerName} · ${planLabel} · ${record.area}\nTAT deadline: ${deadline}. Supervisor must assign washer.`,
-      actionRequired: false, read: false, createdAt: now,
+      actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
 
     // 4. Super Admin
@@ -316,7 +319,7 @@ class TATTrackingService {
       type: "NEW_BOOKING", severity: "INFO",
       title: `New ${typeLabel} — ${record.customerName}`,
       message: `${planLabel} · ${record.area} · ₹${record.grandTotal.toLocaleString("en-IN")}\nBooking window: ${record.bookingWindow}. TAT: ${deadline}.`,
-      actionRequired: false, read: false, createdAt: now,
+      actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
 
     // 5. Customer (WhatsApp simulation)
@@ -329,7 +332,7 @@ class TATTrackingService {
       type: "NEW_BOOKING", severity: "INFO",
       title: "Booking Confirmed — CleanCar 360°",
       message: customerMsg,
-      actionRequired: false, read: false, createdAt: now,
+      actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
 
     writeNotifs(notifs);
@@ -362,7 +365,7 @@ class TATTrackingService {
       type: "ASSIGNED", severity: "INFO",
       title: "Washer Assigned — CleanCar 360°",
       message: `Great news! ${washerName} has been assigned to your ${this.planLabel(record.planType)}. First wash by ${deadline}. Save this number: ${washerId}`,
-      actionRequired: false, read: false, createdAt: now,
+      actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
     notifs.push({
       id: "N-" + genId(), tatRecordId: tatId,
@@ -370,7 +373,7 @@ class TATTrackingService {
       type: "ASSIGNED", severity: "INFO",
       title: `Washer Assigned — ${record.customerName}`,
       message: `${washerName} assigned to ${record.customerName}. TAT deadline: ${deadline}.`,
-      actionRequired: false, read: false, createdAt: now,
+      actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
     writeNotifs(notifs);
   }
@@ -403,7 +406,7 @@ class TATTrackingService {
         recipientRole: role as any,
         type: "COMPLETED", severity: breached ? "WARNING" : "INFO",
         title: breached ? `TAT Breached — ${record.customerName}` : `TAT Met — ${record.customerName}`,
-        message: msg, actionRequired: breached, read: false, createdAt: nowStr,
+        message: msg, actionRequired: breached, read: false, acknowledged: false, createdAt: nowStr,
       });
     });
     // Customer
@@ -413,7 +416,7 @@ class TATTrackingService {
       type: "COMPLETED", severity: "INFO",
       title: "First Wash Complete — CleanCar 360°",
       message: `Your first ${this.planLabel(record.planType)} is done! Check your WhatsApp for before/after photos. See you tomorrow! ☀️`,
-      actionRequired: false, read: false, createdAt: nowStr,
+      actionRequired: false, read: false, acknowledged: false, createdAt: nowStr,
     });
     writeNotifs(notifs);
   }
@@ -518,6 +521,23 @@ class TATTrackingService {
     const notifs = readNotifs();
     const idx = notifs.findIndex(n => n.id === notifId);
     if (idx >= 0) { notifs[idx].read = true; writeNotifs(notifs); }
+  }
+
+  acknowledgeNotification(notifId: string, employeeId: string): void {
+    const notifs = readNotifs();
+    const idx = notifs.findIndex(n => n.id === notifId);
+    if (idx < 0) return;
+    notifs[idx] = { ...notifs[idx], acknowledged: true, acknowledgedAt: new Date().toISOString(), acknowledgedBy: employeeId, read: true };
+    writeNotifs(notifs);
+    window.dispatchEvent(new CustomEvent("cc360:notification_acknowledged", { detail: { notifId } }));
+  }
+
+  getUnacknowledgedActionCount(role: TATNotification["recipientRole"], employeeId?: string): number {
+    return readNotifs().filter(n =>
+      n.recipientRole === role &&
+      (!employeeId || n.recipientId === employeeId || !n.recipientId) &&
+      n.actionRequired && !n.acknowledged
+    ).length;
   }
 
   markAllRead(role: TATNotification["recipientRole"]) {
