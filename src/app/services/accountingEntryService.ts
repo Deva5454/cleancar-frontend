@@ -511,10 +511,6 @@ class AccountingEntryService {
     return updated;
   }
 
-  getAllEntries(cityId?: string): AccountingEntry[] {
-    const all = this.getEntries();
-    return cityId ? all.filter(e => e.cityId === cityId) : all;
-  }
   getByType(type: EntryType, cityId?: string): AccountingEntry[] {
     return this.getAllEntries(cityId).filter(e => e.entryType === type);
   }
