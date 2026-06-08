@@ -44,6 +44,177 @@ const MarketingROIDrilldown = lazy(() => import("./components/founder/MarketingR
 // import { OnboardingPortal } from "./components/OnboardingPortal"; // NOW LAZY
 import { OnboardingRedirect } from "./components/onboarding/OnboardingRedirect";
 import { DevOnlyRoute } from "./components/guards/DevOnlyRoute";
+import { Dashboard } from "./components/Dashboard";
+import { UserManagement } from "./components/modules/UserManagement";
+import { CRMLeadManagementWithFilters } from "./components/modules/CRMLeadManagementWithFilters";
+import { CRMConversionAnalyticsDashboard } from "./components/modules/CRMConversionAnalyticsDashboard";
+import { CustomerSubscription } from "./components/modules/CustomerSubscription";
+import { SupervisorModuleUpdated } from "./components/modules/SupervisorModuleUpdated";
+import { OperationsManagerApp } from "./components/om/OperationsManagerApp";
+import { ComplaintManagement } from "./components/modules/ComplaintManagement";
+import { InventoryStore } from "./components/modules/InventoryStore";
+import { MaterialRequisition } from "./components/inventory/MaterialRequisition";
+import { WasherIssuances } from "./components/inventory/WasherIssuances";
+import { WasherStockLedger } from "./components/inventory/WasherStockLedger";
+import { MonthEndVerification } from "./components/inventory/MonthEndVerification";
+import { MyStock } from "./components/washer/MyStock";
+import { StoreModule } from "./components/modules/StoreModule";
+import { ProcurementModule } from "./components/modules/ProcurementModule";
+const FinanceModule = lazy(() => import("./components/modules/FinanceModule"));
+import { RevenueCaptureSystem } from "./components/finance/RevenueCaptureSystem";
+import { PackageCostMatrix } from "./components/finance/PackageCostMatrix";
+import { CostPerWashModule } from "./components/finance/CostPerWashModule";
+import { ActualCostInputs } from "./components/finance/ActualCostInputs";
+import { FinanceTransactions } from "./components/finance/FinanceTransactions";
+import { LedgerEntriesView } from "./components/finance/LedgerEntriesView";
+import { FinanceAnalyticsDashboard } from "./components/finance/FinanceAnalyticsDashboard";
+import { FinancialReportsModule } from "./components/finance/FinancialReportsModule";
+import { LeavePolicyEngine } from "./components/hr/LeavePolicyEngine";
+import { EmployeeOnboarding } from "./components/hr/EmployeeOnboarding";
+import { ExitFFSettlement } from "./components/hr/ExitFFSettlement";
+import { EmployeeLifecycleManagement } from "./components/hr/EmployeeLifecycleManagement";
+import { LettersDocuments } from "./components/hr/LettersDocuments";
+import { IDCardGenerator } from "./components/hr/IDCardGenerator";
+import { HolidayManagement } from "./components/hr/HolidayManagement";
+import { LifeCycleReports } from "./components/hr/LifeCycleReports";
+import { EmployeeLedger } from "./components/hr/EmployeeLedger";
+import { StatutoryFormsVerification } from "./components/hr/StatutoryFormsVerification";
+import { OnboardingAutomation } from "./components/hr/OnboardingAutomation";
+import { EmployeeSalaryAssignment } from "./components/payroll/EmployeeSalaryAssignment";
+import { EmployeeSelfService } from "./components/hr/EmployeeSelfService";
+import { AttendanceDataManager } from "./components/admin/AttendanceDataManager";
+import { ApprovalCenter } from "./components/hr/ApprovalCenter";
+const ApprovalCenterHR = ApprovalCenter;
+import { TestStatutoryRoutes } from "./components/TestStatutoryRoutes";
+import { DeveloperRouteDirectory } from "./components/developer/DeveloperRouteDirectory";
+import { ApprovalCenter } from "./components/ApprovalCenter";
+import { AuditTrail } from "./components/AuditTrail";
+import { SystemAuditDashboard } from "./components/audit/SystemAuditDashboard";
+import { PerformanceTracking } from "./components/performance/PerformanceTracking";
+import { AccountsModule } from "./components/modules/AccountsModule";
+import { ExpenseEntry } from "./components/accounts/ExpenseEntry";
+import { ExpenseAnalytics } from "./components/accounts/ExpenseAnalytics";
+import { VendorPayment } from "./components/accounts/VendorPayment";
+import { GSTDashboard } from "./components/accounts/GSTDashboard";
+import { AccountingEntry } from "./components/accounts/AccountingEntry";
+import { JournalEntry } from "./components/accounts/JournalEntry";
+import { AccountsDashboard } from "./components/accounts/AccountsDashboard";
+import { AccountingTransactionList } from "./components/accounts/AccountingTransactionList";
+import { AccountsLedger } from "./components/accounts/AccountsLedger";
+import { PartyLedger } from "./components/accounts/PartyLedger";
+import { TrialBalance } from "./components/accounts/TrialBalance";
+import { BalanceSheet } from "./components/accounts/BalanceSheet";
+import { LedgerMaster } from "./components/accounts/LedgerMaster";
+import { RazorpayFlow } from "./components/accounts/RazorpayFlow";
+import { ExpenseVoucher } from "./components/accounts/ExpenseVoucher";
+import { ItemMaster } from "./components/accounts/ItemMaster";
+import { GSTR2AReport } from "./components/accounts/GSTR2AReport";
+import { PurchaseSummaryReport } from "./components/accounts/PurchaseSummaryReport";
+import { SalesSummaryReport } from "./components/accounts/SalesSummaryReport";
+import { RCMReport } from "./components/accounts/RCMReport";
+import { StoreManagerModule } from "./components/modules/StoreManagerModule";
+import { GRNEntry } from "./components/store-manager/GRNEntry";
+import { PurchaseOrderCreation } from "./components/store-manager/PurchaseOrderCreation";
+import { MOQManagement } from "./components/store-manager/MOQManagement";
+import { InventoryMonitoring } from "./components/store-manager/InventoryMonitoring";
+import { VendorRequest } from "./components/store-manager/VendorRequest";
+import { AnalyticsDashboardWithDrillDown } from "./components/dashboards/AnalyticsDashboardWithDrillDown";
+import { RoleBasedAnalyticsDashboard } from "./components/examples/RoleBasedAnalyticsDashboard";
+import { CostPerWashReport } from "./components/reports/CostPerWashReport";
+import { ActivityTimelineWrapper } from "./components/crm/ActivityTimelineWrapper";
+import { NotificationCenter } from "./components/crm/NotificationCenter";
+import { PayrollConfiguration } from "./components/payroll/PayrollConfiguration";
+import { PayrollConfigTest } from "./components/payroll/PayrollConfigTest";
+import { PayrollRun } from "./components/payroll/PayrollRun";
+import { PayrollProcessing } from "./components/payroll/PayrollProcessing";
+import { PayrollProcessingAdvanced } from "./components/payroll/PayrollProcessingAdvanced";
+import { PayrollReviewApproval } from "./components/payroll/PayrollReviewApproval";
+import { SalaryPayableView } from "./components/payroll/SalaryPayableView";
+import { SalaryPaymentScreen } from "./components/payroll/SalaryPaymentScreen";
+import { StatutoryPayablesScreen } from "./components/payroll/StatutoryPayablesScreen";
+import { PlanEditor } from "./components/subscription/PlanEditor";
+import { CommunicationTemplates } from "./components/settings/CommunicationTemplates";
+import { CostConfiguration } from "./components/settings/CostConfiguration";
+import { ServiceZonesManagement } from "./components/modules/ServiceZonesManagement";
+import { WasherJobExecution } from "./components/modules/WasherJobExecution";
+import { ExpansionOpportunities } from "./components/modules/ExpansionOpportunities";
+import { SupplierDetail } from "./components/procurement/SupplierDetail";
+import { CostTrackingIntegrationDemo } from "./components/demo/CostTrackingIntegrationDemo";
+import { DesignSystemTest } from "./design-system/tests/DesignSystemTest";
+import { ClothExchange } from "./components/cloth-tracking/ClothExchange";
+import { ClothAdminDashboard } from "./components/cloth-tracking/ClothAdminDashboard";
+import { AdvanceTypeSelection } from "./components/advance/AdvanceTypeSelection";
+import { LongTermAdvanceForm } from "./components/advance/LongTermAdvanceForm";
+import { ShortTermAdvanceForm } from "./components/advance/ShortTermAdvanceForm";
+import { EmployeeAdvanceDashboard } from "./components/advance/EmployeeAdvanceDashboard";
+import { AdvanceDetailView } from "./components/advance/AdvanceDetailView";
+import { HRAdvanceManagement } from "./components/advance/HRAdvanceManagement";
+import { OtherEarningsModule } from "./components/advance/OtherEarningsModule";
+import { OtherDeductionsModule } from "./components/advance/OtherDeductionsModule";
+import { AdjustmentsReport } from "./components/advance/AdjustmentsReport";
+import { WorkflowControlDemo } from "./components/workflow/WorkflowControlDemo";
+import { IncentiveEngineDemo } from "./components/workflow/IncentiveEngineDemo";
+import { WeekOffCoverDemo } from "./components/washer/WeekOffCoverDemo";
+import { SystemIntegrationDemo } from "./components/washer/SystemIntegrationDemo";
+import { WasherCoreScreensDemo } from "./components/washer/WasherCoreScreensDemo";
+import { WasherCoreScreensConnected } from "./components/washer/WasherCoreScreensConnected";
+const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppConnected"));
+import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
+import { ClusterManagerApp } from "./components/cm/ClusterManagerApp";
+import { CityManagerApp } from "./components/city/CityManagerApp";
+import { TeleSalesManagerApp } from "./components/tsm/TeleSalesManagerApp";
+import { SalesHeadApp } from "./components/sh/SalesHeadApp";
+import { SalesManagerApp } from "./components/sm/SalesManagerApp";
+import { TeleSalesExecutiveApp } from "./components/tse/TeleSalesExecutiveApp";
+import { TSEDiagnostics } from "./components/tse/TSEDiagnostics";
+import { CustomerCareExecutiveApp } from "./components/cce/CustomerCareExecutiveApp";
+import { SubscriptionApp } from "./components/subscription/SubscriptionApp";
+import { PlanSelectionScreen } from "./components/subscription/PlanSelectionScreen";
+import { CustomerPlanPage } from "./components/subscription/CustomerPlanPage";
+import { SuperAdminPlanEditor } from "./components/admin/SuperAdminPlanEditor";
+import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionDiagnostics";
+import { HierarchyDashboard } from "./components/hierarchy/HierarchyDashboard";
+import { WasherAttendanceHistory } from "./components/washer/WasherAttendanceHistory";
+import { OperationsRouter } from "./components/operations/OperationsRouter";
+import { OperationsDataCapture } from "./components/operations/OperationsDataCapture";
+import { OperationsLayout } from "./components/operations/OperationsLayout";
+import { ClientPortal } from "./components/client/ClientPortal";
+import { WorkingHoursSetup } from "./components/workforce/WorkingHoursSetup";
+import { WorkingHoursTest } from "./components/workforce/WorkingHoursTest";
+import { WorkingHoursSimple } from "./components/workforce/WorkingHoursSimple";
+import { WorkforceDiagnostic } from "./components/workforce/WorkforceDiagnostic";
+import { IncentiveSimulator } from "./components/incentives/IncentiveSimulator";
+import { IncentiveDashboard } from "./components/incentives/IncentiveDashboard";
+import { HRPayrollApproval } from "./components/hr/HRPayrollApproval";
+import { SuperAdminPayrollApproval } from "./components/admin/SuperAdminPayrollApproval";
+import { CityManagement } from "./components/admin/CityManagement";
+import { BusinessRulesPage } from "./components/admin/BusinessRulesPage";
+import { ShiftManagementPage } from "./components/admin/ShiftManagementPage";
+import { AttendanceFraudAlertsPage } from "./components/admin/AttendanceFraudAlertsPage";
+import { PermissionManagementPage } from "./components/admin/PermissionManagementPage";
+import { RolePermissionManager } from "./components/admin/RolePermissionManager";
+import { IncentiveVisibilityAdmin } from "./components/admin/IncentiveVisibilityAdmin";
+import { RoleSuggestionsPage } from "./components/hr/RoleSuggestionsPage";
+import { HRIntelligenceDashboard } from "./components/hr/HRIntelligenceDashboard";
+import { AccountsPayrollProcessing } from "./components/accounts/AccountsPayrollProcessing";
+import { GSTOverview } from "./components/gst/GSTOverview";
+import { GSTVendorMaster } from "./components/gst/GSTVendorMaster";
+import { GSTCustomerMaster } from "./components/gst/GSTCustomerMaster";
+import { GSTTransactionEntry } from "./components/gst/GSTTransactionEntry";
+import { GSTValidationCentre } from "./components/gst/GSTValidationCentre";
+import { GSTManagerReview } from "./components/gst/GSTManagerReview";
+import { GSTReconciliation } from "./components/gst/GSTReconciliation";
+import { GSTReports } from "./components/gst/GSTReports";
+import { TransactionSubTypeManager } from "./components/gst/TransactionSubTypeManager";
+import { GSTR1Module } from "./components/gst/GSTR1Module";
+import { GSTR3BModule } from "./components/gst/GSTR3BModule";
+import { GSTFilingModule } from "./components/gst/GSTFilingModule";
+import { GSTMonitoringModule } from "./components/gst/GSTMonitoringModule";
+import { BusinessFlowDemo } from "./components/BusinessFlowDemo";
+import { UnauthorizedPage } from "./components/pages/UnauthorizedPage";
+import { LoginPage } from "./pages/LoginPage";
+import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
+import { MyAccountPage } from "./components/hr/MyAccountPage";
 // import { ChartOfAccounts } from "./components/finance/ChartOfAccounts"; // NOW LAZY
 // import { HRModule } from "./components/modules/HRModule"; // NOW LAZY
 // import { ProfessionalLeaveManagement } from "./components/hr/ProfessionalLeaveManagement"; // NOW LAZY
@@ -76,180 +247,180 @@ const PayablesDashboard = lazy(() => import("./components/accounts/PayablesDashb
 
 // Lazy-loaded components
 const CreateSalaryStructure = lazy(() => import("./components/payroll/CreateSalaryStructure"));
-const Dashboard = lazy(() => import("./components/Dashboard").then(m => ({default: m.Dashboard || m.default})));
-const UserManagement = lazy(() => import("./components/modules/UserManagement").then(m => ({default: m.UserManagement || m.default})));
-const CRMLeadManagementWithFilters = lazy(() => import("./components/modules/CRMLeadManagementWithFilters").then(m => ({default: m.CRMLeadManagementWithFilters || m.default})));
-const CRMConversionAnalyticsDashboard = lazy(() => import("./components/modules/CRMConversionAnalyticsDashboard").then(m => ({default: m.CRMConversionAnalyticsDashboard || m.default})));
-const CustomerSubscription = lazy(() => import("./components/modules/CustomerSubscription").then(m => ({default: m.CustomerSubscription || m.default})));
-const SupervisorModuleUpdated = lazy(() => import("./components/modules/SupervisorModuleUpdated").then(m => ({default: m.SupervisorModuleUpdated || m.default})));
-const OperationsManagerApp = lazy(() => import("./components/om/OperationsManagerApp").then(m => ({default: m.OperationsManagerApp || m.default})));
-const ComplaintManagement = lazy(() => import("./components/modules/ComplaintManagement").then(m => ({default: m.ComplaintManagement || m.default})));
-const InventoryStore = lazy(() => import("./components/modules/InventoryStore").then(m => ({default: m.InventoryStore || m.default})));
-const MaterialRequisition = lazy(() => import("./components/inventory/MaterialRequisition").then(m => ({default: m.MaterialRequisition || m.default})));
-const WasherIssuances = lazy(() => import("./components/inventory/WasherIssuances").then(m => ({default: m.WasherIssuances || m.default})));
-const WasherStockLedger = lazy(() => import("./components/inventory/WasherStockLedger").then(m => ({default: m.WasherStockLedger || m.default})));
-const MonthEndVerification = lazy(() => import("./components/inventory/MonthEndVerification").then(m => ({default: m.MonthEndVerification || m.default})));
-const MyStock = lazy(() => import("./components/washer/MyStock").then(m => ({default: m.MyStock || m.default})));
-const StoreModule = lazy(() => import("./components/modules/StoreModule").then(m => ({default: m.StoreModule || m.default})));
-const ProcurementModule = lazy(() => import("./components/modules/ProcurementModule").then(m => ({default: m.ProcurementModule || m.default})));
-const FinanceModule = lazy(() => import("./components/modules/FinanceModule").then(m => ({default: m.FinanceModule || m.default})));
-const RevenueCaptureSystem = lazy(() => import("./components/finance/RevenueCaptureSystem").then(m => ({default: m.RevenueCaptureSystem || m.default})));
-const PackageCostMatrix = lazy(() => import("./components/finance/PackageCostMatrix").then(m => ({default: m.PackageCostMatrix || m.default})));
-const CostPerWashModule = lazy(() => import("./components/finance/CostPerWashModule").then(m => ({default: m.CostPerWashModule || m.default})));
-const ActualCostInputs = lazy(() => import("./components/finance/ActualCostInputs").then(m => ({default: m.ActualCostInputs || m.default})));
-const FinanceTransactions = lazy(() => import("./components/finance/FinanceTransactions").then(m => ({default: m.FinanceTransactions || m.default})));
-const LedgerEntriesView = lazy(() => import("./components/finance/LedgerEntriesView").then(m => ({default: m.LedgerEntriesView || m.default})));
-const FinanceAnalyticsDashboard = lazy(() => import("./components/finance/FinanceAnalyticsDashboard").then(m => ({default: m.FinanceAnalyticsDashboard || m.default})));
-const FinancialReportsModule = lazy(() => import("./components/finance/FinancialReportsModule").then(m => ({default: m.FinancialReportsModule || m.default})));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const InvoiceManagement = lazy(() => import("./components/finance/InvoiceManagement"));
 const InvoiceDetail = lazy(() => import("./components/finance/InvoiceDetail"));
 const PaymentManagement = lazy(() => import("./components/finance/PaymentManagement"));
-const LeavePolicyEngine = lazy(() => import("./components/hr/LeavePolicyEngine").then(m => ({default: m.LeavePolicyEngine || m.default})));
-const EmployeeOnboarding = lazy(() => import("./components/hr/EmployeeOnboarding").then(m => ({default: m.EmployeeOnboarding || m.default})));
-const ExitFFSettlement = lazy(() => import("./components/hr/ExitFFSettlement").then(m => ({default: m.ExitFFSettlement || m.default})));
-const EmployeeLifecycleManagement = lazy(() => import("./components/hr/EmployeeLifecycleManagement").then(m => ({default: m.EmployeeLifecycleManagement || m.default})));
-const LettersDocuments = lazy(() => import("./components/hr/LettersDocuments").then(m => ({default: m.LettersDocuments || m.default})));
-const IDCardGenerator = lazy(() => import("./components/hr/IDCardGenerator").then(m => ({default: m.IDCardGenerator || m.default})));
-const HolidayManagement = lazy(() => import("./components/hr/HolidayManagement").then(m => ({default: m.HolidayManagement || m.default})));
-const LifeCycleReports = lazy(() => import("./components/hr/LifeCycleReports").then(m => ({default: m.LifeCycleReports || m.default})));
-const EmployeeLedger = lazy(() => import("./components/hr/EmployeeLedger").then(m => ({default: m.EmployeeLedger || m.default})));
-const StatutoryFormsVerification = lazy(() => import("./components/hr/StatutoryFormsVerification").then(m => ({default: m.StatutoryFormsVerification || m.default})));
-const OnboardingAutomation = lazy(() => import("./components/hr/OnboardingAutomation").then(m => ({default: m.OnboardingAutomation || m.default})));
-const EmployeeSalaryAssignment = lazy(() => import("./components/payroll/EmployeeSalaryAssignment").then(m => ({default: m.EmployeeSalaryAssignment || m.default})));
-const EmployeeSelfService = lazy(() => import("./components/hr/EmployeeSelfService").then(m => ({default: m.EmployeeSelfService || m.default})));
-const AttendanceDataManager = lazy(() => import("./components/admin/AttendanceDataManager").then(m => ({default: m.AttendanceDataManager || m.default})));
-const ApprovalCenterHR = lazy(() => import("./components/hr/ApprovalCenter").then(m => ({default: m.ApprovalCenter || m.default})));
-const TestStatutoryRoutes = lazy(() => import("./components/TestStatutoryRoutes").then(m => ({default: m.TestStatutoryRoutes || m.default})));
-const DeveloperRouteDirectory = lazy(() => import("./components/developer/DeveloperRouteDirectory").then(m => ({default: m.DeveloperRouteDirectory || m.default})));
-const ApprovalCenter = lazy(() => import("./components/ApprovalCenter").then(m => ({default: m.ApprovalCenter || m.default})));
-const AuditTrail = lazy(() => import("./components/AuditTrail").then(m => ({default: m.AuditTrail || m.default})));
-const SystemAuditDashboard = lazy(() => import("./components/audit/SystemAuditDashboard").then(m => ({default: m.SystemAuditDashboard || m.default})));
-const PerformanceTracking = lazy(() => import("./components/performance/PerformanceTracking").then(m => ({default: m.PerformanceTracking || m.default})));
-const AccountsModule = lazy(() => import("./components/modules/AccountsModule").then(m => ({default: m.AccountsModule || m.default})));
-const ExpenseEntry = lazy(() => import("./components/accounts/ExpenseEntry").then(m => ({default: m.ExpenseEntry || m.default})));
-const ExpenseAnalytics = lazy(() => import("./components/accounts/ExpenseAnalytics").then(m => ({default: m.ExpenseAnalytics || m.default})));
-const VendorPayment = lazy(() => import("./components/accounts/VendorPayment").then(m => ({default: m.VendorPayment || m.default})));
-const GSTDashboard = lazy(() => import("./components/accounts/GSTDashboard").then(m => ({default: m.GSTDashboard || m.default})));
-const AccountingEntry = lazy(() => import("./components/accounts/AccountingEntry").then(m => ({default: m.AccountingEntry || m.default})));
-const JournalEntry = lazy(() => import("./components/accounts/JournalEntry").then(m => ({default: m.JournalEntry || m.default})));
-const AccountsDashboard = lazy(() => import("./components/accounts/AccountsDashboard").then(m => ({default: m.AccountsDashboard || m.default})));
-const AccountingTransactionList = lazy(() => import("./components/accounts/AccountingTransactionList").then(m => ({default: m.AccountingTransactionList || m.default})));
-const AccountsLedger = lazy(() => import("./components/accounts/AccountsLedger").then(m => ({default: m.AccountsLedger || m.default})));
-const PartyLedger = lazy(() => import("./components/accounts/PartyLedger").then(m => ({default: m.PartyLedger || m.default})));
-const TrialBalance = lazy(() => import("./components/accounts/TrialBalance").then(m => ({default: m.TrialBalance || m.default})));
-const BalanceSheet = lazy(() => import("./components/accounts/BalanceSheet").then(m => ({default: m.BalanceSheet || m.default})));
-const LedgerMaster = lazy(() => import("./components/accounts/LedgerMaster").then(m => ({default: m.LedgerMaster || m.default})));
-const RazorpayFlow = lazy(() => import("./components/accounts/RazorpayFlow").then(m => ({default: m.RazorpayFlow || m.default})));
-const ExpenseVoucher = lazy(() => import("./components/accounts/ExpenseVoucher").then(m => ({default: m.ExpenseVoucher || m.default})));
-const ItemMaster = lazy(() => import("./components/accounts/ItemMaster").then(m => ({default: m.ItemMaster || m.default})));
-const GSTR2AReport = lazy(() => import("./components/accounts/GSTR2AReport").then(m => ({default: m.GSTR2AReport || m.default})));
-const PurchaseSummaryReport = lazy(() => import("./components/accounts/PurchaseSummaryReport").then(m => ({default: m.PurchaseSummaryReport || m.default})));
-const SalesSummaryReport = lazy(() => import("./components/accounts/SalesSummaryReport").then(m => ({default: m.SalesSummaryReport || m.default})));
-const RCMReport = lazy(() => import("./components/accounts/RCMReport").then(m => ({default: m.RCMReport || m.default})));
-const StoreManagerModule = lazy(() => import("./components/modules/StoreManagerModule").then(m => ({default: m.StoreManagerModule || m.default})));
-const GRNEntry = lazy(() => import("./components/store-manager/GRNEntry").then(m => ({default: m.GRNEntry || m.default})));
-const PurchaseOrderCreation = lazy(() => import("./components/store-manager/PurchaseOrderCreation").then(m => ({default: m.PurchaseOrderCreation || m.default})));
-const MOQManagement = lazy(() => import("./components/store-manager/MOQManagement").then(m => ({default: m.MOQManagement || m.default})));
-const InventoryMonitoring = lazy(() => import("./components/store-manager/InventoryMonitoring").then(m => ({default: m.InventoryMonitoring || m.default})));
-const VendorRequest = lazy(() => import("./components/store-manager/VendorRequest").then(m => ({default: m.VendorRequest || m.default})));
-const AnalyticsDashboardWithDrillDown = lazy(() => import("./components/dashboards/AnalyticsDashboardWithDrillDown").then(m => ({default: m.AnalyticsDashboardWithDrillDown || m.default})));
-const RoleBasedAnalyticsDashboard = lazy(() => import("./components/examples/RoleBasedAnalyticsDashboard").then(m => ({default: m.RoleBasedAnalyticsDashboard || m.default})));
-const CostPerWashReport = lazy(() => import("./components/reports/CostPerWashReport").then(m => ({default: m.CostPerWashReport || m.default})));
-const ActivityTimelineWrapper = lazy(() => import("./components/crm/ActivityTimelineWrapper").then(m => ({default: m.ActivityTimelineWrapper || m.default})));
-const NotificationCenter = lazy(() => import("./components/crm/NotificationCenter").then(m => ({default: m.NotificationCenter || m.default})));
-const PayrollConfiguration = lazy(() => import("./components/payroll/PayrollConfiguration").then(m => ({default: m.PayrollConfiguration || m.default})));
-const PayrollConfigTest = lazy(() => import("./components/payroll/PayrollConfigTest").then(m => ({default: m.PayrollConfigTest || m.default})));
-const PayrollRun = lazy(() => import("./components/payroll/PayrollRun").then(m => ({default: m.PayrollRun || m.default})));
-const PayrollProcessing = lazy(() => import("./components/payroll/PayrollProcessing").then(m => ({default: m.PayrollProcessing || m.default})));
-const PayrollProcessingAdvanced = lazy(() => import("./components/payroll/PayrollProcessingAdvanced").then(m => ({default: m.PayrollProcessingAdvanced || m.default})));
-const PayrollReviewApproval = lazy(() => import("./components/payroll/PayrollReviewApproval").then(m => ({default: m.PayrollReviewApproval || m.default})));
-const SalaryPayableView = lazy(() => import("./components/payroll/SalaryPayableView").then(m => ({default: m.SalaryPayableView || m.default})));
-const SalaryPaymentScreen = lazy(() => import("./components/payroll/SalaryPaymentScreen").then(m => ({default: m.SalaryPaymentScreen || m.default})));
-const StatutoryPayablesScreen = lazy(() => import("./components/payroll/StatutoryPayablesScreen").then(m => ({default: m.StatutoryPayablesScreen || m.default})));
-const PlanEditor = lazy(() => import("./components/subscription/PlanEditor").then(m => ({default: m.PlanEditor || m.default})));
-const CommunicationTemplates = lazy(() => import("./components/settings/CommunicationTemplates").then(m => ({default: m.CommunicationTemplates || m.default})));
-const CostConfiguration = lazy(() => import("./components/settings/CostConfiguration").then(m => ({default: m.CostConfiguration || m.default})));
-const ServiceZonesManagement = lazy(() => import("./components/modules/ServiceZonesManagement").then(m => ({default: m.ServiceZonesManagement || m.default})));
-const WasherJobExecution = lazy(() => import("./components/modules/WasherJobExecution").then(m => ({default: m.WasherJobExecution || m.default})));
-const ExpansionOpportunities = lazy(() => import("./components/modules/ExpansionOpportunities").then(m => ({default: m.ExpansionOpportunities || m.default})));
-const SupplierDetail = lazy(() => import("./components/procurement/SupplierDetail").then(m => ({default: m.SupplierDetail || m.default})));
-const CostTrackingIntegrationDemo = lazy(() => import("./components/demo/CostTrackingIntegrationDemo").then(m => ({default: m.CostTrackingIntegrationDemo || m.default})));
-const DesignSystemTest = lazy(() => import("./design-system/tests/DesignSystemTest").then(m => ({default: m.DesignSystemTest || m.default})));
-const ClothExchange = lazy(() => import("./components/cloth-tracking/ClothExchange").then(m => ({default: m.ClothExchange || m.default})));
-const ClothAdminDashboard = lazy(() => import("./components/cloth-tracking/ClothAdminDashboard").then(m => ({default: m.ClothAdminDashboard || m.default})));
-const AdvanceTypeSelection = lazy(() => import("./components/advance/AdvanceTypeSelection").then(m => ({default: m.AdvanceTypeSelection || m.default})));
-const LongTermAdvanceForm = lazy(() => import("./components/advance/LongTermAdvanceForm").then(m => ({default: m.LongTermAdvanceForm || m.default})));
-const ShortTermAdvanceForm = lazy(() => import("./components/advance/ShortTermAdvanceForm").then(m => ({default: m.ShortTermAdvanceForm || m.default})));
-const EmployeeAdvanceDashboard = lazy(() => import("./components/advance/EmployeeAdvanceDashboard").then(m => ({default: m.EmployeeAdvanceDashboard || m.default})));
-const AdvanceDetailView = lazy(() => import("./components/advance/AdvanceDetailView").then(m => ({default: m.AdvanceDetailView || m.default})));
-const HRAdvanceManagement = lazy(() => import("./components/advance/HRAdvanceManagement").then(m => ({default: m.HRAdvanceManagement || m.default})));
-const OtherEarningsModule = lazy(() => import("./components/advance/OtherEarningsModule").then(m => ({default: m.OtherEarningsModule || m.default})));
-const OtherDeductionsModule = lazy(() => import("./components/advance/OtherDeductionsModule").then(m => ({default: m.OtherDeductionsModule || m.default})));
-const AdjustmentsReport = lazy(() => import("./components/advance/AdjustmentsReport").then(m => ({default: m.AdjustmentsReport || m.default})));
-const WorkflowControlDemo = lazy(() => import("./components/workflow/WorkflowControlDemo").then(m => ({default: m.WorkflowControlDemo || m.default})));
-const IncentiveEngineDemo = lazy(() => import("./components/workflow/IncentiveEngineDemo").then(m => ({default: m.IncentiveEngineDemo || m.default})));
-const WeekOffCoverDemo = lazy(() => import("./components/washer/WeekOffCoverDemo").then(m => ({default: m.WeekOffCoverDemo || m.default})));
-const SystemIntegrationDemo = lazy(() => import("./components/washer/SystemIntegrationDemo").then(m => ({default: m.SystemIntegrationDemo || m.default})));
-const WasherCoreScreensDemo = lazy(() => import("./components/washer/WasherCoreScreensDemo").then(m => ({default: m.WasherCoreScreensDemo || m.default})));
-const WasherCoreScreensConnected = lazy(() => import("./components/washer/WasherCoreScreensConnected").then(m => ({default: m.WasherCoreScreensConnected || m.default})));
-const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppConnected").then(m => ({default: m.SupervisorAppConnected || m.default})));
-const SupervisorLayout = lazy(() => import("./components/supervisor/SupervisorLayout").then(m => ({default: m.SupervisorLayout || m.default})));
-const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp").then(m => ({default: m.ClusterManagerApp || m.default})));
-const CityManagerApp = lazy(() => import("./components/city/CityManagerApp").then(m => ({default: m.CityManagerApp || m.default})));
-const TeleSalesManagerApp = lazy(() => import("./components/tsm/TeleSalesManagerApp").then(m => ({default: m.TeleSalesManagerApp || m.default})));
-const SalesHeadApp = lazy(() => import("./components/sh/SalesHeadApp").then(m => ({default: m.SalesHeadApp || m.default})));
-const SalesManagerApp = lazy(() => import("./components/sm/SalesManagerApp").then(m => ({default: m.SalesManagerApp || m.default})));
-const TeleSalesExecutiveApp = lazy(() => import("./components/tse/TeleSalesExecutiveApp").then(m => ({default: m.TeleSalesExecutiveApp || m.default})));
-const TSEDiagnostics = lazy(() => import("./components/tse/TSEDiagnostics").then(m => ({default: m.TSEDiagnostics || m.default})));
-const CustomerCareExecutiveApp = lazy(() => import("./components/cce/CustomerCareExecutiveApp").then(m => ({default: m.CustomerCareExecutiveApp || m.default})));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const TestBTLService = lazy(() => import("./test-btl-service").catch(() => ({ default: () => null })));
-const SubscriptionApp = lazy(() => import("./components/subscription/SubscriptionApp").then(m => ({default: m.SubscriptionApp || m.default})));
-const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen").then(m => ({default: m.PlanSelectionScreen || m.default})));
-const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage").then(m => ({default: m.CustomerPlanPage || m.default})));
-const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor").then(m => ({default: m.SuperAdminPlanEditor || m.default})));
-const SubscriptionDiagnostics = lazy(() => import("./components/subscription/SubscriptionDiagnostics").then(m => ({default: m.SubscriptionDiagnostics || m.default})));
-const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard").then(m => ({default: m.HierarchyDashboard || m.default})));
-const WasherAttendanceHistory = lazy(() => import("./components/washer/WasherAttendanceHistory").then(m => ({default: m.WasherAttendanceHistory || m.default})));
-const OperationsRouter = lazy(() => import("./components/operations/OperationsRouter").then(m => ({default: m.OperationsRouter || m.default})));
-const OperationsDataCapture = lazy(() => import("./components/operations/OperationsDataCapture").then(m => ({default: m.OperationsDataCapture || m.default})));
-const OperationsLayout = lazy(() => import("./components/operations/OperationsLayout").then(m => ({default: m.OperationsLayout || m.default})));
-const ClientPortal = lazy(() => import("./components/client/ClientPortal").then(m => ({default: m.ClientPortal || m.default})));
-const WorkingHoursSetup = lazy(() => import("./components/workforce/WorkingHoursSetup").then(m => ({default: m.WorkingHoursSetup || m.default})));
-const WorkingHoursTest = lazy(() => import("./components/workforce/WorkingHoursTest").then(m => ({default: m.WorkingHoursTest || m.default})));
-const WorkingHoursSimple = lazy(() => import("./components/workforce/WorkingHoursSimple").then(m => ({default: m.WorkingHoursSimple || m.default})));
-const WorkforceDiagnostic = lazy(() => import("./components/workforce/WorkforceDiagnostic").then(m => ({default: m.WorkforceDiagnostic || m.default})));
-const IncentiveSimulator = lazy(() => import("./components/incentives/IncentiveSimulator").then(m => ({default: m.IncentiveSimulator || m.default})));
-const IncentiveDashboard = lazy(() => import("./components/incentives/IncentiveDashboard").then(m => ({default: m.IncentiveDashboard || m.default})));
-const HRPayrollApproval = lazy(() => import("./components/hr/HRPayrollApproval").then(m => ({default: m.HRPayrollApproval || m.default})));
-const SuperAdminPayrollApproval = lazy(() => import("./components/admin/SuperAdminPayrollApproval").then(m => ({default: m.SuperAdminPayrollApproval || m.default})));
-const CityManagement = lazy(() => import("./components/admin/CityManagement").then(m => ({default: m.CityManagement || m.default})));
-const BusinessRulesPage = lazy(() => import("./components/admin/BusinessRulesPage").then(m => ({default: m.BusinessRulesPage || m.default})));
-const ShiftManagementPage = lazy(() => import("./components/admin/ShiftManagementPage").then(m => ({default: m.ShiftManagementPage || m.default})));
-const AttendanceFraudAlertsPage = lazy(() => import("./components/admin/AttendanceFraudAlertsPage").then(m => ({default: m.AttendanceFraudAlertsPage || m.default})));
-const PermissionManagementPage = lazy(() => import("./components/admin/PermissionManagementPage").then(m => ({default: m.PermissionManagementPage || m.default})));
-const RolePermissionManager = lazy(() => import("./components/admin/RolePermissionManager").then(m => ({default: m.RolePermissionManager || m.default})));
-const IncentiveVisibilityAdmin = lazy(() => import("./components/admin/IncentiveVisibilityAdmin").then(m => ({default: m.IncentiveVisibilityAdmin || m.default})));
-const RoleSuggestionsPage = lazy(() => import("./components/hr/RoleSuggestionsPage").then(m => ({default: m.RoleSuggestionsPage || m.default})));
-const HRIntelligenceDashboard = lazy(() => import("./components/hr/HRIntelligenceDashboard").then(m => ({default: m.HRIntelligenceDashboard || m.default})));
-const AccountsPayrollProcessing = lazy(() => import("./components/accounts/AccountsPayrollProcessing").then(m => ({default: m.AccountsPayrollProcessing || m.default})));
-const GSTOverview = lazy(() => import("./components/gst/GSTOverview").then(m => ({default: m.GSTOverview || m.default})));
-const GSTVendorMaster = lazy(() => import("./components/gst/GSTVendorMaster").then(m => ({default: m.GSTVendorMaster || m.default})));
-const GSTCustomerMaster = lazy(() => import("./components/gst/GSTCustomerMaster").then(m => ({default: m.GSTCustomerMaster || m.default})));
-const GSTTransactionEntry = lazy(() => import("./components/gst/GSTTransactionEntry").then(m => ({default: m.GSTTransactionEntry || m.default})));
-const GSTValidationCentre = lazy(() => import("./components/gst/GSTValidationCentre").then(m => ({default: m.GSTValidationCentre || m.default})));
-const GSTManagerReview = lazy(() => import("./components/gst/GSTManagerReview").then(m => ({default: m.GSTManagerReview || m.default})));
-const GSTReconciliation = lazy(() => import("./components/gst/GSTReconciliation").then(m => ({default: m.GSTReconciliation || m.default})));
-const GSTReports = lazy(() => import("./components/gst/GSTReports").then(m => ({default: m.GSTReports || m.default})));
-const TransactionSubTypeManager = lazy(() => import("./components/gst/TransactionSubTypeManager").then(m => ({default: m.TransactionSubTypeManager || m.default})));
-const GSTR1Module = lazy(() => import("./components/gst/GSTR1Module").then(m => ({default: m.GSTR1Module || m.default})));
-const GSTR3BModule = lazy(() => import("./components/gst/GSTR3BModule").then(m => ({default: m.GSTR3BModule || m.default})));
-const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule").then(m => ({default: m.GSTFilingModule || m.default})));
-const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule").then(m => ({default: m.GSTMonitoringModule || m.default})));
-const BusinessFlowDemo = lazy(() => import("./components/BusinessFlowDemo").then(m => ({default: m.BusinessFlowDemo || m.default})));
-const UnauthorizedPage = lazy(() => import("./components/pages/UnauthorizedPage").then(m => ({default: m.UnauthorizedPage || m.default})));
-const LoginPage = lazy(() => import("./pages/LoginPage").then(m => ({default: m.LoginPage || m.default})));
-const MobileChangeRequest = lazy(() => import("./components/hr/MobileChangeRequest").then(m => ({default: m.MobileChangeRequest || m.default})));
-const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage").then(m => ({default: m.MyAccountPage || m.default})));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 export const router = createBrowserRouter([
@@ -260,7 +431,7 @@ export const router = createBrowserRouter([
   // Standalone Onboarding Portal routes (no header/sidebar) - MUST come FIRST
   {
     path: "/onboarding/:empId",
-    element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OnboardingPortal /></Suspense></ErrorBoundary>,
+    element: <ErrorBoundary><OnboardingPortal /></ErrorBoundary>,
   },
   {
     path: "/onboard/:empId",
@@ -272,7 +443,7 @@ export const router = createBrowserRouter([
     element: <RootLayoutWrapper />,
     errorElement: (<div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-4 p-8"><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center"><span className="text-red-600 text-xl font-bold">!</span></div><h2 className="text-lg font-semibold text-gray-900">Page Error</h2><p className="text-sm text-gray-500">This page has an error. Other pages still work.</p><a href="/" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">Go to Dashboard</a></div>),
     children: [
-      { index: true, element: <ErrorBoundary><Suspense fallback={<PageLoader />}><Dashboard /></Suspense></ErrorBoundary> },
+      { index: true, element: <ErrorBoundary><Dashboard /></ErrorBoundary> },
 
       // CRM index — nav parent /crm has no route
       {
@@ -305,141 +476,141 @@ export const router = createBrowserRouter([
       },
 
       { path: "business-flow-demo", element: <DevOnlyRoute element={<BusinessFlowDemo />} /> },
-      { path: "users", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><UserManagement /></Suspense></ErrorBoundary> },
-      { path: "leads", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CRMLeadManagementWithFilters /></Suspense></ErrorBoundary> },
-      { path: "customers", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerSubscription /></Suspense></ErrorBoundary> },
+      { path: "users", element: <ErrorBoundary><UserManagement /></ErrorBoundary> },
+      { path: "leads", element: <ErrorBoundary><CRMLeadManagementWithFilters /></ErrorBoundary> },
+      { path: "customers", element: <ErrorBoundary><CustomerSubscription /></ErrorBoundary> },
       { path: "car-washer", element: <Navigate to="/washer-core-screens" replace /> },
-      { path: "supervisor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorModuleUpdated /></Suspense></ErrorBoundary> },
+      { path: "supervisor", element: <ErrorBoundary><SupervisorModuleUpdated /></ErrorBoundary> },
       // Operations layout route with children
       {
         path: "operations",
         element: <OperationsLayout />,
         children: [
-          { index: true, element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OperationsRouter /></Suspense></ErrorBoundary> },
-          { path: "data-capture", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OperationsDataCapture /></Suspense></ErrorBoundary> },
+          { index: true, element: <ErrorBoundary><OperationsRouter /></ErrorBoundary> },
+          { path: "data-capture", element: <ErrorBoundary><OperationsDataCapture /></ErrorBoundary> },
         ]
       },
-      { path: "complaints", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ComplaintManagement /></Suspense></ErrorBoundary> },
-      { path: "inventory", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><InventoryStore /></Suspense></ErrorBoundary> },
-      { path: "inventory/requisition", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MaterialRequisition /></Suspense></ErrorBoundary> },
-      { path: "inventory/washer-issuances", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherIssuances /></Suspense></ErrorBoundary> },
-      { path: "inventory/washer-stock-ledger", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherStockLedger /></Suspense></ErrorBoundary> },
-      { path: "inventory/month-end-verification", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MonthEndVerification /></Suspense></ErrorBoundary> },
-      { path: "inventory/my-stock", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MyStock /></Suspense></ErrorBoundary> },
-      { path: "store", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StoreModule /></Suspense></ErrorBoundary> },
-      { path: "procurement", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ProcurementModule /></Suspense></ErrorBoundary> },
+      { path: "complaints", element: <ErrorBoundary><ComplaintManagement /></ErrorBoundary> },
+      { path: "inventory", element: <ErrorBoundary><InventoryStore /></ErrorBoundary> },
+      { path: "inventory/requisition", element: <ErrorBoundary><MaterialRequisition /></ErrorBoundary> },
+      { path: "inventory/washer-issuances", element: <ErrorBoundary><WasherIssuances /></ErrorBoundary> },
+      { path: "inventory/washer-stock-ledger", element: <ErrorBoundary><WasherStockLedger /></ErrorBoundary> },
+      { path: "inventory/month-end-verification", element: <ErrorBoundary><MonthEndVerification /></ErrorBoundary> },
+      { path: "inventory/my-stock", element: <ErrorBoundary><MyStock /></ErrorBoundary> },
+      { path: "store", element: <ErrorBoundary><StoreModule /></ErrorBoundary> },
+      { path: "procurement", element: <ErrorBoundary><ProcurementModule /></ErrorBoundary> },
       { path: "finance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceModule /></Suspense></ErrorBoundary> },
-      { path: "finance/analytics", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceAnalyticsDashboard /></Suspense></ErrorBoundary> },
-      { path: "finance/reports", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinancialReportsModule /></Suspense></ErrorBoundary> },
-      { path: "finance/transactions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceTransactions /></Suspense></ErrorBoundary> },
-      { path: "finance/ledger-entries", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LedgerEntriesView /></Suspense></ErrorBoundary> },
-      { path: "finance/chart-of-accounts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ChartOfAccounts /></Suspense></ErrorBoundary> },
-      { path: "finance/invoices", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><InvoiceManagement /></Suspense></ErrorBoundary> },
-      { path: "finance/invoices/:id", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><InvoiceDetail /></Suspense></ErrorBoundary> },
-      { path: "finance/payments", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PaymentManagement /></Suspense></ErrorBoundary> },
-      { path: "finance/revenue-capture", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RevenueCaptureSystem /></Suspense></ErrorBoundary> },
-      { path: "finance/package-cost-matrix", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PackageCostMatrix /></Suspense></ErrorBoundary> },
-      { path: "finance/cost-per-wash", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostPerWashModule /></Suspense></ErrorBoundary> },
-      { path: "finance/cost-per-wash/actual-inputs", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ActualCostInputs /></Suspense></ErrorBoundary> },
-      { path: "hr", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HRModule /></Suspense></ErrorBoundary> },
+      { path: "finance/analytics", element: <ErrorBoundary><FinanceAnalyticsDashboard /></ErrorBoundary> },
+      { path: "finance/reports", element: <ErrorBoundary><FinancialReportsModule /></ErrorBoundary> },
+      { path: "finance/transactions", element: <ErrorBoundary><FinanceTransactions /></ErrorBoundary> },
+      { path: "finance/ledger-entries", element: <ErrorBoundary><LedgerEntriesView /></ErrorBoundary> },
+      { path: "finance/chart-of-accounts", element: <ErrorBoundary><ChartOfAccounts /></ErrorBoundary> },
+      { path: "finance/invoices", element: <ErrorBoundary><InvoiceManagement /></ErrorBoundary> },
+      { path: "finance/invoices/:id", element: <ErrorBoundary><InvoiceDetail /></ErrorBoundary> },
+      { path: "finance/payments", element: <ErrorBoundary><PaymentManagement /></ErrorBoundary> },
+      { path: "finance/revenue-capture", element: <ErrorBoundary><RevenueCaptureSystem /></ErrorBoundary> },
+      { path: "finance/package-cost-matrix", element: <ErrorBoundary><PackageCostMatrix /></ErrorBoundary> },
+      { path: "finance/cost-per-wash", element: <ErrorBoundary><CostPerWashModule /></ErrorBoundary> },
+      { path: "finance/cost-per-wash/actual-inputs", element: <ErrorBoundary><ActualCostInputs /></ErrorBoundary> },
+      { path: "hr", element: <ErrorBoundary><HRModule /></ErrorBoundary> },
       { path: "hr/leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/enhanced-leave", element: <Navigate to="/hr/professional-leave" replace /> },
-      { path: "hr/professional-leave", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ProfessionalLeaveManagement /></Suspense></ErrorBoundary> },
-      { path: "hr/leave-policy-engine", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LeavePolicyEngine /></Suspense></ErrorBoundary> },
-      { path: "hr/onboarding", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeOnboarding /></Suspense></ErrorBoundary> },
-      { path: "hr/exit-settlement", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ExitFFSettlement /></Suspense></ErrorBoundary> },
-      { path: "hr/lifecycle-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeLifecycleManagement /></Suspense></ErrorBoundary> },
-      { path: "hr/letters-documents", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LettersDocuments /></Suspense></ErrorBoundary> },
-      { path: "hr/id-card-generator", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IDCardGenerator /></Suspense></ErrorBoundary> },
-      { path: "hr/holiday-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HolidayManagement /></Suspense></ErrorBoundary> },
-      { path: "hr/lifecycle-reports", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LifeCycleReports /></Suspense></ErrorBoundary> },
-      { path: "hr/employee-ledger", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeLedger /></Suspense></ErrorBoundary> },
-      { path: "hr/statutory-forms-onboarding", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StatutoryFormsOnboarding /></Suspense></ErrorBoundary> },
-      { path: "hr/statutory-forms-verification", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StatutoryFormsVerification /></Suspense></ErrorBoundary> },
-      { path: "hr/onboarding-automation", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OnboardingAutomation /></Suspense></ErrorBoundary> },
-      { path: "hr/self-service", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeSelfService /></Suspense></ErrorBoundary> },
-      { path: "hr/approval-center", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ApprovalCenterHR /></Suspense></ErrorBoundary> },
-      { path: "hr/payroll-approval", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HRPayrollApproval /></Suspense></ErrorBoundary> },
-      { path: "hr/attendance-data-manager", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AttendanceDataManager /></Suspense></ErrorBoundary> },
+      { path: "hr/professional-leave", element: <ErrorBoundary><ProfessionalLeaveManagement /></ErrorBoundary> },
+      { path: "hr/leave-policy-engine", element: <ErrorBoundary><LeavePolicyEngine /></ErrorBoundary> },
+      { path: "hr/onboarding", element: <ErrorBoundary><EmployeeOnboarding /></ErrorBoundary> },
+      { path: "hr/exit-settlement", element: <ErrorBoundary><ExitFFSettlement /></ErrorBoundary> },
+      { path: "hr/lifecycle-management", element: <ErrorBoundary><EmployeeLifecycleManagement /></ErrorBoundary> },
+      { path: "hr/letters-documents", element: <ErrorBoundary><LettersDocuments /></ErrorBoundary> },
+      { path: "hr/id-card-generator", element: <ErrorBoundary><IDCardGenerator /></ErrorBoundary> },
+      { path: "hr/holiday-management", element: <ErrorBoundary><HolidayManagement /></ErrorBoundary> },
+      { path: "hr/lifecycle-reports", element: <ErrorBoundary><LifeCycleReports /></ErrorBoundary> },
+      { path: "hr/employee-ledger", element: <ErrorBoundary><EmployeeLedger /></ErrorBoundary> },
+      { path: "hr/statutory-forms-onboarding", element: <ErrorBoundary><StatutoryFormsOnboarding /></ErrorBoundary> },
+      { path: "hr/statutory-forms-verification", element: <ErrorBoundary><StatutoryFormsVerification /></ErrorBoundary> },
+      { path: "hr/onboarding-automation", element: <ErrorBoundary><OnboardingAutomation /></ErrorBoundary> },
+      { path: "hr/self-service", element: <ErrorBoundary><EmployeeSelfService /></ErrorBoundary> },
+      { path: "hr/approval-center", element: <ErrorBoundary><ApprovalCenterHR /></ErrorBoundary> },
+      { path: "hr/payroll-approval", element: <ErrorBoundary><HRPayrollApproval /></ErrorBoundary> },
+      { path: "hr/attendance-data-manager", element: <ErrorBoundary><AttendanceDataManager /></ErrorBoundary> },
       { path: "hr/test-statutory-routes", element: <DevOnlyRoute element={<TestStatutoryRoutes />} /> },
       { path: "hr/developer-routes", element: <DevOnlyRoute element={<DeveloperRouteDirectory />} /> },
-      { path: "approvals", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ApprovalCenter /></Suspense></ErrorBoundary> },
-      { path: "audit-trail", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AuditTrail /></Suspense></ErrorBoundary> },
+      { path: "approvals", element: <ErrorBoundary><ApprovalCenter /></ErrorBoundary> },
+      { path: "audit-trail", element: <ErrorBoundary><AuditTrail /></ErrorBoundary> },
       { path: "system-audit", element: <DevOnlyRoute element={<SystemAuditDashboard />} /> },
-      { path: "performance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PerformanceTracking /></Suspense></ErrorBoundary> },
-      { path: "accounts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountsModule /></Suspense></ErrorBoundary> },
-      { path: "accounts/expense-entry", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ExpenseEntry /></Suspense></ErrorBoundary> },
-      { path: "accounts/expense-analytics", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ExpenseAnalytics /></Suspense></ErrorBoundary> },
-      { path: "accounts/vendor-payment", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><VendorPayment /></Suspense></ErrorBoundary> },
-      { path: "accounts/gst-dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTDashboard /></Suspense></ErrorBoundary> },
-      { path: "accounts/gst-sub-types", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TransactionSubTypeManager /></Suspense></ErrorBoundary> },
-      { path: "accounts/payroll-processing", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountsPayrollProcessing /></Suspense></ErrorBoundary> },
-      { path: "accounts/accounting-entry", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountingEntry /></Suspense></ErrorBoundary> },
-      { path: "accounts/expense-voucher", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ExpenseVoucher /></Suspense></ErrorBoundary> },
-      { path: "accounts/item-master", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ItemMaster /></Suspense></ErrorBoundary> },
-      { path: "accounts/payables", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayablesDashboard /></Suspense></ErrorBoundary> },
-      { path: "accounts/tds-payable", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TDSPayableModule /></Suspense></ErrorBoundary> },
-      { path: "accounts/advance-tax", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdvanceTaxCalculator /></Suspense></ErrorBoundary> },
-      { path: "accounts/journal-entry", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><JournalEntry /></Suspense></ErrorBoundary> },
-      { path: "accounts/dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountsDashboard /></Suspense></ErrorBoundary> },
-      { path: "accounts/transactions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountingTransactionList /></Suspense></ErrorBoundary> },
-      { path: "accounts/ledger", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AccountsLedger /></Suspense></ErrorBoundary> },
-      { path: "accounts/party-ledger", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PartyLedger /></Suspense></ErrorBoundary> },
-      { path: "accounts/ledger-master", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LedgerMaster /></Suspense></ErrorBoundary> },
-      { path: "accounts/razorpay-flow", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RazorpayFlow /></Suspense></ErrorBoundary> },
-      { path: "accounts/trial-balance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TrialBalance /></Suspense></ErrorBoundary> },
-      { path: "accounts/balance-sheet", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><BalanceSheet /></Suspense></ErrorBoundary> },
-      { path: "accounts/gstr2a", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTR2AReport /></Suspense></ErrorBoundary> },
-      { path: "accounts/reports/purchase", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PurchaseSummaryReport /></Suspense></ErrorBoundary> },
-      { path: "accounts/reports/sales", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SalesSummaryReport /></Suspense></ErrorBoundary> },
-      { path: "accounts/reports/rcm", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RCMReport /></Suspense></ErrorBoundary> },
-      { path: "gst", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTOverview /></Suspense></ErrorBoundary> },
-      { path: "gst/vendors", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTVendorMaster /></Suspense></ErrorBoundary> },
-      { path: "gst/customers", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTCustomerMaster /></Suspense></ErrorBoundary> },
-      { path: "gst/transactions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTTransactionEntry /></Suspense></ErrorBoundary> },
-      { path: "gst/validation", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTValidationCentre /></Suspense></ErrorBoundary> },
-      { path: "gst/review", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTManagerReview /></Suspense></ErrorBoundary> },
-      { path: "gst/reconciliation", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTReconciliation /></Suspense></ErrorBoundary> },
-      { path: "gst/reports", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTReports /></Suspense></ErrorBoundary> },
-      { path: "gst/gstr1", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTR1Module /></Suspense></ErrorBoundary> },
-      { path: "gst/gstr3b", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTR3BModule /></Suspense></ErrorBoundary> },
-      { path: "gst/filing", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTFilingModule /></Suspense></ErrorBoundary> },
-      { path: "gst/monitoring", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTMonitoringModule /></Suspense></ErrorBoundary> },
-      { path: "admin/payroll-approval", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPayrollApproval /></Suspense></ErrorBoundary> },
-      { path: "admin/city-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CityManagement /></Suspense></ErrorBoundary> },
-      { path: "admin/business-rules", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><BusinessRulesPage /></Suspense></ErrorBoundary> },
-      { path: "admin/shift-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ShiftManagementPage /></Suspense></ErrorBoundary> }, // MC-10
-      { path: "admin/fraud-alerts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AttendanceFraudAlertsPage /></Suspense></ErrorBoundary> }, // MC-09
-      { path: "admin/permissions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PermissionManagementPage /></Suspense></ErrorBoundary> }, // MC-11
-      { path: "admin/role-permissions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RolePermissionManager /></Suspense></ErrorBoundary> }, // MC-11 Enhanced: Base role overrides + custom sub-roles
-      { path: "admin/incentive-visibility", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveVisibilityAdmin /></Suspense></ErrorBoundary> }, // Super Admin: show/hide incentive tab per role/employee
-      { path: "hr/role-suggestions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><RoleSuggestionsPage /></Suspense></ErrorBoundary> }, // MC-12
-      { path: "hr/intelligence-dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HRIntelligenceDashboard /></Suspense></ErrorBoundary> },
-      { path: "store-manager", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StoreManagerModule /></Suspense></ErrorBoundary> },
-      { path: "store-manager/grn-entry", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GRNEntry /></Suspense></ErrorBoundary> },
-      { path: "store-manager/purchase-order", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PurchaseOrderCreation /></Suspense></ErrorBoundary> },
-      { path: "store-manager/moq", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MOQManagement /></Suspense></ErrorBoundary> },
-      { path: "store-manager/inventory", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><InventoryMonitoring /></Suspense></ErrorBoundary> },
-      { path: "store-manager/vendor-request", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><VendorRequest /></Suspense></ErrorBoundary> },
+      { path: "performance", element: <ErrorBoundary><PerformanceTracking /></ErrorBoundary> },
+      { path: "accounts", element: <ErrorBoundary><AccountsModule /></ErrorBoundary> },
+      { path: "accounts/expense-entry", element: <ErrorBoundary><ExpenseEntry /></ErrorBoundary> },
+      { path: "accounts/expense-analytics", element: <ErrorBoundary><ExpenseAnalytics /></ErrorBoundary> },
+      { path: "accounts/vendor-payment", element: <ErrorBoundary><VendorPayment /></ErrorBoundary> },
+      { path: "accounts/gst-dashboard", element: <ErrorBoundary><GSTDashboard /></ErrorBoundary> },
+      { path: "accounts/gst-sub-types", element: <ErrorBoundary><TransactionSubTypeManager /></ErrorBoundary> },
+      { path: "accounts/payroll-processing", element: <ErrorBoundary><AccountsPayrollProcessing /></ErrorBoundary> },
+      { path: "accounts/accounting-entry", element: <ErrorBoundary><AccountingEntry /></ErrorBoundary> },
+      { path: "accounts/expense-voucher", element: <ErrorBoundary><ExpenseVoucher /></ErrorBoundary> },
+      { path: "accounts/item-master", element: <ErrorBoundary><ItemMaster /></ErrorBoundary> },
+      { path: "accounts/payables", element: <ErrorBoundary><PayablesDashboard /></ErrorBoundary> },
+      { path: "accounts/tds-payable", element: <ErrorBoundary><TDSPayableModule /></ErrorBoundary> },
+      { path: "accounts/advance-tax", element: <ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary> },
+      { path: "accounts/journal-entry", element: <ErrorBoundary><JournalEntry /></ErrorBoundary> },
+      { path: "accounts/dashboard", element: <ErrorBoundary><AccountsDashboard /></ErrorBoundary> },
+      { path: "accounts/transactions", element: <ErrorBoundary><AccountingTransactionList /></ErrorBoundary> },
+      { path: "accounts/ledger", element: <ErrorBoundary><AccountsLedger /></ErrorBoundary> },
+      { path: "accounts/party-ledger", element: <ErrorBoundary><PartyLedger /></ErrorBoundary> },
+      { path: "accounts/ledger-master", element: <ErrorBoundary><LedgerMaster /></ErrorBoundary> },
+      { path: "accounts/razorpay-flow", element: <ErrorBoundary><RazorpayFlow /></ErrorBoundary> },
+      { path: "accounts/trial-balance", element: <ErrorBoundary><TrialBalance /></ErrorBoundary> },
+      { path: "accounts/balance-sheet", element: <ErrorBoundary><BalanceSheet /></ErrorBoundary> },
+      { path: "accounts/gstr2a", element: <ErrorBoundary><GSTR2AReport /></ErrorBoundary> },
+      { path: "accounts/reports/purchase", element: <ErrorBoundary><PurchaseSummaryReport /></ErrorBoundary> },
+      { path: "accounts/reports/sales", element: <ErrorBoundary><SalesSummaryReport /></ErrorBoundary> },
+      { path: "accounts/reports/rcm", element: <ErrorBoundary><RCMReport /></ErrorBoundary> },
+      { path: "gst", element: <ErrorBoundary><GSTOverview /></ErrorBoundary> },
+      { path: "gst/vendors", element: <ErrorBoundary><GSTVendorMaster /></ErrorBoundary> },
+      { path: "gst/customers", element: <ErrorBoundary><GSTCustomerMaster /></ErrorBoundary> },
+      { path: "gst/transactions", element: <ErrorBoundary><GSTTransactionEntry /></ErrorBoundary> },
+      { path: "gst/validation", element: <ErrorBoundary><GSTValidationCentre /></ErrorBoundary> },
+      { path: "gst/review", element: <ErrorBoundary><GSTManagerReview /></ErrorBoundary> },
+      { path: "gst/reconciliation", element: <ErrorBoundary><GSTReconciliation /></ErrorBoundary> },
+      { path: "gst/reports", element: <ErrorBoundary><GSTReports /></ErrorBoundary> },
+      { path: "gst/gstr1", element: <ErrorBoundary><GSTR1Module /></ErrorBoundary> },
+      { path: "gst/gstr3b", element: <ErrorBoundary><GSTR3BModule /></ErrorBoundary> },
+      { path: "gst/filing", element: <ErrorBoundary><GSTFilingModule /></ErrorBoundary> },
+      { path: "gst/monitoring", element: <ErrorBoundary><GSTMonitoringModule /></ErrorBoundary> },
+      { path: "admin/payroll-approval", element: <ErrorBoundary><SuperAdminPayrollApproval /></ErrorBoundary> },
+      { path: "admin/city-management", element: <ErrorBoundary><CityManagement /></ErrorBoundary> },
+      { path: "admin/business-rules", element: <ErrorBoundary><BusinessRulesPage /></ErrorBoundary> },
+      { path: "admin/shift-management", element: <ErrorBoundary><ShiftManagementPage /></ErrorBoundary> }, // MC-10
+      { path: "admin/fraud-alerts", element: <ErrorBoundary><AttendanceFraudAlertsPage /></ErrorBoundary> }, // MC-09
+      { path: "admin/permissions", element: <ErrorBoundary><PermissionManagementPage /></ErrorBoundary> }, // MC-11
+      { path: "admin/role-permissions", element: <ErrorBoundary><RolePermissionManager /></ErrorBoundary> }, // MC-11 Enhanced: Base role overrides + custom sub-roles
+      { path: "admin/incentive-visibility", element: <ErrorBoundary><IncentiveVisibilityAdmin /></ErrorBoundary> }, // Super Admin: show/hide incentive tab per role/employee
+      { path: "hr/role-suggestions", element: <ErrorBoundary><RoleSuggestionsPage /></ErrorBoundary> }, // MC-12
+      { path: "hr/intelligence-dashboard", element: <ErrorBoundary><HRIntelligenceDashboard /></ErrorBoundary> },
+      { path: "store-manager", element: <ErrorBoundary><StoreManagerModule /></ErrorBoundary> },
+      { path: "store-manager/grn-entry", element: <ErrorBoundary><GRNEntry /></ErrorBoundary> },
+      { path: "store-manager/purchase-order", element: <ErrorBoundary><PurchaseOrderCreation /></ErrorBoundary> },
+      { path: "store-manager/moq", element: <ErrorBoundary><MOQManagement /></ErrorBoundary> },
+      { path: "store-manager/inventory", element: <ErrorBoundary><InventoryMonitoring /></ErrorBoundary> },
+      { path: "store-manager/vendor-request", element: <ErrorBoundary><VendorRequest /></ErrorBoundary> },
       {
         path: "analytics",
         element: <GlobalFiltersProvider><Outlet /></GlobalFiltersProvider>,
         children: [
           { index: true, element: <Navigate to="/analytics/dashboard" replace /> },
-          { path: "dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AnalyticsDashboardWithDrillDown /></Suspense></ErrorBoundary> },
-          { path: "unit-economics", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><UnitEconomicsDashboard /></Suspense></ErrorBoundary> },
-          { path: "customer-ltv", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerLTVAnalysis /></Suspense></ErrorBoundary> },
-          { path: "cac", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CACDashboard /></Suspense></ErrorBoundary> },
-          { path: "break-even", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><BreakEvenAnalysis /></Suspense></ErrorBoundary> },
+          { path: "dashboard", element: <ErrorBoundary><AnalyticsDashboardWithDrillDown /></ErrorBoundary> },
+          { path: "unit-economics", element: <ErrorBoundary><UnitEconomicsDashboard /></ErrorBoundary> },
+          { path: "customer-ltv", element: <ErrorBoundary><CustomerLTVAnalysis /></ErrorBoundary> },
+          { path: "cac", element: <ErrorBoundary><CACDashboard /></ErrorBoundary> },
+          { path: "break-even", element: <ErrorBoundary><BreakEvenAnalysis /></ErrorBoundary> },
           { path: "package-cost-matrix", element: <Navigate to="/finance/package-cost-matrix" replace /> },
 
           // PHASE 3: Consolidated Cost Module Routes
           // Main dashboard: /finance/cost-per-wash (CostPerWashModule)
           // Specialized views:
-          { path: "cost-by-plan", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostPerWashByPlan /></Suspense></ErrorBoundary> },
-          { path: "cost-by-consumption", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostPerWashByConsumption /></Suspense></ErrorBoundary> },
-          { path: "labour-cost", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LabourCostPerWash /></Suspense></ErrorBoundary> },
-          { path: "cost-report", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostPerWashReport /></Suspense></ErrorBoundary> },
+          { path: "cost-by-plan", element: <ErrorBoundary><CostPerWashByPlan /></ErrorBoundary> },
+          { path: "cost-by-consumption", element: <ErrorBoundary><CostPerWashByConsumption /></ErrorBoundary> },
+          { path: "labour-cost", element: <ErrorBoundary><LabourCostPerWash /></ErrorBoundary> },
+          { path: "cost-report", element: <ErrorBoundary><CostPerWashReport /></ErrorBoundary> },
 
           // Legacy redirects for backward compatibility
           { path: "cost-per-wash", element: <Navigate to="/finance/cost-per-wash" replace /> },
@@ -449,61 +620,61 @@ export const router = createBrowserRouter([
           { path: "labour-cost-per-wash", element: <Navigate to="/analytics/labour-cost" replace /> },
           { path: "cost-per-wash-report", element: <Navigate to="/analytics/cost-report" replace /> },
 
-          { path: "employee-efficiency", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeEfficiency /></Suspense></ErrorBoundary> },
-          { path: "city-comparison", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CityComparison /></Suspense></ErrorBoundary> },
+          { path: "employee-efficiency", element: <ErrorBoundary><EmployeeEfficiency /></ErrorBoundary> },
+          { path: "city-comparison", element: <ErrorBoundary><CityComparison /></ErrorBoundary> },
           { path: "role-based-demo", element: <DevOnlyRoute element={<RoleBasedAnalyticsDashboard />} /> },
         ]
       },
-      { path: "founder/control-tower", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FounderControlTower /></Suspense></ErrorBoundary> },
-      { path: "founder/financial-view", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><DetailedFinancialView /></Suspense></ErrorBoundary> },
-      { path: "founder/cash-flow", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CashFlowDashboard /></Suspense></ErrorBoundary> },
-      { path: "founder/marketing-roi", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MarketingROIDrilldown /></Suspense></ErrorBoundary> },
-      { path: "crm/activity-timeline", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ActivityTimelineWrapper /></Suspense></ErrorBoundary> },
-      { path: "crm/notifications", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><NotificationCenter /></Suspense></ErrorBoundary> },
-      { path: "crm/conversion-analytics", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CRMConversionAnalyticsDashboard /></Suspense></ErrorBoundary> },
+      { path: "founder/control-tower", element: <ErrorBoundary><FounderControlTower /></ErrorBoundary> },
+      { path: "founder/financial-view", element: <ErrorBoundary><DetailedFinancialView /></ErrorBoundary> },
+      { path: "founder/cash-flow", element: <ErrorBoundary><CashFlowDashboard /></ErrorBoundary> },
+      { path: "founder/marketing-roi", element: <ErrorBoundary><MarketingROIDrilldown /></ErrorBoundary> },
+      { path: "crm/activity-timeline", element: <ErrorBoundary><ActivityTimelineWrapper /></ErrorBoundary> },
+      { path: "crm/notifications", element: <ErrorBoundary><NotificationCenter /></ErrorBoundary> },
+      { path: "crm/conversion-analytics", element: <ErrorBoundary><CRMConversionAnalyticsDashboard /></ErrorBoundary> },
       { path: "payroll/test", element: <DevOnlyRoute element={<PayrollConfigTest />} /> },
-      { path: "payroll/configuration", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollConfiguration /></Suspense></ErrorBoundary> },
-      { path: "payroll/create-salary-structure", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CreateSalaryStructure /></Suspense></ErrorBoundary> },
-      { path: "payroll/salary-assignment", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeSalaryAssignment /></Suspense></ErrorBoundary> },
-      { path: "payroll/run", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollRun /></Suspense></ErrorBoundary> },
+      { path: "payroll/configuration", element: <ErrorBoundary><PayrollConfiguration /></ErrorBoundary> },
+      { path: "payroll/create-salary-structure", element: <ErrorBoundary><CreateSalaryStructure /></ErrorBoundary> },
+      { path: "payroll/salary-assignment", element: <ErrorBoundary><EmployeeSalaryAssignment /></ErrorBoundary> },
+      { path: "payroll/run", element: <ErrorBoundary><PayrollRun /></ErrorBoundary> },
       { path: "payroll/processing", element: <Navigate to="/payroll/run" replace /> },
       { path: "payroll/processing-basic", element: <Navigate to="/payroll/run" replace /> },
-      { path: "payroll/review-approval", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollReviewApproval /></Suspense></ErrorBoundary> },
-      { path: "payroll/salary-payables", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SalaryPayableView /></Suspense></ErrorBoundary> },
-      { path: "payroll/salary-payment", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SalaryPaymentScreen /></Suspense></ErrorBoundary> },
-      { path: "payroll/statutory-payables", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StatutoryPayablesScreen /></Suspense></ErrorBoundary> },
+      { path: "payroll/review-approval", element: <ErrorBoundary><PayrollReviewApproval /></ErrorBoundary> },
+      { path: "payroll/salary-payables", element: <ErrorBoundary><SalaryPayableView /></ErrorBoundary> },
+      { path: "payroll/salary-payment", element: <ErrorBoundary><SalaryPaymentScreen /></ErrorBoundary> },
+      { path: "payroll/statutory-payables", element: <ErrorBoundary><StatutoryPayablesScreen /></ErrorBoundary> },
       {
         path: "subscription",
         element: <Outlet />,
         children: [
           { index: true, element: <Navigate to="/subscription/plan-management" replace /> },
           { path: "plan-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
-          { path: "plan-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PlanEditor /></Suspense></ErrorBoundary> },
+          { path: "plan-editor", element: <ErrorBoundary><PlanEditor /></ErrorBoundary> },
         ]
       },
-      { path: "settings/communication-templates", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CommunicationTemplates /></Suspense></ErrorBoundary> },
-      { path: "settings/cost-configuration", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostConfiguration /></Suspense></ErrorBoundary> },
-      { path: "service-zones", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ServiceZonesManagement /></Suspense></ErrorBoundary> },
-      { path: "washer-jobs", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherJobExecution /></Suspense></ErrorBoundary> },
-      { path: "expansion-opportunities", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ExpansionOpportunities /></Suspense></ErrorBoundary> },
-      { path: "procurement/supplier/:supplierId", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupplierDetail /></Suspense></ErrorBoundary> },
+      { path: "settings/communication-templates", element: <ErrorBoundary><CommunicationTemplates /></ErrorBoundary> },
+      { path: "settings/cost-configuration", element: <ErrorBoundary><CostConfiguration /></ErrorBoundary> },
+      { path: "service-zones", element: <ErrorBoundary><ServiceZonesManagement /></ErrorBoundary> },
+      { path: "washer-jobs", element: <ErrorBoundary><WasherJobExecution /></ErrorBoundary> },
+      { path: "expansion-opportunities", element: <ErrorBoundary><ExpansionOpportunities /></ErrorBoundary> },
+      { path: "procurement/supplier/:supplierId", element: <ErrorBoundary><SupplierDetail /></ErrorBoundary> },
       { path: "demo/cost-tracking-integration", element: <DevOnlyRoute element={<CostTrackingIntegrationDemo />} /> },
       { path: "design-system-test", element: <DevOnlyRoute element={<DesignSystemTest />} /> },
       // Cloth Tracking System
-      { path: "cloth-tracking/exchange", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ClothExchange /></Suspense></ErrorBoundary> },
-      { path: "cloth-tracking/admin", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ClothAdminDashboard /></Suspense></ErrorBoundary> },
+      { path: "cloth-tracking/exchange", element: <ErrorBoundary><ClothExchange /></ErrorBoundary> },
+      { path: "cloth-tracking/admin", element: <ErrorBoundary><ClothAdminDashboard /></ErrorBoundary> },
       // Advance Management System
-      { path: "advance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdvanceTypeSelection /></Suspense></ErrorBoundary> },
-      { path: "advance/long-term/apply", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LongTermAdvanceForm /></Suspense></ErrorBoundary> },
-      { path: "advance/short-term/apply", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ShortTermAdvanceForm /></Suspense></ErrorBoundary> },
-      { path: "advance/my-advances", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeAdvanceDashboard /></Suspense></ErrorBoundary> },
-      { path: "advance/status/:advanceId", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdvanceDetailView /></Suspense></ErrorBoundary> },
-      { path: "advance/hr-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HRAdvanceManagement /></Suspense></ErrorBoundary> },
-      { path: "advance/other-earnings", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OtherEarningsModule /></Suspense></ErrorBoundary> },
-      { path: "advance/other-deductions", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OtherDeductionsModule /></Suspense></ErrorBoundary> },
-      { path: "advance/adjustments-report", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdjustmentsReport /></Suspense></ErrorBoundary> },
+      { path: "advance", element: <ErrorBoundary><AdvanceTypeSelection /></ErrorBoundary> },
+      { path: "advance/long-term/apply", element: <ErrorBoundary><LongTermAdvanceForm /></ErrorBoundary> },
+      { path: "advance/short-term/apply", element: <ErrorBoundary><ShortTermAdvanceForm /></ErrorBoundary> },
+      { path: "advance/my-advances", element: <ErrorBoundary><EmployeeAdvanceDashboard /></ErrorBoundary> },
+      { path: "advance/status/:advanceId", element: <ErrorBoundary><AdvanceDetailView /></ErrorBoundary> },
+      { path: "advance/hr-management", element: <ErrorBoundary><HRAdvanceManagement /></ErrorBoundary> },
+      { path: "advance/other-earnings", element: <ErrorBoundary><OtherEarningsModule /></ErrorBoundary> },
+      { path: "advance/other-deductions", element: <ErrorBoundary><OtherDeductionsModule /></ErrorBoundary> },
+      { path: "advance/adjustments-report", element: <ErrorBoundary><AdjustmentsReport /></ErrorBoundary> },
       // Travel Reimbursement
-      { path: "travel", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TravelReimbursementModule /></Suspense></ErrorBoundary> },
+      { path: "travel", element: <ErrorBoundary><TravelReimbursementModule /></ErrorBoundary> },
 
       // Workflow Control & Incentive Engine
       { path: "workflow-demo", element: <DevOnlyRoute element={<WorkflowControlDemo />} /> },
@@ -519,15 +690,15 @@ export const router = createBrowserRouter([
       { path: "washer-core-screens-demo", element: <DevOnlyRoute element={<WasherCoreScreensDemo />} /> },
       
       // Washer Core Screens Connected (Production)
-      { path: "washer-core-screens", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense></ErrorBoundary> },
+      { path: "washer-core-screens", element: <ErrorBoundary><WasherCoreScreensConnected /></ErrorBoundary> },
 
       // Washer Attendance History
-      { path: "washer/attendance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WasherAttendanceHistory /></Suspense></ErrorBoundary> },
+      { path: "washer/attendance", element: <ErrorBoundary><WasherAttendanceHistory /></ErrorBoundary> },
       { path: "washer/check-in", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "washer/schedule", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "washer/earnings", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "washer/raise-issue", element: <Navigate to="/washer-core-screens" replace /> },
-      { path: "finance/collections", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinanceTransactions /></Suspense></ErrorBoundary> },
+      { path: "finance/collections", element: <ErrorBoundary><FinanceTransactions /></ErrorBoundary> },
 
       // Supervisor App - Nested routes with layout
       {
@@ -554,61 +725,61 @@ export const router = createBrowserRouter([
       },
 
       // Operations Manager App (Production) - High-control command interface
-      { path: "om-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OperationsManagerApp /></Suspense></ErrorBoundary> },
+      { path: "om-app", element: <ErrorBoundary><OperationsManagerApp /></ErrorBoundary> },
 
       // Cluster Manager App (Production) - Control tower interface
-      { path: "cm-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ClusterManagerApp /></Suspense></ErrorBoundary> },
+      { path: "cm-app", element: <ErrorBoundary><ClusterManagerApp /></ErrorBoundary> },
 
       // City Manager App (Production) - Control tower interface
-      { path: "city-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CityManagerApp /></Suspense></ErrorBoundary> },
+      { path: "city-app", element: <ErrorBoundary><CityManagerApp /></ErrorBoundary> },
 
       // Organization Hierarchy Dashboard - City → Cluster → Pincode
-      { path: "hierarchy-dashboard", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><HierarchyDashboard /></Suspense></ErrorBoundary> },
+      { path: "hierarchy-dashboard", element: <ErrorBoundary><HierarchyDashboard /></ErrorBoundary> },
 
       // Tele Sales Manager App (Production) - Pipeline control tower
-      { path: "tsm-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TeleSalesManagerApp /></Suspense></ErrorBoundary> },
-      { path: "sh-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SalesHeadApp /></Suspense></ErrorBoundary> },
-      { path: "sm-app-alliance", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SalesManagerApp /></Suspense></ErrorBoundary> },
+      { path: "tsm-app", element: <ErrorBoundary><TeleSalesManagerApp /></ErrorBoundary> },
+      { path: "sh-app", element: <ErrorBoundary><SalesHeadApp /></ErrorBoundary> },
+      { path: "sm-app-alliance", element: <ErrorBoundary><SalesManagerApp /></ErrorBoundary> },
 
       // Tele Sales Executive App (Production) - Sales execution interface
-      { path: "tse-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TeleSalesExecutiveApp /></Suspense></ErrorBoundary> },
+      { path: "tse-app", element: <ErrorBoundary><TeleSalesExecutiveApp /></ErrorBoundary> },
       { path: "tse-diagnostics", element: <DevOnlyRoute element={<TSEDiagnostics />} /> },
 
       // Customer Care Executive App (Production) - Complaint management interface
-      { path: "cce-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerCareExecutiveApp /></Suspense></ErrorBoundary> },
+      { path: "cce-app", element: <ErrorBoundary><CustomerCareExecutiveApp /></ErrorBoundary> },
 
       // BTL Service Test Page
       { path: "test-btl", element: <DevOnlyRoute element={<TestBTLService />} /> },
 
       // Subscription Management System (Production) - Dynamic plan system
-      { path: "subscription-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SubscriptionApp /></Suspense></ErrorBoundary> },
-      { path: "plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PlanSelectionScreen /></Suspense></ErrorBoundary> },
-      { path: "buy",   element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerPlanPage /></Suspense></ErrorBoundary> },
+      { path: "subscription-app", element: <ErrorBoundary><SubscriptionApp /></ErrorBoundary> },
+      { path: "plans", element: <ErrorBoundary><PlanSelectionScreen /></ErrorBoundary> },
+      { path: "buy",   element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary> },
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><SuperAdminPlanEditor /></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 
       // Client Portal - Read-only client interface
-      { path: "client-portal", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ClientPortal /></Suspense></ErrorBoundary> },
+      { path: "client-portal", element: <ErrorBoundary><ClientPortal /></ErrorBoundary> },
 
       // Workforce Management - Working Hours & Shift Configuration
       { path: "workforce/diagnostic", element: <DevOnlyRoute element={<WorkforceDiagnostic />} /> },
       { path: "workforce/test", element: <DevOnlyRoute element={<WorkingHoursTest />} /> },
-      { path: "workforce/simple", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WorkingHoursSimple /></Suspense></ErrorBoundary> },
-      { path: "workforce/working-hours", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><WorkingHoursSetup /></Suspense></ErrorBoundary> },
+      { path: "workforce/simple", element: <ErrorBoundary><WorkingHoursSimple /></ErrorBoundary> },
+      { path: "workforce/working-hours", element: <ErrorBoundary><WorkingHoursSetup /></ErrorBoundary> },
 
       // Incentive Management System - Configuration, Simulation & Forecasting
-      { path: "incentives/configuration", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveConfiguration /></Suspense></ErrorBoundary> },
-      { path: "incentives/simulator", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveSimulator /></Suspense></ErrorBoundary> },
-      { path: "incentives/forecast", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveDashboard /></Suspense></ErrorBoundary> },
+      { path: "incentives/configuration", element: <ErrorBoundary><IncentiveConfiguration /></ErrorBoundary> },
+      { path: "incentives/simulator", element: <ErrorBoundary><IncentiveSimulator /></ErrorBoundary> },
+      { path: "incentives/forecast", element: <ErrorBoundary><IncentiveDashboard /></ErrorBoundary> },
       { path: "incentives", element: <Navigate to="/incentives/configuration" replace /> },
 
       // My Account - Employee self-service
-      { path: "my-account", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MyAccountPage /></Suspense></ErrorBoundary> },
-      { path: "my-account/mobile-change", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><MobileChangeRequest /></Suspense></ErrorBoundary> },
+      { path: "my-account", element: <ErrorBoundary><MyAccountPage /></ErrorBoundary> },
+      { path: "my-account/mobile-change", element: <ErrorBoundary><MobileChangeRequest /></ErrorBoundary> },
 
       // Unauthorized page - shown when access denied
-      { path: "unauthorized", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><UnauthorizedPage /></Suspense></ErrorBoundary> },
+      { path: "unauthorized", element: <ErrorBoundary><UnauthorizedPage /></ErrorBoundary> },
 
       // Catch-all 404 for authenticated routes - must be last in children array
       { path: "*", element: <Navigate to="/" replace /> },

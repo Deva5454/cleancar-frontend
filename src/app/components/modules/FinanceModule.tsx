@@ -65,7 +65,8 @@ export function FinanceModule() {
   const totalExpenses = financialData.reduce((sum, data) => sum + data.totalExpenses, 0);
   const totalMRR = financialData.reduce((sum, data) => sum + data.totalMRR, 0);
   // FIX: Use centralized useRevenueMetrics instead of inline calculation
-  // This ensures consistent EBITDA across all screens
+  const selectedMonth = new Date().toISOString().slice(0, 7);
+  const selectedCity = cityId || "CITY-SURAT";
   const revenueMetrics = useRevenueMetrics(selectedMonth, selectedCity);
   const ebitda = revenueMetrics.ebitdaAmount;
   const margin = revenueMetrics.ebitdaMargin;
@@ -839,3 +840,5 @@ export function FinanceModule() {
     </div>
   );
 }
+
+export default FinanceModule;

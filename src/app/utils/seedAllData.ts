@@ -791,6 +791,10 @@ JOURNALS.push({ id:"JV-ADVTAX-1", voucherNumber:jvNo2(), date:"2026-03-15", narr
 // SEEDER FUNCTION
 // ═════════════════════════════════════════════════════════════════════════════
 export function seedAllData(): void {
+  // Helper: short alias for localStorage.setItem (used throughout this function)
+  const _set = (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch(e) { /* quota - skip */ }
+  };
   try {
     if (localStorage.getItem(SEED_FLAG)) return;
 
