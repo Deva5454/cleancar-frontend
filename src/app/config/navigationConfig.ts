@@ -21,7 +21,8 @@ import {
   FileSearch, BarChart2, Layers, Coins,
   PlusCircle, MinusCircle, FileBarChart, Brain, ShieldCheck, LayoutDashboard,
   Building2, CheckCircle2, ClipboardCheck, GitCompare, FileOutput, ReceiptText,
-  Upload, BookOpen, List, Scale, Zap, Car, Percent, User, Eye, Tag
+  Upload, BookOpen, List, Scale, Zap, Car, Percent, User, Eye, Tag,
+  Inbox, RefreshCw
 } from "lucide-react";
 
 export interface NavItem {
