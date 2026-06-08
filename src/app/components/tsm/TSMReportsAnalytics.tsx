@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { teleSalesManagerService } from "../../services/teleSalesManagerService";
+import { EBITDA_THRESHOLDS } from "../../constants/teleSalesManager.constants";
 import { planSyncService } from "../../services/planSyncService";
 
 // ─── Revenue helpers ──────────────────────────────────────────────────────────
