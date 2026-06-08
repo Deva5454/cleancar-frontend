@@ -197,6 +197,14 @@ export function TeleSalesManagerApp() {
   // A3 FIX: track pre-selected stage so drill-down actually filters
 
 
+  const { leads } = useCustomers();
+  const { city } = useCity();
+  const poolLeadCount = leads.filter((l: any) =>
+    (!l.assignedTo || l.assignedTo.trim() === "") &&
+    (l.cityId === city || !l.cityId) &&
+    l.status !== "Converted" && l.status !== "Rejected"
+  ).length;
+
   const [pipelineStageFilter, setPipelineStageFilter] = useState<string>("ALL");
 
 

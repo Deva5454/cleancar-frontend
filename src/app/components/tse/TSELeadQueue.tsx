@@ -34,6 +34,8 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { teleSalesExecutiveService } from "../../services/teleSalesExecutiveService";
+import { useCustomers } from "../../contexts/CustomerContext";
+import { useRole } from "../../contexts/RoleContext";
 import type { TSELead } from "../../types/teleSalesExecutive.types";
 import { SLA_THRESHOLDS, REFRESH_INTERVALS } from "../../constants/teleSalesExecutive.constants";
 import { TSEWhatsAppModal } from "./TSEWhatsAppModal";
@@ -49,21 +51,61 @@ export function TSELeadQueue({ onCallLead }: TSELeadQueueProps) {
   const [whatsAppLead, setWhatsAppLead] = useState<TSELead | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Load leads on mount
+  // Read real assigned leads from CustomerContext
+  const { leads: contextLeads } = useCustomers();
+  const { currentUser } = useRole();
+
+  // Load leads on mount — use real data if available, fall back to mock
   useEffect(() => {
     const loadLeads = () => {
-      // B1: getLeadQueue() is DEPRECATED — replace with MASTER_LEADS.filter(l => l.assignedTo === tseId)
-    // Keeping for now as backend integration is pending
-    const loadedLeads = teleSalesExecutiveService.getLeadQueue();
-      setLeads(loadedLeads);
+      // Use real assigned leads from DataService if available
+      const tseId = currentUser?.employeeId;
+      const realLeads = tseId
+        ? contextLeads.filter((l: any) =>
+            l.assignedTo === tseId &&
+            l.status !== "Converted" &&
+            l.status !== "Rejected"
+          )
+        : [];
+
+      if (realLeads.length > 0) {
+        // Map real Lead → TSELead shape
+        const mapped: TSELead[] = realLeads.map((l: any) => ({
+          id: l.leadId,
+          customerName: `${l.firstName || ""} ${l.lastName || ""}`.trim() || l.name || "Unknown",
+          phone: l.phone || l.mobile || "",
+          vehicleType: "4W",
+          vehicleCategory: (l.vehicleDetails?.category || l.vehicleCategory || "Sedan").toUpperCase().replace(/\//g,"").replace(/  /g," ").trim(),
+          source: l.leadSource || l.source || "Unknown",
+          status: (l.stage === "demo_scheduled" || l.stage === "demo_completed" ? "CALLBACK" : l.stage === "contacted" ? "CALLBACK" : "NEW") as any,
+          assignedAt: l.assignedAt ? new Date(l.assignedAt) : new Date(l.createdAt),
+          attemptCount: 0,
+          slaStatus: (() => {
+            const h = (Date.now() - new Date(l.createdAt).getTime()) / 3600000;
+            return h > 8 ? "BREACHED" : h > 4 ? "AT_RISK" : "WITHIN_SLA";
+          })() as any,
+          slaMinutesRemaining: Math.max(0, Math.round((8 * 60) - (Date.now() - new Date(l.createdAt).getTime()) / 60000)),
+          estimatedValue: l.planOfInterest === "ELITE" ? 3500 : l.planOfInterest === "PROTECT" ? 2500 : 1500,
+          priority: (() => {
+            const h = (Date.now() - new Date(l.createdAt).getTime()) / 3600000;
+            return h > 8 ? "URGENT" : h > 4 ? "HIGH" : "NORMAL";
+          })() as any,
+          tags: [],
+          area: l.address?.area || l.area || "",
+          notes: l.notes || "",
+        }));
+        setLeads(mapped);
+      } else {
+        // Fall back to mock data so TSE app always shows something
+        const mockLeads = teleSalesExecutiveService.getLeadQueue();
+        setLeads(mockLeads);
+      }
     };
 
     loadLeads();
-
-    // Refresh every 30 seconds
     const interval = setInterval(loadLeads, REFRESH_INTERVALS.LEAD_QUEUE);
     return () => clearInterval(interval);
-  }, []);
+  }, [contextLeads, currentUser]);
 
   // Update clock every second for SLA countdown
   useEffect(() => {
