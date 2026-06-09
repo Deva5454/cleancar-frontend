@@ -171,7 +171,8 @@ const TSEDiagnostics = lazy(() => import("./components/tse/TSEDiagnostics"));
 const CustomerCareExecutiveApp = lazy(() => import("./components/cce/CustomerCareExecutiveApp"));
 const SubscriptionApp = lazy(() => import("./components/subscription/SubscriptionApp"));
 const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen"));
-const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage").then(m => ({ default: m.CustomerPlanPage || m.default })));
+import CustomerPlanPageDirect from "./components/subscription/CustomerPlanPage";
+const CustomerPlanPage = CustomerPlanPageDirect;
 const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 const SubscriptionDiagnostics = lazy(() => import("./components/subscription/SubscriptionDiagnostics"));
 const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard"));
@@ -438,6 +439,16 @@ export const router = createBrowserRouter([
     path: "/onboard/:empId",
     element: <OnboardingRedirect />,
   },
+  // Public routes — no auth, no sidebar
+  {
+    path: "/buy",
+    element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary>,
+  },
+  {
+    path: "/book",
+    element: <Navigate to="/buy" replace />,
+  },
+
   // Main application routes with layout
   {
     path: "/",
@@ -755,7 +766,7 @@ export const router = createBrowserRouter([
       // Subscription Management System (Production) - Dynamic plan system
       { path: "subscription-app", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SubscriptionApp /></Suspense></ErrorBoundary> },
       { path: "plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PlanSelectionScreen /></Suspense></ErrorBoundary> },
-      { path: "buy",   element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CustomerPlanPage /></Suspense></ErrorBoundary> },
+      // /buy moved to public route below
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },

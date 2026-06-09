@@ -1494,3 +1494,5 @@ export function CustomerPlanPage() {
     </div>
   );
 }
+
+export default CustomerPlanPage;
