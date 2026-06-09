@@ -541,7 +541,7 @@ export function CustomerPlanPage() {
   const step2Ok = pincodeStatus !== null;
   const step2OkForPlanning = pincodeStatus === "ok" || pincodeStatus === "waitlist";
   const step3Ok=planMode==="monthly"?!!selectedPlan:!!selectedPack;
-  const step5Ok=!!(custName&&custMobile&&custAddress&&(isOneTime?(oneTimeDate&&oneTimeHour):!!prefTime));
+  const step5Ok=!!(custName&&custMobile&&custAddress&&(isOneTime?(oneTimeDate&&oneTimeHour):(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"||(oneTimeDate&&oneTimeHour)):!!prefTime));
   const step6Ok=consentTerms&&consentRefund&&consentCancel;
 
   const PUBLIC_HOLIDAYS:string[]=useMemo(()=>{ try{const s=localStorage.getItem("cleancar_public_holidays");if(s)return JSON.parse(s);}catch{} return["2026-01-26","2026-03-25","2026-04-06","2026-04-14","2026-04-15","2026-05-01","2026-08-15","2026-10-02","2026-10-20","2026-11-01","2026-12-25"]; },[]);
@@ -590,7 +590,7 @@ export function CustomerPlanPage() {
       else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"]}); customerId=nc.customerId;}
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
       const renewalDate=new Date(now);renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:now.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:now.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
         visitsUsed: 0,
@@ -1308,6 +1308,22 @@ export function CustomerPlanPage() {
                   </div>
                 </div>
               ):(
+                <>
+                {(selectedPack==="pack2"||selectedPack==="pack4")&&(
+                  <div style={{marginBottom:20,padding:"16px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#15803d",marginBottom:12}}>📦 When do you want your first wash?</div>
+                    <div style={{display:"flex",gap:10,marginBottom:10}}>
+                      {(["immediate","schedule"] as const).map(opt=>(
+                        <button key={opt} onClick={()=>setPackStartOption(opt)}
+                          style={{flex:1,padding:"12px 16px",borderRadius:12,border:`2px solid ${packStartOption===opt?"#16a34a":"rgba(148,163,184,0.3)"}`,background:packStartOption===opt?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:packStartOption===opt?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>
+                          {opt==="immediate"?"⚡ Book Now (Today)":"📅 Schedule for Later"}
+                        </button>
+                      ))}
+                    </div>
+                    {packStartOption==="immediate"&&<div style={{padding:"8px 12px",background:"rgba(22,163,74,0.1)",borderRadius:8,fontSize:12,color:"#15803d"}}>✅ Our team will assign your washer and confirm your slot within 2 hours.</div>}
+                  </div>
+                )}
+                {(!(selectedPack==="pack2"||selectedPack==="pack4")||packStartOption==="schedule")&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                   <div>
                     <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
@@ -1329,6 +1345,8 @@ export function CustomerPlanPage() {
                     </select>
                   </div>
                 </div>
+                )}
+                </>
               )}
 
 
