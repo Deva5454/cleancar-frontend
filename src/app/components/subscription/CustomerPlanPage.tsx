@@ -593,12 +593,20 @@ export function CustomerPlanPage() {
       if(existing){customerId=existing.customerId;}
       else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"]}); customerId=nc.customerId;}
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
-      const renewalDate=new Date(now);renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:now.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
+      // Renewal date starts from first wash date (TAT = 2 working days from purchase)
+      const firstWashDate=new Date(now);
+      firstWashDate.setDate(firstWashDate.getDate()+2); // 2 working day TAT
+      const renewalDate=new Date(firstWashDate);
+      renewalDate.setMonth(renewalDate.getMonth()+1);
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
         visitsUsed: 0,
-        visitsExpiry: new Date(Date.now()+30*86400000).toISOString().slice(0,10),
+        visitsExpiry: (() => {
+          const packCfg = cfg.packs.find(p => p.id === selectedPack);
+          const days = packCfg?.validityDays ?? (selectedPack === "pack2" ? 20 : 30);
+          return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+        })(),
       }:{})});
       // Write subscription to Railway backend in background (non-blocking)
       const _cityId = city || "CITY-SURAT";

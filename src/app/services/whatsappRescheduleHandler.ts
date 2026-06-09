@@ -99,6 +99,18 @@ export function processIncomingMessage(
   };
 }
 
+function isWithinRescheduleWindow(jobId?: string): boolean {
+  if (!jobId) return true;
+  try {
+    const jobs = DataService.get<any>("JOBS");
+    const job = jobs.find((j: any) => j.jobId === jobId);
+    if (!job?.scheduledDate || !job?.timeSlot) return true;
+    const slotTime = new Date(`${job.scheduledDate}T${job.timeSlot}`);
+    const cutoff = new Date(slotTime.getTime() - 3 * 60 * 60 * 1000); // 3 hrs before
+    return new Date() < cutoff;
+  } catch { return true; }
+}
+
 function createRescheduleRequest(phone: string, source: RescheduleRequest["source"]): void {
   // Find customer by phone
   const customers = DataService.get<any>("CUSTOMERS") || [];
@@ -154,3 +166,32 @@ export const rescheduleService = {
     return readRequests().filter(r => r.status === "PENDING").length;
   },
 };
+
+/**
+ * Check all active pack subscriptions and fire PACK_EXPIRY_WARNING
+ * when expiry is within 7 days. Call daily (e.g. on app load or midnight cron).
+ */
+export function checkPackExpiries(): void {
+  try {
+    const subs = DataService.get<any>("SUBSCRIPTIONS");
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
+
+    subs.forEach((sub: any) => {
+      if (!sub.visitsExpiry || sub.status === "Exhausted" || sub.status === "Cancelled") return;
+      const expiry = new Date(sub.visitsExpiry);
+      if (expiry > now && expiry <= sevenDaysFromNow) {
+        window.dispatchEvent(new CustomEvent("cc360:pack_expiry_warning", {
+          detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId: sub.customerId,
+            packageName: sub.packageName,
+            visitsRemaining: (sub.visitsTotal || 0) - (sub.visitsUsed || 0),
+            expiryDate: sub.visitsExpiry,
+            daysLeft: Math.ceil((expiry.getTime() - now.getTime()) / 86400000),
+          }
+        }));
+      }
+    });
+  } catch {}
+}

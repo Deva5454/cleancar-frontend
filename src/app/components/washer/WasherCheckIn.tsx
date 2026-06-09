@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { startTracking, onLocationOff } from "../../services/washerLocationService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -133,6 +134,14 @@ export function WasherCheckIn({
     validation.gps === "SUCCESS";
 
   const canSubmit = isValidationComplete && !isSubmitting;
+
+  // Start GPS tracking after check-in + handle location-off → auto checkout
+  useEffect(() => {
+    onLocationOff((washerId) => {
+      // Location turned off — notify parent to trigger auto checkout
+      window.dispatchEvent(new CustomEvent("cc360:location_off_auto_checkout", { detail: { washerId } }));
+    });
+  }, []);
 
   const getValidationIcon = (state: ValidationState) => {
     switch (state) {

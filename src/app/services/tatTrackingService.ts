@@ -327,12 +327,12 @@ class TATTrackingService {
     // 5. Customer (WhatsApp simulation)
     const customerMsg = record.bookingType === "ONE_TIME"
       ? `Your one-time ${planLabel} is confirmed for ${record.scheduledDate || "today"} at ${record.scheduledTime}. Your washer will be assigned shortly. Queries: 9100000000`
-      : `Welcome to CleanCar 360°! Your ${planLabel} starts within 2 working days. Your dedicated washer will be assigned by ${deadline}. Queries: 9100000000`;
+      : `Welcome to 249 Carwashing! Your ${planLabel} starts within 2 working days. Your dedicated washer will be assigned by ${deadline}. Queries: 9100000000`;
     notifs.push({
       id: "N-" + genId(), tatRecordId: record.id,
       recipientRole: "CUSTOMER",
       type: "NEW_BOOKING", severity: "INFO",
-      title: "Booking Confirmed — CleanCar 360°",
+      title: "Booking Confirmed — 249 Carwashing",
       message: customerMsg,
       actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
@@ -341,7 +341,7 @@ class TATTrackingService {
   }
 
   // ── Mark washer assigned ───────────────────────────────────────────────────
-  markAssigned(tatId: string, washerId: string, washerName: string, assignedBy: string) {
+  markAssigned(tatId: string, washerId: string, washerName: string, assignedBy: string, supervisorName?: string, supervisorPhone?: string) {
     const records = readRecords();
     const idx = records.findIndex(r => r.id === tatId);
     if (idx < 0) return;
@@ -353,6 +353,8 @@ class TATTrackingService {
       washerAssignedAt: now,
       washerAssignedBy: assignedBy,
       status: "ASSIGNED",
+      supervisorName: supervisorName || record.supervisorName,
+      supervisorPhone: supervisorPhone || record.supervisorPhone,
     };
     writeRecords(records);
 
@@ -365,8 +367,8 @@ class TATTrackingService {
       id: "N-" + genId(), tatRecordId: tatId,
       recipientRole: "CUSTOMER",
       type: "ASSIGNED", severity: "INFO",
-      title: "Washer Assigned — CleanCar 360°",
-      message: `Great news! ${washerName} has been assigned to your ${this.planLabel(record.planType)}. First wash by ${deadline}. Save this number: ${washerId}`,
+      title: "Booking Confirmed — 249 Carwashing",
+      message: `Your ${this.planLabel(record.planType)} is confirmed! Supervisor: ${supervisorName || record.supervisorName || washerName} | Contact: ${supervisorPhone || record.supervisorPhone || "9100000000"}. First wash by ${deadline}.`,
       actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
     notifs.push({
@@ -387,7 +389,8 @@ class TATTrackingService {
         record.customerName,
         this.planLabel(record.planType),
         deadline,
-        washerName
+        record.supervisorName || washerName,
+        record.supervisorPhone
       ).catch(() => {/* non-blocking */});
     }
   }
@@ -428,7 +431,7 @@ class TATTrackingService {
       id: "N-" + genId(), tatRecordId: tatId,
       recipientRole: "CUSTOMER",
       type: "COMPLETED", severity: "INFO",
-      title: "First Wash Complete — CleanCar 360°",
+      title: "First Wash Complete — 249 Carwashing",
       message: `Your first ${this.planLabel(record.planType)} is done! Check your WhatsApp for before/after photos. See you tomorrow! ☀️`,
       actionRequired: false, read: false, acknowledged: false, createdAt: nowStr,
     });

@@ -85,7 +85,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: !isWeekend && (h < 10.5 || h >= 18.5),
       customerMessage:
-        `🚗 Welcome to CleanCar 360°!\n\nYour *${planLabel}* subscription is confirmed.\n\n` +
+        `🚗 Welcome to 249 Carwashing!\n\nYour *${planLabel}* subscription is confirmed.\n\n` +
         `✅ Your dedicated washer will be assigned within 2 working days.\n` +
         `📅 First wash by: *${fmt(deadline)}*\n\n` +
         `Questions? Call/WhatsApp: 91-00000000`,
@@ -115,7 +115,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: true,
       customerMessage:
-        `🚗 One-Time Wash Confirmed — CleanCar 360°!\n\n` +
+        `🚗 One-Time Wash Confirmed — 249 Carwashing!\n\n` +
         `📅 Scheduled: *${nextWork.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} at 7:00–9:00 AM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will be assigned by tonight. Questions? Call: 91-00000000`,
@@ -144,7 +144,7 @@ export function getBookingSlot(
       requiresSameDay: true,
       isAfterHours: false,
       customerMessage:
-        `✅ One-Time Wash Confirmed — CleanCar 360°!\n\n` +
+        `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
         `📅 *Today, 4:00–6:00 PM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will arrive between 4–6 PM today. We'll send a reminder at 3:30 PM.\n` +
@@ -175,7 +175,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: false,
       customerMessage:
-        `✅ One-Time Wash Confirmed — CleanCar 360°!\n\n` +
+        `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
         `📅 *Tomorrow, 7:00–9:00 AM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will arrive tomorrow morning. We'll remind you at 6:30 AM.\n` +
@@ -211,7 +211,7 @@ export function getBookingSlot(
     requiresSameDay: false,
     isAfterHours: true,
     customerMessage:
-      `✅ One-Time Wash Confirmed — CleanCar 360°!\n\n` +
+      `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
       `📅 *${nextDay.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}, 2:00–5:00 PM*\n` +
       `🔧 Service: *${planLabel}*\n\n` +
       `Your booking is confirmed. We'll assign your washer by 10:30 AM and send a reminder.\n` +

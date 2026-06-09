@@ -173,6 +173,7 @@ const CustomerCareExecutiveApp = lazy(() => import("./components/cce/CustomerCar
 const SubscriptionApp = lazy(() => import("./components/subscription/SubscriptionApp"));
 const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen"));
 import CustomerPlanPageDirect from "./components/subscription/CustomerPlanPage";
+import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
 const CustomerPlanPage = CustomerPlanPageDirect;
 const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 const SubscriptionDiagnostics = lazy(() => import("./components/subscription/SubscriptionDiagnostics"));
@@ -440,7 +441,7 @@ export const router = createBrowserRouter([
     path: "/onboard/:empId",
     element: <OnboardingRedirect />,
   },
-  // Public routes — no auth, no sidebar, but need AppProvider for contexts
+  // Public routes — no auth, no sidebar
   {
     path: "/buy",
     element: <ErrorBoundary><AppProvider><CustomerPlanPage /></AppProvider></ErrorBoundary>,
@@ -448,6 +449,10 @@ export const router = createBrowserRouter([
   {
     path: "/book",
     element: <Navigate to="/buy" replace />,
+  },
+  {
+    path: "/track/:jobId",
+    element: <ErrorBoundary><AppProvider><WasherTrackingPageDirect /></AppProvider></ErrorBoundary>,
   },
 
   // Main application routes with layout

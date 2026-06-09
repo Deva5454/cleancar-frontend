@@ -330,6 +330,19 @@ export function JobProvider({ children }: { children: ReactNode }) {
               subscriptionId: job.subscriptionId,
               packageName:    job.packageName,
             }, "JobContext");
+            // Send WA to customer: pack complete
+            try {
+              const customers = DataService.get<any>("CUSTOMERS");
+              const cust = customers.find((c:any) => c.customerId === job.customerId);
+              if (cust?.phone) {
+                import("../services/whatsappService").then(({sendWhatsApp}) => {
+                  sendWhatsApp(cust.phone,
+                    `Hi ${cust.firstName || ""}! Your ${job.packageName || "wash pack"} is complete. All visits have been used. Book your next wash at 249carwashing.genxa.in/buy — 249 Carwashing`,
+                    "pack_visit_reminder"
+                  );
+                });
+              }
+            } catch {}
           }
         }
       }

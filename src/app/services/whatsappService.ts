@@ -112,13 +112,21 @@ export async function sendBookingConfirmed(
   customerName: string,
   serviceName: string,
   slotLabel: string,
-  washerName?: string
+  supervisorName?: string,
+  supervisorPhone?: string,
+  trackingUrl?: string
 ): Promise<WAResult> {
   const message =
-    `Hi ${customerName}! Your ${serviceName} is confirmed. ` +
-    `Slot: ${slotLabel}.` +
-    (washerName ? ` Washer: ${washerName}.` : "") +
-    ` To reschedule, reply RESCHEDULE or call our IVR. — CleanCar 360°`;
+    `Hi ${customerName}! Your ${serviceName} is confirmed. ✅` +
+    `
+Slot: ${slotLabel}.` +
+    (supervisorName ? `
+Supervisor: ${supervisorName}` : "") +
+    (supervisorPhone ? ` | Contact: ${supervisorPhone}` : "") +
+    (trackingUrl ? `
+📍 Track your washer: ${trackingUrl}` : "") +
+    `
+To reschedule, reply RESCHEDULE or call our IVR. — 249 Carwashing`;
   return sendWhatsApp(phone, message, "booking_confirmation");
 }
 
