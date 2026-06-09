@@ -16,7 +16,8 @@
  *   wax     → ELITE
  */
 
-import { DEFAULT_CONFIG, type PlanPageConfig } from "../components/subscription/CustomerPlanPage";
+const DEFAULT_CONFIG = (() => { try { const s = localStorage.getItem('cleancar_plan_page_config'); if(s) return JSON.parse(s); } catch(e) {} return null; })();
+type PlanPageConfig = any;
 
 const STORAGE_KEY = "cleancar_plan_page_config";
 const PROMO_KEY   = "cleancar_promotions";
@@ -340,3 +341,4 @@ class PlanSyncService {
 
 export const planSyncService = new PlanSyncService();
 export default planSyncService;
+

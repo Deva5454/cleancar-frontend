@@ -17,7 +17,7 @@
 import { logger } from "./logger";
 import { AuditService } from "./auditService";
 import { AnalyticsService } from "./analyticsService";
-import type { Customer } from "../contexts/CustomerContext";
+type Customer = any;
 import type { CustomerSubscription } from "../contexts/CustomerSubscriptionContext";
 import type { Job } from "../contexts/JobContext";
 
@@ -673,3 +673,4 @@ export class LeadConversionService {
     return "18:00 - 19:00";
   }
 }
+

@@ -6,7 +6,7 @@
  * After seeding, HRDataContext + DataService maintain the data
  */
 
-import type { Employee } from "../contexts/HRDataContext";
+type Employee = any;
 
 export const SEED_EMPLOYEES: Omit<Employee, "employeeId" | "createdAt" | "updatedAt">[] = [
   // ============================================
@@ -349,3 +349,4 @@ export function seedEmployeesIfEmpty(
     console.log(`[SeedEmployees] ${count} employees already exist. Skipping seed.`);
   }
 }
+

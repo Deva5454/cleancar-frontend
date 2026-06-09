@@ -479,7 +479,7 @@ export const periodicScheduleService = new PeriodicScheduleService();
 // Used by mockWasherDataService and WasherJobChecklist instead of the old
 // Option A fixed-day function.
 
-import type { PeriodicService } from "./mockWasherDataService";
+type PeriodicService = any;
 
 export function computePeriodicFlagsB(
   customerId: string,
@@ -536,3 +536,4 @@ export function computePeriodicFlagsB(
     periodicServices,
   };
 }
+
