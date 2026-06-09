@@ -219,20 +219,14 @@ const AccountsPayrollProcessing = lazy(() => import("./components/accounts/Accou
 
 
 import { LoginPage } from "./pages/LoginPage";
-import OnboardingPortalDirect from "./components/OnboardingPortal";
-const OnboardingPortal = OnboardingPortalDirect;
-import ProfessionalLeaveManagementDirect from "./components/hr/ProfessionalLeaveManagement";
-const ProfessionalLeaveManagement = ProfessionalLeaveManagementDirect;
-import StatutoryFormsOnboardingDirect from "./components/hr/StatutoryFormsOnboarding";
-const StatutoryFormsOnboarding = StatutoryFormsOnboardingDirect;
+const OnboardingPortal = lazy(() => import("./components/OnboardingPortal"));
+const ProfessionalLeaveManagement = lazy(() => import("./components/hr/ProfessionalLeaveManagement"));
+const StatutoryFormsOnboarding = lazy(() => import("./components/hr/StatutoryFormsOnboarding"));
 import TravelReimbursementModuleDirect from "./components/travel/TravelReimbursementModule";
 const TravelReimbursementModule = TravelReimbursementModuleDirect;
-import ChartOfAccountsDirect from "./components/finance/ChartOfAccounts";
-const ChartOfAccounts = ChartOfAccountsDirect;
-import AdminPlanManagementDirect from "./components/subscription/AdminPlanManagement";
-const AdminPlanManagement = AdminPlanManagementDirect;
-import IncentiveConfigurationDirect from "./components/incentives/IncentiveConfiguration";
-const IncentiveConfiguration = IncentiveConfigurationDirect;
+const ChartOfAccounts = lazy(() => import("./components/finance/ChartOfAccounts"));
+const AdminPlanManagement = lazy(() => import("./components/subscription/AdminPlanManagement"));
+const IncentiveConfiguration = lazy(() => import("./components/incentives/IncentiveConfiguration"));
 import UnitEconomicsDashboardDirect from "./components/analytics/UnitEconomicsDashboard";
 const UnitEconomicsDashboard = UnitEconomicsDashboardDirect;
 import CustomerLTVAnalysisDirect from "./components/analytics/CustomerLTVAnalysis";
@@ -259,8 +253,7 @@ import MarketingROIDrilldownDirect from "./components/founder/MarketingROIDrilld
 const MarketingROIDrilldown = MarketingROIDrilldownDirect;
 import CRMConversionAnalyticsDashboardDirect from "./components/modules/CRMConversionAnalyticsDashboard";
 const CRMConversionAnalyticsDashboard = CRMConversionAnalyticsDashboardDirect;
-import SupervisorModuleUpdatedDirect from "./components/modules/SupervisorModuleUpdated";
-const SupervisorModuleUpdated = SupervisorModuleUpdatedDirect;
+const SupervisorModuleUpdated = lazy(() => import("./components/modules/SupervisorModuleUpdated"));
 import InventoryStoreDirect from "./components/modules/InventoryStore";
 const InventoryStore = InventoryStoreDirect;
 import MaterialRequisitionDirect from "./components/inventory/MaterialRequisition";
@@ -279,22 +272,18 @@ import ProcurementModuleDirect from "./components/modules/ProcurementModule";
 const ProcurementModule = ProcurementModuleDirect;
 import PackageCostMatrixDirect from "./components/finance/PackageCostMatrix";
 const PackageCostMatrix = PackageCostMatrixDirect;
-import CostPerWashModuleDirect from "./components/finance/CostPerWashModule";
-const CostPerWashModule = CostPerWashModuleDirect;
+const CostPerWashModule = lazy(() => import("./components/finance/CostPerWashModule"));
 import ActualCostInputsDirect from "./components/finance/ActualCostInputs";
 const ActualCostInputs = ActualCostInputsDirect;
 import LedgerEntriesViewDirect from "./components/finance/LedgerEntriesView";
 const LedgerEntriesView = LedgerEntriesViewDirect;
-import FinancialReportsModuleDirect from "./components/finance/FinancialReportsModule";
-const FinancialReportsModule = FinancialReportsModuleDirect;
-import LeavePolicyEngineDirect from "./components/hr/LeavePolicyEngine";
-const LeavePolicyEngine = LeavePolicyEngineDirect;
+const FinancialReportsModule = lazy(() => import("./components/finance/FinancialReportsModule"));
+const LeavePolicyEngine = lazy(() => import("./components/hr/LeavePolicyEngine"));
 import EmployeeOnboardingDirect from "./components/hr/EmployeeOnboarding";
 const EmployeeOnboarding = EmployeeOnboardingDirect;
 import ExitFFSettlementDirect from "./components/hr/ExitFFSettlement";
 const ExitFFSettlement = ExitFFSettlementDirect;
-import EmployeeLifecycleManagementDirect from "./components/hr/EmployeeLifecycleManagement";
-const EmployeeLifecycleManagement = EmployeeLifecycleManagementDirect;
+const EmployeeLifecycleManagement = lazy(() => import("./components/hr/EmployeeLifecycleManagement"));
 import LettersDocumentsDirect from "./components/hr/LettersDocuments";
 const LettersDocuments = LettersDocumentsDirect;
 import IDCardGeneratorDirect from "./components/hr/IDCardGenerator";
@@ -303,16 +292,13 @@ import HolidayManagementDirect from "./components/hr/HolidayManagement";
 const HolidayManagement = HolidayManagementDirect;
 import LifeCycleReportsDirect from "./components/hr/LifeCycleReports";
 const LifeCycleReports = LifeCycleReportsDirect;
-import EmployeeLedgerDirect from "./components/hr/EmployeeLedger";
-const EmployeeLedger = EmployeeLedgerDirect;
-import StatutoryFormsVerificationDirect from "./components/hr/StatutoryFormsVerification";
-const StatutoryFormsVerification = StatutoryFormsVerificationDirect;
+const EmployeeLedger = lazy(() => import("./components/hr/EmployeeLedger"));
+const StatutoryFormsVerification = lazy(() => import("./components/hr/StatutoryFormsVerification"));
 import OnboardingAutomationDirect from "./components/hr/OnboardingAutomation";
 const OnboardingAutomation = OnboardingAutomationDirect;
 import EmployeeSalaryAssignmentDirect from "./components/payroll/EmployeeSalaryAssignment";
 const EmployeeSalaryAssignment = EmployeeSalaryAssignmentDirect;
-import EmployeeSelfServiceDirect from "./components/hr/EmployeeSelfService";
-const EmployeeSelfService = EmployeeSelfServiceDirect;
+const EmployeeSelfService = lazy(() => import("./components/hr/EmployeeSelfService"));
 import AttendanceDataManagerDirect from "./components/admin/AttendanceDataManager";
 const AttendanceDataManager = AttendanceDataManagerDirect;
 import ApprovalCenterDirect from "./components/hr/ApprovalCenter";
@@ -389,16 +375,13 @@ import ActivityTimelineWrapperDirect from "./components/crm/ActivityTimelineWrap
 const ActivityTimelineWrapper = ActivityTimelineWrapperDirect;
 import NotificationCenterDirect from "./components/crm/NotificationCenter";
 const NotificationCenter = NotificationCenterDirect;
-import PayrollConfigurationDirect from "./components/payroll/PayrollConfiguration";
-const PayrollConfiguration = PayrollConfigurationDirect;
+const PayrollConfiguration = lazy(() => import("./components/payroll/PayrollConfiguration"));
 import PayrollConfigTestDirect from "./components/payroll/PayrollConfigTest";
 const PayrollConfigTest = PayrollConfigTestDirect;
-import PayrollRunDirect from "./components/payroll/PayrollRun";
-const PayrollRun = PayrollRunDirect;
+const PayrollRun = lazy(() => import("./components/payroll/PayrollRun"));
 import PayrollProcessingDirect from "./components/payroll/PayrollProcessing";
 const PayrollProcessing = PayrollProcessingDirect;
-import PayrollReviewApprovalDirect from "./components/payroll/PayrollReviewApproval";
-const PayrollReviewApproval = PayrollReviewApprovalDirect;
+const PayrollReviewApproval = lazy(() => import("./components/payroll/PayrollReviewApproval"));
 import SalaryPayableViewDirect from "./components/payroll/SalaryPayableView";
 const SalaryPayableView = SalaryPayableViewDirect;
 import SalaryPaymentScreenDirect from "./components/payroll/SalaryPaymentScreen";
@@ -443,18 +426,15 @@ import OtherDeductionsModuleDirect from "./components/advance/OtherDeductionsMod
 const OtherDeductionsModule = OtherDeductionsModuleDirect;
 import AdjustmentsReportDirect from "./components/advance/AdjustmentsReport";
 const AdjustmentsReport = AdjustmentsReportDirect;
-import WorkflowControlDemoDirect from "./components/workflow/WorkflowControlDemo";
-const WorkflowControlDemo = WorkflowControlDemoDirect;
-import IncentiveEngineDemoDirect from "./components/workflow/IncentiveEngineDemo";
-const IncentiveEngineDemo = IncentiveEngineDemoDirect;
+const WorkflowControlDemo = lazy(() => import("./components/workflow/WorkflowControlDemo"));
+const IncentiveEngineDemo = lazy(() => import("./components/workflow/IncentiveEngineDemo"));
 import WeekOffCoverDemoDirect from "./components/washer/WeekOffCoverDemo";
 const WeekOffCoverDemo = WeekOffCoverDemoDirect;
 import SystemIntegrationDemoDirect from "./components/washer/SystemIntegrationDemo";
 const SystemIntegrationDemo = SystemIntegrationDemoDirect;
 import WasherCoreScreensDemoDirect from "./components/washer/WasherCoreScreensDemo";
 const WasherCoreScreensDemo = WasherCoreScreensDemoDirect;
-import SupervisorLayoutDirect from "./components/supervisor/SupervisorLayout";
-const SupervisorLayout = SupervisorLayoutDirect;
+const SupervisorLayout = lazy(() => import("./components/supervisor/SupervisorLayout"));
 import TSEDiagnosticsDirect from "./components/tse/TSEDiagnostics";
 const TSEDiagnostics = TSEDiagnosticsDirect;
 import CustomerCareExecutiveAppDirect from "./components/cce/CustomerCareExecutiveApp";
@@ -463,8 +443,7 @@ import SubscriptionAppDirect from "./components/subscription/SubscriptionApp";
 const SubscriptionApp = SubscriptionAppDirect;
 import PlanSelectionScreenDirect from "./components/subscription/PlanSelectionScreen";
 const PlanSelectionScreen = PlanSelectionScreenDirect;
-import SuperAdminPlanEditorDirect from "./components/admin/SuperAdminPlanEditor";
-const SuperAdminPlanEditor = SuperAdminPlanEditorDirect;
+const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 import SubscriptionDiagnosticsDirect from "./components/subscription/SubscriptionDiagnostics";
 const SubscriptionDiagnostics = SubscriptionDiagnosticsDirect;
 import HierarchyDashboardDirect from "./components/hierarchy/HierarchyDashboard";
@@ -473,8 +452,7 @@ import WasherAttendanceHistoryDirect from "./components/washer/WasherAttendanceH
 const WasherAttendanceHistory = WasherAttendanceHistoryDirect;
 import OperationsDataCaptureDirect from "./components/operations/OperationsDataCapture";
 const OperationsDataCapture = OperationsDataCaptureDirect;
-import OperationsLayoutDirect from "./components/operations/OperationsLayout";
-const OperationsLayout = OperationsLayoutDirect;
+const OperationsLayout = lazy(() => import("./components/operations/OperationsLayout"));
 import ClientPortalDirect from "./components/client/ClientPortal";
 const ClientPortal = ClientPortalDirect;
 import WorkingHoursSetupDirect from "./components/workforce/WorkingHoursSetup";
@@ -485,8 +463,7 @@ import WorkingHoursSimpleDirect from "./components/workforce/WorkingHoursSimple"
 const WorkingHoursSimple = WorkingHoursSimpleDirect;
 import WorkforceDiagnosticDirect from "./components/workforce/WorkforceDiagnostic";
 const WorkforceDiagnostic = WorkforceDiagnosticDirect;
-import IncentiveSimulatorDirect from "./components/incentives/IncentiveSimulator";
-const IncentiveSimulator = IncentiveSimulatorDirect;
+const IncentiveSimulator = lazy(() => import("./components/incentives/IncentiveSimulator"));
 import IncentiveDashboardDirect from "./components/incentives/IncentiveDashboard";
 const IncentiveDashboard = IncentiveDashboardDirect;
 import HRPayrollApprovalDirect from "./components/hr/HRPayrollApproval";
@@ -511,10 +488,8 @@ import RoleSuggestionsPageDirect from "./components/hr/RoleSuggestionsPage";
 const RoleSuggestionsPage = RoleSuggestionsPageDirect;
 import HRIntelligenceDashboardDirect from "./components/hr/HRIntelligenceDashboard";
 const HRIntelligenceDashboard = HRIntelligenceDashboardDirect;
-import GSTOverviewDirect from "./components/gst/GSTOverview";
-const GSTOverview = GSTOverviewDirect;
-import GSTVendorMasterDirect from "./components/gst/GSTVendorMaster";
-const GSTVendorMaster = GSTVendorMasterDirect;
+const GSTOverview = lazy(() => import("./components/gst/GSTOverview"));
+const GSTVendorMaster = lazy(() => import("./components/gst/GSTVendorMaster"));
 import GSTCustomerMasterDirect from "./components/gst/GSTCustomerMaster";
 const GSTCustomerMaster = GSTCustomerMasterDirect;
 import GSTTransactionEntryDirect from "./components/gst/GSTTransactionEntry";
@@ -523,20 +498,14 @@ import GSTValidationCentreDirect from "./components/gst/GSTValidationCentre";
 const GSTValidationCentre = GSTValidationCentreDirect;
 import GSTManagerReviewDirect from "./components/gst/GSTManagerReview";
 const GSTManagerReview = GSTManagerReviewDirect;
-import GSTReconciliationDirect from "./components/gst/GSTReconciliation";
-const GSTReconciliation = GSTReconciliationDirect;
-import GSTReportsDirect from "./components/gst/GSTReports";
-const GSTReports = GSTReportsDirect;
+const GSTReconciliation = lazy(() => import("./components/gst/GSTReconciliation"));
+const GSTReports = lazy(() => import("./components/gst/GSTReports"));
 import TransactionSubTypeManagerDirect from "./components/gst/TransactionSubTypeManager";
 const TransactionSubTypeManager = TransactionSubTypeManagerDirect;
-import GSTR1ModuleDirect from "./components/gst/GSTR1Module";
-const GSTR1Module = GSTR1ModuleDirect;
-import GSTR3BModuleDirect from "./components/gst/GSTR3BModule";
-const GSTR3BModule = GSTR3BModuleDirect;
-import GSTFilingModuleDirect from "./components/gst/GSTFilingModule";
-const GSTFilingModule = GSTFilingModuleDirect;
-import GSTMonitoringModuleDirect from "./components/gst/GSTMonitoringModule";
-const GSTMonitoringModule = GSTMonitoringModuleDirect;
+const GSTR1Module = lazy(() => import("./components/gst/GSTR1Module"));
+const GSTR3BModule = lazy(() => import("./components/gst/GSTR3BModule"));
+const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule"));
+const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule"));
 import BusinessFlowDemoDirect from "./components/BusinessFlowDemo";
 const BusinessFlowDemo = BusinessFlowDemoDirect;
 import UnauthorizedPageDirect from "./components/pages/UnauthorizedPage";
@@ -551,8 +520,7 @@ import AdvanceTaxCalculatorDirect from "./components/accounts/AdvanceTaxCalculat
 const AdvanceTaxCalculator = AdvanceTaxCalculatorDirect;
 import PayablesDashboardDirect from "./components/accounts/PayablesDashboard";
 const PayablesDashboard = PayablesDashboardDirect;
-import CreateSalaryStructureDirect from "./components/payroll/CreateSalaryStructure";
-const CreateSalaryStructure = CreateSalaryStructureDirect;
+const CreateSalaryStructure = lazy(() => import("./components/payroll/CreateSalaryStructure"));
 import InvoiceManagementDirect from "./components/finance/InvoiceManagement";
 const InvoiceManagement = InvoiceManagementDirect;
 import InvoiceDetailDirect from "./components/finance/InvoiceDetail";
@@ -777,7 +745,7 @@ export const router = createBrowserRouter([
   // Standalone Onboarding Portal routes (no header/sidebar) - MUST come FIRST
   {
     path: "/onboarding/:empId",
-    element: <ErrorBoundary><OnboardingPortal /></ErrorBoundary>,
+    element: <ErrorBoundary><Suspense fallback={<PageLoader />}><OnboardingPortal /></Suspense></ErrorBoundary>,
   },
   {
     path: "/onboard/:empId",
@@ -840,7 +808,7 @@ export const router = createBrowserRouter([
       { path: "leads", element: <ErrorBoundary><CRMLeadManagementWithFilters /></ErrorBoundary> },
       { path: "customers", element: <ErrorBoundary><CustomerSubscription /></ErrorBoundary> },
       { path: "car-washer", element: <Navigate to="/washer-core-screens" replace /> },
-      { path: "supervisor", element: <ErrorBoundary><SupervisorModuleUpdated /></ErrorBoundary> },
+      { path: "supervisor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SupervisorModuleUpdated /></Suspense></ErrorBoundary> },
       // Operations layout route with children
       {
         path: "operations",
@@ -861,34 +829,34 @@ export const router = createBrowserRouter([
       { path: "procurement", element: <ErrorBoundary><ProcurementModule /></ErrorBoundary> },
       { path: "finance", element: <ErrorBoundary><FinanceModule /></ErrorBoundary> },
       { path: "finance/analytics", element: <ErrorBoundary><FinanceAnalyticsDashboard /></ErrorBoundary> },
-      { path: "finance/reports", element: <ErrorBoundary><FinancialReportsModule /></ErrorBoundary> },
+      { path: "finance/reports", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><FinancialReportsModule /></Suspense></ErrorBoundary> },
       { path: "finance/transactions", element: <ErrorBoundary><FinanceTransactions /></ErrorBoundary> },
       { path: "finance/ledger-entries", element: <ErrorBoundary><LedgerEntriesView /></ErrorBoundary> },
-      { path: "finance/chart-of-accounts", element: <ErrorBoundary><ChartOfAccounts /></ErrorBoundary> },
+      { path: "finance/chart-of-accounts", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ChartOfAccounts /></Suspense></ErrorBoundary> },
       { path: "finance/invoices", element: <ErrorBoundary><InvoiceManagement /></ErrorBoundary> },
       { path: "finance/invoices/:id", element: <ErrorBoundary><InvoiceDetail /></ErrorBoundary> },
       { path: "finance/payments", element: <ErrorBoundary><PaymentManagement /></ErrorBoundary> },
       { path: "finance/revenue-capture", element: <ErrorBoundary><RevenueCaptureSystem /></ErrorBoundary> },
       { path: "finance/package-cost-matrix", element: <ErrorBoundary><PackageCostMatrix /></ErrorBoundary> },
-      { path: "finance/cost-per-wash", element: <ErrorBoundary><CostPerWashModule /></ErrorBoundary> },
+      { path: "finance/cost-per-wash", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CostPerWashModule /></Suspense></ErrorBoundary> },
       { path: "finance/cost-per-wash/actual-inputs", element: <ErrorBoundary><ActualCostInputs /></ErrorBoundary> },
       { path: "hr", element: <ErrorBoundary><HRModule /></ErrorBoundary> },
       { path: "hr/leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/enhanced-leave", element: <Navigate to="/hr/professional-leave" replace /> },
-      { path: "hr/professional-leave", element: <ErrorBoundary><ProfessionalLeaveManagement /></ErrorBoundary> },
-      { path: "hr/leave-policy-engine", element: <ErrorBoundary><LeavePolicyEngine /></ErrorBoundary> },
+      { path: "hr/professional-leave", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><ProfessionalLeaveManagement /></Suspense></ErrorBoundary> },
+      { path: "hr/leave-policy-engine", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><LeavePolicyEngine /></Suspense></ErrorBoundary> },
       { path: "hr/onboarding", element: <ErrorBoundary><EmployeeOnboarding /></ErrorBoundary> },
       { path: "hr/exit-settlement", element: <ErrorBoundary><ExitFFSettlement /></ErrorBoundary> },
-      { path: "hr/lifecycle-management", element: <ErrorBoundary><EmployeeLifecycleManagement /></ErrorBoundary> },
+      { path: "hr/lifecycle-management", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeLifecycleManagement /></Suspense></ErrorBoundary> },
       { path: "hr/letters-documents", element: <ErrorBoundary><LettersDocuments /></ErrorBoundary> },
       { path: "hr/id-card-generator", element: <ErrorBoundary><IDCardGenerator /></ErrorBoundary> },
       { path: "hr/holiday-management", element: <ErrorBoundary><HolidayManagement /></ErrorBoundary> },
       { path: "hr/lifecycle-reports", element: <ErrorBoundary><LifeCycleReports /></ErrorBoundary> },
-      { path: "hr/employee-ledger", element: <ErrorBoundary><EmployeeLedger /></ErrorBoundary> },
-      { path: "hr/statutory-forms-onboarding", element: <ErrorBoundary><StatutoryFormsOnboarding /></ErrorBoundary> },
-      { path: "hr/statutory-forms-verification", element: <ErrorBoundary><StatutoryFormsVerification /></ErrorBoundary> },
+      { path: "hr/employee-ledger", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeLedger /></Suspense></ErrorBoundary> },
+      { path: "hr/statutory-forms-onboarding", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StatutoryFormsOnboarding /></Suspense></ErrorBoundary> },
+      { path: "hr/statutory-forms-verification", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><StatutoryFormsVerification /></Suspense></ErrorBoundary> },
       { path: "hr/onboarding-automation", element: <ErrorBoundary><OnboardingAutomation /></ErrorBoundary> },
-      { path: "hr/self-service", element: <ErrorBoundary><EmployeeSelfService /></ErrorBoundary> },
+      { path: "hr/self-service", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><EmployeeSelfService /></Suspense></ErrorBoundary> },
       { path: "hr/approval-center", element: <ErrorBoundary><ApprovalCenterHR /></ErrorBoundary> },
       { path: "hr/payroll-approval", element: <ErrorBoundary><HRPayrollApproval /></ErrorBoundary> },
       { path: "hr/attendance-data-manager", element: <ErrorBoundary><AttendanceDataManager /></ErrorBoundary> },
@@ -924,18 +892,18 @@ export const router = createBrowserRouter([
       { path: "accounts/reports/purchase", element: <ErrorBoundary><PurchaseSummaryReport /></ErrorBoundary> },
       { path: "accounts/reports/sales", element: <ErrorBoundary><SalesSummaryReport /></ErrorBoundary> },
       { path: "accounts/reports/rcm", element: <ErrorBoundary><RCMReport /></ErrorBoundary> },
-      { path: "gst", element: <ErrorBoundary><GSTOverview /></ErrorBoundary> },
-      { path: "gst/vendors", element: <ErrorBoundary><GSTVendorMaster /></ErrorBoundary> },
+      { path: "gst", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTOverview /></Suspense></ErrorBoundary> },
+      { path: "gst/vendors", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTVendorMaster /></Suspense></ErrorBoundary> },
       { path: "gst/customers", element: <ErrorBoundary><GSTCustomerMaster /></ErrorBoundary> },
       { path: "gst/transactions", element: <ErrorBoundary><GSTTransactionEntry /></ErrorBoundary> },
       { path: "gst/validation", element: <ErrorBoundary><GSTValidationCentre /></ErrorBoundary> },
       { path: "gst/review", element: <ErrorBoundary><GSTManagerReview /></ErrorBoundary> },
-      { path: "gst/reconciliation", element: <ErrorBoundary><GSTReconciliation /></ErrorBoundary> },
-      { path: "gst/reports", element: <ErrorBoundary><GSTReports /></ErrorBoundary> },
-      { path: "gst/gstr1", element: <ErrorBoundary><GSTR1Module /></ErrorBoundary> },
-      { path: "gst/gstr3b", element: <ErrorBoundary><GSTR3BModule /></ErrorBoundary> },
-      { path: "gst/filing", element: <ErrorBoundary><GSTFilingModule /></ErrorBoundary> },
-      { path: "gst/monitoring", element: <ErrorBoundary><GSTMonitoringModule /></ErrorBoundary> },
+      { path: "gst/reconciliation", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTReconciliation /></Suspense></ErrorBoundary> },
+      { path: "gst/reports", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTReports /></Suspense></ErrorBoundary> },
+      { path: "gst/gstr1", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTR1Module /></Suspense></ErrorBoundary> },
+      { path: "gst/gstr3b", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTR3BModule /></Suspense></ErrorBoundary> },
+      { path: "gst/filing", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTFilingModule /></Suspense></ErrorBoundary> },
+      { path: "gst/monitoring", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><GSTMonitoringModule /></Suspense></ErrorBoundary> },
       { path: "admin/payroll-approval", element: <ErrorBoundary><SuperAdminPayrollApproval /></ErrorBoundary> },
       { path: "admin/city-management", element: <ErrorBoundary><CityManagement /></ErrorBoundary> },
       { path: "admin/business-rules", element: <ErrorBoundary><BusinessRulesPage /></ErrorBoundary> },
@@ -993,13 +961,13 @@ export const router = createBrowserRouter([
       { path: "crm/notifications", element: <ErrorBoundary><NotificationCenter /></ErrorBoundary> },
       { path: "crm/conversion-analytics", element: <ErrorBoundary><CRMConversionAnalyticsDashboard /></ErrorBoundary> },
       { path: "payroll/test", element: <DevOnlyRoute element={<PayrollConfigTest />} /> },
-      { path: "payroll/configuration", element: <ErrorBoundary><PayrollConfiguration /></ErrorBoundary> },
-      { path: "payroll/create-salary-structure", element: <ErrorBoundary><CreateSalaryStructure /></ErrorBoundary> },
+      { path: "payroll/configuration", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollConfiguration /></Suspense></ErrorBoundary> },
+      { path: "payroll/create-salary-structure", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><CreateSalaryStructure /></Suspense></ErrorBoundary> },
       { path: "payroll/salary-assignment", element: <ErrorBoundary><EmployeeSalaryAssignment /></ErrorBoundary> },
-      { path: "payroll/run", element: <ErrorBoundary><PayrollRun /></ErrorBoundary> },
+      { path: "payroll/run", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollRun /></Suspense></ErrorBoundary> },
       { path: "payroll/processing", element: <Navigate to="/payroll/run" replace /> },
       { path: "payroll/processing-basic", element: <Navigate to="/payroll/run" replace /> },
-      { path: "payroll/review-approval", element: <ErrorBoundary><PayrollReviewApproval /></ErrorBoundary> },
+      { path: "payroll/review-approval", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><PayrollReviewApproval /></Suspense></ErrorBoundary> },
       { path: "payroll/salary-payables", element: <ErrorBoundary><SalaryPayableView /></ErrorBoundary> },
       { path: "payroll/salary-payment", element: <ErrorBoundary><SalaryPaymentScreen /></ErrorBoundary> },
       { path: "payroll/statutory-payables", element: <ErrorBoundary><StatutoryPayablesScreen /></ErrorBoundary> },
@@ -1116,7 +1084,7 @@ export const router = createBrowserRouter([
       { path: "plans", element: <ErrorBoundary><PlanSelectionScreen /></ErrorBoundary> },
       // /buy moved to public route below
       { path: "admin/plans", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><AdminPlanManagement userRole="ADMIN" /></Suspense></ErrorBoundary> },
-      { path: "admin/plan-page-editor", element: <ErrorBoundary><SuperAdminPlanEditor /></ErrorBoundary> },
+      { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 
       // Client Portal - Read-only client interface
@@ -1129,8 +1097,8 @@ export const router = createBrowserRouter([
       { path: "workforce/working-hours", element: <ErrorBoundary><WorkingHoursSetup /></ErrorBoundary> },
 
       // Incentive Management System - Configuration, Simulation & Forecasting
-      { path: "incentives/configuration", element: <ErrorBoundary><IncentiveConfiguration /></ErrorBoundary> },
-      { path: "incentives/simulator", element: <ErrorBoundary><IncentiveSimulator /></ErrorBoundary> },
+      { path: "incentives/configuration", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveConfiguration /></Suspense></ErrorBoundary> },
+      { path: "incentives/simulator", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><IncentiveSimulator /></Suspense></ErrorBoundary> },
       { path: "incentives/forecast", element: <ErrorBoundary><IncentiveDashboard /></ErrorBoundary> },
       { path: "incentives", element: <Navigate to="/incentives/configuration" replace /> },
 
