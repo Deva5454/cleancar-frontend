@@ -28,6 +28,8 @@ export interface PlanPageConfig {
   timeSlots: string[];
   postPaymentSteps: string[];
   comboBundles?: any[];
+  /** Minimum TAT hours from booking to first available slot. Default: 3. Configurable by Super Admin. */
+  tatWindowHours?: number;
 }
 export interface VehicleCategoryConfig { id: string; label: string; icon: string; }
 export interface MonthlyPlanConfig { id: string; name: string; icon: string; tagline: string; popular?: boolean; features: { text: string; included: boolean }[]; prices: Record<string, number>; }
@@ -94,6 +96,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
   timeSlots: ["Early morning (5am – 7am)","Morning (7am – 9am)","Late morning (9am – 11am)","Afternoon (11am – 1pm)","Evening (5pm – 7pm)"],
   postPaymentSteps: ["Receipt on WhatsApp immediately","Confirmation call within 1 working day","Service starts within 2 working days","Before & after photos after every wash"],
+  tatWindowHours: 3,
 };
 
 function loadConfig(): PlanPageConfig {
@@ -547,7 +550,7 @@ export function CustomerPlanPage() {
   const PUBLIC_HOLIDAYS:string[]=useMemo(()=>{ try{const s=localStorage.getItem("cleancar_public_holidays");if(s)return JSON.parse(s);}catch{} return["2026-01-26","2026-03-25","2026-04-06","2026-04-14","2026-04-15","2026-05-01","2026-08-15","2026-10-02","2026-10-20","2026-11-01","2026-12-25"]; },[]);
   const isHoliday=(d:Date)=>d.getDay()===0||PUBLIC_HOLIDAYS.includes(d.toISOString().slice(0,10));
   const nextWorkingDay=(from:Date):Date=>{ const d=new Date(from); d.setDate(d.getDate()+1); while(isHoliday(d))d.setDate(d.getDate()+1); return d; };
-  const nowCutoffInfo=()=>{ const n=new Date(),h=n.getHours(),m=n.getMinutes(),t=h*60+m; if(isHoliday(n)||t>=18*60+30)return{nextOnly:true,nwdMinHour:13}; if(t>=16*60)return{nextOnly:true,nwdMinHour:18}; return{nextOnly:false,nwdMinHour:13}; };
+  const nowCutoffInfo=()=>{ const tatHrs=cfg?.tatWindowHours??3; const n=new Date(),h=n.getHours(),m=n.getMinutes(),t=h*60+m,cutoffMin=(h*60+m)+(tatHrs*60); if(isHoliday(n)||t>=18*60+30)return{nextOnly:true,nwdMinHour:5,tatHrs}; return{nextOnly:false,nwdMinHour:Math.ceil(h+(tatHrs)),tatHrs}; };
   const minOneTimeDate=useMemo(()=>{ const{nextOnly}=nowCutoffInfo(); return nextOnly?nextWorkingDay(new Date()).toISOString().slice(0,10):new Date().toISOString().slice(0,10); },[PUBLIC_HOLIDAYS]);
   const getOneTimeSlots=(ds:string):string[]=>{
     // Slots 5AM-9PM, 1-hr each. 3-hr TAT same-day. Filters slots where all washers booked.
@@ -557,7 +560,8 @@ export function CustomerPlanPage() {
     const sl:string[]=[];
     for(let h=5;h<=21;h++){
       const pH=String(h).padStart(2,"0")+":00";
-      if(iT){const cutoff=nh+(nm/60)+3;if(h<Math.ceil(cutoff))continue;}
+      const tatHrs=cfg?.tatWindowHours??3;
+      if(iT){const cutoff=nh+(nm/60)+tatHrs;if(h<Math.ceil(cutoff))continue;}
       else{const{nextOnly}=nowCutoffInfo();const nS=nextWorkingDay(now).toISOString().slice(0,10);if(nextOnly&&ds===nS&&h<5)continue;}
       if(availHours.size>0&&!availHours.has(h))continue; // hide if all washers booked
       sl.push(pH);
@@ -1301,12 +1305,31 @@ export function CustomerPlanPage() {
                   <div style={{marginBottom:20,padding:"16px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14}}>
                     <div style={{fontSize:13,fontWeight:700,color:"#15803d",marginBottom:12}}>📦 When do you want your first wash?</div>
                     <div style={{display:"flex",gap:10,marginBottom:10}}>{(["immediate","schedule"] as const).map(opt=>(
-                      <button key={opt} onClick={()=>setPackStartOption(opt)}
+                      <button key={opt} onClick={()=>{setPackStartOption(opt);if(opt==="immediate"){setOneTimeDate(new Date().toISOString().slice(0,10));setOneTimeHour("");}}}
                         style={{flex:1,padding:"12px 16px",borderRadius:12,border:`2px solid ${packStartOption===opt?"#16a34a":"rgba(148,163,184,0.3)"}`,background:packStartOption===opt?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:packStartOption===opt?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>
                         {opt==="immediate"?"⚡ Book Now (Today)":"📅 Schedule for Later"}
                       </button>
                     ))}</div>
-                    {packStartOption==="immediate"&&<div style={{padding:"8px 12px",background:"rgba(22,163,74,0.1)",borderRadius:8,fontSize:12,color:"#15803d"}}>✅ Our team will assign your washer and confirm your slot within 2 hours.</div>}
+                    {packStartOption==="immediate"&&(
+                      <div style={{marginTop:10}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"#15803d",marginBottom:8}}>
+                          Select your preferred slot today ({cfg.tatWindowHours??3}-hr TAT):
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                          {getOneTimeSlots(new Date().toISOString().slice(0,10)).slice(0,8).map(s=>(
+                            <button key={s} onClick={()=>setOneTimeHour(s)}
+                              style={{padding:"10px 12px",borderRadius:10,border:`2px solid ${oneTimeHour===s?"#16a34a":"rgba(148,163,184,0.3)"}`,background:oneTimeHour===s?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:oneTimeHour===s?"white":"#374151",fontWeight:oneTimeHour===s?700:500,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>
+                              {oneTimeHour===s?"✓ ":""}{s}
+                            </button>
+                          ))}
+                        </div>
+                        {getOneTimeSlots(new Date().toISOString().slice(0,10)).length===0&&(
+                          <div style={{padding:"10px 12px",background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:8,fontSize:12,color:"#92400e"}}>
+                            ⚠️ No same-day slots available — please choose Schedule for Later.
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {packStartOption==="schedule"&&(
                       <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                         <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
