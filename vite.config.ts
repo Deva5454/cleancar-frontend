@@ -54,6 +54,11 @@ export default defineConfig({
           }
           if (id.includes('framer-motion') || id.includes('/motion/')) return 'vendor-motion';
           if (id.includes('date-fns')) return 'vendor-dates';
+           if (id.includes('/src/app/services/')) {
+            const match = id.match(/\/services\/([^/]+)\.[jt]sx?$/);
+            if (match) return 'svc-' + match[1].replace(/[^a-zA-Z0-9]/g, '_');
+            return 'app-services';
+          }
           // App chunks - split to prevent Rollup TDZ from module concatenation
           if (id.includes('/src/app/contexts/')) return 'app-contexts';
           if (id.includes('/src/app/services/')) return 'app-services';
