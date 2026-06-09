@@ -15,7 +15,7 @@ const PageLoader = () => (
 
 // Lazy-loaded heavy components for code splitting
 
-import HRModule from "./components/modules/HRModule";
+const HRModule = lazy(() => import("./components/modules/HRModule"));
 
 
 
@@ -43,16 +43,16 @@ const CashFlowDashboard    = lazy(() => import("./components/founder/CashFlowDas
 
 // Keep these as regular imports (frequently accessed)
 // import { OnboardingPortal } from "./components/OnboardingPortal"; // NOW LAZY
-import { OnboardingRedirect } from "./components/onboarding/OnboardingRedirect";
+const OnboardingRedirect = lazy(() => import("./components/onboarding/OnboardingRedirect"));
 import { DevOnlyRoute } from "./components/guards/DevOnlyRoute";
-import Dashboard from "./components/Dashboard";
-import UserManagement from "./components/modules/UserManagement";
-import CRMLeadManagementWithFilters from "./components/modules/CRMLeadManagementWithFilters";
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const UserManagement = lazy(() => import("./components/modules/UserManagement"));
+const CRMLeadManagementWithFilters = lazy(() => import("./components/modules/CRMLeadManagementWithFilters"));
 
-import CustomerSubscription from "./components/modules/CustomerSubscription";
+const CustomerSubscription = lazy(() => import("./components/modules/CustomerSubscription"));
 
-import OperationsManagerApp from "./components/om/OperationsManagerApp";
-import ComplaintManagement from "./components/modules/ComplaintManagement";
+const OperationsManagerApp = lazy(() => import("./components/om/OperationsManagerApp"));
+const ComplaintManagement = lazy(() => import("./components/modules/ComplaintManagement"));
 
 
 
@@ -92,7 +92,7 @@ const ApprovalCenterHR = ApprovalCenter;
 
 
 
-import AccountsModule from "./components/modules/AccountsModule";
+const AccountsModule = lazy(() => import("./components/modules/AccountsModule"));
 
 
 
@@ -141,7 +141,7 @@ const PayrollProcessingAdvanced = lazy(() => import("./components/payroll/Payrol
 
 
 
-import { DesignSystemTest } from "./design-system/tests/DesignSystemTest";
+const DesignSystemTest = lazy(() => import("./design-system/tests/DesignSystemTest"));
 
 
 
@@ -158,15 +158,15 @@ import { DesignSystemTest } from "./design-system/tests/DesignSystemTest";
 
 
 
-import WasherCoreScreensConnected from "./components/washer/WasherCoreScreensConnected";
-import { SupervisorAppLazy as SupervisorAppConnected } from "./components/supervisor/SupervisorAppLazy";
+const WasherCoreScreensConnected = lazy(() => import("./components/washer/WasherCoreScreensConnected"));
+const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppLazy"));
 
-import ClusterManagerApp from "./components/cm/ClusterManagerApp";
-import CityManagerApp from "./components/city/CityManagerApp";
-import TeleSalesManagerApp from "./components/tsm/TeleSalesManagerApp";
-import SalesHeadApp from "./components/sh/SalesHeadApp";
-import SalesManagerApp from "./components/sm/SalesManagerApp";
-import TeleSalesExecutiveApp from "./components/tse/TeleSalesExecutiveApp";
+const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
+const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
+const TeleSalesManagerApp = lazy(() => import("./components/tsm/TeleSalesManagerApp"));
+const SalesHeadApp = lazy(() => import("./components/sh/SalesHeadApp"));
+const SalesManagerApp = lazy(() => import("./components/sm/SalesManagerApp"));
+const TeleSalesExecutiveApp = lazy(() => import("./components/tse/TeleSalesExecutiveApp"));
 
 
 
@@ -177,7 +177,7 @@ const WasherTrackingPage = lazy(() => import("./components/washer/WasherTracking
 
 
 
-import OperationsRouter from "./components/operations/OperationsRouter";
+const OperationsRouter = lazy(() => import("./components/operations/OperationsRouter"));
 
 
 
