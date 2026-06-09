@@ -62,6 +62,7 @@ export function CustomerSubscription() {
 
   const totalMRR = customerSubscriptions.reduce((sum, c) => sum + c.monthlyPrice, 0);
   const activeCars = customerSubscriptions.filter(c => c.status === "Active").length;
+  const packSubscriptions = (subscriptions||[]).filter(s => s.visitsTotal !== undefined && s.status !== "Exhausted" && s.status !== "Cancelled");
   const avgPlanValue = customerSubscriptions.length > 0 ? Math.round(totalMRR / customerSubscriptions.length) : 0;
 
   return (
@@ -287,7 +288,50 @@ export function CustomerSubscription() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+
+      {/* Pack Visit Counters */}
+      {packSubscriptions.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-gray-800">Pack Visit Counters</h3>
+          {packSubscriptions.map(sub => {
+            const customer = (customers||[]).find(c => c.customerId === sub.customerId);
+            const name = customer ? `${customer.firstName} ${customer.lastName}` : sub.customerId;
+            const used  = sub.visitsUsed  || 0;
+            const total = sub.visitsTotal || 0;
+            const remaining = total - used;
+            const pct = total > 0 ? Math.round((used/total)*100) : 0;
+            return (
+              <div key={sub.subscriptionId} className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="font-semibold text-gray-900 text-sm">{name}</span>
+                    <span className="ml-2 text-xs text-gray-500">{sub.packageName}</span>
+                  </div>
+                  <span className="text-sm font-bold text-blue-700">{used} / {total} used</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2.5 mb-1">
+                  <div className="bg-blue-600 h-2.5 rounded-full transition-all"
+                    style={{width:`${pct}%`}} />
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className={remaining===0?"text-red-600 font-semibold":remaining===1?"text-orange-600 font-semibold":"text-green-600"}>
+                    {remaining===0?"All visits used":remaining===1?"⚡ Last wash remaining":`${remaining} visit${remaining>1?"s":""} remaining`}
+                  </span>
+                  {sub.visitsExpiry && (
+                    <span>Valid until {new Date(sub.visitsExpiry).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</span>
+                  )}
+                </div>
+                {remaining===1 && (
+                  <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                    ⚡ Last wash remaining — consider upgrading to a monthly subscription
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+        </div>
   );
 }
 

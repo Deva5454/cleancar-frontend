@@ -198,10 +198,10 @@ import { logger } from "../../services/logger";
 
 import { TATNotificationBell, TATSummaryBanner } from "../shared/TATNotificationBell";
 import { tatTrackingService } from "../../services/tatTrackingService";
+import { rescheduleService } from "../../services/whatsappRescheduleHandler";
+import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
 
 
-import { TATNotificationBell, TATSummaryBanner } from "../shared/TATNotificationBell";
-import { tatTrackingService } from "../../services/tatTrackingService";
 
 
 
@@ -3904,6 +3904,14 @@ export function SupervisorAppConnected() {
 
 
               </TabsTrigger>
+            <TabsTrigger value="reschedules" className="flex items-center gap-1.5 text-xs px-2 py-1.5">
+              🔄 Reschedules
+              {rescheduleService.getPendingCount() > 0 && (
+                <span className="ml-1 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                  {rescheduleService.getPendingCount()}
+                </span>
+              )}
+            </TabsTrigger>
 
 
 
@@ -4531,6 +4539,11 @@ export function SupervisorAppConnected() {
 
 
 
+          </TabsContent>
+
+          {/* Reschedule Requests Queue */}
+          <TabsContent value="reschedules" className="mt-0">
+            <RescheduleQueuePanel />
           </TabsContent>
 
 

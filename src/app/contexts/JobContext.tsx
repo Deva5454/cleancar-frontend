@@ -304,6 +304,35 @@ export function JobProvider({ children }: { children: ReactNode }) {
         complianceScore: verificationData?.complianceScore,
         completedAt: new Date().toISOString(),
       }, "JobContext");
+
+      // Pack visit counter: decrement visitsUsed when a pack job completes
+      if (job.subscriptionId) {
+        const allSubs: any[] = DataService.get<any>("SUBSCRIPTIONS", job.cityId);
+        const subIdx = allSubs.findIndex((s:any) => s.subscriptionId === job.subscriptionId);
+        if (subIdx >= 0 && allSubs[subIdx].visitsTotal !== undefined) {
+          const newUsed = (allSubs[subIdx].visitsUsed || 0) + 1;
+          const remaining = allSubs[subIdx].visitsTotal - newUsed;
+          allSubs[subIdx].visitsUsed = newUsed;
+          allSubs[subIdx].status = remaining <= 0 ? "Exhausted" : "Active";
+          DataService.setAll("SUBSCRIPTIONS", allSubs, job.cityId);
+          if (remaining === 1) {
+            emit("PACK_VISIT_LOW", {
+              customerId:      job.customerId,
+              subscriptionId:  job.subscriptionId,
+              packageName:     job.packageName,
+              customerName:    job.customerName,
+              message: `${job.customerName} has 1 ${job.packageName} visit remaining — convert to monthly`,
+            }, "JobContext");
+          }
+          if (remaining <= 0) {
+            emit("PACK_EXHAUSTED", {
+              customerId:     job.customerId,
+              subscriptionId: job.subscriptionId,
+              packageName:    job.packageName,
+            }, "JobContext");
+          }
+        }
+      }
     }
   };
 

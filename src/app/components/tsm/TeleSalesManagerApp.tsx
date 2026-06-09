@@ -124,6 +124,8 @@ import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
 
 import { TSMAlertSystem } from "./TSMAlertSystem";
 import { TSMLeadPoolAssignment } from "./TSMLeadPoolAssignment";
+import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
+import { rescheduleService } from "../../services/whatsappRescheduleHandler";
 
 
 import { useCustomers } from "../../contexts/CustomerContext";
@@ -955,6 +957,14 @@ export function TeleSalesManagerApp() {
 
 
             </TabsTrigger>
+            <TabsTrigger value="reschedules" className="flex items-center gap-1 text-xs">
+              🔄 Reschedules
+              {rescheduleService.getPendingCount() > 0 && (
+                <span className="ml-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {rescheduleService.getPendingCount()}
+                </span>
+              )}
+            </TabsTrigger>
 
 
 
@@ -1205,6 +1215,17 @@ export function TeleSalesManagerApp() {
             <TSMLeadPipeline initialStageFilter={pipelineStageFilter} />
 
 
+          </TabsContent>
+
+          {/* Reschedule requests queue */}
+          <TabsContent value="reschedules" className="mt-0">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Reschedule Requests</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Customer requests received via WhatsApp replies or IVR.
+              </p>
+            </div>
+            <RescheduleQueuePanel />
           </TabsContent>
 
 

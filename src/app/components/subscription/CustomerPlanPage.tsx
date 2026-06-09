@@ -8,6 +8,8 @@ import { useCustomerSubscriptions } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
 import { tatTrackingService } from "../../services/tatTrackingService";
 import { getBookingSlot } from "../../services/bookingWindowService";
+import { IncentiveApiService } from "../../services/IncentiveApiService";
+import { sendBookingPending, sendTeamAlert } from "../../services/whatsappService";
 import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
 
@@ -451,7 +453,33 @@ export function CustomerPlanPage() {
   const [custEmail,setCustEmail]=useState(""); const [custReg,setCustReg]=useState("");
   const [custAddress,setCustAddress]=useState(""); const [prefTime,setPrefTime]=useState("");
   const [oneTimeDate,setOneTimeDate]=useState(""); const [oneTimeHour,setOneTimeHour]=useState("");
-  const [packStartOption,setPackStartOption]=useState<"immediate"|"schedule">("immediate"); // REVISED: immediate is default per owner decision
+  const [packStartOption,setPackStartOption]=useState<"immediate"|"schedule">("immediate");
+  const [abandonLeadCaptured,setAbandonLeadCaptured]=useState(false);
+  // Lead capture on checkout abandon: if customer reaches payment step but doesn't complete,
+  // create an unassigned lead so TSM sees it in the overnight pool for follow-up.
+  React.useEffect(()=>{
+    if(step===5&&custMobile&&custMobile.length>=10&&!abandonLeadCaptured){
+      try{
+        addLead({
+          firstName: custName.split(" ")[0]||"Customer",
+          lastName: custName.split(" ").slice(1).join(" ")||"",
+          email: custEmail||"",
+          phone: custMobile,
+          address:{line1:"",area:pincodeLabel||pincode,city:"Surat",pinCode:pincode},
+          vehicleDetails:{category:activeCat||"hatchback",brand:carModel||"",color:"",registrationNumber:""},
+          leadSource:"Website — Buy Page",
+          status:"New" as const,
+          stage:"new" as const,
+          assignedTo:undefined,
+          cityId:city||"CITY-SURAT",
+          temperature:"warm" as const,
+          planOfInterest:selectedPlan||selectedPack||"",
+          notes:"Checkout abandon capture — customer reached payment step",
+        });
+        setAbandonLeadCaptured(true);
+      }catch(_){}
+    }
+  },[step]); // REVISED: immediate is default per owner decision
   const [parking,setParking]=useState<"dedicated"|"random">("dedicated");
   const [notifyPref,setNotifyPref]=useState<"whatsapp"|"email"|"both">("whatsapp");
   const [consentTerms,setConsentTerms]=useState(false); const [consentRefund,setConsentRefund]=useState(false); const [consentCancel,setConsentCancel]=useState(false);
@@ -473,7 +501,7 @@ export function CustomerPlanPage() {
   }, 0);
 
   const { recordRevenue } = useFinance();
-  const { addCustomer, customers } = useCustomers();
+  const { addCustomer, customers, addLead } = useCustomers();
   const { createSubscription } = useCustomerSubscriptions();
   const { city } = useCity();
 
@@ -562,13 +590,36 @@ export function CustomerPlanPage() {
       else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"]}); customerId=nc.customerId;}
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
       const renewalDate=new Date(now);renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:now.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:prefTime},billingCycle:"Monthly",paymentStatus:"Paid"});
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:now.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
+      ...(isPack?{
+        visitsTotal: selectedPack==="pack2"?2:4,
+        visitsUsed: 0,
+        visitsExpiry: new Date(Date.now()+30*86400000).toISOString().slice(0,10),
+      }:{})});
+      // Write subscription to Railway backend in background (non-blocking)
+      const _cityId = city || "CITY-SURAT";
+      IncentiveApiService.create({
+        subscriptionId: sub.subscriptionId,
+        customerId,
+        customerName: custName,
+        cityId: _cityId,
+        planType: sub.packageType,
+        vehicleCategory: activeCat || "hatchback",
+        monthlyAmount: finalTotal,
+        term: commitment==="3month"?3:commitment==="6month"?6:commitment==="12month"?12:1,
+        source: "DIGITAL",
+        activationDate: new Date().toISOString().slice(0,10),
+      }).catch(()=>{/* non-blocking — localStorage is primary */});
       recordRevenue({customerId,subscriptionId:sub.subscriptionId,type:planMode==="monthly"?"Subscription":"One-Time",amount:finalTotal,receivedDate:now.toISOString().split("T")[0],paymentMethod:"UPI",invoiceNumber:invNum,status:"Received",cityId:city||"CITY-SURAT"});
       const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
-      const waMsg=encodeURIComponent(`Hi ${firstName}! 🎉\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: ₹${(invoice?.grandTotal??0).toLocaleString("en-IN")} (incl. GST)\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`);
-      if(notifyPref==="whatsapp"||notifyPref==="both"){(window as any)._pendingWAInvoice=`https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;}
+      // REVISED: Step 1 of 2-stage WA — pending message sent immediately after payment.
+      // Full confirmation (with washer + slot) sent separately via tatTrackingService.markAssigned().
+      if(notifyPref==="whatsapp"||notifyPref==="both"){
+        sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash")
+          .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
+      }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
       if(referralResult?.valid && referralResult.code) planSyncService.convertReferral(referralResult.code, customerId, custName, finalTotal);

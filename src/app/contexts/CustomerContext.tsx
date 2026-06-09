@@ -11,6 +11,7 @@ import { useJobs } from "./JobContext";
 // REMOVED: circular import useFinance from FinanceContext
 import { useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
+import { railwaySync } from "../services/railwaySyncService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
 import { useCity } from "./CityContext";
@@ -139,6 +140,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     };
 
     setCustomers((prev) => [...prev, newCustomer]);
+    railwaySync.customer(newCustomer); // non-blocking background sync to Railway
     return newCustomer;
   };
 
@@ -208,6 +210,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     };
 
     setLeads((prev) => [...prev, newLead]);
+    railwaySync.lead(newLead); // non-blocking background sync to Railway
 
     // Track lead creation in analytics
     AnalyticsService.track("LEAD_CREATED", {
@@ -220,6 +223,7 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
   };
 
   const updateLead = (id: string, updates: Partial<Lead>) => {
+    railwaySync.lead(updates, "PATCH", id); // non-blocking background sync to Railway
     setLeads((prev) =>
       prev.map((lead) =>
         lead.leadId === id

@@ -26,6 +26,7 @@
  */
 
 import { DataService } from "./DataService";
+import { railwaySync } from "./railwaySyncService";
 
 export interface RescheduleRequest {
   id: string;
@@ -118,6 +119,7 @@ function createRescheduleRequest(phone: string, source: RescheduleRequest["sourc
   const requests = readRequests();
   requests.push(req);
   writeRequests(requests);
+  railwaySync.reschedule(req); // non-blocking background sync to Railway
 
   // Fire DOM event for real-time UI update
   window.dispatchEvent(new CustomEvent("cc360:reschedule_requested", { detail: req }));

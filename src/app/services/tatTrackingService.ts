@@ -1,3 +1,5 @@
+import { sendBookingConfirmed, sendTeamAlert } from "./whatsappService";
+
 /**
  * tatTrackingService.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -376,6 +378,18 @@ class TATTrackingService {
       actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
     writeNotifs(notifs);
+
+    // Send full WhatsApp confirmation to customer (non-blocking)
+    // This is Stage 2 of the 2-stage WA flow — triggered by supervisor+washer acceptance
+    if (record.customerPhone) {
+      sendBookingConfirmed(
+        record.customerPhone,
+        record.customerName,
+        this.planLabel(record.planType),
+        deadline,
+        washerName
+      ).catch(() => {/* non-blocking */});
+    }
   }
 
   // ── Mark first wash done ───────────────────────────────────────────────────

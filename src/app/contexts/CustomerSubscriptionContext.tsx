@@ -23,6 +23,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef} from "react";
 import { DataService } from "../services/DataService";
+import { railwaySync } from "../services/railwaySyncService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
 // REMOVED: circular import useFinance from FinanceContext
@@ -35,7 +36,7 @@ export interface CustomerSubscription {
   packageType: "EXPRESS_WASH" | "SMART_WASH" | "ELITE_WASH" | "ELITE_2W";
   packageName: string;
   frequency: "Daily" | "Alternate Days" | "Weekly" | "Bi-Weekly" | "Monthly";
-  status: "Active" | "Paused" | "Cancelled" | "Expired";
+  status: "Active" | "Paused" | "Cancelled" | "Expired" | "Exhausted";
   startDate: string;
   endDate?: string;
   renewalDate?: string;
@@ -60,6 +61,10 @@ export interface CustomerSubscription {
     resumedAt?: string;
     reason: string;
   }>;
+  // Pack visit tracking — undefined for monthly subscriptions
+  visitsTotal?:  number;   // 2 or 4, set at purchase, never changes
+  visitsUsed?:   number;   // starts at 0, incremented by completeJob()
+  visitsExpiry?: string;   // ISO date +30 days from purchase
 }
 
 interface CustomerSubscriptionContextType {
@@ -112,6 +117,7 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
     };
 
     setSubscriptions((prev) => [...prev, newSubscription]);
+    railwaySync.subscription(newSubscription); // non-blocking background sync to Railway
 
     // Fire cc360_mrr_add — FinanceContext listener handles MRR creation
     if (newSubscription.status === "Active") {
