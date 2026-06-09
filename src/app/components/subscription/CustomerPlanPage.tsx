@@ -1295,59 +1295,56 @@ export function CustomerPlanPage() {
                 </div>
               </div>
 
-              {!isOneTime?(
-                <div style={{marginBottom:16}}>
-                  <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:8}}>Preferred wash time *</label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    {cfg.timeSlots.map(slot=>(
-                      <button key={slot} onClick={()=>setPrefTime(slot)}
-                        style={{padding:"11px 14px",borderRadius:10,border:`2px solid ${prefTime===slot?"#6366f1":"rgba(148,163,184,0.3)"}`,background:prefTime===slot?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"rgba(255,255,255,0.9)",color:"#0f172a",fontWeight:prefTime===slot?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",textAlign:"left",transition:"all 0.2s",boxShadow:prefTime===slot?"0 4px 12px rgba(99,102,241,0.2)":undefined}}>
-                        {prefTime===slot?"✓ ":""}{slot}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ):(
-                <>
-                {(selectedPack==="pack2"||selectedPack==="pack4")&&(
+              {(()=>{
+                const isPack2or4=selectedPack==="pack2"||selectedPack==="pack4";
+                if(isPack2or4) return (
                   <div style={{marginBottom:20,padding:"16px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14}}>
                     <div style={{fontSize:13,fontWeight:700,color:"#15803d",marginBottom:12}}>📦 When do you want your first wash?</div>
-                    <div style={{display:"flex",gap:10,marginBottom:10}}>
-                      {(["immediate","schedule"] as const).map(opt=>(
-                        <button key={opt} onClick={()=>setPackStartOption(opt)}
-                          style={{flex:1,padding:"12px 16px",borderRadius:12,border:`2px solid ${packStartOption===opt?"#16a34a":"rgba(148,163,184,0.3)"}`,background:packStartOption===opt?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:packStartOption===opt?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>
-                          {opt==="immediate"?"⚡ Book Now (Today)":"📅 Schedule for Later"}
+                    <div style={{display:"flex",gap:10,marginBottom:10}}>{(["immediate","schedule"] as const).map(opt=>(
+                      <button key={opt} onClick={()=>setPackStartOption(opt)}
+                        style={{flex:1,padding:"12px 16px",borderRadius:12,border:`2px solid ${packStartOption===opt?"#16a34a":"rgba(148,163,184,0.3)"}`,background:packStartOption===opt?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:packStartOption===opt?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>
+                        {opt==="immediate"?"⚡ Book Now (Today)":"📅 Schedule for Later"}
+                      </button>
+                    ))}</div>
+                    {packStartOption==="immediate"&&<div style={{padding:"8px 12px",background:"rgba(22,163,74,0.1)",borderRadius:8,fontSize:12,color:"#15803d"}}>✅ Our team will assign your washer and confirm your slot within 2 hours.</div>}
+                    {packStartOption==="schedule"&&(
+                      <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                        <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
+                          <input type="date" min={minOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
+                        <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Time slot *</label>
+                          <select value={oneTimeHour} onChange={e=>setOneTimeHour(e.target.value)} className="cpp-input">
+                            <option value="">Select time</option>
+                            {getOneTimeSlots(oneTimeDate).map(s=><option key={s} value={s}>{s}</option>)}
+                          </select></div>
+                      </div>
+                    )}
+                  </div>
+                );
+                if(isOneTime) return (
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+                    <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
+                      <input type="date" min={minOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
+                    <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Time slot *</label>
+                      <select value={oneTimeHour} onChange={e=>setOneTimeHour(e.target.value)} className="cpp-input">
+                        <option value="">Select time</option>
+                        {getOneTimeSlots(oneTimeDate).map(s=><option key={s} value={s}>{s}</option>)}
+                      </select></div>
+                  </div>
+                );
+                return (
+                  <div style={{marginBottom:16}}>
+                    <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:8}}>Preferred wash time *</label>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      {cfg.timeSlots.map(slot=>(
+                        <button key={slot} onClick={()=>setPrefTime(slot)}
+                          style={{padding:"11px 14px",borderRadius:10,border:`2px solid ${prefTime===slot?"#6366f1":"rgba(148,163,184,0.3)"}`,background:prefTime===slot?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"rgba(255,255,255,0.9)",color:"#0f172a",fontWeight:prefTime===slot?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",textAlign:"left",transition:"all 0.2s",boxShadow:prefTime===slot?"0 4px 12px rgba(99,102,241,0.2)":undefined}}>
+                          {prefTime===slot?"✓ ":""}{slot}
                         </button>
                       ))}
                     </div>
-                    {packStartOption==="immediate"&&<div style={{padding:"8px 12px",background:"rgba(22,163,74,0.1)",borderRadius:8,fontSize:12,color:"#15803d"}}>✅ Our team will assign your washer and confirm your slot within 2 hours.</div>}
                   </div>
-                )}
-                {(!(selectedPack==="pack2"||selectedPack==="pack4")||packStartOption==="schedule")&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                  <div>
-                    <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
-                    <input type="date" min={minOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" />
-                  {(()=>{
-                    const now=new Date(),h=now.getHours(),dow=now.getDay();
-                    if(dow===0){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:10,fontSize:12,color:"#9a3412"}}>🌞 <strong>Sunday:</strong> Orders placed today will be confirmed and scheduled from <strong>Monday morning</strong>. We'll call you to confirm your time slot.</div>;}
-                    if(dow===6&&h>=14){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:10,fontSize:12,color:"#9a3412"}}>🌅 <strong>Saturday afternoon:</strong> Orders placed now will be confirmed on <strong>Monday</strong>. We'll call you to confirm the slot.</div>;}
-                    if(h>=18){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#eff6ff,#dbeafe)",border:"2px solid #bfdbfe",borderRadius:10,fontSize:12,color:"#1e40af"}}>🌙 <strong>After-hours booking:</strong> Orders after 6:30 PM are scheduled for the <strong>next working day</strong>. We'll confirm your slot in the morning.</div>;}
-                    if(h>=14){return <div style={{marginTop:8,padding:"10px 14px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:10,fontSize:12,color:"#065f46"}}>✅ Same-day and next-day slots available for today.</div>;}
-                    return null;
-                  })()}
-                  </div>
-                  <div>
-                    <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Time slot *</label>
-                    <select value={oneTimeHour} onChange={e=>setOneTimeHour(e.target.value)} className="cpp-input">
-                      <option value="">Select time</option>
-                      {getOneTimeSlots(oneTimeDate).map(s=><option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                </div>
-                )}
-                </>
-              )}
+                );
+              })()}
 
 
               {/* Coupon / Referral codes */}
