@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
+import { AppProvider } from "./contexts/AppProvider";
 
 // Loading fallback for lazy-loaded routes
 const PageLoader = () => (
@@ -439,10 +440,10 @@ export const router = createBrowserRouter([
     path: "/onboard/:empId",
     element: <OnboardingRedirect />,
   },
-  // Public routes — no auth, no sidebar
+  // Public routes — no auth, no sidebar, but need AppProvider for contexts
   {
     path: "/buy",
-    element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary>,
+    element: <ErrorBoundary><AppProvider><CustomerPlanPage /></AppProvider></ErrorBoundary>,
   },
   {
     path: "/book",
