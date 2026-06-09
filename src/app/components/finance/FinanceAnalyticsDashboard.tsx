@@ -504,3 +504,5 @@ export function FinanceAnalyticsDashboard() {
     </div>
   );
 }
+
+export default FinanceAnalyticsDashboard;

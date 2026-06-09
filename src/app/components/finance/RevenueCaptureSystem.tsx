@@ -668,3 +668,5 @@ export function RevenueCaptureSystem() {
     </div>
   );
 }
+
+export default RevenueCaptureSystem;

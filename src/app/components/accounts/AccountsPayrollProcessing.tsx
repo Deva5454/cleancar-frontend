@@ -556,3 +556,5 @@ export function AccountsPayrollProcessing() {
     </div>
   );
 }
+
+export default AccountsPayrollProcessing;

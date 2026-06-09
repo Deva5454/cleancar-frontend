@@ -644,3 +644,5 @@ export function AnalyticsDashboardWithDrillDown() {
     </div>
   );
 }
+
+export default AnalyticsDashboardWithDrillDown;

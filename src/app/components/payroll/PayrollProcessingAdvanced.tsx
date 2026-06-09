@@ -951,3 +951,5 @@ export function PayrollProcessingAdvanced() {
     </div>
   );
 }
+
+export default PayrollProcessingAdvanced;

@@ -925,3 +925,5 @@ export function FinanceTransactions() {
     </div>
   );
 }
+
+export default FinanceTransactions;
