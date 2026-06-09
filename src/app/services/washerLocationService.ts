@@ -112,7 +112,7 @@ function handlePosition(pos: GeolocationPosition, washerId: string, jobId?: stri
 
   // Push to Railway (non-blocking)
   if (BASE) {
-    fetch(`${BASE}/washers/${washerId}/location`, {
+    fetch(`${BASE}/jobs/${jobId}/location`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(loc),
