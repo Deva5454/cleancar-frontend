@@ -339,4 +339,4 @@ export function ApprovalCenter() {
   );
 }
 
-export default ApprovalCenterMain;
+export default ApprovalCenter;
