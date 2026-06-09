@@ -21,7 +21,6 @@ import {
   ArrowDownRight,
   Store,
   Zap,
-  TrendingUp as GrowthIcon,
   Award,
   AlertCircle,
   Wallet,
@@ -617,7 +616,7 @@ function FounderControlTower() {
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <GrowthIcon className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5" />
               Growth Metrics
             </CardTitle>
           </CardHeader>

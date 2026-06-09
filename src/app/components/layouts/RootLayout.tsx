@@ -6,7 +6,7 @@ import {
   CheckSquare, FileText, Bell, Settings, LogOut, Home,
   Calendar, TrendingUp, PieChart, Target, Calculator, Crown,
   Activity, Wallet, IdCard, CalendarDays, ListTree, BookUser, Banknote, Mail, Link as LinkIcon, ShoppingCart, Warehouse, Scan,
-  UserCheck, MapPin, Search, TrendingUp as TrendingUpIcon, MessageSquare, Eye, Clock, BarChart, UserPlus, Database,
+  UserCheck, MapPin, Search, MessageSquare, Eye, Clock, BarChart, UserPlus, Database,
   CreditCard, Receipt, Building, Landmark, ChevronDown, ChevronRight
 } from "lucide-react";
 import { Button } from "../ui/button";
