@@ -39,6 +39,7 @@ export default defineConfig({
       output: {
         charset: 'utf8',
         manualChunks(id) {
+          // Vendor chunks
           if (id.includes('node_modules/react/') ||
               id.includes('node_modules/react-dom/') ||
               id.includes('node_modules/react-router-dom/')) {
@@ -53,6 +54,11 @@ export default defineConfig({
           }
           if (id.includes('framer-motion') || id.includes('/motion/')) return 'vendor-motion';
           if (id.includes('date-fns')) return 'vendor-dates';
+          // App chunks - split to prevent Rollup TDZ from module concatenation
+          if (id.includes('/src/app/contexts/')) return 'app-contexts';
+          if (id.includes('/src/app/services/')) return 'app-services';
+          if (id.includes('/src/app/utils/') || id.includes('/src/app/config/') || id.includes('/src/app/lib/')) return 'app-utils';
+          if (id.includes('/src/app/hooks/')) return 'app-hooks';
         },
       },
     },
