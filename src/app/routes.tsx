@@ -69,7 +69,8 @@ const CostPerWashModule = lazy(() => import("./components/finance/CostPerWashMod
 const ActualCostInputs = lazy(() => import("./components/finance/ActualCostInputs"));
 const FinanceTransactions = lazy(() => import("./components/finance/FinanceTransactions").then(m=>({default:m.FinanceTransactions||m.default})));
 const LedgerEntriesView = lazy(() => import("./components/finance/LedgerEntriesView"));
-const FinanceAnalyticsDashboard = lazy(() => import("./components/finance/FinanceAnalyticsDashboard").then(m=>({default:m.FinanceAnalyticsDashboard||m.default})));
+import { FinanceAnalyticsDashboard as _FinanceAnalyticsDashboard } from "./components/finance/FinanceAnalyticsDashboard";
+const FinanceAnalyticsDashboard = _FinanceAnalyticsDashboard;
 const FinancialReportsModule = lazy(() => import("./components/finance/FinancialReportsModule"));
 const LeavePolicyEngine = lazy(() => import("./components/hr/LeavePolicyEngine"));
 const EmployeeOnboarding = lazy(() => import("./components/hr/EmployeeOnboarding"));
@@ -120,7 +121,8 @@ const PurchaseOrderCreation = lazy(() => import("./components/store-manager/Purc
 const MOQManagement = lazy(() => import("./components/store-manager/MOQManagement"));
 const InventoryMonitoring = lazy(() => import("./components/store-manager/InventoryMonitoring"));
 const VendorRequest = lazy(() => import("./components/store-manager/VendorRequest"));
-const AnalyticsDashboardWithDrillDown = lazy(() => import("./components/dashboards/AnalyticsDashboardWithDrillDown").then(m=>({default:m.AnalyticsDashboardWithDrillDown||m.default})));
+import { AnalyticsDashboardWithDrillDown as _AnalyticsDashboardWithDrillDown } from "./components/dashboards/AnalyticsDashboardWithDrillDown";
+const AnalyticsDashboardWithDrillDown = _AnalyticsDashboardWithDrillDown;
 const RoleBasedAnalyticsDashboard = lazy(() => import("./components/examples/RoleBasedAnalyticsDashboard"));
 const CostPerWashReport = lazy(() => import("./components/reports/CostPerWashReport"));
 const ActivityTimelineWrapper = lazy(() => import("./components/crm/ActivityTimelineWrapper"));
