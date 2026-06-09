@@ -54,8 +54,9 @@ class CustomerCareExecutiveService {
   private mockEscalations: Escalation[] = [];
   private mockCSATRecords: CSATRecord[] = [];
 
+  private _initialized = false;
   constructor() {
-    this.initializeMockData();
+    if (typeof window !== 'undefined') { Promise.resolve().then(() => { if(!this._initialized) { this._initialized = true; this.initializeMockData(); }}); }
   }
 
   private initializeMockData() {
@@ -825,3 +826,4 @@ class CustomerCareExecutiveService {
 }
 
 export const customerCareExecutiveService = new CustomerCareExecutiveService();
+

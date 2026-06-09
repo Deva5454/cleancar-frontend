@@ -41,8 +41,9 @@ class HierarchyFinancialService {
   private income: IncomeByPincode[] = [];
   private expenses: ExpenseByLevel[] = [];
 
+  private _initialized = false;
   constructor() {
-    this.initializeMockData();
+    if (typeof window !== 'undefined') { Promise.resolve().then(() => { if(!this._initialized) { this._initialized = true; this.initializeMockData(); }}); }
   }
 
   private initializeMockData() {
@@ -584,3 +585,4 @@ class HierarchyFinancialService {
 }
 
 export const hierarchyFinancialService = new HierarchyFinancialService();
+

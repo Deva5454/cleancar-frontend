@@ -141,10 +141,9 @@ class BTLLeadService {
   // Internal tracking for BTL-specific metadata (incentives, GPS, etc.)
   private btlMetadata: Map<string, Omit<BTLLead, keyof Lead>> = new Map();
 
+  private _initialized = false;
   constructor() {
-    // Initialize with mock data
-    this.initializeMockData();
-    console.log("✅ BTL Lead Service initialized - leads flow to MASTER_LEADS");
+    if (typeof window !== 'undefined') { Promise.resolve().then(() => { if(!this._initialized) { this._initialized = true; this.initializeMockData(); }}); }
   }
 
   // ========== GEOCODING ==========
