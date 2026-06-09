@@ -301,3 +301,5 @@ export function WasherAttendanceHistory() {
     </div>
   );
 }
+
+export default WasherAttendanceHistory;

@@ -16,3 +16,5 @@ export function WorkingHoursTest() {
     </div>
   );
 }
+
+export default WorkingHoursTest;

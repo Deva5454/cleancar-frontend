@@ -804,3 +804,5 @@ export function CostPerWashModule() {
     </div>
   );
 }
+
+export default CostPerWashModule;

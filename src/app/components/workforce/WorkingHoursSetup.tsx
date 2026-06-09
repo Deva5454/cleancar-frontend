@@ -667,3 +667,5 @@ export function WorkingHoursSetup() {
     </div>
   );
 }
+
+export default WorkingHoursSetup;

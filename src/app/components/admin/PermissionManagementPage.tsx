@@ -297,3 +297,5 @@ export function PermissionManagementPage() {
     </div>
   );
 }
+
+export default PermissionManagementPage;

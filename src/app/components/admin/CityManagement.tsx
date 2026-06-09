@@ -422,3 +422,5 @@ export function CityManagement() {
     </div>
   );
 }
+
+export default CityManagement;

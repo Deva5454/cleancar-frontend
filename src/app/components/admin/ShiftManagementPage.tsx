@@ -371,3 +371,5 @@ export function ShiftManagementPage() {
     </div>
   );
 }
+
+export default ShiftManagementPage;

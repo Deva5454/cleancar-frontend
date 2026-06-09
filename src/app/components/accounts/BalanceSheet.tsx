@@ -367,3 +367,5 @@ export function BalanceSheet() {
     </div>
   );
 }
+
+export default BalanceSheet;

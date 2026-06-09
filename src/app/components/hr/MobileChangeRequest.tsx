@@ -169,3 +169,5 @@ export function MobileChangeRequest() {
     </div>
   );
 }
+
+export default MobileChangeRequest;

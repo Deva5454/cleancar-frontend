@@ -70,3 +70,5 @@ export function PayrollConfigTest() {
     </div>
   );
 }
+
+export default PayrollConfigTest;

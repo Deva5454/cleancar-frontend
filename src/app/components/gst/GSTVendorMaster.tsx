@@ -1095,3 +1095,5 @@ function VendorDetail({ vendor, onEdit, onClose, onUpdate }: {
     </div>
   );
 }
+
+export default GSTVendorMaster;

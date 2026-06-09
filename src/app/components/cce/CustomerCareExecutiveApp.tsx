@@ -839,3 +839,5 @@ function MetricCard({ label, value, target, suffix = '', icon: Icon, color, inve
     </Card>
   );
 }
+
+export default CustomerCareExecutiveApp;

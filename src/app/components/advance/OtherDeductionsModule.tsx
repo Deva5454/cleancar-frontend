@@ -741,3 +741,5 @@ export function OtherDeductionsModule() {
     </div>
   );
 }
+
+export default OtherDeductionsModule;

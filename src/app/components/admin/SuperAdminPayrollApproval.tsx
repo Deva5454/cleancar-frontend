@@ -282,3 +282,5 @@ export function SuperAdminPayrollApproval() {
     </div>
   );
 }
+
+export default SuperAdminPayrollApproval;

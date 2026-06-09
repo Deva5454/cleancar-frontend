@@ -416,3 +416,5 @@ export function ShortTermAdvanceForm() {
     </div>
   );
 }
+
+export default ShortTermAdvanceForm;

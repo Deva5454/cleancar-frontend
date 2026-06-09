@@ -703,3 +703,5 @@ export function GSTR3BModule() {
     </div>
   );
 }
+
+export default GSTR3BModule;

@@ -470,3 +470,5 @@ export function StatutoryPayablesScreen() {
     </div>
   );
 }
+
+export default StatutoryPayablesScreen;

@@ -608,3 +608,5 @@ export function LongTermAdvanceForm() {
     </div>
   );
 }
+
+export default LongTermAdvanceForm;

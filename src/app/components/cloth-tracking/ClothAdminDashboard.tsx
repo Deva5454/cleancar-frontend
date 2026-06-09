@@ -287,3 +287,5 @@ export function ClothAdminDashboard() {
     </div>
   );
 }
+
+export default ClothAdminDashboard;

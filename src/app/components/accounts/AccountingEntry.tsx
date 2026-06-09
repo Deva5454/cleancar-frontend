@@ -840,3 +840,5 @@ export function AccountingEntry() {
     </div>
   );
 }
+
+export default AccountingEntry;

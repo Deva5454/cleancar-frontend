@@ -341,3 +341,5 @@ export function MOQManagement() {
     </div>
   );
 }
+
+export default MOQManagement;

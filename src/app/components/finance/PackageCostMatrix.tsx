@@ -602,3 +602,5 @@ export function PackageCostMatrix() {
     </div>
   );
 }
+
+export default PackageCostMatrix;

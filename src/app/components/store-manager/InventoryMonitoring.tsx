@@ -313,3 +313,5 @@ export function InventoryMonitoring() {
     </div>
   );
 }
+
+export default InventoryMonitoring;

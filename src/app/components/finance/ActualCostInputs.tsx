@@ -715,3 +715,5 @@ export function ActualCostInputs() {
     </div>
   );
 }
+
+export default ActualCostInputs;

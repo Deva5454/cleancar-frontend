@@ -213,3 +213,5 @@ export function CostTrackingIntegrationDemo() {
     </div>
   );
 }
+
+export default CostTrackingIntegrationDemo;

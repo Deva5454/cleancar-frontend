@@ -830,3 +830,5 @@ function PlanSyncStatus() {
     </div>
   );
 }
+
+export default SuperAdminPlanEditor;

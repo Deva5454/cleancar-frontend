@@ -309,3 +309,5 @@ export function TrialBalance() {
     </div>
   );
 }
+
+export default TrialBalance;

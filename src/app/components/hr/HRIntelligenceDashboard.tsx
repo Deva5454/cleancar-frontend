@@ -542,3 +542,5 @@ function ExitsTab({ workflows = [] }: any) {
     </Card>
   );
 }
+
+export default HRIntelligenceDashboard;

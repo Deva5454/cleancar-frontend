@@ -445,3 +445,5 @@ export function IDCardGenerator() {
     </div>
   );
 }
+
+export default IDCardGenerator;

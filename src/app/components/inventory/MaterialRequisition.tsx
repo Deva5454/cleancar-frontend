@@ -224,3 +224,5 @@ export function MaterialRequisition() {
     </div>
   );
 }
+
+export default MaterialRequisition;

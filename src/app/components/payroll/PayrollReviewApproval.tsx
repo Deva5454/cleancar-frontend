@@ -653,3 +653,5 @@ export function PayrollReviewApproval() {
     </div>
   );
 }
+
+export default PayrollReviewApproval;

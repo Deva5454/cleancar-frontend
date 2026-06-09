@@ -314,3 +314,5 @@ export function AuditTrail() {
     </div>
   );
 }
+
+export default AuditTrail;

@@ -307,3 +307,5 @@ export function AccountsLedger() {
     </div>
   );
 }
+
+export default AccountsLedger;

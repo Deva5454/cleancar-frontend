@@ -456,3 +456,5 @@ export function CRMConversionAnalyticsDashboard() {
     </div>
   );
 }
+
+export default CRMConversionAnalyticsDashboard;

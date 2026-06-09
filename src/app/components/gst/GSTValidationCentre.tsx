@@ -276,3 +276,5 @@ export function GSTValidationCentre() {
     </div>
   );
 }
+
+export default GSTValidationCentre;

@@ -505,3 +505,5 @@ export function GSTManagerReview() {
     </div>
   );
 }
+
+export default GSTManagerReview;

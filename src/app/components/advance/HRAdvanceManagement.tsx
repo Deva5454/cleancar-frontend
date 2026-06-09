@@ -937,3 +937,5 @@ function AdvanceStatusBadge({ status }: { status: string }) {
     </Badge>
   );
 }
+
+export default HRAdvanceManagement;

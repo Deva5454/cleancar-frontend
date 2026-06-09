@@ -361,3 +361,5 @@ export function WasherStockLedger() {
     </div>
   );
 }
+
+export default WasherStockLedger;

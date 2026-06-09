@@ -359,3 +359,5 @@ export function PlanSelectionScreen() {
     </div>
   );
 }
+
+export default PlanSelectionScreen;

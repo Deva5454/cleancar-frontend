@@ -684,3 +684,5 @@ export function PlanEditor() {
     </div>
   );
 }
+
+export default PlanEditor;

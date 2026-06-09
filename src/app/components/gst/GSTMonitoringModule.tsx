@@ -407,3 +407,5 @@ export function GSTMonitoringModule() {
     </div>
   );
 }
+
+export default GSTMonitoringModule;

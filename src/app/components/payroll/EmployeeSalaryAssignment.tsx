@@ -557,3 +557,5 @@ export function EmployeeSalaryAssignment() {
     </div>
   );
 }
+
+export default EmployeeSalaryAssignment;

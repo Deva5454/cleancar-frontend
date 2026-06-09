@@ -736,3 +736,5 @@ export function ExitFFSettlement() {
     </div>
   );
 }
+
+export default ExitFFSettlement;

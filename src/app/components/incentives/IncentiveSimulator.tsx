@@ -1037,3 +1037,5 @@ export function IncentiveSimulator() {
     </div>
   );
 }
+
+export default IncentiveSimulator;

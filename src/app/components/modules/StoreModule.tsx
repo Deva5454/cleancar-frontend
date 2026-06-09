@@ -74,3 +74,5 @@ export function StoreModule() {
     </div>
   );
 }
+
+export default StoreModule;

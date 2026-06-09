@@ -313,3 +313,5 @@ export function StoreManagerModule() {
     </div>
   );
 }
+
+export default StoreManagerModule;

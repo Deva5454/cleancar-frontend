@@ -16,3 +16,5 @@ const PageLoader = () => (
 export function OperationsLayout() {
   return <Suspense fallback={<PageLoader />}><Outlet /></Suspense>;
 }
+
+export default OperationsLayout;

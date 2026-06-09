@@ -357,3 +357,5 @@ export function IncentiveEngineDemo() {
     </div>
   );
 }
+
+export default IncentiveEngineDemo;

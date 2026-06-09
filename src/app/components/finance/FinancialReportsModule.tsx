@@ -283,3 +283,5 @@ export function FinancialReportsModule() {
     </div>
   );
 }
+
+export default FinancialReportsModule;

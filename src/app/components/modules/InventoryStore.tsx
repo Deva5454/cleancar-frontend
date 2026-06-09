@@ -385,3 +385,5 @@ export function InventoryStore() {
     </div>
   );
 }
+
+export default InventoryStore;

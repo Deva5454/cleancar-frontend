@@ -585,3 +585,5 @@ export function GSTReports() {
     </div>
   );
 }
+
+export default GSTReports;

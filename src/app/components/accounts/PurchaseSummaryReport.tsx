@@ -293,3 +293,5 @@ export function PurchaseSummaryReport() {
     </div>
   );
 }
+
+export default PurchaseSummaryReport;

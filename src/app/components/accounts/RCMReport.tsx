@@ -189,3 +189,5 @@ export function RCMReport() {
     </div>
   );
 }
+
+export default RCMReport;

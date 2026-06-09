@@ -273,3 +273,5 @@ export function GSTR2AReport() {
     </div>
   );
 }
+
+export default GSTR2AReport;

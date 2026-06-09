@@ -445,3 +445,5 @@ export function WeekOffCoverDemo() {
     </div>
   );
 }
+
+export default WeekOffCoverDemo;

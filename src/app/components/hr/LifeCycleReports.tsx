@@ -760,3 +760,5 @@ export function LifeCycleReports() {
     </div>
   );
 }
+
+export default LifeCycleReports;

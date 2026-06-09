@@ -321,3 +321,5 @@ export function RoleSuggestionsPage() {
     </div>
   );
 }
+
+export default RoleSuggestionsPage;

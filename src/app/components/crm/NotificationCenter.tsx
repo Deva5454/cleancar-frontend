@@ -522,3 +522,5 @@ export function NotificationCenter() {
     </div>
   );
 }
+
+export default NotificationCenter;

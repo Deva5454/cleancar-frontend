@@ -365,3 +365,5 @@ export function AccountsDashboard() {
     </div>
   );
 }
+
+export default AccountsDashboard;

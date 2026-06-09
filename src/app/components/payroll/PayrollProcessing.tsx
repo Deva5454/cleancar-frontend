@@ -434,3 +434,5 @@ export function PayrollProcessing() {
     </div>
   );
 }
+
+export default PayrollProcessing;

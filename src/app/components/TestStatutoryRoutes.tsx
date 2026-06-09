@@ -86,3 +86,5 @@ export function TestStatutoryRoutes() {
     </div>
   );
 }
+
+export default TestStatutoryRoutes;

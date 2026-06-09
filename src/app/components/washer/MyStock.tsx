@@ -331,3 +331,5 @@ export function MyStock() {
     </div>
   );
 }
+
+export default MyStock;

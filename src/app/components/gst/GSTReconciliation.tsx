@@ -389,3 +389,5 @@ export function GSTReconciliation() {
     </div>
   );
 }
+
+export default GSTReconciliation;

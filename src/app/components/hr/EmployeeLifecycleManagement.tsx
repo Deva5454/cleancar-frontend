@@ -554,3 +554,5 @@ export function EmployeeLifecycleManagement() {
     </div>
   );
 }
+
+export default EmployeeLifecycleManagement;

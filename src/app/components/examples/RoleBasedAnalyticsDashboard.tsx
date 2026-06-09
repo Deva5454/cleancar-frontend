@@ -422,3 +422,5 @@ export function RoleBasedAnalyticsDashboard() {
     </div>
   );
 }
+
+export default RoleBasedAnalyticsDashboard;

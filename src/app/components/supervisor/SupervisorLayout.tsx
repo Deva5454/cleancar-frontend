@@ -16,3 +16,5 @@ const PageLoader = () => (
 export function SupervisorLayout() {
   return <Suspense fallback={<PageLoader />}><Outlet /></Suspense>;
 }
+
+export default SupervisorLayout;

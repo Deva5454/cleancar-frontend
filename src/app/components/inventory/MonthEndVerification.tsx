@@ -438,3 +438,5 @@ export function MonthEndVerification() {
     </div>
   );
 }
+
+export default MonthEndVerification;

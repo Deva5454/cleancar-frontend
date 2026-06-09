@@ -82,3 +82,5 @@ export function ProcurementModule() {
     </div>
   );
 }
+
+export default ProcurementModule;

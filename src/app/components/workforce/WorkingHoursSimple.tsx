@@ -43,3 +43,5 @@ export function WorkingHoursSimple() {
     </div>
   );
 }
+
+export default WorkingHoursSimple;

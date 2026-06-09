@@ -561,3 +561,5 @@ export function IncentiveVisibilityAdmin() {
     </div>
   );
 }
+
+export default IncentiveVisibilityAdmin;

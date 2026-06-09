@@ -370,3 +370,5 @@ export function HierarchyDashboard() {
     </div>
   );
 }
+
+export default HierarchyDashboard;

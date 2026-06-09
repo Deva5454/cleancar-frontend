@@ -632,3 +632,5 @@ export function WasherJobExecution() {
     </div>
   );
 }
+
+export default WasherJobExecution;

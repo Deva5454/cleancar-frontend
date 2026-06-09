@@ -118,3 +118,5 @@ export function WorkforceDiagnostic() {
     </div>
   );
 }
+
+export default WorkforceDiagnostic;

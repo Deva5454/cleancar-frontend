@@ -784,3 +784,5 @@ export function SupplierDetail() {
     </div>
   );
 }
+
+export default SupplierDetail;

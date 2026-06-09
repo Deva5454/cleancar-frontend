@@ -225,3 +225,5 @@ export function ExpansionOpportunities() {
     </div>
   );
 }
+
+export default ExpansionOpportunities;

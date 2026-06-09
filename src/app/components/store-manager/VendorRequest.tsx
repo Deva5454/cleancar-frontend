@@ -328,3 +328,5 @@ export function VendorRequest() {
     </div>
   );
 }
+
+export default VendorRequest;

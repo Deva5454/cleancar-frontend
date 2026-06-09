@@ -361,3 +361,5 @@ export function ServiceZonesManagement() {
     </div>
   );
 }
+
+export default ServiceZonesManagement;

@@ -289,3 +289,5 @@ export function AttendanceFraudAlertsPage() {
     </div>
   );
 }
+
+export default AttendanceFraudAlertsPage;

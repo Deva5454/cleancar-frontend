@@ -888,3 +888,5 @@ export function ExpenseVoucher() {
     </div>
   );
 }
+
+export default ExpenseVoucher;

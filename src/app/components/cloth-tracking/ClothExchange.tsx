@@ -490,3 +490,5 @@ export function ClothExchange() {
     </div>
   );
 }
+
+export default ClothExchange;

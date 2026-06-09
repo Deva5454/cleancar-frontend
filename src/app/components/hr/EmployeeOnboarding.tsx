@@ -852,3 +852,5 @@ export function EmployeeOnboarding() {
     </div>
   );
 }
+
+export default EmployeeOnboarding;

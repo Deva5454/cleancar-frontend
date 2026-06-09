@@ -400,3 +400,5 @@ export function DeveloperRouteDirectory() {
     </div>
   );
 }
+
+export default DeveloperRouteDirectory;

@@ -424,3 +424,5 @@ function CustomerForm({ customer, onSave, onClose }: {
     </div>
   );
 }
+
+export default GSTCustomerMaster;

@@ -297,3 +297,5 @@ export function AdvanceDetailView() {
     </div>
   );
 }
+
+export default AdvanceDetailView;

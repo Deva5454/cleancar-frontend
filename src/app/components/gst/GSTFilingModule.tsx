@@ -377,3 +377,5 @@ export function GSTFilingModule() {
     </div>
   );
 }
+
+export default GSTFilingModule;

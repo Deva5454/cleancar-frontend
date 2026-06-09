@@ -5,3 +5,5 @@ export function ExpenseEntry() {
   // Legacy route — redirect to the unified AccountingEntry screen
   return <Navigate to="/accounts/accounting-entry" replace />;
 }
+
+export default ExpenseEntry;

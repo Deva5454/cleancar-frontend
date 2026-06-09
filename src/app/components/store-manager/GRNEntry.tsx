@@ -343,3 +343,5 @@ export function GRNEntry() {
     </div>
   );
 }
+
+export default GRNEntry;

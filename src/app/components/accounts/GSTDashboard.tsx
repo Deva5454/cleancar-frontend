@@ -372,3 +372,5 @@ export function GSTDashboard() {
     </div>
   );
 }
+
+export default GSTDashboard;

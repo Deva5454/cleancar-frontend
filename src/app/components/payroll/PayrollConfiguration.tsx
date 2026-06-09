@@ -489,3 +489,5 @@ export function PayrollConfiguration() {
     </div>
   );
 }
+
+export default PayrollConfiguration;

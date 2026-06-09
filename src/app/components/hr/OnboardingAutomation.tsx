@@ -869,3 +869,5 @@ Need help? Contact HR
     </div>
   );
 }
+
+export default OnboardingAutomation;

@@ -505,3 +505,5 @@ export function HolidayManagement() {
     </div>
   );
 }
+
+export default HolidayManagement;

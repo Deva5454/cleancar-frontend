@@ -389,3 +389,5 @@ export function HRPayrollApproval() {
     </div>
   );
 }
+
+export default HRPayrollApproval;

@@ -468,3 +468,5 @@ function AdvanceCard({ advance }: { advance: LongTermAdvance | ShortTermAdvance 
     </div>
   );
 }
+
+export default EmployeeAdvanceDashboard;

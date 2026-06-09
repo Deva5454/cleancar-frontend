@@ -298,3 +298,5 @@ export function PurchaseOrderCreation() {
     </div>
   );
 }
+
+export default PurchaseOrderCreation;

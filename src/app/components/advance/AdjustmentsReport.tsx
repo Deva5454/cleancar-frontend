@@ -459,3 +459,5 @@ export function AdjustmentsReport() {
     </div>
   );
 }
+
+export default AdjustmentsReport;

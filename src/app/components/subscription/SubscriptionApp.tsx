@@ -194,3 +194,5 @@ function AdminView({ userRole, onRoleChange }: AdminViewProps) {
     </div>
   );
 }
+
+export default SubscriptionApp;

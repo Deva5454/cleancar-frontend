@@ -207,3 +207,5 @@ export function PerformanceTracking() {
     </div>
   );
 }
+
+export default PerformanceTracking;

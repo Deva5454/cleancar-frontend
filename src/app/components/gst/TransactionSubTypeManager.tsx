@@ -537,3 +537,5 @@ export function TransactionSubTypeManager() {
     </div>
   );
 }
+
+export default TransactionSubTypeManager;

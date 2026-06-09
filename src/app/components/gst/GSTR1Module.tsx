@@ -756,3 +756,5 @@ export function GSTR1Module() {
     </div>
   );
 }
+
+export default GSTR1Module;

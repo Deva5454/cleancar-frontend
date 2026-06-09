@@ -425,3 +425,5 @@ export function BusinessRulesPage() {
     </div>
   );
 }
+
+export default BusinessRulesPage;

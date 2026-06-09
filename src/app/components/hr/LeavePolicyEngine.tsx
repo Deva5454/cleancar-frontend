@@ -651,3 +651,5 @@ export function LeavePolicyEngine() {
     </div>
   );
 }
+
+export default LeavePolicyEngine;

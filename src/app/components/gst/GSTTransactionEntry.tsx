@@ -861,3 +861,5 @@ export function GSTTransactionEntry() {
     </div>
   );
 }
+
+export default GSTTransactionEntry;

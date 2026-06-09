@@ -416,3 +416,5 @@ export function AttendanceDataManager() {
     </div>
   );
 }
+
+export default AttendanceDataManager;

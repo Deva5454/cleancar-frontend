@@ -1030,3 +1030,5 @@ export function CostPerWashReport() {
     </div>
   );
 }
+
+export default CostPerWashReport;

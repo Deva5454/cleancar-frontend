@@ -408,3 +408,5 @@ export function WorkflowControlDemo() {
     </div>
   );
 }
+
+export default WorkflowControlDemo;

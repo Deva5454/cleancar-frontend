@@ -561,3 +561,5 @@ export function BusinessFlowDemo() {
     </div>
   );
 }
+
+export default BusinessFlowDemo;

@@ -466,3 +466,5 @@ export function ExpenseAnalytics() {
     </div>
   );
 }
+
+export default ExpenseAnalytics;

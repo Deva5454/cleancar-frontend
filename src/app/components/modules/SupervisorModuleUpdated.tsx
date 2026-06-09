@@ -1495,3 +1495,5 @@ export function SupervisorModuleUpdated() {
     </div>
   );
 }
+
+export default SupervisorModuleUpdated;

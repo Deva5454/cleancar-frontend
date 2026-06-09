@@ -468,3 +468,5 @@ export function AccountingTransactionList() {
     </div>
   );
 }
+
+export default AccountingTransactionList;

@@ -478,3 +478,5 @@ export function CommunicationTemplates() {
     </div>
   );
 }
+
+export default CommunicationTemplates;

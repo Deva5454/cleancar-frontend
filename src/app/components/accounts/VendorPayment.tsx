@@ -419,3 +419,5 @@ export function VendorPayment() {
     </div>
   );
 }
+
+export default VendorPayment;

@@ -369,3 +369,5 @@ export function ItemMaster() {
     </div>
   );
 }
+
+export default ItemMaster;

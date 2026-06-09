@@ -694,3 +694,5 @@ export function WasherIssuances() {
     </div>
   );
 }
+
+export default WasherIssuances;

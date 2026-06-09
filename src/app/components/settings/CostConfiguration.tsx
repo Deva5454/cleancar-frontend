@@ -953,3 +953,5 @@ export function CostConfiguration() {
     </div>
   );
 }
+
+export default CostConfiguration;

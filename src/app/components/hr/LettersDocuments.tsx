@@ -94,3 +94,5 @@ export function LettersDocuments() {
     </div>
   );
 }
+
+export default LettersDocuments;

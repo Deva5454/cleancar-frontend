@@ -521,3 +521,5 @@ export function OperationsDataCapture() {
     </div>
   );
 }
+
+export default OperationsDataCapture;

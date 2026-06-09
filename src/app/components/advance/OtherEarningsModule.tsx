@@ -722,3 +722,5 @@ export function OtherEarningsModule() {
     </div>
   );
 }
+
+export default OtherEarningsModule;

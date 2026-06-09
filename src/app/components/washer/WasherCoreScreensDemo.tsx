@@ -469,3 +469,5 @@ export function WasherCoreScreensDemo() {
     </div>
   );
 }
+
+export default WasherCoreScreensDemo;

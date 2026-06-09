@@ -162,3 +162,5 @@ export function SubscriptionDiagnostics() {
     </div>
   );
 }
+
+export default SubscriptionDiagnostics;

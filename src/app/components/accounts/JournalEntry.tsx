@@ -294,3 +294,5 @@ export function JournalEntry() {
     </div>
   );
 }
+
+export default JournalEntry;

@@ -443,3 +443,5 @@ export function SalaryPaymentScreen() {
     </div>
   );
 }
+
+export default SalaryPaymentScreen;

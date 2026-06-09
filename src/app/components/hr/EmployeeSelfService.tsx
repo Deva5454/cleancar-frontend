@@ -1164,3 +1164,5 @@ export function EmployeeSelfService() {
     </div>
   );
 }
+
+export default EmployeeSelfService;

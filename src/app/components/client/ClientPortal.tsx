@@ -583,3 +583,5 @@ export function ClientPortal() {
     </div>
   );
 }
+
+export default ClientPortal;

@@ -614,3 +614,5 @@ export function PayrollRun() {
     </div>
   );
 }
+
+export default PayrollRun;

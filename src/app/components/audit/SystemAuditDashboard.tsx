@@ -687,3 +687,5 @@ export function SystemAuditDashboard() {
     </div>
   );
 }
+
+export default SystemAuditDashboard;

@@ -593,3 +593,5 @@ export function LedgerEntriesView({
     </Dialog>
   );
 }
+
+export default LedgerEntriesView;

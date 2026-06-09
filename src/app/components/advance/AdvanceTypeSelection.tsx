@@ -168,3 +168,5 @@ export function AdvanceTypeSelection() {
     </div>
   );
 }
+
+export default AdvanceTypeSelection;

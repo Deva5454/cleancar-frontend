@@ -1465,3 +1465,5 @@ export function StatutoryFormsVerification() {
     </div>
   );
 }
+
+export default StatutoryFormsVerification;

@@ -309,3 +309,5 @@ export function TSEDiagnostics() {
     </div>
   );
 }
+
+export default TSEDiagnostics;

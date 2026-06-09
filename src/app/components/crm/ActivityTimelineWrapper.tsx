@@ -13,3 +13,5 @@ export function ActivityTimelineWrapper() {
 
   return <ActivityTimeline leadId={leadId} leadName={leadName} />;
 }
+
+export default ActivityTimelineWrapper;

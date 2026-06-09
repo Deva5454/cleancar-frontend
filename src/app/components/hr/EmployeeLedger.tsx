@@ -1149,3 +1149,5 @@ export function EmployeeLedger() {
     </div>
   );
 }
+
+export default EmployeeLedger;

@@ -324,3 +324,5 @@ export function SalesSummaryReport() {
     </div>
   );
 }
+
+export default SalesSummaryReport;

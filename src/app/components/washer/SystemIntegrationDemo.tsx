@@ -349,3 +349,5 @@ export function SystemIntegrationDemo() {
     </div>
   );
 }
+
+export default SystemIntegrationDemo;

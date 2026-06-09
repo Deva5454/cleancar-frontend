@@ -306,3 +306,5 @@ export function GSTOverview() {
     </div>
   );
 }
+
+export default GSTOverview;

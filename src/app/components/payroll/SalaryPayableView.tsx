@@ -391,3 +391,5 @@ export function SalaryPayableView() {
     </div>
   );
 }
+
+export default SalaryPayableView;
