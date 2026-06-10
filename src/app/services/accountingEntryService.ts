@@ -589,8 +589,7 @@ class AccountingEntryService {
 
     const jvEntries = this.getAllJournals(cityId)
       .filter(j => j.date >= from && j.date <= to && j.status === "Posted")
-      .flatMap(j =>
-        j.lines.map(line => ({
+      .flatMap(j => (j.lines ?? []).map(line => ({
           date: j.date,
           debitLedgerId:    line.debit  > 0 ? line.accountHead : "",
           creditLedgerId:   line.credit > 0 ? line.accountHead : "",
@@ -870,5 +869,6 @@ class AccountingEntryService {
 }
 
 export const accountingEntryService = new AccountingEntryService();
+
 
 
