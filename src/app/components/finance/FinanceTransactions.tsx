@@ -861,7 +861,7 @@ export function FinanceTransactions() {
                             txn.type === "REFUND" ? "text-orange-600" :
                             "text-red-600"
                           }`}>
-                            {txn.type === "REVENUE" ? "+" : "-"}₹{txn.amount.toLocaleString("en-IN")}
+                            {txn.type === "REVENUE" ? "+" : "-"}₹{(txn.amount ?? 0).toLocaleString("en-IN")}
                           </span>
                           <span className="text-xs text-gray-500">financeEngine</span>
                         </div>
@@ -927,5 +927,6 @@ export function FinanceTransactions() {
 }
 
 export default FinanceTransactions;
+
 
 
