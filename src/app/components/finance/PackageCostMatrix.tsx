@@ -514,9 +514,10 @@ export function PackageCostMatrix() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {COMBO_OFFERS.map((combo) => {
-                    const vehicle1 = combo.planCombination.vehicle1;
-                    const vehicle2 = combo.planCombination.vehicle2;
+                  
+{(COMBO_OFFERS ?? []).filter(combo => combo?.planCombination).map((combo) => {
+                    const vehicle1 = combo.planCombination?.vehicle1;
+                    const vehicle2 = combo.planCombination?.vehicle2;
 
                     let description = "";
                     if (combo.id === "combo-003" || combo.id === "combo-004") {
