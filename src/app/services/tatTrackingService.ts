@@ -575,4 +575,54 @@ class TATTrackingService {
   }
 }
 
+
+/**
+ * Fix 5b: Weekly rating for monthly subscriptions — run every Sunday at 11 AM.
+ * Call from app-level useEffect with a daily timer check.
+ */
+export function checkSundayRatings(): void {
+  const now = new Date();
+  const isSunday = now.getDay() === 0;
+  const isElevenAM = now.getHours() === 11;
+  if (!isSunday || !isElevenAM) return;
+
+  try {
+    const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
+    const customers = DataService.get<any>("CUSTOMERS") || [];
+    const jobs = DataService.get<any>("JOBS") || [];
+
+    subs
+      .filter((s: any) =>
+        s.status === "Active" &&
+        (s.frequency === "Daily" || s.frequency === "Alternate Days" || s.frequency === "Weekly")
+      )
+      .forEach((sub: any) => {
+        const cust = customers.find((c: any) => c.customerId === sub.customerId);
+        if (!cust?.phone) return;
+
+        // Count washes this week (Mon–Sat)
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 6);
+        weekStart.setHours(0, 0, 0, 0);
+
+        const washCount = jobs.filter((j: any) =>
+          j.subscriptionId === sub.subscriptionId &&
+          j.status === "Completed" &&
+          new Date(j.completedAt || "") >= weekStart
+        ).length;
+
+        if (washCount > 0) {
+          import("./whatsappService").then(ws => {
+            ws.sendWeeklyRatingRequest({
+              customerPhone: cust.phone,
+              customerName: cust.firstName || "Customer",
+              subscriptionId: sub.subscriptionId,
+              washCount,
+            });
+          });
+        }
+      });
+  } catch {}
+}
+
 export const tatTrackingService = new TATTrackingService();

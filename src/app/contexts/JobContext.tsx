@@ -346,6 +346,45 @@ export function JobProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      // Fix 3 & 4: Send WA on wash completion + rating request
+      if (job) {
+        try {
+          const customers = DataService.get<any>("CUSTOMERS");
+          const cust = customers?.find((c:any) => c.customerId === job.customerId);
+          if (cust?.phone) {
+            const allSubs2: any[] = DataService.get<any>("SUBSCRIPTIONS", job.cityId) || [];
+            const sub = allSubs2.find((s:any) => s.subscriptionId === job.subscriptionId);
+            const isMonthly = sub && (sub.frequency === "Daily" || sub.frequency === "Alternate Days" || sub.frequency === "Weekly");
+            const isPack = sub && (sub.packageType === "PACK_2" || sub.packageType === "PACK_4");
+            const isOneTime = !sub || sub.packageType === "ONE_TIME" || sub.frequency === "One-Time";
+
+            const visitsLeft = isPack
+              ? Math.max(0, (sub.visitsTotal || 0) - (sub.visitsUsed || 0))
+              : undefined;
+
+            import("../services/whatsappService").then(ws => {
+              // Wash completed message
+              ws.sendWashCompleted({
+                customerPhone: cust.phone,
+                customerName: cust.firstName || "Customer",
+                planLabel: job.packageName || "Wash",
+                serviceType: isMonthly ? "SUBSCRIPTION" : isPack ? "PACK" : "ONE_TIME",
+                visitsRemaining: visitsLeft,
+              });
+
+              // Rating request: for pack/one-time immediately; monthly is handled by Sunday cron
+              if (!isMonthly) {
+                ws.sendRatingRequest({
+                  customerPhone: cust.phone,
+                  customerName: cust.firstName || "Customer",
+                  jobId: job.jobId,
+                  planLabel: job.packageName || "Wash",
+                });
+              }
+            });
+          }
+        } catch {}
+      }
     }
   };
 

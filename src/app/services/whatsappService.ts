@@ -156,4 +156,138 @@ export async function sendPackVisitLow(
     ` To book your next wash or upgrade to monthly, reply or call us.`;
   return sendWhatsApp(phone, message, "pack_visit_reminder");
 }
+/**
+ * Fix 3: WA when washer arrives (check-in at customer location)
+ */
+export async function sendWasherArrived(params: {
+  customerPhone: string;
+  customerName: string;
+  washerName: string;
+  supervisorName: string;
+  supervisorPhone: string;
+  trackingUrl: string;
+  planLabel: string;
+}): Promise<void> {
+  const message =
+    `👋 Hi ${params.customerName}!
+
+` +
+    `Your 249 Carwashing washer has arrived! 🚿
+
+` +
+    `🔧 Service: *${params.planLabel}*
+` +
+    `👷 Washer: *${params.washerName}*
+` +
+    `📍 Supervisor: *${params.supervisorName}* | *${params.supervisorPhone}*
+
+` +
+    `Track your washer live: ${params.trackingUrl}
+
+` +
+    `Questions? Call/WhatsApp: *+91-08048794545*`;
+  await sendWhatsApp(params.customerPhone, message);
+}
+
+/**
+ * Fix 4: WA when wash is completed + rating request
+ */
+export async function sendWashCompleted(params: {
+  customerPhone: string;
+  customerName: string;
+  planLabel: string;
+  serviceType: "ONE_TIME" | "PACK" | "SUBSCRIPTION";
+  visitsRemaining?: number;
+  ratingUrl?: string;
+}): Promise<void> {
+  const visitInfo = params.serviceType === "PACK" && params.visitsRemaining !== undefined
+    ? `
+📊 Pack balance: *${params.visitsRemaining} wash(es) remaining*`
+    : "";
+
+  const ratingLine = params.ratingUrl
+    ? `
+⭐ Rate your wash: ${params.ratingUrl}`
+    : `
+⭐ How was your wash? Reply 1-5 (1=Poor, 5=Excellent)`;
+
+  const rescheduleInfo = params.serviceType !== "ONE_TIME"
+    ? `
+To book your next wash, call *080 48 79 45 45* or reply RESCHEDULE.`
+    : "";
+
+  const message =
+    `✅ Your 249 Carwashing service is complete!
+
+` +
+    `🚗 *${params.planLabel}* — done!
+` +
+    `${visitInfo}` +
+    `${rescheduleInfo}` +
+    `${ratingLine}
+
+` +
+    `Thank you for choosing 249 Carwashing! 🙏`;
+  await sendWhatsApp(params.customerPhone, message);
+}
+
+/**
+ * Fix 5a: Rating request for Pack/One-Time (sent at end of each wash)
+ */
+export async function sendRatingRequest(params: {
+  customerPhone: string;
+  customerName: string;
+  jobId: string;
+  planLabel: string;
+}): Promise<void> {
+  const message =
+    `⭐ How was your wash today?
+
+` +
+    `Reply with a number:
+` +
+    `*5* — Excellent 🌟
+` +
+    `*4* — Good 👍
+` +
+    `*3* — Average 😐
+` +
+    `*2* — Poor 👎
+` +
+    `*1* — Very Poor 😞
+
+` +
+    `Your feedback helps us serve you better!
+` +
+    `Job ref: ${params.jobId}`;
+  await sendWhatsApp(params.customerPhone, message);
+}
+
+/**
+ * Fix 5b: Weekly rating for monthly subscription (sent every Sunday at 11 AM)
+ */
+export async function sendWeeklyRatingRequest(params: {
+  customerPhone: string;
+  customerName: string;
+  subscriptionId: string;
+  washCount: number;
+}): Promise<void> {
+  const message =
+    `⭐ Good morning ${params.customerName}!
+
+` +
+    `You've had *${params.washCount} wash(es)* this week from 249 Carwashing.
+
+` +
+    `How would you rate your experience?
+` +
+    `Reply: *5* Excellent | *4* Good | *3* Average | *2* Poor | *1* Very Poor
+
+` +
+    `Your feedback helps us improve! 🙏
+` +
+    `Questions? Call/WhatsApp: *+91-08048794545*`;
+  await sendWhatsApp(params.customerPhone, message);
+}
+
 

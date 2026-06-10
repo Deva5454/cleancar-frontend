@@ -111,12 +111,31 @@ function isWithinRescheduleWindow(jobId?: string): boolean {
   } catch { return true; }
 }
 
+const MAX_RESCHEDULES_PER_BOOKING = 3;
+
 function createRescheduleRequest(phone: string, source: RescheduleRequest["source"]): void {
   // Find customer by phone
   const customers = DataService.get<any>("CUSTOMERS") || [];
   const customer = customers.find((c: any) =>
     (c.phone || c.mobile || "").replace(/\D/g, "").slice(-10) === phone.replace(/\D/g, "").slice(-10)
   );
+
+  // Check max reschedules (limit: 3 per customer per active subscription)
+  const existing = readRequests();
+  const recentCount = existing.filter(r =>
+    r.customerPhone.replace(/\D/g, "").slice(-10) === phone.replace(/\D/g, "").slice(-10) &&
+    r.status !== "CANCELLED" &&
+    r.status !== "RESOLVED" &&
+    new Date(r.requestedAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  ).length;
+
+  if (recentCount >= MAX_RESCHEDULES_PER_BOOKING) {
+    // Notify but don't create — customer hit limit
+    window.dispatchEvent(new CustomEvent("cc360:reschedule_limit_reached", {
+      detail: { phone, limit: MAX_RESCHEDULES_PER_BOOKING }
+    }));
+    return;
+  }
 
   const req: RescheduleRequest = {
     id: genId(),

@@ -79,6 +79,33 @@ export function WasherCoreScreensConnected() {
   const handleSubmitCheckIn = () => {
     setCheckedIn(true);
     setCheckInTime(new Date());
+
+    // Fix: start GPS tracking on check-in
+    const currentJob = activeJobId ? jobs.find(j => j.id === activeJobId) : null;
+    if (activeJobId && currentEmployee?.id) {
+      import("../../services/washerLocationService").then(({ startTracking }) => {
+        startTracking(currentEmployee.id, activeJobId);
+      });
+    }
+
+    // Fix 3: Send WA to customer — washer arrived
+    if (currentJob) {
+      import("../../services/whatsappService").then(ws => {
+        import("../../services/washerLocationService").then(({ getTrackingUrl }) => {
+          const trackingUrl = getTrackingUrl(activeJobId || "");
+          ws.sendWasherArrived({
+            customerPhone: currentJob.customerPhone || currentJob.customer?.phone || "",
+            customerName: currentJob.customerName || "Customer",
+            washerName: currentEmployee ? `${currentEmployee.firstName || ""} ${currentEmployee.lastName || ""}`.trim() : "Your Washer",
+            supervisorName: currentJob.supervisorName || "",
+            supervisorPhone: currentJob.supervisorPhone || "",
+            trackingUrl,
+            planLabel: currentJob.packageName || "Wash",
+          });
+        });
+      });
+    }
+
     // Navigate to active job if one exists, else schedule
     if (activeJobId) {
       setScreen("active");

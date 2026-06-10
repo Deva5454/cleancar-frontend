@@ -226,3 +226,50 @@ export function getBookingSlot(
       `🔔 After-Hours One-Time: ${customerName} · ${planLabel} · ${area} · ${amtStr}`,
   };
 }
+
+/**
+ * Fix 6: Check if all slots are booked for the entire day in a pincode.
+ * If true, notifies TSM + Admin + Super Admin.
+ */
+export function checkAllDaySlotsBooked(
+  customerPincode: string,
+  date: string,
+  employees: any[],
+  jobs: any[],
+): boolean {
+  const washersInPincode = employees.filter(e =>
+    (e.designation?.toLowerCase().includes("washer") || e.role?.toLowerCase().includes("washer")) &&
+    (e.pincode === customerPincode || !customerPincode) &&
+    e.accountStatus === "active"
+  );
+
+  if (washersInPincode.length === 0) return false;
+
+  // Check all 1-hr slots from 5am to 9pm
+  const allSlotsFull = Array.from({ length: 17 }, (_, i) => i + 5).every(hour => {
+    const busyCount = jobs.filter(j => {
+      const jobDate = j.scheduledDate || j.date || "";
+      const jobHour = j.scheduledHour || new Date(j.scheduledDate || "").getHours() || 0;
+      return (j.status === "In Progress" || j.status === "Assigned") &&
+             jobDate === date && jobHour === hour;
+    }).map(j => j.washerId).filter(Boolean).length;
+
+    return busyCount >= washersInPincode.length;
+  });
+
+  if (allSlotsFull) {
+    // Fire event — tatTrackingService will pick this up and notify TSM/Admin/SA
+    try {
+      window.dispatchEvent(new CustomEvent("cc360:all_slots_booked", {
+        detail: {
+          pincode: customerPincode,
+          date,
+          washersCount: washersInPincode.length,
+          message: `⚠️ All washers in pincode ${customerPincode} are fully booked for ${date}. Customer cannot book a slot.`,
+        }
+      }));
+    } catch {}
+  }
+
+  return allSlotsFull;
+}
