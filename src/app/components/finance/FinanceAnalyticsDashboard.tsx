@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { BackButton } from "../ui/back-button";
 /**
  * FinanceAnalyticsDashboard — FIXED 2026-05-06
@@ -506,6 +507,7 @@ export function FinanceAnalyticsDashboard() {
 }
 
 export default FinanceAnalyticsDashboard;
+
 
 
 
