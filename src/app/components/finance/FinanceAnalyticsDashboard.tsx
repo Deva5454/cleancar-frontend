@@ -21,7 +21,7 @@ import { BackButton } from "../ui/back-button";
  *     Fix: added explicit empty-state card for this case.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -506,3 +506,4 @@ export function FinanceAnalyticsDashboard() {
 }
 
 export default FinanceAnalyticsDashboard;
+
