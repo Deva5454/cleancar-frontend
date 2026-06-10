@@ -11,13 +11,7 @@ export const ratingService = {
     if (r <= 2) { try { window.dispatchEvent(new CustomEvent("cc360:poor_rating_alert", { detail: record })); } catch {} }
     return record;
   },
-  getAverageRating(cityId) {
-    const all = (DataService.get(RATINGS_KEY) || []).filter(r => !cityId || r.cityId === cityId);
-    if (!all.length) return 0;
-    return Math.round((all.reduce((s, r) => s + r.rating, 0) / all.length) * 10) / 10;
-  },
-  getRecentRatings(cityId, limit = 20) {
-    return (DataService.get(RATINGS_KEY) || []).filter(r => r.cityId === cityId).sort((a, b) => new Date(b.ratedAt) - new Date(a.ratedAt)).slice(0, limit);
-  },
+  getAverageRating(cityId) { const all = (DataService.get(RATINGS_KEY)||[]).filter(r=>!cityId||r.cityId===cityId); return all.length ? Math.round(all.reduce((s,r)=>s+r.rating,0)/all.length*10)/10 : 0; },
+  getRecentRatings(cityId, limit=20) { return (DataService.get(RATINGS_KEY)||[]).filter(r=>r.cityId===cityId).sort((a,b)=>new Date(b.ratedAt)-new Date(a.ratedAt)).slice(0,limit); },
 };
 export default ratingService;

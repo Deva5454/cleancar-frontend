@@ -273,3 +273,8 @@ export function checkAllDaySlotsBooked(
 
   return allSlotsFull;
 }
+
+export function isWeekendOrHoliday(d) { return d.getDay()===0||d.getDay()===6; }
+export function getAvailableSlots(date, tatHours=0) { const slots=[]; const now=new Date(); for(let h=5;h<=21;h++){const slot=new Date(date); slot.setHours(h,0,0,0); if(slot.getTime()<now.getTime()+tatHours*3600000) continue; slots.push(slot.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}));} return slots; }
+export function canReschedule(slotISO, hours=2) { return new Date()<new Date(new Date(slotISO).getTime()-hours*3600000); }
+export function checkAllDaySlotsBooked(pincode,date,employees,jobs){const w=employees.filter(e=>(e.designation||'').toLowerCase().includes('washer')&&(e.pincode===pincode||!pincode)&&e.accountStatus==='active');if(!w.length)return false;const full=Array.from({length:17},(_,i)=>i+5).every(h=>{const busy=jobs.filter(j=>(j.status==='In Progress'||j.status==='Assigned')&&(j.scheduledDate||j.date||'')===date&&new Date(j.scheduledDate||'').getHours()===h).length;return busy>=w.length;});if(full){try{window.dispatchEvent(new CustomEvent('cc360:all_slots_booked',{detail:{pincode,date}}));}catch{}}return full;}
