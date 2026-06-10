@@ -358,7 +358,7 @@ function isOverdue(dueDate: string, status: Invoice["status"]): boolean {
 // ============================================================================
 
 export default function InvoiceManagement() {
-  const { city, cityInfo } = useCity();
+  const { city, cityInfo } = useCity(); const cityId = city;
   const { recordRevenue, revenues } = useFinance();
   const { customers } = useCustomers();
   const { subscriptions } = useCustomerSubscriptions();
