@@ -802,7 +802,7 @@ class AccountingEntryService {
     let jvCredit = 0;
     for (const jv of journals) {
       if (jv.status !== "Posted") continue;
-      for (const line of jv.lines) {
+      for (const line of (jv.lines ?? [])) {
         if (line.accountHead === ledgerId) {
           jvDebit  += line.debit  || 0;
           jvCredit += line.credit || 0;
