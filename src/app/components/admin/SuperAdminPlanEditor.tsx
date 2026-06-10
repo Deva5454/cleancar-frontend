@@ -215,6 +215,7 @@ export function SuperAdminPlanEditor() {
             <Field label="Phone (displayed in nav)" value={cfg.brand.phone} onChange={v => update(c => ({ ...c, brand: { ...c.brand, phone: v } }))} />
             <Field label="WhatsApp Number (digits only, no +)" value={cfg.brand.whatsappNumber} onChange={v => update(c => ({ ...c, brand: { ...c.brand, whatsappNumber: v } }))} hint="e.g. 918238705601" />
             <Field label="Booking TAT Window (hours)" value={String(cfg.tatWindowHours??3)} onChange={v => update(c => ({ ...c, tatWindowHours: Math.max(1,Math.min(24,parseInt(v)||3)) }))} hint="Min hours from booking to first slot. Default: 3. Range: 1–24." />
+            <Field label="Reschedule Window (hours before slot)" value={String(cfg.rescheduleWindowHours??2)} onChange={v => update(c => ({ ...c, rescheduleWindowHours: Math.max(1,Math.min(12,parseInt(v)||2)) }))} hint="Customer can reschedule up to this many hours before slot. Default: 2." />
             <Field label="Tagline (meta)" value={cfg.brand.tagline} onChange={v => update(c => ({ ...c, brand: { ...c.brand, tagline: v } }))} />
           </div>
         </Section>
@@ -832,3 +833,4 @@ function PlanSyncStatus() {
 }
 
 export default SuperAdminPlanEditor;
+
