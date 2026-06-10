@@ -527,7 +527,7 @@ class AccountingEntryService {
     if (ledger) {
       // Find any other ledgers with the same name and city (e.g. seed ID + system ID)
       this.getLedgers(cityId)
-        .filter(l => l.name.trim().toLowerCase() === ledger.name.trim().toLowerCase()
+        .filter(l => (l.name ?? "").trim().toLowerCase() === (ledger.name ?? "").trim().toLowerCase()
                   && l.cityId === ledger.cityId)
         .forEach(l => relatedIds.add(l.id));
     }
@@ -753,8 +753,7 @@ class AccountingEntryService {
       // This prevents creating a duplicate system ledger when the seed has already
       // created one with the same name but a different ID (e.g. LM-AXB-SUR vs SYS-Axis-Bank-CITY-SURAT).
       const exists = existing.find(e =>
-        e.cityId === cityId &&
-        e.name.trim().toLowerCase() === sl.name.trim().toLowerCase()
+        e.cityId === cityId &&`n        (e.name ?? "").trim().toLowerCase() === sl.name.trim().toLowerCase()
       );
       if (!exists) {
         // Use stable, predictable ID so entries can reference it
@@ -870,3 +869,4 @@ class AccountingEntryService {
 }
 
 export const accountingEntryService = new AccountingEntryService();
+
