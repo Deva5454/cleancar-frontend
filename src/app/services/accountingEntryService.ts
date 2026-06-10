@@ -753,11 +753,12 @@ class AccountingEntryService {
       // This prevents creating a duplicate system ledger when the seed has already
       // created one with the same name but a different ID (e.g. LM-AXB-SUR vs SYS-Axis-Bank-CITY-SURAT).
       const exists = existing.find(e =>
-        e.cityId === cityId &&`n        (e.name ?? "").trim().toLowerCase() === sl.name.trim().toLowerCase()
+        e.cityId === cityId &&
+         (e.name ?? "").trim().toLowerCase() === sl.name.trim().toLowerCase()
       );
       if (!exists) {
         // Use stable, predictable ID so entries can reference it
-        const stableId = `SYS-${sl.name.replace(/[^a-zA-Z0-9]/g, "-").replace(/-+/g,"-")}-${cityId}`;
+                const stableId = `SYS-${sl.name.replace(/[^a-zA-Z0-9]/g, "-").replace(/-+/g,"-")}-${cityId}`;
         updated.push({ ...sl, id: stableId });
         changed = true;
       }
@@ -869,4 +870,5 @@ class AccountingEntryService {
 }
 
 export const accountingEntryService = new AccountingEntryService();
+
 
