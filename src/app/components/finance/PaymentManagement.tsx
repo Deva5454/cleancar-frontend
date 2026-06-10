@@ -123,7 +123,7 @@ async function fetchPayments(
 
   const paymentJournals = allJournals.filter(jv => {
     if (jv.status !== "Posted") return false;
-    const hasARCredit = jv.lines.some(
+    const hasARCredit = (jv.lines ?? []).some(
       l => arLedger && l.accountHead === arLedger.id && l.credit > 0
     );
     return hasARCredit;
