@@ -629,15 +629,13 @@ export function CustomerPlanPage() {
       // REVISED: Step 1 of 2-stage WA — pending message sent immediately after payment.
       // Full confirmation (with washer + slot) sent separately via tatTrackingService.markAssigned().
       if(notifyPref==="whatsapp"||notifyPref==="both"){
-        sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
-        const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
-        const invoiceMsg = `🧾 *Invoice — 249 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n\nThank you! Queries: *080 48 79 45 45*`;
-        sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
+        sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash")
           .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
       }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
       if(referralResult?.valid && referralResult.code) planSyncService.convertReferral(referralResult.code, customerId, custName, finalTotal);
+      // Assign a referral code to this customer after their first purchase
       planSyncService.assignReferralCodeToCustomer(customerId, custName);
       setIsProcessing(false);
       setShowConfetti(true);

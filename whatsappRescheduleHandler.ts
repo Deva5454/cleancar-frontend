@@ -194,34 +194,22 @@ export function checkPackExpiries(): void {
   try {
     const subs = DataService.get<any>("SUBSCRIPTIONS");
     const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
 
     subs.forEach((sub: any) => {
       if (!sub.visitsExpiry || sub.status === "Exhausted" || sub.status === "Cancelled") return;
       const expiry = new Date(sub.visitsExpiry);
-      if (expiry <= now) return;
-
-      const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / 86400000);
-      // Fire reminders at 7, 3, and 1 day remaining
-      if (daysLeft === 7 || daysLeft === 3 || daysLeft === 1) {
-        const detail = {
-          subscriptionId: sub.subscriptionId,
-          customerId: sub.customerId,
-          packageName: sub.packageName,
-          visitsRemaining: (sub.visitsTotal || 0) - (sub.visitsUsed || 0),
-          expiryDate: sub.visitsExpiry,
-          daysLeft,
-          reminderType: daysLeft === 7 ? "FIRST_WARNING" : daysLeft === 3 ? "SECOND_WARNING" : "LAST_DAY",
-        };
-        window.dispatchEvent(new CustomEvent("cc360:pack_expiry_warning", { detail }));
-        // Store for TSM follow-up
-        try {
-          const reminders = DataService.get<any>("PACK_EXPIRY_REMINDERS") || [];
-          const key = `${sub.subscriptionId}-day${daysLeft}`;
-          if (!reminders.find((r: any) => r.key === key)) {
-            reminders.push({ key, subscriptionId: sub.subscriptionId, customerId: sub.customerId, daysLeft, sentAt: now.toISOString() });
-            DataService.setAll("PACK_EXPIRY_REMINDERS", reminders);
+      if (expiry > now && expiry <= sevenDaysFromNow) {
+        window.dispatchEvent(new CustomEvent("cc360:pack_expiry_warning", {
+          detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId: sub.customerId,
+            packageName: sub.packageName,
+            visitsRemaining: (sub.visitsTotal || 0) - (sub.visitsUsed || 0),
+            expiryDate: sub.visitsExpiry,
+            daysLeft: Math.ceil((expiry.getTime() - now.getTime()) / 86400000),
           }
-        } catch {}
+        }));
       }
     });
   } catch {}

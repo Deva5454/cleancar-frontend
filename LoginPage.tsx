@@ -45,7 +45,9 @@ export function LoginPage() {
     if (employees.length > 0) {
       setDataReady(true);
     } else {
-      setDataReady(true); // localStorage-only mode
+      employeeDatabaseService.loadFromSupabase()
+        .then(() => setDataReady(true))
+        .catch(() => setDataReady(true));
     }
 
     return () => window.removeEventListener("dataservice:quota", handleQuota);
@@ -329,3 +331,5 @@ export function LoginPage() {
     </div>
   );
 }
+
+export default LoginPage;

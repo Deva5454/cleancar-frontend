@@ -125,7 +125,6 @@ import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
 import { TSMAlertSystem } from "./TSMAlertSystem";
 import { TSMLeadPoolAssignment } from "./TSMLeadPoolAssignment";
 import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
-import { UpsellTasksPanel, TSMSettingsPanel } from "./TSMUpsellAndSettings";
 import { rescheduleService } from "../../services/whatsappRescheduleHandler";
 
 
@@ -838,7 +837,7 @@ export function TeleSalesManagerApp() {
         <Tabs value={currentScreen} onValueChange={setCurrentScreen}>
 
 
-          <TabsList className="grid w-full grid-cols-11 mb-6">
+          <TabsList className="grid w-full grid-cols-9 mb-6">
 
 
             <TabsTrigger
@@ -1094,13 +1093,6 @@ export function TeleSalesManagerApp() {
             </TabsTrigger>
 
 
-
-            <TabsTrigger value="upsell" className="gap-2">
-              <span>📞</span>Upsell
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <span>⚙️</span>Settings
-            </TabsTrigger>
           </TabsList>
 
 
@@ -1395,14 +1387,6 @@ export function TeleSalesManagerApp() {
 
           </TabsContent>
 
-
-
-          <TabsContent value="upsell" className="mt-0">
-            <UpsellTasksPanel cityId={city} />
-          </TabsContent>
-          <TabsContent value="settings" className="mt-0">
-            <TSMSettingsPanel />
-          </TabsContent>
 
         </Tabs>
 

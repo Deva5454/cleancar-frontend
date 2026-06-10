@@ -305,11 +305,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
         completedAt: new Date().toISOString(),
       }, "JobContext");
 
-      // 7-day upsell for one-time
-      if (job.frequency === "One-Time" || job.frequency === "One-time") {
-        createUpsellTask({ customerId: job.customerId, customerName: job.customerName || "", customerPhone: job.customerPhone || "", jobId, planLabel: job.packageName || "One-Time Wash", cityId: job.cityId || "CITY-SURAT", completedAt: new Date().toISOString() });
-      }
-
       // Pack visit counter: decrement visitsUsed when a pack job completes
       if (job.subscriptionId) {
         const allSubs: any[] = DataService.get<any>("SUBSCRIPTIONS", job.cityId);
@@ -328,7 +323,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
               customerName:    job.customerName,
               message: `${job.customerName} has 1 ${job.packageName} visit remaining — convert to monthly`,
             }, "JobContext");
-            createPackUpsellTask({ customerId: job.customerId, customerName: job.customerName||"", customerPhone: job.customerPhone||"", subscriptionId: job.subscriptionId||"", packageName: job.packageName||"Pack", trigger: "PACK_VISIT_LOW", cityId: job.cityId||"CITY-SURAT" });
           }
           if (remaining <= 0) {
             emit("PACK_EXHAUSTED", {
@@ -577,4 +571,3 @@ export function useJobs() {
   }
   return context;
 }
-

@@ -3,8 +3,6 @@ import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { CorporateB2BPortal } from "./components/crm/CorporateB2BPortal";
-import { MultiVehicleManager } from "./components/customer/MultiVehicleManager";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
 
 // Loading fallback for lazy-loaded routes
@@ -251,6 +249,8 @@ import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
 import { AppProvider } from "./contexts/AppProvider";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
+import { MultiVehicleManager } from "./components/customer/MultiVehicleManager";
+import { CorporateB2BPortal } from "./components/crm/CorporateB2BPortal";
 
 export const router = createBrowserRouter([
   {

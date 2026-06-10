@@ -336,44 +336,70 @@ class PlanSyncService {
         : r
     );
     this.saveReferralRecords(records);
+
+    // Sync referredBy onto the referee customer record
     try {
       const { DataService } = require("./DataService");
       const customers = DataService.get<any>("CUSTOMERS") || [];
-      const idx = customers.findIndex((c: any) => c.customerId === refereeCustomerId);
-      if (idx >= 0) { customers[idx].referredBy = code.toUpperCase(); customers[idx].leadSource = "Referral"; DataService.setAll("CUSTOMERS", customers); }
-      const record = records.find((r: any) => r.referralCode?.toUpperCase() === code.toUpperCase());
+      const custIdx = customers.findIndex((c: any) => c.customerId === refereeCustomerId);
+      if (custIdx >= 0) {
+        customers[custIdx].referredBy = code.toUpperCase();
+        customers[custIdx].leadSource = "Referral";
+        DataService.setAll("CUSTOMERS", customers);
+      }
+
+      // Credit referrer reward
+      const record = records.find(r => r.referralCode.toUpperCase() === code.toUpperCase());
       if (record?.referrerCustomerId) {
-        const prog = this.getReferralProgram();
-        const rIdx = customers.findIndex((c: any) => c.customerId === record.referrerCustomerId);
-        if (rIdx >= 0) { customers[rIdx].referralRewardBalance = (customers[rIdx].referralRewardBalance || 0) + (prog.referrerReward || 100); DataService.setAll("CUSTOMERS", customers); }
+        const refIdx = customers.findIndex((c: any) => c.customerId === record.referrerCustomerId);
+        if (refIdx >= 0) {
+          const prog = this.getReferralProgram();
+          const reward = prog.referrerReward || 100;
+          customers[refIdx].referralRewardBalance = (customers[refIdx].referralRewardBalance || 0) + reward;
+          DataService.setAll("CUSTOMERS", customers);
+        }
       }
     } catch {}
   }
+
+  /**
+   * Generate and assign a referral code to a customer after first purchase.
+   * Call this after subscription/pack is created.
+   */
   assignReferralCodeToCustomer(customerId: string, customerName: string): string {
     try {
       const { DataService } = require("./DataService");
       const customers = DataService.get<any>("CUSTOMERS") || [];
-      const idx = customers.findIndex((c: any) => c.customerId === customerId);
-      if (idx >= 0 && !customers[idx].referralCode) {
+      const custIdx = customers.findIndex((c: any) => c.customerId === customerId);
+      if (custIdx >= 0 && !customers[custIdx].referralCode) {
         const code = this.generateReferralCode(customerId, customerName);
-        customers[idx].referralCode = code;
+        customers[custIdx].referralCode = code;
         DataService.setAll("CUSTOMERS", customers);
         return code;
       }
-      return customers[idx]?.referralCode || "";
+      return customers[custIdx]?.referralCode || "";
     } catch { return ""; }
   }
 
-  getCustomerReferralStats(customerId: string): { code: string; totalReferrals: number; converted: number; rewardBalance: number; } {
+  /**
+   * Get referral stats for a customer — for display in customer portal / TSM view.
+   */
+  getCustomerReferralStats(customerId: string): {
+    code: string; totalReferrals: number; converted: number; rewardBalance: number;
+  } {
     try {
       const { DataService } = require("./DataService");
       const customers = DataService.get<any>("CUSTOMERS") || [];
       const cust = customers.find((c: any) => c.customerId === customerId);
-      const records = this.getReferralRecords().filter((r: any) => r.referrerCustomerId === customerId);
-      return { code: cust?.referralCode || "", totalReferrals: records.length, converted: records.filter((r: any) => r.status === "converted").length, rewardBalance: cust?.referralRewardBalance || 0 };
+      const records = this.getReferralRecords().filter(r => r.referrerCustomerId === customerId);
+      return {
+        code: cust?.referralCode || "",
+        totalReferrals: records.length,
+        converted: records.filter(r => r.status === "converted" || r.status === "rewarded").length,
+        rewardBalance: cust?.referralRewardBalance || 0,
+      };
     } catch { return { code: "", totalReferrals: 0, converted: 0, rewardBalance: 0 }; }
   }
-
 }
 
 export const planSyncService = new PlanSyncService();

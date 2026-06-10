@@ -292,12 +292,7 @@ class TATTrackingService {
       read: false, createdAt: now,
     });
 
-    // 2. TSM — notified always; actionable only during working hours
-    const bookingHour = new Date(record.purchasedAt || now).getHours() + new Date(record.purchasedAt || now).getMinutes() / 60;
-    const bookingDay = new Date(record.purchasedAt || now).getDay();
-    const isAfterHours = bookingDay === 0 || bookingDay === 6 || bookingHour < 10.5 || bookingHour >= 18.5;
-    const isTsmWorkingHoursNow = !isAfterHours;
-
+    // 2. TSM
     notifs.push({
       id: "N-" + genId(), tatRecordId: record.id,
       recipientRole: "TSM", recipientId: record.tsmId,
@@ -585,95 +580,48 @@ class TATTrackingService {
  * Fix 5b: Weekly rating for monthly subscriptions — run every Sunday at 11 AM.
  * Call from app-level useEffect with a daily timer check.
  */
-export function isTsmWorkingHours(d: Date): boolean {
-  const h = d.getHours() + d.getMinutes() / 60;
-  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-  return !isWeekend && h >= 10.5 && h < 18.5;
-}
-
-export function getRankedSupervisors(customerPincode: string, employees: any[], jobs: any[], slotISO?: string) {
-  const supervisors = employees.filter(e =>
-    (e.designation?.toLowerCase().includes("supervisor") || e.role?.toLowerCase().includes("supervisor")) &&
-    e.accountStatus === "active" && (!customerPincode || e.pincode === customerPincode || !e.pincode)
-  );
-  return supervisors.map(sup => {
-    const washers = employees.filter(e =>
-      (e.designation?.toLowerCase().includes("washer") || e.role?.toLowerCase().includes("washer")) &&
-      e.supervisorId === sup.id && e.accountStatus === "active"
-    );
-    const busyIds = new Set(jobs.filter(j =>
-      (j.status === "In Progress" || j.status === "Assigned") &&
-      (!slotISO || (j.scheduledDate || "").startsWith(slotISO.split("T")[0]))
-    ).map((j: any) => j.washerId).filter(Boolean));
-    return {
-      supervisorId: sup.id,
-      supervisorName: `${sup.firstName || ""} ${sup.lastName || ""}`.trim(),
-      supervisorPhone: sup.loginMobile || sup.mobile || "",
-      pincode: sup.pincode || "",
-      idleWashers: washers.filter(w => !busyIds.has(w.id)).length,
-      activeJobs: jobs.filter(j => j.supervisorId === sup.id && (j.status === "In Progress" || j.status === "Assigned")).length,
-    };
-  }).sort((a, b) => b.idleWashers !== a.idleWashers ? b.idleWashers - a.idleWashers : a.activeJobs - b.activeJobs);
-}
-
-export function isSlotAvailable(customerPincode: string, employees: any[], jobs: any[], slotISO: string): boolean {
-  const washers = employees.filter(e =>
-    (e.designation?.toLowerCase().includes("washer") || e.role?.toLowerCase().includes("washer")) &&
-    e.pincode === customerPincode && e.accountStatus === "active"
-  );
-  if (!washers.length) return true;
-  const slotDate = slotISO.split("T")[0];
-  const slotHour = new Date(slotISO).getHours();
-  const busy = new Set(jobs.filter(j => {
-    const jDate = j.scheduledDate || j.date || "";
-    const jHour = new Date(j.scheduledDate || "").getHours();
-    return (j.status === "In Progress" || j.status === "Assigned") && jDate === slotDate && jHour === slotHour;
-  }).map((j: any) => j.washerId).filter(Boolean));
-  return washers.some(w => !busy.has(w.id));
-}
-
-export function createUpsellTask(params: { customerId: string; customerName: string; customerPhone: string; jobId: string; planLabel: string; cityId: string; completedAt: string; }): void {
-  try {
-    const followUpDate = new Date(params.completedAt);
-    followUpDate.setDate(followUpDate.getDate() + 7);
-    const task = { taskId: "UPSELL-" + Date.now().toString(36).toUpperCase(), type: "UPSELL_ONETIME_TO_MONTHLY", ...params, followUpDate: followUpDate.toISOString().split("T")[0], status: "PENDING", createdAt: new Date().toISOString(), notes: `One-time ${params.planLabel} completed. Call to convert to monthly.` };
-    const tasks = DataService.get<any>("TSM_UPSELL_TASKS") || [];
-    if (!tasks.find((t: any) => t.jobId === params.jobId)) {
-      tasks.push(task);
-      DataService.setAll("TSM_UPSELL_TASKS", tasks);
-      try { window.dispatchEvent(new CustomEvent("cc360:upsell_task_created", { detail: task })); } catch {}
-    }
-  } catch {}
-}
-
-export function createPackUpsellTask(params: { customerId: string; customerName: string; customerPhone: string; subscriptionId: string; packageName: string; trigger: "PACK_VISIT_LOW" | "PACK_EXHAUSTED"; cityId: string; }): void {
-  try {
-    const task = { taskId: "UPSELL-" + Date.now().toString(36).toUpperCase(), type: params.trigger === "PACK_VISIT_LOW" ? "UPSELL_PACK_LAST_VISIT" : "UPSELL_PACK_EXHAUSTED", ...params, followUpDate: new Date().toISOString().split("T")[0], status: "PENDING", createdAt: new Date().toISOString(), notes: params.trigger === "PACK_VISIT_LOW" ? `${params.customerName}: 1 visit left — convert to monthly.` : `${params.customerName}: pack exhausted — offer renewal.` };
-    const tasks = DataService.get<any>("TSM_UPSELL_TASKS") || [];
-    tasks.push(task);
-    DataService.setAll("TSM_UPSELL_TASKS", tasks);
-    try { window.dispatchEvent(new CustomEvent("cc360:upsell_task_created", { detail: task })); } catch {}
-  } catch {}
-}
-
 export function checkSundayRatings(): void {
   const now = new Date();
-  if (now.getDay() !== 0 || now.getHours() !== 11) return;
+  const isSunday = now.getDay() === 0;
+  const isElevenAM = now.getHours() === 11;
+  if (!isSunday || !isElevenAM) return;
+
   try {
     const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
     const customers = DataService.get<any>("CUSTOMERS") || [];
     const jobs = DataService.get<any>("JOBS") || [];
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - 6);
-    weekStart.setHours(0, 0, 0, 0);
-    subs.filter((s: any) => s.status === "Active" && ["Daily","Alternate Days","Weekly"].includes(s.frequency)).forEach((sub: any) => {
-      const cust = customers.find((c: any) => c.customerId === sub.customerId);
-      if (!cust?.phone) return;
-      const washCount = jobs.filter((j: any) => j.subscriptionId === sub.subscriptionId && j.status === "Completed" && new Date(j.completedAt || "") >= weekStart).length;
-      if (washCount > 0) {
-        import("./whatsappService").then(ws => ws.sendWeeklyRatingRequest({ customerPhone: cust.phone, customerName: cust.firstName || "Customer", subscriptionId: sub.subscriptionId, washCount }));
-      }
-    });
+
+    subs
+      .filter((s: any) =>
+        s.status === "Active" &&
+        (s.frequency === "Daily" || s.frequency === "Alternate Days" || s.frequency === "Weekly")
+      )
+      .forEach((sub: any) => {
+        const cust = customers.find((c: any) => c.customerId === sub.customerId);
+        if (!cust?.phone) return;
+
+        // Count washes this week (Mon–Sat)
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 6);
+        weekStart.setHours(0, 0, 0, 0);
+
+        const washCount = jobs.filter((j: any) =>
+          j.subscriptionId === sub.subscriptionId &&
+          j.status === "Completed" &&
+          new Date(j.completedAt || "") >= weekStart
+        ).length;
+
+        if (washCount > 0) {
+          import("./whatsappService").then(ws => {
+            ws.sendWeeklyRatingRequest({
+              customerPhone: cust.phone,
+              customerName: cust.firstName || "Customer",
+              subscriptionId: sub.subscriptionId,
+              washCount,
+            });
+          });
+        }
+      });
   } catch {}
 }
 
