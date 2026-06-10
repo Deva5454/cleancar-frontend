@@ -383,7 +383,7 @@ export function LedgerMaster() {
                             <TableCell>
                               <Badge variant="outline">{ledger.accountHeadLabel}</Badge>
                             </TableCell>
-                            <TableCell className="capitalize">{ledger.type.replace(/_/g, " ")}</TableCell>
+                            <TableCell className="capitalize">{(ledger.type ?? "").replace(/_/g, " ")}</TableCell>
                             <TableCell>
                               ₹{(ledger?.openingBalance ?? 0).toLocaleString()} {ledger.openingBalanceType}
                             </TableCell>
@@ -704,7 +704,7 @@ export function LedgerMaster() {
               </div>
               <div>
                 <Label className="text-xs text-gray-500">Type</Label>
-                <p className="capitalize">{viewingLedger.type.replace(/_/g, " ")}</p>
+                <p className="capitalize">{viewing(ledger.type ?? "").replace(/_/g, " ")}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
