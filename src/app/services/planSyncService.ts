@@ -16,7 +16,7 @@
  *   wax     → ELITE
  */
 
-const DEFAULT_CONFIG = (() => { try { const s = localStorage.getItem('cleancar_plan_page_config'); if(s) return JSON.parse(s); } catch(e) {} return null; })();
+const FALLBACK_PLAN_CONFIG = { monthlyPlans: [ { id: 'water', name: 'Express Wash', icon: 'droplets', prices: { 'hatchback': 1249, 'Hatchback / Compact Sedan': 1249, 'suv': 1499, 'SUV / MUV / Sedan': 1499, 'luxury': 1999, 'Luxury / Large SUV': 1999 } }, { id: 'shampoo', name: 'Smart Wash', icon: 'sparkles', prices: { 'hatchback': 1599, 'Hatchback / Compact Sedan': 1599, 'suv': 1999, 'SUV / MUV / Sedan': 1999, 'luxury': 2699, 'Luxury / Large SUV': 2699 } }, { id: 'wax', name: 'Elite Wash', icon: 'crown', prices: { 'hatchback': 1999, 'Hatchback / Compact Sedan': 1999, 'suv': 2499, 'SUV / MUV / Sedan': 2499, 'luxury': 3499, 'Luxury / Large SUV': 3499 } } ], vehicleCategories: [], commitmentTerms: [], tatWindowHours: 3, rescheduleWindowHours: 2 }; const DEFAULT_CONFIG = (() => { try { const s = localStorage.getItem('cleancar_plan_page_config'); if (s) { const p = JSON.parse(s); if (!p.monthlyPlans || p.monthlyPlans.length === 0) p.monthlyPlans = FALLBACK_PLAN_CONFIG.monthlyPlans; return p; } } catch(e) {} return FALLBACK_PLAN_CONFIG; })();
 type PlanPageConfig = any;
 
 const STORAGE_KEY = "cleancar_plan_page_config";
@@ -378,4 +378,5 @@ class PlanSyncService {
 
 export const planSyncService = new PlanSyncService();
 export default planSyncService;
+
 
