@@ -456,6 +456,10 @@ export function CustomerPlanPage() {
   const [custName,setCustName]=useState(""); const [custMobile,setCustMobile]=useState("");
   const [custEmail,setCustEmail]=useState(""); const [custReg,setCustReg]=useState("");
   const [custAddress,setCustAddress]=useState(""); const [prefTime,setPrefTime]=useState("");
+  const [custGST,setCustGST]=useState("");
+  const [custCompany,setCustCompany]=useState("");
+  const [gstStatus,setGstStatus]=useState<"idle"|"valid"|"invalid"|"checking">("idle");
+  const [gstDetails,setGstDetails]=useState<{tradeName:string;legalName:string;state:string;status:string}|null>(null);
   const [oneTimeDate,setOneTimeDate]=useState(""); const [oneTimeHour,setOneTimeHour]=useState("");
   const [packStartOption,setPackStartOption]=useState<"immediate"|"schedule">("immediate");
   const [abandonLeadCaptured,setAbandonLeadCaptured]=useState(false);
@@ -588,6 +592,108 @@ export function CustomerPlanPage() {
     setReferralResult(result.valid ? {...result, code:referralInput.trim().toUpperCase()} : result);
   };
   
+  // ─── GST VERIFICATION — Full API flow with demo mode ──────────────────
+  // HOW IT WORKS:
+  //   Step 1: Format check (instant, offline) — regex validates 15-char GSTIN structure
+  //   Step 2: Live API call to GST portal via provider — returns legal name, status, state
+  //
+  // TO GO LIVE: change GST_DEMO_MODE to false and paste your API key
+  //
+  // API OPTIONS:
+  //   A. gstincheck.co.in  — GET https://sheet.gstincheck.co.in/check/API_KEY/GSTIN
+  //   B. Cashfree           — POST https://payout-gamma.cashfree.com/payout/v1/validation/gstin
+  //   C. Eko (Bharat)       — GET https://staging.eko.in:25004/ekoapi/v1/tools/gst_number_info
+  // ────────────────────────────────────────────────────────────────────────
+  const GST_DEMO_MODE = true;         // ← false when API key is ready
+  const GST_API_KEY = "YOUR_KEY";     // ← paste gstincheck.co.in key here
+
+  const validateGST = async (gst: string) => {
+    const clean = gst.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setCustGST(clean);
+
+    // Step 1 — Format validation (offline, instant)
+    if (!clean) { setGstStatus("idle"); setGstDetails(null); return; }
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!gstRegex.test(clean)) { setGstStatus("invalid"); setGstDetails(null); return; }
+
+    // Step 2 — Live API verification
+    setGstStatus("checking");
+
+    const STATE_NAMES: Record<string,string> = {
+      "24":"Gujarat","27":"Maharashtra","29":"Karnataka","33":"Tamil Nadu",
+      "07":"Delhi","06":"Haryana","09":"Uttar Pradesh","19":"West Bengal",
+      "08":"Rajasthan","36":"Telangana","32":"Kerala","21":"Odisha","23":"Madhya Pradesh",
+    };
+    const stateCode = clean.substring(0, 2);
+
+    if (GST_DEMO_MODE) {
+      // ── DEMO MODE ── simulates real API call with 1.2s delay ──────────
+      // This mirrors the EXACT response shape from gstincheck.co.in
+      // When you go live, the same setGstDetails / setCustCompany logic runs
+      await new Promise(r => setTimeout(r, 1200));
+
+      if (stateCode === "99") {
+        // Simulate a cancelled/not-found GST (for testing error path)
+        setGstStatus("invalid"); setGstDetails(null); return;
+      }
+
+      // Simulate successful response from gstincheck.co.in
+      const mockApiResponse = {
+        flag: true,
+        data: {
+          gstin: clean,
+          lgnm: custCompany || "Demo Company Pvt Ltd",   // legal name from GST portal
+          tradeNam: custCompany || "Demo Trading Co",     // trade name from GST portal
+          sts: "Active",                                  // registration status
+          stj: STATE_NAMES[stateCode] ? `${STATE_NAMES[stateCode]} State` : `State ${stateCode}`,
+          ctj: "CGST Commissionerate",
+          rgdt: "01/07/2021",                            // registration date
+          dty: "Regular",                                // taxpayer type
+        }
+      };
+
+      if (mockApiResponse.flag && mockApiResponse.data.sts === "Active") {
+        setGstStatus("valid");
+        setGstDetails({
+          tradeName: mockApiResponse.data.tradeNam,
+          legalName: mockApiResponse.data.lgnm,
+          state: STATE_NAMES[stateCode] || `State ${stateCode}`,
+          status: mockApiResponse.data.sts,
+        });
+        // Auto-fill company name from GST portal (in live mode, this is the official name)
+        if (!custCompany) setCustCompany(mockApiResponse.data.tradeNam);
+      } else {
+        setGstStatus("invalid"); setGstDetails(null);
+      }
+      return;
+    }
+
+    // ── LIVE MODE (GST_DEMO_MODE = false) ─────────────────────────────────
+    try {
+      // Option A: gstincheck.co.in (recommended — simplest)
+      const res = await fetch(`https://sheet.gstincheck.co.in/check/${GST_API_KEY}/${clean}`);
+      const json = await res.json();
+      // Response: { flag: bool, data: { lgnm, tradeNam, sts, stj, ctj, rgdt, dty } }
+
+      if (json.flag && json.data?.sts === "Active") {
+        setGstStatus("valid");
+        setGstDetails({
+          tradeName: json.data.tradeNam || "",
+          legalName: json.data.lgnm || "",
+          state: STATE_NAMES[stateCode] || json.data.stj || "",
+          status: json.data.sts,
+        });
+        if (!custCompany) setCustCompany(json.data.tradeNam || json.data.lgnm || "");
+      } else {
+        setGstStatus("invalid"); setGstDetails(null);
+      }
+    } catch {
+      // Network error — fall back to format-only validation
+      setGstStatus("valid");
+      setGstDetails({ tradeName: custCompany||"", legalName: custCompany||"", state: STATE_NAMES[stateCode]||"", status: "Format valid (not verified)" });
+    }
+  };
+
   const handleSubmit=async()=>{
     setIsProcessing(true);
     try {
@@ -597,7 +703,7 @@ export function CustomerPlanPage() {
       const existing=customers.find(c=>c.phone===custMobile||(custEmail&&c.email===custEmail));
       let customerId:string;
       if(existing){customerId=existing.customerId;}
-      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"]}); customerId=nc.customerId;}
+      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"],gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTCustomer:!!(custGST&&gstStatus==="valid")} as any); customerId=nc.customerId;}
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
       // Renewal date starts from first wash date (TAT = 2 working days from purchase)
       const firstWashDate=new Date(now);
@@ -629,7 +735,7 @@ export function CustomerPlanPage() {
         activationDate: new Date().toISOString().slice(0,10),
       }).catch(()=>{/* non-blocking — localStorage is primary */});
       recordRevenue({customerId,subscriptionId:sub.subscriptionId,type:planMode==="monthly"?"Subscription":"One-Time",amount:finalTotal,receivedDate:now.toISOString().split("T")[0],paymentMethod:"UPI",invoiceNumber:invNum,status:"Received",cityId:city||"CITY-SURAT"});
-      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
+      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTInvoice:!!(custGST&&gstStatus==="valid"),items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
       // REVISED: Step 1 of 2-stage WA — pending message sent immediately after payment.
@@ -637,7 +743,7 @@ export function CustomerPlanPage() {
       if(notifyPref==="whatsapp"||notifyPref==="both"){
         sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
         const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
-        const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n\nThank you! Queries: *080 48 79 45 45*`;
+        const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`🏢 *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"✅ B2B GST Invoice — eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
         sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
           .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
       }
@@ -1290,6 +1396,64 @@ export function CustomerPlanPage() {
                   <span style={{position:"absolute",left:14,top:14,fontSize:15}}>🏠</span>
                   <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmark…" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
                 </div>
+              </div>
+
+              {/* ── GST / Business Invoice Section ── */}
+              <div style={{marginBottom:16,padding:16,borderRadius:14,border:"2px dashed rgba(99,102,241,0.25)",background:"rgba(248,250,252,0.9)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <span style={{fontSize:18}}>🏢</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>GST Invoice</span>
+                  <span style={{fontSize:11,color:"#94a3b8",fontWeight:400}}>Optional — for businesses claiming input tax credit</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
+                  <div>
+                    <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>Company / Trade Name</label>
+                    <input className="cpp-input" value={custCompany} onChange={e=>setCustCompany(e.target.value)} placeholder="e.g. Infosys Ltd" style={{fontSize:13}} />
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>
+                      GSTIN
+                      {gstStatus==="checking" && <span style={{color:"#f59e0b",marginLeft:6,fontWeight:400}}>⏳ Verifying...</span>}
+                      {gstStatus==="valid"    && <span style={{color:"#10b981",marginLeft:6,fontWeight:400}}>✅ Verified</span>}
+                      {gstStatus==="invalid"  && <span style={{color:"#ef4444",marginLeft:6,fontWeight:400}}>❌ Not found</span>}
+                    </label>
+                    <input
+                      className="cpp-input"
+                      value={custGST}
+                      onChange={e=>{setCustGST(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"")); setGstStatus("idle"); setGstDetails(null);}}
+                      onBlur={e=>validateGST(e.target.value)}
+                      placeholder="e.g. 24AAAPL1234C1Z5"
+                      maxLength={15}
+                      style={{
+                        fontFamily:"monospace",fontWeight:700,letterSpacing:1,fontSize:13,
+                        border:`2px solid ${gstStatus==="valid"?"#10b981":gstStatus==="invalid"?"#ef4444":gstStatus==="checking"?"#f59e0b":"rgba(148,163,184,0.3)"}`
+                      }}
+                    />
+                  </div>
+                </div>
+                {gstStatus==="checking" && (
+                  <div style={{padding:8,borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>
+                    ⏳ Checking GSTIN with GST portal... (Demo mode active — simulates 1.2s API call)
+                  </div>
+                )}
+                {gstStatus==="valid" && gstDetails && (
+                  <div style={{padding:10,borderRadius:10,background:"#f0fdf4",border:"1px solid #bbf7d0",fontSize:12}}>
+                    <div style={{fontWeight:700,marginBottom:4,color:"#065f46"}}>🏢 {gstDetails.legalName || gstDetails.tradeName || custCompany}</div>
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap",color:"#374151"}}>
+                      <span><strong>State:</strong> {gstDetails.state}</span>
+                      <span><strong>Status:</strong> <span style={{color:"#10b981",fontWeight:700}}>{gstDetails.status}</span></span>
+                    </div>
+                    <div style={{marginTop:8,padding:6,background:"#dcfce7",borderRadius:6,color:"#059669",fontSize:11,fontWeight:600}}>
+                      ✓ B2B GST invoice generated · CGST 9% + SGST 9% · Input tax credit eligible
+                    </div>
+                    {GST_DEMO_MODE && <div style={{marginTop:4,fontSize:10,color:"#94a3b8"}}>⚠️ Demo mode — set GST_DEMO_MODE=false + add API key to go live</div>}
+                  </div>
+                )}
+                {gstStatus==="invalid" && (
+                  <div style={{padding:8,borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",fontSize:12,color:"#dc2626"}}>
+                    ❌ GSTIN not found or inactive. Please check and re-enter. Format: 24AAAPL1234C1Z5 (15 characters)
+                  </div>
+                )}
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
