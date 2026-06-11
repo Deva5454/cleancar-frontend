@@ -360,9 +360,7 @@ export function TSELeadQueue({ onCallLead }: TSELeadQueueProps) {
 
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => onCallLead(lead)}
+                    <a href={`tel:${(lead.phone||"").replace(/\D/g,"")}`} onClick={() => onCallLead(lead.phone ? lead : lead)}><Button size="sm" onClick={() => {}}(lead)}
                       disabled={
                         // B4 FIX: disable call for future scheduled callbacks
                         lead.status === "CALLBACK" &&
@@ -440,3 +438,5 @@ export function TSELeadQueue({ onCallLead }: TSELeadQueueProps) {
     </div>
   );
 }
+
+
