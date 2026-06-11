@@ -46,10 +46,10 @@ export function WasherCoreScreensDemo() {
 
   // Screen 4: Active Wash State
   const [washSteps, setWashSteps] = useState<WashStep[]>([
-    { id: "1", name: "Exterior Wash", isCompleted: false, isActive: true, requiresPhoto: true, photoTaken: false },
-    { id: "2", name: "Interior Cleaning", isCompleted: false, isActive: false, requiresPhoto: true, photoTaken: false },
-    { id: "3", name: "Tire Cleaning", isCompleted: false, isActive: false, requiresPhoto: false, photoTaken: false },
-    { id: "4", name: "Final Polish", isCompleted: false, isActive: false, requiresPhoto: true, photoTaken: false },
+    { id: "1", name: "Exterior Wash",     isCompleted: false, isActive: false, requiresPhoto: true,  photoTaken: false },
+    { id: "2", name: "Interior Cleaning", isCompleted: false, isActive: false, requiresPhoto: true,  photoTaken: false },
+    { id: "3", name: "Tire Cleaning",     isCompleted: false, isActive: false, requiresPhoto: false, photoTaken: false },
+    { id: "4", name: "Final Polish",      isCompleted: false, isActive: false, requiresPhoto: true,  photoTaken: false },
   ]);
   
   const [consumables, setConsumables] = useState<ConsumableItem[]>([
@@ -164,18 +164,10 @@ export function WasherCoreScreensDemo() {
   };
 
   const handleCompleteStep = (stepId: string) => {
-    setWashSteps(prev => {
-      const newSteps = [...prev];
-      const currentIndex = newSteps.findIndex(s => s.id === stepId);
-      if (currentIndex !== -1) {
-        newSteps[currentIndex].isCompleted = true;
-        newSteps[currentIndex].isActive = false;
-        if (currentIndex + 1 < newSteps.length) {
-          newSteps[currentIndex + 1].isActive = true;
-        }
-      }
-      return newSteps;
-    });
+    // Simply toggle the step as completed — no sequential enforcement
+    setWashSteps(prev => prev.map(s =>
+      s.id === stepId ? { ...s, isCompleted: true, isActive: false } : s
+    ));
   };
 
   const handleTakePhoto = (stepId: string) => {

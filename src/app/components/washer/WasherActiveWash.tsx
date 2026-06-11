@@ -1,7 +1,7 @@
 /**
  * SCREEN 4: ACTIVE WASH SCREEN
  * Step-by-step job execution with checklist, consumables, and cloth tracking
- * Design Principle: One task at a time, sequential execution, mandatory completion
+ * Design Principle: All steps tappable in any order. Submit only when ALL steps ticked.
  */
 
 import { useState } from "react";
@@ -79,7 +79,6 @@ export function WasherActiveWash({
   const totalSteps = steps.length;
   const progressPercentage = (completedSteps / totalSteps) * 100;
   
-  const activeStep = steps.find(s => s.isActive);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -153,91 +152,53 @@ export function WasherActiveWash({
         <Card className="border-2 border-blue-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Wash Checklist</CardTitle>
-            <p className="text-xs text-gray-600">Complete steps in order</p>
+            <p className="text-xs text-gray-600">Tick all steps when done — in any order</p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {steps.map((step, index) => {
-              const isNextStep = !step.isCompleted && !step.isActive && 
-                (index === 0 || steps[index - 1].isCompleted);
-
-              return (
-                <div
-                  key={step.id}
-                  className={`p-3 rounded-lg border-2 ${
-                    step.isCompleted ? 'bg-green-50 border-green-300' :
-                    step.isActive ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' :
-                    isNextStep ? 'bg-white border-gray-300' :
-                    'bg-gray-50 border-gray-200 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Step Icon */}
-                    <div className="flex-shrink-0 mt-0.5">
-                      {step.isCompleted ? (
-                        <CheckCircle className="h-6 w-6 text-green-600" />
-                      ) : (
-                        <Circle className={`h-6 w-6 ${
-                          step.isActive ? 'text-blue-600' : 'text-gray-400'
-                        }`} />
-                      )}
-                    </div>
-
-                    {/* Step Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className={`font-semibold ${
-                          step.isCompleted ? 'text-green-900' :
-                          step.isActive ? 'text-blue-900' :
-                          'text-gray-700'
-                        }`}>
-                          {step.name}
-                        </p>
-                        {step.isActive && (
-                          <Badge className="bg-blue-600 text-white text-xs">
-                            Active
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Photo Requirement */}
-                      {step.requiresPhoto && (
-                        <div className="mt-2 flex items-center gap-2">
-                          {step.photoTaken ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Photo captured
-                            </Badge>
-                          ) : (
-                            <Button
-                              onClick={() => onTakePhoto(step.id)}
-                              disabled={!step.isActive}
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs"
-                            >
-                              <Camera className="h-3 w-3 mr-1" />
-                              Take Photo
-                            </Button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Complete Button */}
-                      {step.isActive && (
-                        <Button
-                          onClick={() => onCompleteStep(step.id)}
-                          disabled={step.requiresPhoto && !step.photoTaken}
-                          className="w-full mt-2 h-10 bg-blue-600 hover:bg-blue-700"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Complete Step
-                        </Button>
-                      )}
-                    </div>
+            {steps.map((step) => (
+              <div
+                key={step.id}
+                onClick={() => !step.isCompleted && onCompleteStep(step.id)}
+                className={`p-3 rounded-lg border-2 cursor-pointer transition-all duration-150 ${
+                  step.isCompleted
+                    ? 'bg-green-50 border-green-300'
+                    : 'bg-white border-gray-300 hover:border-blue-400 hover:bg-blue-50 active:scale-95'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Tick icon */}
+                  <div className="flex-shrink-0">
+                    {step.isCompleted ? (
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    ) : (
+                      <Circle className="h-6 w-6 text-gray-400" />
+                    )}
                   </div>
+
+                  {/* Step name */}
+                  <p className={`flex-1 font-semibold ${
+                    step.isCompleted ? 'text-green-900 line-through decoration-green-400' : 'text-gray-800'
+                  }`}>
+                    {step.name}
+                  </p>
+
+                  {/* Photo badge if required */}
+                  {step.requiresPhoto && (
+                    <div onClick={e => { e.stopPropagation(); if (!step.photoTaken) onTakePhoto(step.id); }}>
+                      {step.photoTaken ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs">
+                          <CheckCircle className="h-3 w-3 mr-1" />Photo
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs cursor-pointer border-orange-300 text-orange-600 bg-orange-50">
+                          <Camera className="h-3 w-3 mr-1" />Photo
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </CardContent>
         </Card>
 
