@@ -305,6 +305,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
         completedAt: new Date().toISOString(),
       }, "JobContext");
 
+      // Record first wash date to start validity clock
+      if (job.subscriptionId) recordFirstWashDate(job.subscriptionId, new Date().toISOString().split("T")[0]);
+
       // 7-day upsell for one-time
       if (job.frequency === "One-Time" || job.frequency === "One-time") {
         createUpsellTask({ customerId: job.customerId, customerName: job.customerName || "", customerPhone: job.customerPhone || "", jobId, planLabel: job.packageName || "One-Time Wash", cityId: job.cityId || "CITY-SURAT", completedAt: new Date().toISOString() });

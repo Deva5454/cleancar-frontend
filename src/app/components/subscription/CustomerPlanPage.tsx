@@ -38,7 +38,7 @@ export interface CommitmentConfig { id: string; term: string; discountLabel: str
 export interface AddonConfig { id: string; name: string; price: number; unit: string; description: string; prices?: Record<string, number>; }
 
 export const DEFAULT_CONFIG: PlanPageConfig = {
-  brand: { name: "249 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
+  brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
   hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
   trustItems: ["📸 Before & after photos","🔄 Free re-wash 24h","🏠 We come to you","📞 Cancel anytime"],
   trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash 24h","📞 7-day cancellation","🏠 Home, office, society"],
@@ -74,6 +74,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     { id:"onetime", name:"One-Time", icon:"1️⃣", description:"Single visit. No expiry. Pay & book on the day.", prices:{waterWash:{hatchback:199,suv:299,luxury:399},shampoo:{hatchback:299,suv:349,luxury:499},shampooWax:{hatchback:399,suv:499,luxury:699}}, discount:"Standard rate", validityDays:null },
     { id:"pack2",   name:"Pack of 2", icon:"🔁", description:"2 visits · 8% off single price · Valid 20 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
     { id:"pack4",   name:"Pack of 4", icon:"📅", description:"4 visits · 15% off single price · Valid 30 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
+    { id:"urgent",  name:"Urgent Wash", icon:"⚡", description:"Shampoo+Wax · Washer arrives in 1 hour · Same day only · No reschedule · Amount forfeited if car unavailable", prices:{shampooWax:{hatchback:499,suv:599,luxury:799}}, discount:"Rs 100 premium", validityDays:0, isUrgent:true },
   ],
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
@@ -578,6 +579,11 @@ export function CustomerPlanPage() {
     setCouponResult(result.valid ? {...result, code:couponInput.trim().toUpperCase()} : result);
   };
   const handleApplyReferral = () => {
+    // Check vehicle-based 400-day referral lock
+    if (custReg && planSyncService.isVehicleReferralLocked(custReg)) {
+      setReferralResult({ valid: false, discount: 0, error: "This vehicle has already used a referral discount within the last 400 days. Not eligible." });
+      return;
+    }
     const result = planSyncService.validateReferralCode(referralInput.trim(), total);
     setReferralResult(result.valid ? {...result, code:referralInput.trim().toUpperCase()} : result);
   };
@@ -631,7 +637,7 @@ export function CustomerPlanPage() {
       if(notifyPref==="whatsapp"||notifyPref==="both"){
         sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
         const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
-        const invoiceMsg = `🧾 *Invoice — 249 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n\nThank you! Queries: *080 48 79 45 45*`;
+        const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n\nThank you! Queries: *080 48 79 45 45*`;
         sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
           .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
       }
@@ -787,7 +793,7 @@ export function CustomerPlanPage() {
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚗</div>
           <div>
-            <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>249 Carwashing</div>
+            <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>24/9 Carwashing</div>
             <div style={{fontSize:10,color:"rgba(199,210,254,0.6)",letterSpacing:0.5}}>SECURE CHECKOUT</div>
           </div>
         </div>
@@ -1533,7 +1539,7 @@ export function CustomerPlanPage() {
               {showTnC==="terms"?"📋 Terms & Conditions":showTnC==="refund"?"💰 Refund Policy":"❌ Cancellation Policy"}
             </h3>
             <p style={{color:"#64748b",fontSize:14,lineHeight:1.7}}>
-              {showTnC==="terms"&&"By subscribing to 249 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints."}
+              {showTnC==="terms"&&"By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints."}
               {showTnC==="refund"&&"Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred."}
               {showTnC==="cancel"&&"You may cancel your subscription with 7 days' written notice via WhatsApp or email. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 12 months) may have different terms as specified at the time of purchase."}
             </p>

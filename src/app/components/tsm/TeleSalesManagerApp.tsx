@@ -1095,7 +1095,7 @@ export function TeleSalesManagerApp() {
 
 
 
-            <TabsTrigger value="upsell" className="gap-2">
+            <TabsTrigger value="retention" className="gap-2">
               <span>📞</span>Upsell
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
@@ -1397,7 +1397,7 @@ export function TeleSalesManagerApp() {
 
 
 
-          <TabsContent value="upsell" className="mt-0">
+          <TabsContent value="retention" className="mt-0">
             <UpsellTasksPanel cityId={city} />
           </TabsContent>
           <TabsContent value="settings" className="mt-0">

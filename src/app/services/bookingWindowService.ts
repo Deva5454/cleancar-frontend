@@ -85,7 +85,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: !isWeekend && (h < 10.5 || h >= 18.5),
       customerMessage:
-        `🚗 Welcome to 249 Carwashing!\n\nYour *${planLabel}* subscription is confirmed.\n\n` +
+        `🚗 Welcome to 24/9 Carwashing!\n\nYour *${planLabel}* subscription is confirmed.\n\n` +
         `✅ Your dedicated washer will be assigned within 2 working days.\n` +
         `📅 First wash by: *${fmt(deadline)}*\n\n` +
         `Questions? Call/WhatsApp: 91-00000000`,
@@ -115,7 +115,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: true,
       customerMessage:
-        `🚗 One-Time Wash Confirmed — 249 Carwashing!\n\n` +
+        `🚗 One-Time Wash Confirmed — 24/9 Carwashing!\n\n` +
         `📅 Scheduled: *${nextWork.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} at 7:00–9:00 AM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will be assigned by tonight. Questions? Call: 91-00000000`,
@@ -144,7 +144,7 @@ export function getBookingSlot(
       requiresSameDay: true,
       isAfterHours: false,
       customerMessage:
-        `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
+        `✅ One-Time Wash Confirmed — 24/9 Carwashing!\n\n` +
         `📅 *Today, 4:00–6:00 PM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will arrive between 4–6 PM today. We'll send a reminder at 3:30 PM.\n` +
@@ -175,7 +175,7 @@ export function getBookingSlot(
       requiresSameDay: false,
       isAfterHours: false,
       customerMessage:
-        `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
+        `✅ One-Time Wash Confirmed — 24/9 Carwashing!\n\n` +
         `📅 *Tomorrow, 7:00–9:00 AM*\n` +
         `🔧 Service: *${planLabel}*\n\n` +
         `Your washer will arrive tomorrow morning. We'll remind you at 6:30 AM.\n` +
@@ -211,7 +211,7 @@ export function getBookingSlot(
     requiresSameDay: false,
     isAfterHours: true,
     customerMessage:
-      `✅ One-Time Wash Confirmed — 249 Carwashing!\n\n` +
+      `✅ One-Time Wash Confirmed — 24/9 Carwashing!\n\n` +
       `📅 *${nextDay.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}, 2:00–5:00 PM*\n` +
       `🔧 Service: *${planLabel}*\n\n` +
       `Your booking is confirmed. We'll assign your washer by 10:30 AM and send a reminder.\n` +
@@ -280,12 +280,17 @@ const SLOT_START_HOUR = 5;
 const SLOT_END_HOUR = 21.5; // 9:30 PM
 
 export function isWeekendOrHoliday(d: Date): boolean {
-  return d.getDay() === 0 || d.getDay() === 6;
+  // Only Sunday (0) is non-working. Saturday (6) is a working day.
+  return d.getDay() === 0;
 }
 
 export function isTsmWorkingHours(d: Date): boolean {
+  // IVR handover window: Mon-Sat, 10:30 AM - 6:30 PM
+  // (TSM HR attendance hours are 10:00-19:00 but IVR takeover is 10:30-18:30)
   const h = d.getHours() + d.getMinutes() / 60;
-  return !isWeekendOrHoliday(d) && h >= 10.5 && h < 18.5;
+  const day = d.getDay();
+  const isWorkingDay = day !== 0; // Sunday only is non-working
+  return isWorkingDay && h >= 10.5 && h < 18.5;
 }
 
 export function getAvailableSlots(date: Date, tatHoursFromNow = 0): string[] {

@@ -310,6 +310,26 @@ class PlanSyncService {
     return record;
   }
 
+  isVehicleReferralLocked(registrationNumber: string): boolean {
+    try {
+      const reg = registrationNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!reg) return false;
+      const customers = JSON.parse(localStorage.getItem("cleancar_customers") || "[]") as any[];
+      const match = customers.find((c: any) => {
+        const vehicleReg = (c.vehicleDetails?.registrationNumber || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        // Also check vehicles array
+        const vehiclesMatch = (c.vehicles || []).some((v: any) =>
+          (v.registrationNumber || "").toUpperCase().replace(/[^A-Z0-9]/g, "") === reg && v.referralUsedAt
+        );
+        return (vehicleReg === reg && c.referralUsedAt) || vehiclesMatch;
+      });
+      if (!match) return false;
+      const usedAt = new Date(match.referralUsedAt || "");
+      const daysSince = Math.floor((Date.now() - usedAt.getTime()) / 86400000);
+      return daysSince < 400;
+    } catch { return false; }
+  }
+
   validateReferralCode(code: string, orderTotal: number): {
     valid: boolean; discount: number; error?: string; record?: ReferralRecord;
   } {

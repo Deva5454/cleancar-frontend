@@ -7,7 +7,7 @@ import { DataService } from "../../services/DataService";
 import { tsmAbsenceService } from "../../services/tsmAbsenceService";
 import { useRole } from "../../contexts/RoleContext";
 
-interface UpsellTask { taskId:string; type:string; customerId:string; customerName:string; customerPhone:string; jobId?:string; subscriptionId?:string; packageName?:string; planLabel?:string; followUpDate:string; status:"PENDING"|"CALLED"|"CONVERTED"|"NOT_INTERESTED"|"NO_ANSWER"; notes?:string; cityId:string; createdAt:string; }
+interface RetentionTask { taskId:string; type:string; customerId:string; customerName:string; customerPhone:string; jobId?:string; subscriptionId?:string; packageName?:string; planLabel?:string; followUpDate:string; status:"PENDING"|"CALLED"|"CONVERTED"|"NOT_INTERESTED"|"NO_ANSWER"; notes?:string; cityId:string; createdAt:string; }
 interface ExpiryReminder { key:string; subscriptionId:string; customerId:string; daysLeft:number; sentAt:string; message:string; }
 
 const TYPE_LABELS:Record<string,{label:string;color:string;icon:string}> = {
@@ -18,7 +18,7 @@ const TYPE_LABELS:Record<string,{label:string;color:string;icon:string}> = {
 const STATUS_COLORS:Record<string,string> = { PENDING:"bg-yellow-100 text-yellow-800", CALLED:"bg-blue-100 text-blue-800", CONVERTED:"bg-green-100 text-green-800", NOT_INTERESTED:"bg-gray-100 text-gray-600", NO_ANSWER:"bg-orange-100 text-orange-800" };
 
 export function UpsellTasksPanel({cityId}:{cityId:string}){
-  const [tasks,setTasks]=useState<UpsellTask[]>([]);
+  const [tasks,setTasks]=useState<RetentionTask[]>([]);
   const [reminders,setReminders]=useState<ExpiryReminder[]>([]);
   const [filter,setFilter]=useState<"ALL"|"PENDING"|"TODAY">("PENDING");
 
@@ -30,12 +30,12 @@ export function UpsellTasksPanel({cityId}:{cityId:string}){
   useEffect(()=>{
     load();
     const h=()=>load();
-    window.addEventListener("cc360:upsell_task_created",h);
+    window.addEventListener("cc360:retention_task_created",h);
     window.addEventListener("cc360:pack_expiry_warning",h);
-    return()=>{window.removeEventListener("cc360:upsell_task_created",h);window.removeEventListener("cc360:pack_expiry_warning",h);};
+    return()=>{window.removeEventListener("cc360:retention_task_created",h);window.removeEventListener("cc360:pack_expiry_warning",h);};
   },[cityId]);
 
-  const update=(taskId:string,status:UpsellTask["status"])=>{
+  const update=(taskId:string,status:RetentionTask["status"])=>{
     const all=DataService.get<any>("TSM_UPSELL_TASKS")||[];
     const idx=all.findIndex((t:any)=>t.taskId===taskId);
     if(idx>=0){all[idx].status=status;all[idx].updatedAt=new Date().toISOString();DataService.setAll("TSM_UPSELL_TASKS",all);}
@@ -49,7 +49,7 @@ export function UpsellTasksPanel({cityId}:{cityId:string}){
 
   return(<div className="space-y-4">
     <div className="flex items-center justify-between flex-wrap gap-3">
-      <div><h2 className="text-xl font-bold text-gray-900">Upsell Tasks</h2><p className="text-sm text-gray-500">Call customers to convert to monthly subscription</p></div>
+      <div><h2 className="text-xl font-bold text-gray-900">Retention Tasks</h2><p className="text-sm text-gray-500">Call customers to convert to monthly subscription</p></div>
       <Button variant="outline" size="sm" onClick={load}><RefreshCw className="w-4 h-4 mr-1"/>Refresh</Button>
     </div>
     <div className="grid grid-cols-3 gap-3">
@@ -93,6 +93,18 @@ export function UpsellTasksPanel({cityId}:{cityId:string}){
             </div>
             {task.status==="PENDING"&&<div className="flex flex-col gap-1.5 min-w-[120px]">
               <a href={`tel:${task.customerPhone}`} className="w-full"><Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-xs"><Phone className="w-3 h-3 mr-1"/>Call Now</Button></a>
+              <select className="w-full border rounded text-xs px-2 py-1.5 mt-1" defaultValue="" onChange={e=>{
+                if(!e.target.value) return;
+                const all=DataService.get<any>("TSM_UPSELL_TASKS")||[];
+                const idx=all.findIndex((t:any)=>t.taskId===task.taskId);
+                if(idx>=0){all[idx].assignedToTSE=e.target.value;all[idx].assignedToTSEAt=new Date().toISOString();DataService.setAll("TSM_UPSELL_TASKS",all);}
+                load();
+              }}>
+                <option value="">Assign to TSE...</option>
+                {(DataService.get<any>("EMPLOYEE_DATABASE_RECORDS")||[]).filter((e:any)=>e.designation?.toLowerCase().includes("tse")||e.role?.toLowerCase().includes("tse")||e.designation?.toLowerCase().includes("sales executive")).map((e:any)=>(
+                  <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
+                ))}
+              </select>
               <div className="flex gap-1">
                 <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={()=>update(task.taskId,"CONVERTED")}>✅ Converted</Button>
                 <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={()=>update(task.taskId,"NO_ANSWER")}>📵 No Answer</Button>

@@ -295,7 +295,8 @@ class TATTrackingService {
     // 2. TSM — notified always; actionable only during working hours
     const bookingHour = new Date(record.purchasedAt || now).getHours() + new Date(record.purchasedAt || now).getMinutes() / 60;
     const bookingDay = new Date(record.purchasedAt || now).getDay();
-    const isAfterHours = bookingDay === 0 || bookingDay === 6 || bookingHour < 10.5 || bookingHour >= 18.5;
+    const isSunday = bookingDay === 0;
+    const isAfterHours = isSunday || bookingHour < 10.5 || bookingHour >= 18.5;
     const isTsmWorkingHoursNow = !isAfterHours;
 
     notifs.push({
@@ -332,12 +333,12 @@ class TATTrackingService {
     // 5. Customer (WhatsApp simulation)
     const customerMsg = record.bookingType === "ONE_TIME"
       ? `Your one-time ${planLabel} is confirmed for ${record.scheduledDate || "today"} at ${record.scheduledTime}. Your washer will be assigned shortly. Queries: 9100000000`
-      : `Welcome to 249 Carwashing! Your ${planLabel} starts within 2 working days. Your dedicated washer will be assigned by ${deadline}. Queries: 9100000000`;
+      : `Welcome to 24/9 Carwashing! Your ${planLabel} starts within 2 working days. Your dedicated washer will be assigned by ${deadline}. Queries: 9100000000`;
     notifs.push({
       id: "N-" + genId(), tatRecordId: record.id,
       recipientRole: "CUSTOMER",
       type: "NEW_BOOKING", severity: "INFO",
-      title: "Booking Confirmed — 249 Carwashing",
+      title: "Booking Confirmed — 24/9 Carwashing",
       message: customerMsg,
       actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
@@ -372,7 +373,7 @@ class TATTrackingService {
       id: "N-" + genId(), tatRecordId: tatId,
       recipientRole: "CUSTOMER",
       type: "ASSIGNED", severity: "INFO",
-      title: "Booking Confirmed — 249 Carwashing",
+      title: "Booking Confirmed — 24/9 Carwashing",
       message: `Your ${this.planLabel(record.planType)} is confirmed! Supervisor: ${supervisorName || record.supervisorName || washerName} | Contact: ${supervisorPhone || record.supervisorPhone || "9100000000"}. First wash by ${deadline}.`,
       actionRequired: false, read: false, acknowledged: false, createdAt: now,
     });
@@ -436,7 +437,7 @@ class TATTrackingService {
       id: "N-" + genId(), tatRecordId: tatId,
       recipientRole: "CUSTOMER",
       type: "COMPLETED", severity: "INFO",
-      title: "First Wash Complete — 249 Carwashing",
+      title: "First Wash Complete — 24/9 Carwashing",
       message: `Your first ${this.planLabel(record.planType)} is done! Check your WhatsApp for before/after photos. See you tomorrow! ☀️`,
       actionRequired: false, read: false, acknowledged: false, createdAt: nowStr,
     });
@@ -587,7 +588,7 @@ class TATTrackingService {
  */
 export function isTsmWorkingHours(d: Date): boolean {
   const h = d.getHours() + d.getMinutes() / 60;
-  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+  const isWeekend = d.getDay() === 0; // Only Sunday is non-working
   return !isWeekend && h >= 10.5 && h < 18.5;
 }
 
@@ -635,7 +636,7 @@ export function isSlotAvailable(customerPincode: string, employees: any[], jobs:
 export function createUpsellTask(params: { customerId: string; customerName: string; customerPhone: string; jobId: string; planLabel: string; cityId: string; completedAt: string; }): void {
   try {
     const followUpDate = new Date(params.completedAt);
-    followUpDate.setDate(followUpDate.getDate() + 7);
+    followUpDate.setDate(followUpDate.getDate() + 3); // Retention follow-up: 3 days after wash
     const task = { taskId: "UPSELL-" + Date.now().toString(36).toUpperCase(), type: "UPSELL_ONETIME_TO_MONTHLY", ...params, followUpDate: followUpDate.toISOString().split("T")[0], status: "PENDING", createdAt: new Date().toISOString(), notes: `One-time ${params.planLabel} completed. Call to convert to monthly.` };
     const tasks = DataService.get<any>("TSM_UPSELL_TASKS") || [];
     if (!tasks.find((t: any) => t.jobId === params.jobId)) {
@@ -656,22 +657,108 @@ export function createPackUpsellTask(params: { customerId: string; customerName:
   } catch {}
 }
 
-export function checkSundayRatings(): void {
+export function checkSubscriptionRatings(): void {
+  // Fires daily - handles Day 7 rating AND every Sunday rating for monthly subscriptions
   const now = new Date();
-  if (now.getDay() !== 0 || now.getHours() !== 11) return;
+  const isSunday = now.getDay() === 0 && now.getHours() === 11;
+  const isElevenAM = now.getHours() === 11 && now.getMinutes() < 5; // fire within 5min window
   try {
     const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
     const customers = DataService.get<any>("CUSTOMERS") || [];
     const jobs = DataService.get<any>("JOBS") || [];
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - 6);
-    weekStart.setHours(0, 0, 0, 0);
-    subs.filter((s: any) => s.status === "Active" && ["Daily","Alternate Days","Weekly"].includes(s.frequency)).forEach((sub: any) => {
+
+    subs.filter((s: any) => s.status === "Active").forEach((sub: any) => {
       const cust = customers.find((c: any) => c.customerId === sub.customerId);
       if (!cust?.phone) return;
-      const washCount = jobs.filter((j: any) => j.subscriptionId === sub.subscriptionId && j.status === "Completed" && new Date(j.completedAt || "") >= weekStart).length;
-      if (washCount > 0) {
-        import("./whatsappService").then(ws => ws.sendWeeklyRatingRequest({ customerPhone: cust.phone, customerName: cust.firstName || "Customer", subscriptionId: sub.subscriptionId, washCount }));
+
+      const startDate = new Date(sub.firstWashDate || sub.createdAt || sub.startDate || "");
+      const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / 86400000);
+
+      // Day 7 from subscription start - first rating request
+      if (daysSinceStart === 7 && isElevenAM) {
+        import("./whatsappService").then(ws => ws.sendRatingRequest({
+          customerPhone: cust.phone,
+          customerName: cust.firstName || "Customer",
+          jobId: sub.subscriptionId,
+          planLabel: sub.packageName || "Subscription",
+        }));
+        return;
+      }
+
+      // Every Sunday at 11 AM thereafter (day 8+)
+      if (isSunday && daysSinceStart > 7) {
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - 6);
+        weekStart.setHours(0, 0, 0, 0);
+        const washCount = jobs.filter((j: any) =>
+          j.subscriptionId === sub.subscriptionId &&
+          j.status === "Completed" &&
+          new Date(j.completedAt || "") >= weekStart
+        ).length;
+        if (washCount > 0) {
+          import("./whatsappService").then(ws => ws.sendWeeklyRatingRequest({
+            customerPhone: cust.phone,
+            customerName: cust.firstName || "Customer",
+            subscriptionId: sub.subscriptionId,
+            washCount,
+          }));
+        }
+      }
+    });
+  } catch {}
+}
+
+// Keep old name as alias for backwards compatibility
+export const checkSundayRatings = checkSubscriptionRatings;
+
+
+/**
+ * Washer acknowledgement check — runs periodically.
+ * Fires alert to Supervisor + TSM + Admin + Super Admin if washer
+ * has not acknowledged a job within the alert window:
+ * - Urgent Wash: 50 minutes before slot
+ * - Same-day (One-Time/Pack): 120 minutes before slot
+ * - Daily subscription: 12 hours before slot
+ */
+export function checkWasherAcknowledgements(): void {
+  try {
+    const now = new Date();
+    const jobs = DataService.get<any>("JOBS") || [];
+    const employees = DataService.get<any>("EMPLOYEE_DATABASE_RECORDS") || [];
+
+    jobs.filter((j: any) => j.status === "Assigned" && !j.washerAcknowledgedAt).forEach((job: any) => {
+      const slotTime = new Date(job.scheduledDate || job.slotTime || "");
+      if (!slotTime || isNaN(slotTime.getTime())) return;
+
+      const minsToSlot = (slotTime.getTime() - now.getTime()) / 60000;
+
+      // Determine alert window by service type
+      const isUrgent = job.serviceType === "URGENT_WASH" || job.isUrgent;
+      const isSameDay = job.serviceType === "ONE_TIME" || job.serviceType?.startsWith("PACK");
+      const alertWindow = isUrgent ? 50 : isSameDay ? 120 : 720; // 720 = 12 hours for subscription
+
+      if (minsToSlot > 0 && minsToSlot <= alertWindow) {
+        // Check if alert already sent
+        const alertKey = `ACK_ALERT_${job.jobId}`;
+        if (localStorage.getItem(alertKey)) return;
+        localStorage.setItem(alertKey, "1");
+
+        const washer = employees.find((e: any) => e.id === job.washerId);
+        const washerName = washer ? `${washer.firstName || ""} ${washer.lastName || ""}`.trim() : job.washerId || "Unknown";
+
+        window.dispatchEvent(new CustomEvent("cc360:washer_unacknowledged", {
+          detail: {
+            jobId: job.jobId,
+            washerId: job.washerId,
+            washerName,
+            supervisorId: job.supervisorId,
+            customerId: job.customerId,
+            slotTime: slotTime.toISOString(),
+            minsToSlot: Math.round(minsToSlot),
+            alertWindow,
+            message: `Washer ${washerName} has not acknowledged Job ${job.jobId}. Slot in ${Math.round(minsToSlot)} minutes.`,
+          }
+        }));
       }
     });
   } catch {}

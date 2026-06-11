@@ -126,7 +126,7 @@ Supervisor: ${supervisorName}` : "") +
     (trackingUrl ? `
 📍 Track your washer: ${trackingUrl}` : "") +
     `
-To reschedule, reply RESCHEDULE or call our IVR. — 249 Carwashing`;
+To reschedule, reply RESCHEDULE or call our IVR. — 24/9 Carwashing`;
   return sendWhatsApp(phone, message, "booking_confirmation");
 }
 
@@ -172,7 +172,7 @@ export async function sendWasherArrived(params: {
     `👋 Hi ${params.customerName}!
 
 ` +
-    `Your 249 Carwashing washer has arrived! 🚿
+    `Your 24/9 Carwashing washer has arrived! 🚿
 
 ` +
     `🔧 Service: *${params.planLabel}*
@@ -217,7 +217,7 @@ To book your next wash, call *080 48 79 45 45* or reply RESCHEDULE.`
     : "";
 
   const message =
-    `✅ Your 249 Carwashing service is complete!
+    `✅ Your 24/9 Carwashing service is complete!
 
 ` +
     `🚗 *${params.planLabel}* — done!
@@ -227,7 +227,7 @@ To book your next wash, call *080 48 79 45 45* or reply RESCHEDULE.`
     `${ratingLine}
 
 ` +
-    `Thank you for choosing 249 Carwashing! 🙏`;
+    `Thank you for choosing 24/9 Carwashing! 🙏`;
   await sendWhatsApp(params.customerPhone, message);
 }
 
@@ -276,7 +276,7 @@ export async function sendWeeklyRatingRequest(params: {
     `⭐ Good morning ${params.customerName}!
 
 ` +
-    `You've had *${params.washCount} wash(es)* this week from 249 Carwashing.
+    `You've had *${params.washCount} wash(es)* this week from 24/9 Carwashing.
 
 ` +
     `How would you rate your experience?
