@@ -120,7 +120,6 @@ export function TeleSalesExecutiveApp() {
 
   // Handle starting a call
   const handleCallLead = (lead: TSELead) => {
-    if (lead.phone) { window.open(`tel:${lead.phone.replace(/\D/g, "")}`, "_self"); }
     const basePricing = teleSalesExecutiveService.calculatePricingForLead(lead);
 
     setActiveCallSession({
