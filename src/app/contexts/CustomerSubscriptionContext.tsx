@@ -128,6 +128,29 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
       } catch (_e) { /* non-critical */ }
     }
 
+    // Stage 1 WA to customer + Team Alert on new subscription
+    try {
+      const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
+      const cust = customers.find((c: any) => c.customerId === newSubscription.customerId);
+      if (cust?.phone) {
+        sendBookingPending({
+          customerPhone: cust.phone,
+          customerName: cust.firstName || "Customer",
+          planLabel: newSubscription.packageName || "Subscription",
+        });
+      }
+      // Team alert
+      const bookingInfo = determineBookingWindow(new Date());
+      sendTeamAlert({
+        bookingType: "SUBSCRIPTION",
+        customerName: cust?.firstName || "Customer",
+        packageName: newSubscription.packageName || "",
+        area: newSubscription.serviceDetails?.area || "",
+        amount: newSubscription.pricing?.finalPrice || 0,
+        recipients: bookingInfo.alertRecipients,
+      });
+    } catch (_e) { /* non-critical */ }
+
     return newSubscription;
   };
 

@@ -259,6 +259,22 @@ export function JobProvider({ children }: { children: ReactNode }) {
         customerName: job.customerName || job.customerId,
         scheduledDate: job.scheduledDate,
       }, "JobContext");
+
+      // WA3: Stage 2 - Booking Confirmed WA to customer
+      try {
+        const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
+        const cust = customers.find((c: any) => c.customerId === job.customerId);
+        if (cust?.phone) {
+          sendBookingConfirmed({
+            customerPhone: cust.phone,
+            customerName: cust.firstName || "Customer",
+            planLabel: job.packageName || "Wash",
+            slot: job.timeSlot || job.scheduledTime || "Morning",
+            supervisorName: "",
+            supervisorPhone: "",
+          });
+        }
+      } catch {}
     }
   };
 
@@ -278,10 +294,27 @@ export function JobProvider({ children }: { children: ReactNode }) {
   };
 
   const startJob = (jobId: string) => {
+    const job = allJobs.find(j => j.jobId === jobId);
     updateJob(jobId, {
       status: "In Progress",
       startedAt: new Date().toISOString(),
     });
+    // WA4: Washer Arrived notification
+    if (job) {
+      try {
+        const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
+        const cust = customers.find((c: any) => c.customerId === job.customerId);
+        if (cust?.phone) {
+          sendWasherArrived({
+            customerPhone: cust.phone,
+            customerName: cust.firstName || "Customer",
+            washerName: job.washerName || "your washer",
+            trackingUrl: `https://249carwashing.genxa.in/track/${job.jobId}`,
+            supervisorPhone: "",
+          });
+        }
+      } catch {}
+    }
   };
 
   const completeJob = (

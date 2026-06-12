@@ -1,3 +1,8 @@
+import { useEffect } from "react";
+import { checkFirstWashReminders } from "../services/firstWashReminderService";
+import { checkPackExpiries } from "../services/whatsappRescheduleHandler";
+import { checkSubscriptionRatings, checkWasherAcknowledgements } from "../services/tatTrackingService";
+
 /**
  * AppProvider - Root provider that wraps ALL global contexts
  * This is the SINGLE point where all shared state is initialized
@@ -85,6 +90,24 @@ interface AppProviderProps {
  * 23. SupervisorProvider: Supervisor-specific state (team, audits)
  * 24. SidebarProvider: Sidebar UI state
  */
+// Periodic notification scheduler - runs daily checks
+function PeriodicScheduler() {
+  useEffect(() => {
+    const runChecks = () => {
+      try { checkFirstWashReminders(); } catch {}
+      try { checkPackExpiries(); } catch {}
+      try { checkSubscriptionRatings(); } catch {}
+      try { checkWasherAcknowledgements(); } catch {}
+    };
+    // Run on mount
+    runChecks();
+    // Run every hour
+    const interval = setInterval(runChecks, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return null;
+}
+
 export function AppProvider({ children }: AppProviderProps) {
   return (
     <EventSystemProvider>
@@ -113,6 +136,7 @@ export function AppProvider({ children }: AppProviderProps) {
                                                   <SidebarProvider>
                                                     <MigrationInitializer />
                                                     <SyncInitializer />
+                                                    <PeriodicScheduler />
                                                     {children}
                                                   </SidebarProvider>
                                                 </SupervisorProvider>
