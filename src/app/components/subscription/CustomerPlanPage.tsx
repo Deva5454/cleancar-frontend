@@ -457,6 +457,8 @@ export function CustomerPlanPage() {
   const [custEmail,setCustEmail]=useState(""); const [custReg,setCustReg]=useState("");
   const [custAddress,setCustAddress]=useState(""); const [prefTime,setPrefTime]=useState("");
   const [custGST,setCustGST]=useState("");
+  const [bundleMonths,setBundleMonths]=useState(0);
+  const [bundleDiscountInfo,setBundleDiscountInfo]=useState(null);
   const [custCompany,setCustCompany]=useState("");
   const [gstStatus,setGstStatus]=useState<"idle"|"valid"|"invalid"|"checking">("idle");
   const [gstDetails,setGstDetails]=useState<{tradeName:string;legalName:string;state:string;status:string}|null>(null);
@@ -1770,3 +1772,4 @@ export function CustomerPlanPage() {
 }
 
 export default CustomerPlanPage;
+
