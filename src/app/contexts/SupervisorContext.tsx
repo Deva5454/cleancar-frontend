@@ -223,13 +223,13 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
 
   // Load on mount and when supervisorId, employees, or attendance changes
   useEffect(() => {
+    const timeout = setTimeout(() => setIsLoading(false), 3000);
     if (hasValidSetup) {
       loadData();
     } else {
-      // No valid supervisor session — resolve loading immediately so the UI
-      // shows an empty/role-check state instead of an infinite spinner.
       setIsLoading(false);
     }
+    return () => clearTimeout(timeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasValidSetup, supervisorId]);
   // Removed `employees` and `attendanceRecords` from deps — those are full arrays
@@ -418,4 +418,5 @@ export function useSupervisorTeam() {
     summary,
   };
 }
+
 
