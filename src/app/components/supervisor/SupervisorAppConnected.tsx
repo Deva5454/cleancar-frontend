@@ -432,6 +432,8 @@ export function SupervisorAppConnected() {
     gpsDistance: number;
   } | null>(null);
   const [auditResult, setAuditResult] = useState<any>(null);
+  const [showPreDamageModal, setShowPreDamageModal] = useState(false);
+  const [preDamageNote, setPreDamageNote] = useState("");
 
   const handleStartAudit = (washerId: string) => {
     const washer = auditWashers.find(w => w.id === washerId);
@@ -470,8 +472,11 @@ export function SupervisorAppConnected() {
     setAuditFlow({ ...auditFlow, photos: auditFlow.photos + 1 });
   };
 
-  const handleReportPreDamage = () => {
-    // In production: show pre-damage form
+  const handleReportPreDamage = () => { setShowPreDamageModal(true); };
+  const handleSubmitPreDamage = () => {
+    if (auditFlow) setAuditFlow({ ...auditFlow, preDamageReported: true } as any);
+    setShowPreDamageModal(false); setPreDamageNote("");
+    toast.warning("Pre-damage logged.", { duration: 3000 });
   };
 
   const handleSubmitAudit = () => {
@@ -1154,6 +1159,20 @@ export function SupervisorAppConnected() {
           onConfirmAssignment={handleConfirmCarAssignment}
         />
       )}
+      {showPreDamageModal && (
+        <div style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"400px"}}>
+            <h3 style={{fontWeight:700,fontSize:"18px",marginBottom:"8px",color:"#dc2626"}}>Report Pre-Existing Damage</h3>
+            <textarea style={{width:"100%",border:"1px solid #d1d5db",borderRadius:"8px",padding:"8px",fontSize:"14px",minHeight:"80px",marginBottom:"12px"}} placeholder="Describe the damage..." value={preDamageNote} onChange={e => setPreDamageNote(e.target.value)} />
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={() => setShowPreDamageModal(false)} style={{flex:1,padding:"10px",border:"1px solid #d1d5db",borderRadius:"8px",cursor:"pointer"}}>Cancel</button>
+              <button onClick={handleSubmitPreDamage} style={{flex:1,padding:"10px",border:"none",borderRadius:"8px",background:"#dc2626",color:"white",cursor:"pointer",fontWeight:600}}>Log Damage</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
