@@ -23,7 +23,6 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef} from "react";
 import { DataService } from "../services/DataService";
-import { railwaySync } from "../services/railwaySyncService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
 // REMOVED: circular import useFinance from FinanceContext
@@ -33,7 +32,7 @@ import { useCity } from "./CityContext";
 export interface CustomerSubscription {
   subscriptionId: string;
   customerId: string; // GLOBAL IDENTITY - links to CustomerContext
-  packageType: "EXPRESS_WASH" | "SMART_WASH" | "ELITE_WASH" | "ELITE_2W";
+  packageType: "Basic" | "Standard" | "Premium" | "Deluxe" | "EXPRESS_WASH" | "SMART_WASH" | "ELITE_WASH" | "ELITE_2W";
   packageName: string;
   frequency: "Daily" | "Alternate Days" | "Weekly" | "Bi-Weekly" | "Monthly";
   status: "Active" | "Paused" | "Cancelled" | "Expired" | "Exhausted";
@@ -61,18 +60,6 @@ export interface CustomerSubscription {
     resumedAt?: string;
     reason: string;
   }>;
-  // Pack visit tracking — undefined for monthly subscriptions
-  visitsTotal?:  number;   // 2 or 4, set at purchase, never changes
-  visitsUsed?:   number;   // starts at 0, incremented by completeJob()
-  visitsExpiry?: string;   // ISO date +30 days from purchase
-
-  // Multi-month bundle fields — undefined for standard packs
-  bundleId?:          string;   // links to MULTI_MONTH_BUNDLES record
-  bundleMonths?:      number;   // 3 / 6 / 9 / 12
-  isBundlePriority?:  boolean;  // true = 1hr TAT, priority over Urgent Wash
-  bundleDiscountPct?: number;   // 5 / 8 / 10 / 12
-  bundleWindowStart?: string;   // current 30-day window start date
-  bundleWindowEnd?:   string;   // current 30-day window end date
 }
 
 interface CustomerSubscriptionContextType {
@@ -125,7 +112,6 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
     };
 
     setSubscriptions((prev) => [...prev, newSubscription]);
-    railwaySync.subscription(newSubscription); // non-blocking background sync to Railway
 
     // Fire cc360_mrr_add — FinanceContext listener handles MRR creation
     if (newSubscription.status === "Active") {
@@ -164,15 +150,6 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
 
   const updateSubscriptionStatus = (subscriptionId: string, status: CustomerSubscription["status"]) => {
     updateSubscription(subscriptionId, { status });
-    // G2 FIX: emit lifecycle events so FinanceContext MRR stays accurate
-    if (status === "Cancelled") {
-      window.dispatchEvent(new CustomEvent("cc360:subscription_cancelled", { detail: { subscriptionId } }));
-      window.dispatchEvent(new CustomEvent("cc360_mrr_remove", { detail: { subscriptionId } }));
-    } else if (status === "Paused") {
-      window.dispatchEvent(new CustomEvent("cc360:subscription_paused", { detail: { subscriptionId } }));
-    } else if (status === "Active") {
-      window.dispatchEvent(new CustomEvent("cc360:subscription_activated", { detail: { subscriptionId } }));
-    }
   };
 
   const getSubscriptionById = (subscriptionId: string): CustomerSubscription | undefined => {
