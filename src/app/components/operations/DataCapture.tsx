@@ -230,3 +230,5 @@ export function DataCapture() {
     </div>
   );
 }
+
+export default DataCapture;
