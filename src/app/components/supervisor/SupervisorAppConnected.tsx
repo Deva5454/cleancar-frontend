@@ -485,7 +485,7 @@ export function SupervisorAppConnected() {
       gpsValid: gpsValidation.isValid,
       gpsDistance: gpsValidation.distanceMeters,
     });
-    handleNavigate("audit-flow");
+    setTimeout(() => handleNavigate("audit-flow"), 50);
   };
 
   const handleToggleChecklistItem = (itemId: string) => {
@@ -1253,5 +1253,7 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
+
 
 
