@@ -459,6 +459,8 @@ export function CustomerPlanPage() {
   const [custGST,setCustGST]=useState("");
   const [bundleMonths,setBundleMonths]=useState(0);
   const [bundleDiscountInfo,setBundleDiscountInfo]=useState(null);
+  const bundleDiscountedBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? Math.round((packPrice||0) * (1 - ({3:0.05,6:0.08,9:0.10,12:0.12})[bundleMonths] || 0)) * bundleMonths : 0;
+  const effectiveBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? bundleDiscountedBase : 0;
   const [custCompany,setCustCompany]=useState("");
   const [gstStatus,setGstStatus]=useState<"idle"|"valid"|"invalid"|"checking">("idle");
   const [gstDetails,setGstDetails]=useState<{tradeName:string;legalName:string;state:string;status:string}|null>(null);
@@ -1772,4 +1774,5 @@ export function CustomerPlanPage() {
 }
 
 export default CustomerPlanPage;
+
 
