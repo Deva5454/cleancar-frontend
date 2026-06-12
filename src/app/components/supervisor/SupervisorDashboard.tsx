@@ -31,6 +31,7 @@ export interface SupervisorDashboardProps {
   shiftFocusAreas: string[];
   onAlertClick: (alert: SupervisorAlert) => void;
   onNavigate: (screen: string) => void;
+  onCashDeposit?: () => void;
 }
 
 export function SupervisorDashboard({
@@ -43,6 +44,7 @@ export function SupervisorDashboard({
   shiftFocusAreas,
   onAlertClick,
   onNavigate,
+  onCashDeposit,
 }: SupervisorDashboardProps) {
   const unitsProgress = (summary.totalUnitsCompleted / summary.totalUnitsTarget) * 100;
   const attendanceProgress = (summary.checkedIn / (summary.totalWashers - summary.onLeave)) * 100;
@@ -330,6 +332,15 @@ export function SupervisorDashboard({
             >
               <UserPlus className="h-5 w-5 mb-1" />
               <span className="text-xs">Capture Lead</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-16 flex-col col-span-2 bg-green-50 border-green-200 hover:bg-green-100"
+              onClick={() => onCashDeposit?.()}
+            >
+              <DollarSign className="h-5 w-5 mb-1 text-green-600" />
+              <span className="text-xs text-green-700 font-semibold">Cash Deposit</span>
             </Button>
           </CardContent>
         </Card>

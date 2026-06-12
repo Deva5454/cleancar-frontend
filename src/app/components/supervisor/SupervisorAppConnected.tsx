@@ -14,6 +14,7 @@ import { TeamAttendanceMonitorV2 } from "./TeamAttendanceMonitorV2";
 import { CoverDistributionScreen } from "./CoverDistributionScreen";
 import { AutoAssignCarsModal } from "./AutoAssignCarsModal";
 import { FieldAuditScreen, AuditFlowScreen, AuditResultScreen } from "./FieldAuditScreen";
+import { CashDepositScreen } from "./CashDepositScreen";
 import { ClothManagementScreenV2 } from "./ClothManagementScreenV2";
 import { SupervisorMaterialManagement } from "./SupervisorMaterialManagement";
 import { BTLLeadScreen, LeadPipelineView } from "./BTLLeadScreen";
@@ -433,6 +434,7 @@ export function SupervisorAppConnected() {
   } | null>(null);
   const [auditResult, setAuditResult] = useState<any>(null);
   const [showPreDamageModal, setShowPreDamageModal] = useState(false);
+  const [showCashDeposit, setShowCashDeposit] = useState(false);
   const [preDamageNote, setPreDamageNote] = useState("");
 
   const handleStartAudit = (washerId: string) => {
@@ -979,6 +981,7 @@ export function SupervisorAppConnected() {
               shiftFocusAreas={shiftFocusAreas}
               onAlertClick={handleAlertClick}
               onNavigate={handleNavigate}
+              onCashDeposit={() => setShowCashDeposit(true)}
             />
           </TabsContent>
 
@@ -1172,6 +1175,17 @@ export function SupervisorAppConnected() {
         </div>
       )}
 
+      {/* Cash Deposit Overlay */}
+      {showCashDeposit && (
+        <div style={{position:"fixed",inset:0,zIndex:9999,background:"white",overflowY:"auto"}}>
+          <CashDepositScreen
+            supervisorId={currentUser?.employeeId || "SUP-001"}
+            supervisorName={currentUser?.name || "Supervisor"}
+            cityId="CITY-SURAT"
+            onBack={() => setShowCashDeposit(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
