@@ -1,5 +1,6 @@
 /**
  * Supervisor App - Complete Implementation
+ * @version 2.1.0
  * All 8 screens with centralized data and functional buttons
  * Integrated with existing design system
  */
