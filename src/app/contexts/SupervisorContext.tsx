@@ -107,6 +107,10 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
     pendingJobs: 0,
     totalUnitsCompleted: 0,
     totalUnitsTarget: 1,
+    auditsPending: 0,
+    auditsCompleted: 0,
+    activeAlerts: 0,
+    leadsToday: 0,
   });
   const [team, setTeam] = useState<WasherTeamMember[]>([]);
   const [alerts, setAlerts] = useState<SupervisorAlert[]>([]);
@@ -422,5 +426,6 @@ export function useSupervisorTeam() {
     summary,
   };
 }
+
 
 
