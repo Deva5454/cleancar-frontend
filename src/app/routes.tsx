@@ -168,7 +168,7 @@ const CommunicationTemplates = lazy(() => import("./components/settings/Communic
 const CostConfiguration = lazy(() => import("./components/settings/CostConfiguration"));
 const ServiceZonesManagement = lazy(() => import("./components/modules/ServiceZonesManagement"));
 const WasherJobExecution = lazy(() => import("./components/modules/WasherJobExecution"));
-const DataCapture = lazy(() => import("./components/operations/DataCapture"));
+import { DataCapture } from "./components/operations/DataCapture";
 import { ExpansionOpportunities } from "./components/modules/ExpansionOpportunities";
 const SupplierDetail = lazy(() => import("./components/procurement/SupplierDetail"));
 import { CostTrackingIntegrationDemo } from "./components/demo/CostTrackingIntegrationDemo";
@@ -634,6 +634,7 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
 
 
 
