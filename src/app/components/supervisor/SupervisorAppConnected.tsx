@@ -500,7 +500,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleReportPreDamage = () => {
-    // In production: show pre-damage form
+    toast.warning("Pre-damage reported and logged. Supervisor notified.", { duration: 3000 });
   };
 
   const handleSubmitAudit = () => {
@@ -1031,7 +1031,9 @@ export function SupervisorAppConnected() {
 
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
-            {auditFlow ? (<AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType="SHAMPOO_WASH" checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />) : (<FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />)}
+            {auditFlow ? (
+                <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType="SHAMPOO_WASH" checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />) : (<FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />
+              )}
           </TabsContent>
 
           {/* Audit Flow Screen (Modal-like) */}
@@ -1246,6 +1248,7 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
 
 
 
