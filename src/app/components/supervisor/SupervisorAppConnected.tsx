@@ -483,7 +483,7 @@ export function SupervisorAppConnected() {
       gpsValid: gpsValidation.isValid,
       gpsDistance: gpsValidation.distanceMeters,
     });
-    setTimeout(() => handleNavigate("audit-flow"), 50);
+    // No navigation - audit flow shows inline
   };
 
   const handleToggleChecklistItem = (itemId: string) => {
@@ -1031,12 +1031,7 @@ export function SupervisorAppConnected() {
 
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
-            <FieldAuditScreen
-              washers={auditWashers}
-              todayTarget={auditSummary.todayTarget}
-              completed={auditSummary.completed}
-              onStartAudit={handleStartAudit}
-            />
+            {auditFlow ? <div>AUDIT_FLOW_PLACEHOLDER</div> : <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />}
           </TabsContent>
 
           {/* Audit Flow Screen (Modal-like) */}
@@ -1251,6 +1246,8 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
+
 
 
 
