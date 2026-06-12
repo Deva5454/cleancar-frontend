@@ -11,7 +11,7 @@ import { incentiveV6 } from "../../services/incentiveStructureV6";
  *  - Alerts for low KPI, churn, audit gaps
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { AlertTriangle, CheckCircle, XCircle, Lock, Unlock, ChevronDown, ChevronUp } from "lucide-react";
@@ -445,3 +445,4 @@ export function IncentiveTrackerScreen({ supervisorId, name }: { supervisorId?: 
     />
   );
 }
+
