@@ -124,7 +124,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
   // VALIDATION: Only activate for Supervisor role
   const isSupervisorRole = currentRole === "Supervisor";
   const supervisorId = currentUser?.employeeId || "";
-  const hasValidSetup = isSupervisorRole && supervisorId;
+  const hasValidSetup = isSupervisorRole;
 
   // Derived state
   const unreadAlertsCount = alerts.filter(a => !a.isRead).length;
@@ -199,12 +199,9 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
         late: teamMembers.filter(m => m.status === "LATE").length,
         notYet: teamMembers.filter(m => m.status === "NOT_YET").length,
         onLeave: teamMembers.filter(m => m.isOnLeave).length,
-        todayJobs:     getAssignedByCity(supervisorCityId).filter(j =>
-                         j.scheduledDate === new Date().toISOString().split("T")[0]).length,
-        completedJobs: getCompletedByCity(supervisorCityId).filter(j =>
-                         j.completedAt?.startsWith(new Date().toISOString().split("T")[0])).length,
-        pendingJobs: getUnassignedByCity(supervisorCityId).filter(j =>
-          j.scheduledDate === new Date().toISOString().split("T")[0]).length,
+        todayJobs: (() => { try { return getAssignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
+        completedJobs: (() => { try { return getCompletedByCity(supervisorCityId).filter((j: any) => j.completedAt?.startsWith(new Date().toISOString().split("T")[0])).length; } catch { return 0; } })(),
+        pendingJobs: (() => { try { return getUnassignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
       };
       setSummary(summary);
 
@@ -421,3 +418,4 @@ export function useSupervisorTeam() {
     summary,
   };
 }
+
