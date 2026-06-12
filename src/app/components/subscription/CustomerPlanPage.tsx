@@ -537,14 +537,19 @@ export function CustomerPlanPage() {
   const addonGrandTotal = planMode==="monthly"
     ? addonTotal * addonVisitsPerMonth * commitMonths
     : addonTotal; // packs: just the per-visit addon price
-  const total = basePrice + addonGrandTotal;
+  // Multi-month bundle: multiply base price by months with discount applied
+  const bundleDiscountedBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4")
+    ? Math.round(packPrice * (1 - ({3:0.05,6:0.08,9:0.10,12:0.12} as Record<number,number>)[bundleMonths] ?? 0)) * bundleMonths
+    : basePrice;
+  const effectiveBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? bundleDiscountedBase : basePrice;
+  const total = effectiveBase + addonGrandTotal;
   const isOneTime=planMode==="pack"&&selectedPack==="onetime";
   const discountPct=commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
   // Discount applies to base plan price only (not add-ons)
   const discountAmt=planMode==="monthly"?Math.round(planPrice*commitMonths*discountPct/100):0;
   const couponDiscount = couponResult?.valid ? (couponResult.discount||0) : 0;
   const referralDiscount = referralResult?.valid ? (referralResult.discount||0) : 0;
-  const finalTotal = Math.max(0, total - discountAmt - couponDiscount - referralDiscount - promoDiscount);
+  const finalTotal = Math.max(0, total - (bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? 0 : discountAmt) - couponDiscount - referralDiscount - promoDiscount);
   const step1Ok=!!activeCat&&carModel.trim().length>=2;
   const step2Ok = pincodeStatus !== null;
   const step2OkForPlanning = pincodeStatus === "ok" || pincodeStatus === "waitlist";
@@ -710,7 +715,7 @@ export function CustomerPlanPage() {
       firstWashDate.setDate(firstWashDate.getDate()+2); // 2 working day TAT
       const renewalDate=new Date(firstWashDate);
       renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack")+(bundleMonths>0?` × ${bundleMonths} months`:""),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice:effectiveBase||basePrice,discount:bundleMonths>0?bundleDiscountInfo?.savings||0:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",bundleMonths:bundleMonths>0?bundleMonths:undefined,bundleId:undefined,isBundlePriority:bundleMonths>0||undefined,bundleDiscountPct:bundleMonths>0?bundleDiscountInfo?.discount:undefined,
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
         visitsUsed: 0,
@@ -1260,6 +1265,55 @@ export function CustomerPlanPage() {
                     </div>
                   )}
                 </>
+              )}
+
+              {/* ── Multi-Month Bundle Selector (Pack of 2 / Pack of 4 only) ── */}
+              {planMode==="pack" && (selectedPack==="pack2"||selectedPack==="pack4") && (
+                <div style={{marginTop:20,padding:"18px 20px",borderRadius:16,border:"2px solid rgba(99,102,241,0.25)",background:"linear-gradient(135deg,#f0f4ff,#faf5ff)"}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#4338ca",marginBottom:4}}>📅 Want to buy multiple months upfront?</div>
+                  <div style={{fontSize:12,color:"#6366f1",marginBottom:14}}>Lock in a discounted rate and get priority 1-hour scheduling for every wash.</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                    {([0,3,6,9,12] as const).map(m=>{
+                      const discounts: Record<number,number> = {0:0,3:5,6:8,9:10,12:12};
+                      const disc = discounts[m];
+                      const baseP = packPrice;
+                      const discP = m===0 ? baseP : Math.round(baseP*(1-disc/100));
+                      const totalP = m===0 ? baseP : discP*m;
+                      const savings = m===0 ? 0 : (baseP*m)-totalP;
+                      const sel = bundleMonths===m;
+                      return (
+                        <div key={m} onClick={()=>{
+                          setBundleMonths(m as any);
+                          if(m>0) setBundleDiscountInfo({discount:disc,savings,totalPrice:totalP});
+                          else setBundleDiscountInfo(null);
+                        }} style={{flex:"0 0 auto",padding:"10px 14px",borderRadius:12,cursor:"pointer",border:sel?"2px solid #6366f1":"2px solid rgba(148,163,184,0.3)",background:sel?"rgba(99,102,241,0.1)":"white",transition:"all 0.2s",minWidth:80,textAlign:"center"}}>
+                          {m===0 ? (
+                            <>
+                              <div style={{fontSize:13,fontWeight:700,color:sel?"#4338ca":"#374151"}}>1 Month</div>
+                              <div style={{fontSize:11,color:"#64748b"}}>No discount</div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{fontSize:13,fontWeight:700,color:sel?"#4338ca":"#374151"}}>{m} Months</div>
+                              <div style={{fontSize:12,fontWeight:800,color:"#10b981"}}>{disc}% off</div>
+                              <div style={{fontSize:10,color:"#64748b"}}>₹{discP}/mo</div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {bundleMonths>0 && bundleDiscountInfo && (
+                    <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#059669"}}>
+                        🎉 You save ₹{bundleDiscountInfo.savings.toLocaleString("en-IN")} by paying {bundleMonths} months upfront
+                      </div>
+                      <div style={{fontSize:11,color:"#064e3b",marginTop:4}}>
+                        Total: ₹{bundleDiscountInfo.totalPrice.toLocaleString("en-IN")} · {(selectedPack==="pack2"?2:4)*bundleMonths} total visits · Priority 1-hour scheduling · Soft cap: {(selectedPack==="pack2"?2:4)*2} visits/month max
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               <div style={{display:"flex",justifyContent:"space-between"}}>

@@ -8,6 +8,9 @@ import { useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
+import { recordFirstWashDate } from "../services/firstWashReminderService";
+import { getBundleBySubscriptionId, recordBundleVisit, recordBundleFirstWash } from "../services/multiMonthBundleService";
+import { markOfferCompleted } from "../services/complimentary2WService";
 
 // Types
 export interface Job {
@@ -307,6 +310,22 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
       // Record first wash date to start validity clock
       if (job.subscriptionId) recordFirstWashDate(job.subscriptionId, new Date().toISOString().split("T")[0]);
+
+      // Multi-month bundle: record visit, recognise deferred revenue
+      if (job.subscriptionId) {
+        const bundle = getBundleBySubscriptionId(job.subscriptionId);
+        if (bundle) {
+          if (!bundle.firstWashDate) {
+            recordBundleFirstWash(bundle.bundleId, new Date().toISOString().split("T")[0]);
+          }
+          recordBundleVisit(bundle.bundleId, job.jobId || "");
+        }
+      }
+
+      // Complimentary 2W wash: mark offer as completed
+      if (job.offerId && job.isComplimentary) {
+        markOfferCompleted(job.offerId);
+      }
 
       // 7-day upsell for one-time
       if (job.frequency === "One-Time" || job.frequency === "One-time") {

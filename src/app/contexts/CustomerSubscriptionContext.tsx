@@ -65,6 +65,14 @@ export interface CustomerSubscription {
   visitsTotal?:  number;   // 2 or 4, set at purchase, never changes
   visitsUsed?:   number;   // starts at 0, incremented by completeJob()
   visitsExpiry?: string;   // ISO date +30 days from purchase
+
+  // Multi-month bundle fields — undefined for standard packs
+  bundleId?:          string;   // links to MULTI_MONTH_BUNDLES record
+  bundleMonths?:      number;   // 3 / 6 / 9 / 12
+  isBundlePriority?:  boolean;  // true = 1hr TAT, priority over Urgent Wash
+  bundleDiscountPct?: number;   // 5 / 8 / 10 / 12
+  bundleWindowStart?: string;   // current 30-day window start date
+  bundleWindowEnd?:   string;   // current 30-day window end date
 }
 
 interface CustomerSubscriptionContextType {
