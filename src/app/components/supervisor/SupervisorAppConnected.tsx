@@ -99,8 +99,6 @@ export function SupervisorAppConnected() {
     "/supervisor-app/dashboard":    "dashboard",
     "/supervisor-app/team":         "team",
     "/supervisor-app/audit":        "audit",
-    "/supervisor-app/audit-flow":    "audit-flow",
-    "/supervisor-app/audit-result":  "audit-result",
     "/supervisor-app/cloth":        "cloth",
     "/supervisor-app/leads":        "leads",
     "/supervisor-app/btl-assignments": "btl-assignments",
@@ -125,8 +123,8 @@ export function SupervisorAppConnected() {
     "cover":           "/supervisor-app/cover",
     "visibility":      "/supervisor-app/visibility",
     "audit-trail":     "/supervisor-app/audit-trail",
-    "audit-flow":      "/supervisor-app/audit-flow",
-    "audit-result":    "/supervisor-app/audit-result",
+    "audit-flow":      "/supervisor-app/audit",
+    "audit-result":    "/supervisor-app/audit",
     "kpi-dashboard":   "/supervisor-app/kpi-dashboard",
   };
   const currentScreen = useMemo(
@@ -1253,6 +1251,7 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
 
 
 
