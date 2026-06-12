@@ -489,7 +489,7 @@ export function SupervisorModuleUpdated() {
 
   return (
     <div className="space-y-6">
-      <BackButton />
+      <BackButton to="/" label="Back to Home" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Supervisor Dashboard</h1>
@@ -1497,3 +1497,4 @@ export function SupervisorModuleUpdated() {
 }
 
 export default SupervisorModuleUpdated;
+
