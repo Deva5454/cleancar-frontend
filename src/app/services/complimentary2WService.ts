@@ -11,7 +11,9 @@
  * - 2W vehicle added to customer's vehicles[] array
  */
 
-import { DataService } from "./DataService";
+// Storage helpers using localStorage directly
+const lsGet = <T>(key: string): T[] => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
+const lsSet = (key: string, data: any) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -222,7 +224,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
   DataService.setAll(OFFERS_KEY, all);
 
   // Create job record
-  const jobs = DataService.get<any[]>("JOBS") || [];
+  const jobs = lsGet<any[]>("JOBS");
   jobs.push({
     jobId,
     customerId:       offer.customerId,
@@ -248,10 +250,10 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
     validUntil:       offer.validUntil,
     createdAt:        new Date().toISOString(),
   });
-  DataService.setAll("JOBS", jobs);
+  lsSet("JOBS", jobs);
 
   // Journal entry: Debit Marketing Expenses / Credit Service Rendered
-  const journalEntries = DataService.get<any[]>("JOURNAL_ENTRIES") || [];
+  const journalEntries = lsGet<any[]>("JOURNAL_ENTRIES");
   const entryRef = generateId("JNL");
   journalEntries.push({
     entryId:       entryRef,
@@ -266,10 +268,10 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
     cityId:        offer.cityId,
     createdAt:     new Date().toISOString(),
   });
-  DataService.setAll("JOURNAL_ENTRIES", journalEntries);
+  lsSet("JOURNAL_ENTRIES", journalEntries);
 
   // Add 2W vehicle to customer's vehicles array
-  const customers = DataService.get<any[]>("CUSTOMERS") || [];
+  const customers = lsGet<any[]>("CUSTOMERS");
   const custIdx   = customers.findIndex(c => c.customerId === offer.customerId);
   if (custIdx >= 0) {
     const vehicles = customers[custIdx].vehicles || [];
@@ -287,7 +289,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
         addedReason:        "COMPLIMENTARY_OFFER",
       });
       customers[custIdx].vehicles = vehicles;
-      DataService.setAll("CUSTOMERS", customers);
+      lsSet("CUSTOMERS", customers);
     }
   }
 

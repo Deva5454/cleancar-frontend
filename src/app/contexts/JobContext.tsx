@@ -23,6 +23,10 @@ export interface Job {
   status: "Unassigned" | "Assigned" | "Acknowledged" | "In Progress" | "Completed" | "Verified" | "Failed";
   jobType: "One-Time Demo" | "Subscription Demo" | "Regular" | "Add-on";
   packageName: string;
+  packageType?: string;
+  frequency?: string;
+  offerId?: string;          // links to complimentary offer
+  isComplimentary?: boolean; // true for complimentary 2W wash
   vehicleDetails: {
     category: string;
     color: string;

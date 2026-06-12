@@ -11,7 +11,9 @@
  * - TSE incentive via existing tranche system (30% M1, 70% across check months)
  */
 
-import { DataService } from "./DataService";
+// Storage helpers using localStorage directly
+const lsGet = <T>(key: string): T[] => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
+const lsSet = (key: string, data: any) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -473,7 +475,7 @@ export function cancelBundle(bundleId: string): { success: boolean; refund: Retu
 export function checkLowVisitReminders(): void {
   try {
     const all       = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
-    const customers = DataService.get<any[]>("CUSTOMERS") || [];
+    const customers = lsGet<any[]>("CUSTOMERS");
     const reminded  = DataService.get<Record<string, boolean>>("BUNDLE_LOW_VISIT_REMINDERS") || {};
     const todayStr  = today();
     const todayDate = new Date(todayStr);
@@ -499,7 +501,7 @@ export function checkLowVisitReminders(): void {
             ).catch(() => {});
           });
           reminded[key] = true;
-          DataService.setAll("BUNDLE_LOW_VISIT_REMINDERS", reminded);
+          lsSet("BUNDLE_LOW_VISIT_REMINDERS", reminded);
         }
       }
     });
