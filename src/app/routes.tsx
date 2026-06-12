@@ -561,6 +561,12 @@ export const router = createBrowserRouter([
           { path: "visibility", element: <SupervisorAppConnected /> },
           { path: "audit-trail", element: <SupervisorAppConnected /> },
           { path: "kpi-dashboard", element: <SupervisorAppConnected /> },
+          { path: "btl-assignments", element: <SupervisorAppConnected /> },
+          { path: "schedule", element: <SupervisorAppConnected /> },
+          { path: "audit-flow", element: <SupervisorAppConnected /> },
+          { path: "audit-result", element: <SupervisorAppConnected /> },
+          { path: "btl-leads", element: <SupervisorAppConnected /> },
+          { path: "*", element: <SupervisorAppConnected /> },
         ]
       },
 
@@ -626,4 +632,5 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
 
