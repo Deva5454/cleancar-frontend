@@ -210,7 +210,6 @@ import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionD
 const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard"));
 import { WasherAttendanceHistory } from "./components/washer/WasherAttendanceHistory";
 import { OperationsRouter } from "./components/operations/OperationsRouter";
-const OperationsDataCapture = lazy(() => import("./components/operations/OperationsDataCapture"));
 import { OperationsLayout } from "./components/operations/OperationsLayout";
 const ClientPortal = lazy(() => import("./components/client/ClientPortal"));
 const WorkingHoursSetup = lazy(() => import("./components/workforce/WorkingHoursSetup"));
@@ -332,7 +331,7 @@ export const router = createBrowserRouter([
         element: <OperationsLayout />,
         children: [
           { index: true, element: <OperationsRouter /> },
-          { path: "data-capture", element: <OperationsDataCapture /> },
+          { path: "data-capture", element: <DataCapture /> },
         ]
       },
       { path: "complaints", element: <ComplaintManagement /> },
@@ -500,7 +499,6 @@ export const router = createBrowserRouter([
       { path: "settings/cost-configuration", element: <CostConfiguration /> },
       { path: "service-zones", element: <ServiceZonesManagement /> },
       { path: "washer-jobs", element: <WasherJobExecution /> },
-      { path: "operations/data-capture", element: <DataCapture /> },
       { path: "expansion-opportunities", element: <ExpansionOpportunities /> },
       { path: "procurement/supplier/:supplierId", element: <SupplierDetail /> },
       { path: "demo/cost-tracking-integration", element: <DevOnlyRoute element={<CostTrackingIntegrationDemo />} /> },
@@ -634,6 +632,7 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
 
 
 
