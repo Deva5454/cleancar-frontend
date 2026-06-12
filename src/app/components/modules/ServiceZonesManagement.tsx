@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { serviceZones } from "../../lib/mockData";
+import { serviceZones as mockServiceZones } from "../../lib/mockData";
+import { useRole } from "../../contexts/RoleContext";
 import { BackButton } from "../ui/back-button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -19,7 +20,18 @@ import { Search, Plus, Edit, CheckCircle, XCircle, MapPin, Users, AlertTriangle 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 
 export function ServiceZonesManagement() {
-  const [zones, setZones] = useState(serviceZones);
+  const { currentRole } = useRole();
+  const isReadOnly = currentRole === "Supervisor"; // Supervisors can view but not edit
+  
+  // Load from localStorage if available, else use mock
+  const loadZones = () => {
+    try {
+      const stored = localStorage.getItem("cleancar_service_zones");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return mockServiceZones;
+  };
+  const [zones, setZones] = useState(loadZones);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingZone, setEditingZone] = useState<any | null>(null);
@@ -55,10 +67,15 @@ export function ServiceZonesManagement() {
           <h1 className="text-2xl font-bold text-gray-900">Service Zones (PIN Code)</h1>
           <p className="text-sm text-gray-500 mt-1">Manage service zones by PIN code - replaces branch management</p>
         </div>
-        <Button size="sm" onClick={() => setShowCreateModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Service Zone
-        </Button>
+        {!isReadOnly && (
+          <Button size="sm" onClick={() => setShowCreateModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Service Zone
+          </Button>
+        )}
+        {isReadOnly && (
+          <span className="text-xs text-gray-400 italic">View only — editing restricted to City Manager</span>
+        )}
       </div>
 
       {/* Stats Cards */}

@@ -1,6 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
+import { useJobs } from "../../contexts/JobContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
+import { useCity } from "../../contexts/CityContext";
 import { BackButton } from "../ui/back-button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -15,79 +18,46 @@ import {
 } from "lucide-react";
 import { Progress } from "../ui/progress";
 
-// Mock job data for washer
-const washerJobs = [
-  {
-    id: "JOB001",
-    jobType: "Regular Subscription",
-    customerFirstName: "Arjun",
-    area: "Adajan",
-    pinCode: "395005",
-    scheduledTimeSlot: "7:00 AM - 9:00 AM",
-    vehicleCategory: "Mid-Size Sedan (>4m)",
-    vehicleColor: "Silver",
-    vehicleRegistrationNumber: "GJ05AB1234",
-    status: "Assigned",
-    packageName: "SHINE — Chamakti Subah",
-    packageType: "EXPRESS_WASH",
-    serviceFrequency: "Daily",
-    subscriptionDuration: "6-month plan — Month 3 of 6",
-    complimentaryBenefitsRemaining: "2 of 3 Interior Clean-Ups remaining",
-    memberSince: "Jan 2026",
-    totalWashesCompleted: 67,
-    nextScheduledWash: "Tomorrow, Mar 18",
-    specialNotes: "Customer prefers no water near the bonnet area. Car has a scratch on left door — customer aware.",
-    addressLine1: "A-204, Sunrise Residency",
-    city: "Surat",
-    parkingInstructions: "Parking in basement B2, Slot 42",
-  },
-  {
-    id: "JOB002",
-    jobType: "One-Time Demo",
-    customerFirstName: "Priya",
-    area: "Vesu",
-    pinCode: "395006",
-    scheduledTimeSlot: "9:00 AM - 11:00 AM",
-    vehicleCategory: "Mid/Large SUV",
-    vehicleColor: "White",
-    vehicleRegistrationNumber: "GJ05CD5678",
-    status: "Starting Soon",
-    packageName: "ELITE — Raja Seva",
-    packageType: "ELITE_WASH",
-    serviceFrequency: "Daily",
-    specialNotes: "Focus on ceramic coating demo. White SUV needs special attention.",
-    addressLine1: "Villa 12, Green Valley Society",
-    city: "Surat",
-    parkingInstructions: "Main gate parking available",
-  },
-  {
-    id: "JOB003",
-    jobType: "Regular Subscription",
-    customerFirstName: "Karan",
-    area: "Jahangirpura",
-    pinCode: "395009",
-    scheduledTimeSlot: "10:00 AM - 12:00 PM",
-    vehicleCategory: "Hatchback",
-    vehicleColor: "Red",
-    vehicleRegistrationNumber: "GJ05EF9012",
-    status: "In Progress",
-    packageName: "PROTECT — Raksha Plan",
-    packageType: "SMART_WASH",
-    serviceFrequency: "Daily",
-    subscriptionDuration: "3-month plan — Month 2 of 3",
-    memberSince: "Feb 2026",
-    totalWashesCompleted: 18,
-    nextScheduledWash: "Mar 19",
-    specialNotes: "",
-    addressLine1: "Flat 501, City Heights",
-    city: "Surat",
-    parkingInstructions: "Visitor parking near lobby",
-  },
-];
+// Real data injected via hook below
+const PLACEHOLDER_washerJobs: any[] = [];
+
 
 export function WasherJobExecution() {
   const { currentUser } = useRole();
-  const [selectedJob, setSelectedJob] = useState<typeof washerJobs[0] | null>(null);
+  const { jobs, updateJobStatus } = useJobs() as any;
+  const { employees } = useEmployee() as any;
+  const { city } = useCity() as any;
+  const today = new Date().toISOString().split("T")[0];
+
+  // Real jobs from context — show today's jobs. Fall back to mock if empty.
+  const washerJobs = useMemo(() => {
+    const real = (jobs || []).filter((j: any) =>
+      j.scheduledDate === today || j.status === "In Progress" || j.status === "Assigned"
+    ).map((j: any) => ({
+      id: j.jobId,
+      jobType: j.jobType || "Regular Subscription",
+      customerFirstName: j.customerName?.split(" ")[0] || "Customer",
+      area: j.pincode || "Surat",
+      pinCode: j.pincode || "395001",
+      scheduledTimeSlot: j.timeSlot || "Morning",
+      vehicleCategory: j.vehicleDetails?.category || "Sedan",
+      vehicleColor: j.vehicleDetails?.color || "",
+      vehicleRegistrationNumber: j.vehicleDetails?.registrationNumber || j.vehicleReg || "",
+      status: j.status,
+      packageName: j.packageName || "Car Wash",
+      packageType: j.packageType || "EXPRESS_WASH",
+      serviceFrequency: j.serviceDetails?.frequency || "One-Time",
+      specialNotes: j.notes || "",
+      addressLine1: j.serviceDetails?.address || "",
+      city: "Surat",
+      parkingInstructions: "",
+      washerId: j.washerId,
+      washerName: (employees || []).find((e: any) => e.id === j.washerId)?.name || "Unassigned",
+    }));
+    return real;
+  }, [jobs, employees, today]);
+
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState("info");
   const [checklist, setChecklist] = useState({
     exteriorWash: {
