@@ -189,7 +189,7 @@ const WeekOffCoverDemo = lazy(() => import("./components/washer/WeekOffCoverDemo
 import { SystemIntegrationDemo } from "./components/washer/SystemIntegrationDemo";
 const WasherCoreScreensDemo = lazy(() => import("./components/washer/WasherCoreScreensDemo"));
 const WasherCoreScreensConnected = lazy(() => import("./components/washer/WasherCoreScreensConnected"));
-const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppConnected"));
+import { SupervisorAppConnected } from "./components/supervisor/SupervisorAppConnected";
 import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
 const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
 const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
@@ -626,3 +626,4 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
