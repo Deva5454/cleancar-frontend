@@ -1031,7 +1031,7 @@ export function SupervisorAppConnected() {
 
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
-            {auditFlow ? <div>AUDIT_FLOW_PLACEHOLDER</div> : <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />}
+            {auditFlow ? (<AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType="SHAMPOO_WASH" checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />) : (<FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />)}
           </TabsContent>
 
           {/* Audit Flow Screen (Modal-like) */}
@@ -1246,6 +1246,7 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
 
 
 
