@@ -223,6 +223,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
 
   // Load on mount and when supervisorId, employees, or attendance changes
   useEffect(() => {
+    // Safety timeout: always resolve loading after 3 seconds max
     const timeout = setTimeout(() => setIsLoading(false), 3000);
     if (hasValidSetup) {
       loadData();
@@ -418,5 +419,4 @@ export function useSupervisorTeam() {
     summary,
   };
 }
-
 
