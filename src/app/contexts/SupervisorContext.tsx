@@ -209,6 +209,12 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
         todayJobs: (() => { try { return getAssignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
         completedJobs: (() => { try { return getCompletedByCity(supervisorCityId).filter((j: any) => j.completedAt?.startsWith(new Date().toISOString().split("T")[0])).length; } catch { return 0; } })(),
         pendingJobs: (() => { try { return getUnassignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
+        totalUnitsCompleted: 0,
+        totalUnitsTarget: Math.max(1, teamMembers.length * 8),
+        auditsPending: 0,
+        auditsCompleted: 0,
+        activeAlerts: 0,
+        leadsToday: 0,
       };
       setSummary(summary);
 
@@ -426,6 +432,7 @@ export function useSupervisorTeam() {
     summary,
   };
 }
+
 
 
 
