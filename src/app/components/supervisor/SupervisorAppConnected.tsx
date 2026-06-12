@@ -483,7 +483,7 @@ export function SupervisorAppConnected() {
       gpsValid: gpsValidation.isValid,
       gpsDistance: gpsValidation.distanceMeters,
     });
-    navigate(SCREEN_TO_PATH["audit-flow"] ?? "/supervisor-app");
+    handleNavigate("audit-flow");
   };
 
   const handleToggleChecklistItem = (itemId: string) => {
@@ -515,13 +515,13 @@ export function SupervisorAppConnected() {
       score,
       ...action,
     });
-    navigate(SCREEN_TO_PATH["audit-result"] ?? "/supervisor-app");
+    handleNavigate("audit-result");
   };
 
   const handleCloseAuditResult = () => {
     setAuditFlow(null);
     setAuditResult(null);
-    navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app");
+    handleNavigate("audit");
     // Refresh audit list
     setAuditWashers(fieldAuditService.getAuditWashers("SUP-001"));
     setAuditSummary(fieldAuditService.getAuditSummary("SUP-001"));
@@ -1251,3 +1251,4 @@ export function SupervisorAppConnected() {
     </div>
   );
 }
+
