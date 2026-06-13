@@ -271,7 +271,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
 };
 
-function loadConfig(): PlanPageConfig {
+export function loadConfig(): PlanPageConfig {
   try {
     const raw = localStorage.getItem("cleancar_plan_page_config");
     if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
