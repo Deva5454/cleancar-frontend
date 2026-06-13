@@ -35,6 +35,7 @@ import { TSELeadQueue } from "./TSELeadQueue";
 import { TSEActiveCall } from "./TSEActiveCall";
 import { TSECRMUpdate } from "./TSECRMUpdate";
 import { TSEIncentiveTracker } from "./TSEIncentiveTracker";
+import { TSEComplimentary2W } from "./TSEComplimentary2W";
 import { teleSalesExecutiveService } from "../../services/teleSalesExecutiveService";
 import type {
   TSELead,
@@ -46,7 +47,7 @@ import type {
 import { DAILY_CALL_TARGET, CONVERSION_TARGETS } from "../../constants/teleSalesExecutive.constants";
 import { logger } from "../../services/logger";
 
-type ScreenType = "LEAD_QUEUE" | "ACTIVE_CALL" | "CRM_UPDATE" | "INCENTIVE_TRACKER";
+type ScreenType = "LEAD_QUEUE" | "ACTIVE_CALL" | "CRM_UPDATE" | "INCENTIVE_TRACKER" | "COMP_2W";
 type TabType = "leads" | "incentives";
 
 interface ActiveCallSession {
@@ -370,6 +371,14 @@ export function TeleSalesExecutiveApp() {
               >
                 My Incentives
               </Button>
+              <Button
+                variant={currentScreen === "COMP_2W" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentScreen("COMP_2W")}
+                disabled={currentScreen === "ACTIVE_CALL" || currentScreen === "CRM_UPDATE"}
+              >
+                🛵 2W Offer
+              </Button>
               {/* A5 FIX: Renewals screen was declared but had no nav button */}
               <Button
                 variant={currentScreen === ("RENEWALS" as any) ? "default" : "outline"}
@@ -438,6 +447,16 @@ export function TeleSalesExecutiveApp() {
         )}
 
         {currentScreen === "INCENTIVE_TRACKER" && <TSEIncentiveTracker />}
+        {currentScreen === "COMP_2W" && (
+          <div className="p-4">
+            <TSEComplimentary2W
+              customerId="" customerName="" customerPhone="" vehicle4WReg=""
+              reasonCode="NEW_CONVERSION_INCENTIVE"
+              onDone={() => setCurrentScreen("LEAD_QUEUE")}
+              onCancel={() => setCurrentScreen("LEAD_QUEUE")}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

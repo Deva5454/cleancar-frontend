@@ -117,6 +117,7 @@ import { TSMRenewalDashboard } from "./TSMRenewalDashboard";
 
 
 import { TSMIncentiveTracker } from "./TSMIncentiveTracker";
+import { TSMComplimentary2W } from "./TSMComplimentary2W";
 
 
 import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
@@ -1067,6 +1068,11 @@ export function TeleSalesManagerApp() {
             {/* A4 FIX: Alerts tab so TSM can navigate to full alert list */}
 
 
+            <TabsTrigger value="comp2w" className="gap-2" aria-label="Complimentary 2W">
+              🛵
+              <span className="hidden sm:inline">2W Offers</span>
+            </TabsTrigger>
+
             <TabsTrigger value="alerts" className="gap-2" aria-label="Alerts">
 
 
@@ -1279,6 +1285,10 @@ export function TeleSalesManagerApp() {
             <TSMIncentiveTracker />
 
 
+          </TabsContent>
+
+          <TabsContent value="comp2w" className="mt-0">
+            <TSMComplimentary2W />
           </TabsContent>
 
 

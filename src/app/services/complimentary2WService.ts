@@ -115,7 +115,7 @@ export function getTseCapStatus(tseId: string): {
 /**
  * Get all TSE cap statuses for TSM dashboard.
  */
-export function getAllTseCapStatuses(cityId: string): TseCapConfig[] {
+export function getAllTseCapStatuses(cityId?: string): TseCapConfig[] {
   const all = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
   return all.filter(c => c.month === currentMonth());
 }
@@ -349,7 +349,7 @@ export function getOffersByTSE(tseId: string): Complimentary2WOffer[] {
   return all.filter(o => o.offeredByTseId === tseId && o.createdAt.startsWith(mon));
 }
 
-export function getMarketingExpenseSummary(cityId: string, month: string): {
+export function getMarketingExpenseSummary(month: string, cityId?: string): {
   totalOffers:     number;
   totalCost:       number;
   newConversions:  number;

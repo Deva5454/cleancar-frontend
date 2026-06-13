@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import { loadConfig, DEFAULT_CONFIG, type PlanPageConfig } from "./CustomerPlanPage";
+import { getBundleBySubscriptionId, cancelBundle, calculateCancellationRefund } from "../../services/multiMonthBundleService";
 
 // ── types ──────────────────────────────────────────────────────────────────
 interface CancelRequest {
@@ -87,6 +88,22 @@ export function CancellationRequestPage() {
   const [subId, setSubId]             = useState("");
   const [invoiceNo, setInvoiceNo]     = useState("");
   const [vehicleReg, setVehicleReg]   = useState("");
+
+  // Bundle state
+  const [bundleInfo, setBundleInfo] = useState<any>(null);
+
+  // Check for bundle on subscription ID change
+  const checkBundle = (id: string) => {
+    try {
+      const b = getBundleBySubscriptionId(id);
+      if (b && b.status === "ACTIVE") {
+        const calc = calculateCancellationRefund(b.bundleId);
+        setBundleInfo({ bundle: b, calc });
+      } else {
+        setBundleInfo(null);
+      }
+    } catch { setBundleInfo(null); }
+  };
 
   // Step 2 — subscription details
   const [totalAmount, setTotalAmount] = useState("");
@@ -328,7 +345,7 @@ export function CancellationRequestPage() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Subscription ID <span style={{ fontWeight: 400, color: "#9CA3AF" }}>or</span> Invoice Number *</label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <input value={subId} onChange={e => setSubId(e.target.value)} placeholder="SUB-1234567"
+                  <input value={subId} onChange={e => { setSubId(e.target.value); checkBundle(e.target.value); }} placeholder="SUB-1234567"
                     style={{ padding: "11px 14px", border: "1.5px solid #E3EEF7", borderRadius: 10, fontSize: 14, fontFamily: "monospace", outline: "none" }} />
                   <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="INV-2025-06-001234"
                     style={{ padding: "11px 14px", border: "1.5px solid #E3EEF7", borderRadius: 10, fontSize: 14, fontFamily: "monospace", outline: "none" }} />
@@ -345,6 +362,29 @@ export function CancellationRequestPage() {
         )}
 
         {/* ── STEP 2: SUBSCRIPTION DETAILS ──────────────────────────────── */}
+        {/* Bundle cancellation panel — shown when bundle subscription ID is entered */}
+        {bundleInfo && (
+          <div style={{margin:"12px 0",padding:16,background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12}}>
+            <p style={{fontWeight:700,color:"#1D4ED8",marginBottom:8}}>📦 Multi-Month Bundle Detected</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:13,color:"#1E40AF",marginBottom:12}}>
+              <div><strong>Bundle:</strong> Pack of {bundleInfo.bundle.packSize} × {bundleInfo.bundle.bundleMonths} months</div>
+              <div><strong>Visits:</strong> {bundleInfo.bundle.visitsUsed}/{bundleInfo.bundle.totalVisits} used</div>
+              <div><strong>Total Paid:</strong> ₹{bundleInfo.bundle.finalTotalPrice?.toLocaleString("en-IN")}</div>
+              <div><strong>Status:</strong> {bundleInfo.bundle.status}</div>
+            </div>
+            <div style={{padding:12,borderRadius:8,background:bundleInfo.calc.refundAmount>0?"#ECFDF5":"#FEF2F2",border:"1px solid "+(bundleInfo.calc.refundAmount>0?"#6EE7B7":"#FECACA"),marginBottom:12}}>
+              <p style={{fontSize:12,fontWeight:600,marginBottom:4}}>{bundleInfo.calc.policy}</p>
+              <p style={{fontSize:15,fontWeight:700,color:bundleInfo.calc.refundAmount>0?"#065F46":"#991B1B"}}>{bundleInfo.calc.refundAmount>0?`Estimated Refund: ₹${bundleInfo.calc.refundAmount.toLocaleString("en-IN")}`:"No Refund Applicable"}</p>
+              {bundleInfo.calc.cancellationFee>0 && <p style={{fontSize:11,color:"#DC2626"}}>Cancellation fee: ₹{bundleInfo.calc.cancellationFee.toLocaleString("en-IN")} (10% of total)</p>}
+              <p style={{fontSize:11,color:"#6B7280",marginTop:4}}>{bundleInfo.calc.visitPct?.toFixed(0)}% of visits consumed</p>
+            </div>
+            <button style={{width:"100%",padding:"10px",fontWeight:700,fontSize:14,background:"#DC2626",color:"white",border:"none",borderRadius:8,cursor:"pointer"}}
+              onClick={()=>{if(window.confirm("Confirm bundle cancellation? This cannot be undone.")){cancelBundle(bundleInfo.bundle.bundleId);alert("Bundle cancelled. "+(bundleInfo.calc.refundAmount>0?`Refund of ₹${bundleInfo.calc.refundAmount.toLocaleString("en-IN")} will be processed within 7 working days.`:"No refund applicable."));setBundleInfo(null);}}}>
+              Cancel This Bundle
+            </button>
+          </div>
+        )}
+
         {step === 2 && (
           <div>
             <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Your subscription details</h2>

@@ -31,6 +31,7 @@ import {
   History,
 } from "lucide-react";
 import { teleSalesExecutiveService } from "../../services/teleSalesExecutiveService";
+import { BUNDLE_DISCOUNTS, calculateBundlePrice } from "../../services/multiMonthBundleService";
 import type {
   TSELead,
   CallHistory,
@@ -81,6 +82,7 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
   // Multiple add-ons allowed (up to 3 per subscription)
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnOption[]>([]);
   const [selectedBundle, setSelectedBundle] = useState<BundleOption | undefined>();
+  const [multiMonthMonths, setMultiMonthMonths] = useState<0|3|6|9|12>(0);
   // Add-on frequency: how many times per month (default 4x like buy page)
   const [addonFreqPerMonth, setAddonFreqPerMonth] = useState<number>(4);
   // Commitment months for total calculation (default 3 months)
@@ -688,6 +690,42 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                   )}
                 </div>
               ))}
+          </Card>
+
+          {/* Multi-Month Bundle — Pack of 2/4 × 3/6/9/12 months */}
+          <Card className="p-3">
+            <p className="text-xs font-bold text-gray-700 mb-2">📦 Multi-Month Bundle (Pack of 2 or 4)</p>
+            <p className="text-xs text-gray-500 mb-3">Customer pays upfront for multiple months and gets a discount. Available on Pack of 2 & 4 only.</p>
+            <div className="flex gap-1">
+              {([0,3,6,9,12] as const).map(m => {
+                const disc = m > 0 ? BUNDLE_DISCOUNTS[m as keyof typeof BUNDLE_DISCOUNTS] : 0;
+                return (
+                  <button key={m}
+                    onClick={() => setMultiMonthMonths(m as any)}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-semibold ${multiMonthMonths === m ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500"}`}>
+                    {m === 0 ? "Single" : `${m}M`}
+                    {m > 0 && <div className="text-green-600 font-bold">{(disc*100).toFixed(0)}% off</div>}
+                  </button>
+                );
+              })}
+            </div>
+            {multiMonthMonths > 0 && (
+              <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200 text-xs">
+                {(() => {
+                  const disc = BUNDLE_DISCOUNTS[multiMonthMonths as keyof typeof BUNDLE_DISCOUNTS];
+                  const pack4Hatchback = 1020;
+                  const bundle = calculateBundlePrice(pack4Hatchback, multiMonthMonths as any);
+                  return (
+                    <div>
+                      <p className="font-semibold text-green-800">Pack of 4 example (Hatchback, Shampoo):</p>
+                      <p>₹{pack4Hatchback}/pack × {multiMonthMonths} months = ₹{pack4Hatchback * multiMonthMonths}</p>
+                      <p className="font-bold text-green-700">{(disc*100).toFixed(0)}% off → Total: ₹{bundle.totalPrice} (save ₹{bundle.savings})</p>
+                      <p className="text-gray-500 mt-1">Priority scheduling · {(4*multiMonthMonths)} total visits</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </Card>
 
           {/* Final Pricing & EBITDA — uses correct calculation with freq/months/GST */}

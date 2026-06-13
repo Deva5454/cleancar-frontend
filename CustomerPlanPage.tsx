@@ -38,7 +38,7 @@ export interface CommitmentConfig { id: string; term: string; discountLabel: str
 export interface AddonConfig { id: string; name: string; price: number; unit: string; description: string; prices?: Record<string, number>; }
 
 export const DEFAULT_CONFIG: PlanPageConfig = {
-  brand: { name: "249 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
+  brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
   hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
   trustItems: ["📸 Before & after photos","🔄 Free re-wash 24h","🏠 We come to you","📞 Cancel anytime"],
   trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash 24h","📞 7-day cancellation","🏠 Home, office, society"],
@@ -74,6 +74,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     { id:"onetime", name:"One-Time", icon:"1️⃣", description:"Single visit. No expiry. Pay & book on the day.", prices:{waterWash:{hatchback:199,suv:299,luxury:399},shampoo:{hatchback:299,suv:349,luxury:499},shampooWax:{hatchback:399,suv:499,luxury:699}}, discount:"Standard rate", validityDays:null },
     { id:"pack2",   name:"Pack of 2", icon:"🔁", description:"2 visits · 8% off single price · Valid 20 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
     { id:"pack4",   name:"Pack of 4", icon:"📅", description:"4 visits · 15% off single price · Valid 30 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
+    { id:"urgent",  name:"Urgent Wash", icon:"⚡", description:"Shampoo+Wax · Washer arrives in 1 hour · Same day only · No reschedule · Amount forfeited if car unavailable", prices:{shampooWax:{hatchback:499,suv:599,luxury:799}}, discount:"Rs 100 premium", validityDays:0, isUrgent:true },
   ],
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
@@ -262,7 +263,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
   const discountPct = commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
-  const discountAmt = planMode==="monthly"?Math.round(planPrice*discountPct/100):0;
+  const discountAmt = planMode==="monthly"?Math.round(planPrice*(commitMonths||1)*discountPct/100):0;
   const finalTotal = Math.max(0, total - discountAmt - (couponDiscount||0) - (referralDiscount||0) - (promoDiscount||0));
   const grandTotal = Math.round(finalTotal*1.18);
   const hasContent = activeCat||selectedPlan||addons.length>0;
@@ -455,6 +456,12 @@ export function CustomerPlanPage() {
   const [custName,setCustName]=useState(""); const [custMobile,setCustMobile]=useState("");
   const [custEmail,setCustEmail]=useState(""); const [custReg,setCustReg]=useState("");
   const [custAddress,setCustAddress]=useState(""); const [prefTime,setPrefTime]=useState("");
+  const [custGST,setCustGST]=useState("");
+  const [bundleMonths,setBundleMonths]=useState(0);
+  const [bundleDiscountInfo,setBundleDiscountInfo]=useState(null);
+  const [custCompany,setCustCompany]=useState("");
+  const [gstStatus,setGstStatus]=useState<"idle"|"valid"|"invalid"|"checking">("idle");
+  const [gstDetails,setGstDetails]=useState<{tradeName:string;legalName:string;state:string;status:string}|null>(null);
   const [oneTimeDate,setOneTimeDate]=useState(""); const [oneTimeHour,setOneTimeHour]=useState("");
   const [packStartOption,setPackStartOption]=useState<"immediate"|"schedule">("immediate");
   const [abandonLeadCaptured,setAbandonLeadCaptured]=useState(false);
@@ -531,15 +538,22 @@ export function CustomerPlanPage() {
   const addonVisitsPerMonth = planMode==="monthly" ? (addonFreqMonth || 4) : 1;
   const addonGrandTotal = planMode==="monthly"
     ? addonTotal * addonVisitsPerMonth * commitMonths
-    : addonTotal; // packs: just the per-visit addon price
-  const total = basePrice + addonGrandTotal;
+    : (bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4"))
+      ? addonTotal * bundleMonths  // bundle packs: add-ons × months
+      : addonTotal; // single pack: just per-pack addon price
+  // Multi-month bundle: multiply base price by months with discount applied
+  const bundleDiscountedBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4")
+    ? Math.round(packPrice * (1 - (({3:0.05,6:0.08,9:0.10,12:0.12} as Record<number,number>)[bundleMonths] ?? 0)) * bundleMonths)
+    : basePrice;
+  const effectiveBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? bundleDiscountedBase : basePrice;
+  const total = effectiveBase + addonGrandTotal;
   const isOneTime=planMode==="pack"&&selectedPack==="onetime";
   const discountPct=commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
   // Discount applies to base plan price only (not add-ons)
   const discountAmt=planMode==="monthly"?Math.round(planPrice*commitMonths*discountPct/100):0;
   const couponDiscount = couponResult?.valid ? (couponResult.discount||0) : 0;
   const referralDiscount = referralResult?.valid ? (referralResult.discount||0) : 0;
-  const finalTotal = Math.max(0, total - discountAmt - couponDiscount - referralDiscount - promoDiscount);
+  const finalTotal = Math.max(0, total - (bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? 0 : discountAmt) - couponDiscount - referralDiscount - promoDiscount);
   const step1Ok=!!activeCat&&carModel.trim().length>=2;
   const step2Ok = pincodeStatus !== null;
   const step2OkForPlanning = pincodeStatus === "ok" || pincodeStatus === "waitlist";
@@ -578,10 +592,117 @@ export function CustomerPlanPage() {
     setCouponResult(result.valid ? {...result, code:couponInput.trim().toUpperCase()} : result);
   };
   const handleApplyReferral = () => {
+    // Check vehicle-based 400-day referral lock
+    if (custReg && planSyncService.isVehicleReferralLocked(custReg)) {
+      setReferralResult({ valid: false, discount: 0, error: "This vehicle has already used a referral discount within the last 400 days. Not eligible." });
+      return;
+    }
     const result = planSyncService.validateReferralCode(referralInput.trim(), total);
     setReferralResult(result.valid ? {...result, code:referralInput.trim().toUpperCase()} : result);
   };
   
+  // ─── GST VERIFICATION — Full API flow with demo mode ──────────────────
+  // HOW IT WORKS:
+  //   Step 1: Format check (instant, offline) — regex validates 15-char GSTIN structure
+  //   Step 2: Live API call to GST portal via provider — returns legal name, status, state
+  //
+  // TO GO LIVE: change GST_DEMO_MODE to false and paste your API key
+  //
+  // API OPTIONS:
+  //   A. gstincheck.co.in  — GET https://sheet.gstincheck.co.in/check/API_KEY/GSTIN
+  //   B. Cashfree           — POST https://payout-gamma.cashfree.com/payout/v1/validation/gstin
+  //   C. Eko (Bharat)       — GET https://staging.eko.in:25004/ekoapi/v1/tools/gst_number_info
+  // ────────────────────────────────────────────────────────────────────────
+  const GST_DEMO_MODE = true;         // ← false when API key is ready
+  const GST_API_KEY = "YOUR_KEY";     // ← paste gstincheck.co.in key here
+
+  const validateGST = async (gst: string) => {
+    const clean = gst.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setCustGST(clean);
+
+    // Step 1 — Format validation (offline, instant)
+    if (!clean) { setGstStatus("idle"); setGstDetails(null); return; }
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!gstRegex.test(clean)) { setGstStatus("invalid"); setGstDetails(null); return; }
+
+    // Step 2 — Live API verification
+    setGstStatus("checking");
+
+    const STATE_NAMES: Record<string,string> = {
+      "24":"Gujarat","27":"Maharashtra","29":"Karnataka","33":"Tamil Nadu",
+      "07":"Delhi","06":"Haryana","09":"Uttar Pradesh","19":"West Bengal",
+      "08":"Rajasthan","36":"Telangana","32":"Kerala","21":"Odisha","23":"Madhya Pradesh",
+    };
+    const stateCode = clean.substring(0, 2);
+
+    if (GST_DEMO_MODE) {
+      // ── DEMO MODE ── simulates real API call with 1.2s delay ──────────
+      // This mirrors the EXACT response shape from gstincheck.co.in
+      // When you go live, the same setGstDetails / setCustCompany logic runs
+      await new Promise(r => setTimeout(r, 1200));
+
+      if (stateCode === "99") {
+        // Simulate a cancelled/not-found GST (for testing error path)
+        setGstStatus("invalid"); setGstDetails(null); return;
+      }
+
+      // Simulate successful response from gstincheck.co.in
+      const mockApiResponse = {
+        flag: true,
+        data: {
+          gstin: clean,
+          lgnm: custCompany || "Demo Company Pvt Ltd",   // legal name from GST portal
+          tradeNam: custCompany || "Demo Trading Co",     // trade name from GST portal
+          sts: "Active",                                  // registration status
+          stj: STATE_NAMES[stateCode] ? `${STATE_NAMES[stateCode]} State` : `State ${stateCode}`,
+          ctj: "CGST Commissionerate",
+          rgdt: "01/07/2021",                            // registration date
+          dty: "Regular",                                // taxpayer type
+        }
+      };
+
+      if (mockApiResponse.flag && mockApiResponse.data.sts === "Active") {
+        setGstStatus("valid");
+        setGstDetails({
+          tradeName: mockApiResponse.data.tradeNam,
+          legalName: mockApiResponse.data.lgnm,
+          state: STATE_NAMES[stateCode] || `State ${stateCode}`,
+          status: mockApiResponse.data.sts,
+        });
+        // Auto-fill company name from GST portal (in live mode, this is the official name)
+        if (!custCompany) setCustCompany(mockApiResponse.data.tradeNam);
+      } else {
+        setGstStatus("invalid"); setGstDetails(null);
+      }
+      return;
+    }
+
+    // ── LIVE MODE (GST_DEMO_MODE = false) ─────────────────────────────────
+    try {
+      // Option A: gstincheck.co.in (recommended — simplest)
+      const res = await fetch(`https://sheet.gstincheck.co.in/check/${GST_API_KEY}/${clean}`);
+      const json = await res.json();
+      // Response: { flag: bool, data: { lgnm, tradeNam, sts, stj, ctj, rgdt, dty } }
+
+      if (json.flag && json.data?.sts === "Active") {
+        setGstStatus("valid");
+        setGstDetails({
+          tradeName: json.data.tradeNam || "",
+          legalName: json.data.lgnm || "",
+          state: STATE_NAMES[stateCode] || json.data.stj || "",
+          status: json.data.sts,
+        });
+        if (!custCompany) setCustCompany(json.data.tradeNam || json.data.lgnm || "");
+      } else {
+        setGstStatus("invalid"); setGstDetails(null);
+      }
+    } catch {
+      // Network error — fall back to format-only validation
+      setGstStatus("valid");
+      setGstDetails({ tradeName: custCompany||"", legalName: custCompany||"", state: STATE_NAMES[stateCode]||"", status: "Format valid (not verified)" });
+    }
+  };
+
   const handleSubmit=async()=>{
     setIsProcessing(true);
     try {
@@ -591,14 +712,14 @@ export function CustomerPlanPage() {
       const existing=customers.find(c=>c.phone===custMobile||(custEmail&&c.email===custEmail));
       let customerId:string;
       if(existing){customerId=existing.customerId;}
-      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"]}); customerId=nc.customerId;}
+      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"],gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTCustomer:!!(custGST&&gstStatus==="valid")} as any); customerId=nc.customerId;}
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
       // Renewal date starts from first wash date (TAT = 2 working days from purchase)
       const firstWashDate=new Date(now);
       firstWashDate.setDate(firstWashDate.getDate()+2); // 2 working day TAT
       const renewalDate=new Date(firstWashDate);
       renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack"),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice,discount:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack")+(bundleMonths>0?` × ${bundleMonths} months`:""),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice:effectiveBase||basePrice,discount:bundleMonths>0?bundleDiscountInfo?.savings||0:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",bundleMonths:bundleMonths>0?bundleMonths:undefined,bundleId:undefined,isBundlePriority:bundleMonths>0||undefined,bundleDiscountPct:bundleMonths>0?bundleDiscountInfo?.discount:undefined,
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
         visitsUsed: 0,
@@ -623,19 +744,21 @@ export function CustomerPlanPage() {
         activationDate: new Date().toISOString().slice(0,10),
       }).catch(()=>{/* non-blocking — localStorage is primary */});
       recordRevenue({customerId,subscriptionId:sub.subscriptionId,type:planMode==="monthly"?"Subscription":"One-Time",amount:finalTotal,receivedDate:now.toISOString().split("T")[0],paymentMethod:"UPI",invoiceNumber:invNum,status:"Received",cityId:city||"CITY-SURAT"});
-      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
+      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTInvoice:!!(custGST&&gstStatus==="valid"),items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
       // REVISED: Step 1 of 2-stage WA — pending message sent immediately after payment.
       // Full confirmation (with washer + slot) sent separately via tatTrackingService.markAssigned().
       if(notifyPref==="whatsapp"||notifyPref==="both"){
-        sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash")
+        sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
+        const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
+        const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`🏢 *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"✅ B2B GST Invoice — eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
+        sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
           .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
       }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
       if(referralResult?.valid && referralResult.code) planSyncService.convertReferral(referralResult.code, customerId, custName, finalTotal);
-      // Assign a referral code to this customer after their first purchase
       planSyncService.assignReferralCodeToCustomer(customerId, custName);
       setIsProcessing(false);
       setShowConfetti(true);
@@ -785,7 +908,7 @@ export function CustomerPlanPage() {
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚗</div>
           <div>
-            <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>249 Carwashing</div>
+            <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>24/9 Carwashing</div>
             <div style={{fontSize:10,color:"rgba(199,210,254,0.6)",letterSpacing:0.5}}>SECURE CHECKOUT</div>
           </div>
         </div>
@@ -1148,6 +1271,55 @@ export function CustomerPlanPage() {
                 </>
               )}
 
+              {/* ── Multi-Month Bundle Selector (Pack of 2 / Pack of 4 only) ── */}
+              {planMode==="pack" && (selectedPack==="pack2"||selectedPack==="pack4") && (
+                <div style={{marginTop:20,padding:"18px 20px",borderRadius:16,border:"2px solid rgba(99,102,241,0.25)",background:"linear-gradient(135deg,#f0f4ff,#faf5ff)"}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#4338ca",marginBottom:4}}>📅 Want to buy multiple months upfront?</div>
+                  <div style={{fontSize:12,color:"#6366f1",marginBottom:14}}>Lock in a discounted rate and get priority 1-hour scheduling for every wash.</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                    {([0,3,6,9,12] as const).map(m=>{
+                      const discounts: Record<number,number> = {0:0,3:5,6:8,9:10,12:12};
+                      const disc = discounts[m];
+                      const baseP = packPrice;
+                      const discP = m===0 ? baseP : Math.round(baseP*(1-disc/100));
+                      const totalP = m===0 ? baseP : discP*m;
+                      const savings = m===0 ? 0 : (baseP*m)-totalP;
+                      const sel = bundleMonths===m;
+                      return (
+                        <div key={m} onClick={()=>{
+                          setBundleMonths(m as any);
+                          if(m>0) setBundleDiscountInfo({discount:disc,savings,totalPrice:totalP});
+                          else setBundleDiscountInfo(null);
+                        }} style={{flex:"0 0 auto",padding:"10px 14px",borderRadius:12,cursor:"pointer",border:sel?"2px solid #6366f1":"2px solid rgba(148,163,184,0.3)",background:sel?"rgba(99,102,241,0.1)":"white",transition:"all 0.2s",minWidth:80,textAlign:"center"}}>
+                          {m===0 ? (
+                            <>
+                              <div style={{fontSize:13,fontWeight:700,color:sel?"#4338ca":"#374151"}}>1 Month</div>
+                              <div style={{fontSize:11,color:"#64748b"}}>No discount</div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{fontSize:13,fontWeight:700,color:sel?"#4338ca":"#374151"}}>{m} Months</div>
+                              <div style={{fontSize:12,fontWeight:800,color:"#10b981"}}>{disc}% off</div>
+                              <div style={{fontSize:10,color:"#64748b"}}>₹{discP}/mo</div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {bundleMonths>0 && bundleDiscountInfo && (
+                    <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#059669"}}>
+                        🎉 You save ₹{bundleDiscountInfo.savings.toLocaleString("en-IN")} by paying {bundleMonths} months upfront
+                      </div>
+                      <div style={{fontSize:11,color:"#064e3b",marginTop:4}}>
+                        Total: ₹{bundleDiscountInfo.totalPrice.toLocaleString("en-IN")} · {(selectedPack==="pack2"?2:4)*bundleMonths} total visits · Priority 1-hour scheduling · Soft cap: {(selectedPack==="pack2"?2:4)*2} visits/month max
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{display:"flex",justifyContent:"space-between"}}>
                 <button className="cpp-btn-ghost" onClick={()=>goTo(2)}>← Back</button>
                 <button className="cpp-btn-primary" onClick={()=>goTo(4)} disabled={!step3Ok}>Continue → Add-ons</button>
@@ -1282,6 +1454,64 @@ export function CustomerPlanPage() {
                   <span style={{position:"absolute",left:14,top:14,fontSize:15}}>🏠</span>
                   <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmark…" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
                 </div>
+              </div>
+
+              {/* ── GST / Business Invoice Section ── */}
+              <div style={{marginBottom:16,padding:16,borderRadius:14,border:"2px dashed rgba(99,102,241,0.25)",background:"rgba(248,250,252,0.9)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                  <span style={{fontSize:18}}>🏢</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>GST Invoice</span>
+                  <span style={{fontSize:11,color:"#94a3b8",fontWeight:400}}>Optional — for businesses claiming input tax credit</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
+                  <div>
+                    <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>Company / Trade Name</label>
+                    <input className="cpp-input" value={custCompany} onChange={e=>setCustCompany(e.target.value)} placeholder="e.g. Infosys Ltd" style={{fontSize:13}} />
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>
+                      GSTIN
+                      {gstStatus==="checking" && <span style={{color:"#f59e0b",marginLeft:6,fontWeight:400}}>⏳ Verifying...</span>}
+                      {gstStatus==="valid"    && <span style={{color:"#10b981",marginLeft:6,fontWeight:400}}>✅ Verified</span>}
+                      {gstStatus==="invalid"  && <span style={{color:"#ef4444",marginLeft:6,fontWeight:400}}>❌ Not found</span>}
+                    </label>
+                    <input
+                      className="cpp-input"
+                      value={custGST}
+                      onChange={e=>{setCustGST(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"")); setGstStatus("idle"); setGstDetails(null);}}
+                      onBlur={e=>validateGST(e.target.value)}
+                      placeholder="e.g. 24AAAPL1234C1Z5"
+                      maxLength={15}
+                      style={{
+                        fontFamily:"monospace",fontWeight:700,letterSpacing:1,fontSize:13,
+                        border:`2px solid ${gstStatus==="valid"?"#10b981":gstStatus==="invalid"?"#ef4444":gstStatus==="checking"?"#f59e0b":"rgba(148,163,184,0.3)"}`
+                      }}
+                    />
+                  </div>
+                </div>
+                {gstStatus==="checking" && (
+                  <div style={{padding:8,borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>
+                    ⏳ Checking GSTIN with GST portal... (Demo mode active — simulates 1.2s API call)
+                  </div>
+                )}
+                {gstStatus==="valid" && gstDetails && (
+                  <div style={{padding:10,borderRadius:10,background:"#f0fdf4",border:"1px solid #bbf7d0",fontSize:12}}>
+                    <div style={{fontWeight:700,marginBottom:4,color:"#065f46"}}>🏢 {gstDetails.legalName || gstDetails.tradeName || custCompany}</div>
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap",color:"#374151"}}>
+                      <span><strong>State:</strong> {gstDetails.state}</span>
+                      <span><strong>Status:</strong> <span style={{color:"#10b981",fontWeight:700}}>{gstDetails.status}</span></span>
+                    </div>
+                    <div style={{marginTop:8,padding:6,background:"#dcfce7",borderRadius:6,color:"#059669",fontSize:11,fontWeight:600}}>
+                      ✓ B2B GST invoice generated · CGST 9% + SGST 9% · Input tax credit eligible
+                    </div>
+                    {GST_DEMO_MODE && <div style={{marginTop:4,fontSize:10,color:"#94a3b8"}}>⚠️ Demo mode — set GST_DEMO_MODE=false + add API key to go live</div>}
+                  </div>
+                )}
+                {gstStatus==="invalid" && (
+                  <div style={{padding:8,borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",fontSize:12,color:"#dc2626"}}>
+                    ❌ GSTIN not found or inactive. Please check and re-enter. Format: 24AAAPL1234C1Z5 (15 characters)
+                  </div>
+                )}
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
@@ -1531,7 +1761,7 @@ export function CustomerPlanPage() {
               {showTnC==="terms"?"📋 Terms & Conditions":showTnC==="refund"?"💰 Refund Policy":"❌ Cancellation Policy"}
             </h3>
             <p style={{color:"#64748b",fontSize:14,lineHeight:1.7}}>
-              {showTnC==="terms"&&"By subscribing to 249 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints."}
+              {showTnC==="terms"&&"By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints."}
               {showTnC==="refund"&&"Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred."}
               {showTnC==="cancel"&&"You may cancel your subscription with 7 days' written notice via WhatsApp or email. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 12 months) may have different terms as specified at the time of purchase."}
             </p>
@@ -1544,3 +1774,7 @@ export function CustomerPlanPage() {
 }
 
 export default CustomerPlanPage;
+
+
+
+
