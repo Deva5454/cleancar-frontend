@@ -31,31 +31,34 @@ const queryClient = new QueryClient({
 try { seedAllData(); } catch (e) { console.error("Seed failed:", e); }
 try { seedExtendedModules(); } catch (e) { console.error("Extended seed failed:", e); }
 
-// AUTO-LOGIN: Set Super Admin session before React mounts
-// This prevents the /login redirect loop that causes React #306
-// To switch users: localStorage.clear(); location.reload() then log in manually
+// AUTO-LOGIN: Always set Super Admin session before React mounts (hardcoded fallback)
+// This guarantees RootLayout never redirects to /login, preventing the 3x mount loop
+// To switch users: localStorage.clear(); location.reload() then log in normally
 try {
-  if (!localStorage.getItem("cc360_session")) {
+  // Always unlock Super Admin first
+  try {
     const emps = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]");
-    const sa = emps.find((e: any) => e.loginMobile === "9100000001");
-    if (sa) {
-      // Also unlock if locked
-      if (sa.accountStatus === "locked") {
-        sa.accountStatus = "active";
-        sa.failedLoginAttempts = 0;
-        delete sa.lockedUntil;
-        localStorage.setItem("EMPLOYEE_DATABASE_RECORDS", JSON.stringify(emps));
-      }
-      localStorage.setItem("cc360_session", JSON.stringify({
-        employeeId: sa.id || "EDB-SA-01",
-        employeeName: sa.fullName || "Super Admin",
-        role: sa.role || "Super Admin",
-        cityId: sa.cityId || "CITY-SURAT",
-        loginTime: new Date().toISOString(),
-      }));
+    const i = emps.findIndex((e: any) => e.loginMobile === "9100000001");
+    if (i >= 0 && emps[i].accountStatus === "locked") {
+      emps[i].accountStatus = "active"; emps[i].failedLoginAttempts = 0; delete emps[i].lockedUntil;
+      localStorage.setItem("EMPLOYEE_DATABASE_RECORDS", JSON.stringify(emps));
     }
+  } catch {}
+  // Set session if not already set — hardcoded so it ALWAYS works on first load
+  if (!localStorage.getItem("cc360_session")) {
+    let empId = "EDB-SA-01", empName = "Rajesh Patel", empCity = "CITY-SURAT";
+    try {
+      const emps = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]");
+      const sa = emps.find((e: any) => e.loginMobile === "9100000001");
+      if (sa) { empId = sa.id || empId; empName = sa.fullName || empName; empCity = sa.cityId || empCity; }
+    } catch {}
+    localStorage.setItem("cc360_session", JSON.stringify({
+      employeeId: empId, employeeName: empName,
+      role: "Super Admin", cityId: empCity,
+      loginTime: new Date().toISOString(),
+    }));
   }
-} catch (_e) { /* non-critical */ }
+} catch (_e) { /* non-critical */}
 
 // Handle Figma Make ?preview-route= query param
 const params = new URLSearchParams(window.location.search);
