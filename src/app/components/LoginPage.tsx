@@ -328,24 +328,24 @@ export function LoginPage() {
       </div>
     </div>
   );
-}// Emergency unlock for Super Admin (console accessible)
-  if (typeof window !== 'undefined') {
-    (window as any).unlockAdmin = () => {
-      try {
-        const key = 'EMPLOYEE_DATABASE_RECORDS';
-        const emps = JSON.parse(localStorage.getItem(key) || '[]');
-        const idx = emps.findIndex((e: any) => e.loginMobile === '9100000001' || e.role === 'Super Admin');
-        if (idx >= 0) {
-          emps[idx].accountStatus = 'active';
-          emps[idx].failedLoginAttempts = 0;
-          emps[idx].lockedUntil = undefined;
-          localStorage.setItem(key, JSON.stringify(emps));
-          console.log('✅ Super Admin unlocked. Refresh the page.');
-        } else {
-          console.log('Super Admin record not found in localStorage. Try: localStorage.clear(); location.reload()');
-        }
-      } catch(e) { console.error(e); }
-    };
-  }
+}
 
-  
+// Emergency console unlock for Super Admin
+if (typeof window !== 'undefined') {
+  (window as any).unlockAdmin = () => {
+    try {
+      const key = 'EMPLOYEE_DATABASE_RECORDS';
+      const emps = JSON.parse(localStorage.getItem(key) || '[]');
+      const i = emps.findIndex((e: any) => e.loginMobile === '9100000001' || e.role === 'Super Admin');
+      if (i >= 0) {
+        emps[i].accountStatus = 'active';
+        emps[i].failedLoginAttempts = 0;
+        delete emps[i].lockedUntil;
+        localStorage.setItem(key, JSON.stringify(emps));
+        console.log('✅ Super Admin unlocked. Refresh the page.');
+      } else {
+        console.log('Not found. Try: localStorage.clear(); location.reload()');
+      }
+    } catch(e) { console.error(e); }
+  };
+}

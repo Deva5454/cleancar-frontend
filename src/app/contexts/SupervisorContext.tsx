@@ -55,6 +55,10 @@ interface SupervisorContextType {
   
   // Issues
   issues: IssueTicket[];
+
+  // Jobs (from JobContext)
+  jobs?: any[];
+  assignJobToWasher?: (jobId: string, washerId: string, washerName?: string) => void;
   
   // Actions
   markAlertRead: (alertId: string) => void;
