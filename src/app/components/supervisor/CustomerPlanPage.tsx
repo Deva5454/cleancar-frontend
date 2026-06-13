@@ -686,7 +686,7 @@ export function CustomerPlanPage() {
         `Hi ${firstName}! ðŸŽ‰\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: ₹${invoice.grandTotal.toLocaleString("en-IN")} (incl. GST)\n\nService starts within 2 working days. Your washer will send before & after photos after every wash.\n\nThank you for choosing ${cfg.brand.name}! 🚗âœ¨`
       );
       if (notifyPref === "whatsapp" || notifyPref === "both") {
-        window._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
+        (window as any)._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
       }
 
       setIsProcessing(false);

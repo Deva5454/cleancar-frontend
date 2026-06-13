@@ -461,7 +461,7 @@ export function CustomerPlanPage() {
         `Hi ${firstName}! 🎉\n\nYour ${invoice.items[0].name} is confirmed!\n\nInvoice: ${invNum}\nAmount Paid: ₹${invoice.grandTotal.toLocaleString("en-IN")} (incl. GST)\n\nService starts within 2 working days. Your washer will send before & after photos after every wash.\n\nThank you for choosing ${cfg.brand.name}! 🚗✨`
       );
       if (notifyPref === "whatsapp" || notifyPref === "both") {
-        window._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
+        (window as any)._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
       }
 
       // 7️⃣ Fire auto-job-creation events
@@ -480,7 +480,7 @@ export function CustomerPlanPage() {
             cityId: city || "CITY-SURAT",
           }}));
         } else if(selectedPack === "pack2" || selectedPack === "pack4") {
-          const firstDate = oneTimeDate || now.toISOString().split("T")[0];
+          const firstDate = now.toISOString().split("T")[0]; // use today as first visit date
           window.dispatchEvent(new CustomEvent("cc360:pack_purchased", { detail: {
             subscriptionId: sub.subscriptionId,
             customerId,
