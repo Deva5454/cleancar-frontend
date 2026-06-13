@@ -723,6 +723,10 @@ export function CustomerPlanPage() {
       const renewalDate=new Date(firstWashDate);
       renewalDate.setMonth(renewalDate.getMonth()+1);
       const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack")+(bundleMonths>0?` × ${bundleMonths} months`:""),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice:effectiveBase||basePrice,discount:bundleMonths>0?bundleDiscountInfo?.savings||0:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",bundleMonths:bundleMonths>0?bundleMonths:undefined,bundleId:undefined,isBundlePriority:bundleMonths>0||undefined,bundleDiscountPct:bundleMonths>0?bundleDiscountInfo?.discount:undefined,
+      // C7: Store payment instrument for refund processing — pre-filled as Razorpay placeholder.
+      // When Razorpay goes live, replace with actual instrument from payment response
+      // (e.g. "HDFC Credit Card ending 4242" or "UPI — customer@upi").
+      paymentInstrumentHint: "Razorpay (UPI/Card/Net Banking)",
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
         visitsUsed: 0,
@@ -1843,7 +1847,11 @@ export function CustomerPlanPage() {
             </h3>
             <p style={{color:"#64748b",fontSize:14,lineHeight:1.7}}>
               {showTnC==="terms"&&<>
-                By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints.
+                By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are available Monday to Saturday. Sunday is a company-wide rest day — no washes are scheduled on Sundays. Individual washer week-off days rotate across Mon–Sat; your service continues uninterrupted as the system automatically redistributes jobs to a cover washer on your washer's day off.
+                <br/><br/>
+                <strong>Service Communications:</strong> Upon subscription you will receive: (a) an immediate booking acknowledgement via WhatsApp after payment; (b) a full booking confirmation with washer details once a washer is assigned; (c) a WhatsApp notification 48 hours before each scheduled service. If you do not confirm or reschedule within 24 hours of the advance notice, the service is automatically confirmed and will proceed as scheduled.
+                <br/><br/>
+                <strong>Cancellation Channel:</strong> You may cancel your subscription via WhatsApp, email, or our online form at 249carwashing.genxa.in/cancel-service — a reference number is generated immediately upon submission.
                 <br/><br/>
                 <strong>Multi-Month Pack Bundles:</strong> When you purchase a Pack of 2 or Pack of 4 across multiple months, your visits are managed as a total pool across all windows. Each 30-day window begins from your <em>first wash date</em> (not the payment date). A soft cap of 2× your monthly pack size applies per window — e.g. Pack of 4 × 3 months allows a maximum of 8 visits in any single window. Visits unused at the end of each window are forfeited and do not carry forward to the next window.
               </>}
@@ -1853,7 +1861,9 @@ export function CustomerPlanPage() {
                 <strong>Multi-Month Pack Bundle Refunds:</strong> Refund eligibility is based on visits consumed, not time elapsed. If you have used fewer than 50% of your total bundle visits, you are eligible for a refund on unused visits less a 10% cancellation fee and up to 2% gateway charges. If 50% or more visits have been used, no refund is applicable — however you retain your remaining visits until the bundle end date. Advance use of visits (using more in one window) counts toward the 50% threshold.
               </>}
               {showTnC==="cancel"&&<>
-                You may cancel your subscription with 7 days' written notice via WhatsApp or email. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 12 months) may have different terms as specified at the time of purchase.
+                You may cancel your subscription with 7 days' written notice via WhatsApp, email, or our online cancellation form at <strong>249carwashing.genxa.in/cancel-service</strong> — a reference number is generated immediately. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 9, 12 months) may have different terms as specified at the time of purchase.
+                <br/><br/>
+                <strong>One-Time Wash:</strong> Full refund if cancelled more than 2 hours before the scheduled slot. No refund within 2 hours of the scheduled slot time. Note: after 3 reschedules the booking is locked and you must call us to make changes. Rescheduling and cancellation cutoffs are separate — a locked reschedule does not prevent cancellation.
                 <br/><br/>
                 <strong>Multi-Month Pack Bundle Cancellations:</strong> Cancellations are processed based on the percentage of visits consumed across your total bundle. Under 50% consumed → partial refund (visits used charged at per-visit rate + 10% fee). Over 50% consumed → no refund, but remaining visits stay active until your bundle end date. Priority scheduling (1-hour TAT) applies to all bundle visits throughout the validity period. Unused visits within an expired 30-day window are forfeited — they cannot be used in future windows.
               </>}

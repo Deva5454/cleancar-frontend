@@ -34,6 +34,13 @@ interface FoundSubscription {
   totalAmount: number;
   paymentMethod: string;
   cityId: string;
+  // C1: one-time and pack cancellation fields
+  serviceType?: "monthly" | "onetime" | "pack2" | "pack4";
+  scheduledSlotTime?: string;
+  visitsUsed?: number;
+  visitsTotal?: number;
+  packValidityDays?: number;
+  firstWashDate?: string;
 }
 
 const CANCEL_REASONS = [
@@ -183,7 +190,14 @@ export function CancellationRequestPage() {
   const calc = found
     ? bundleRecord
       ? null  // bundle subscriptions show bundleRefund panel instead
-      : computeRefund(found.totalAmount, found.totalDays, found.startDate)
+      : computeRefund(found.totalAmount, found.totalDays, found.startDate, {
+          serviceType:       found.serviceType,
+          scheduledSlotTime: found.scheduledSlotTime,
+          visitsUsed:        found.visitsUsed,
+          totalVisits:       found.visitsTotal,
+          packValidityDays:  found.packValidityDays,
+          firstWashDate:     found.firstWashDate,
+        })
     : null;
 
   // ── Lookup subscription from localStorage stores ─────────────────────────
@@ -275,6 +289,22 @@ export function CancellationRequestPage() {
             totalAmount:    sub.priceLocked || sub.pricing?.finalPrice || 0,
             paymentMethod:  rev?.paymentMethod || "Online",
             cityId:         sub.cityId || customer.cityId || "CITY-SURAT",
+            // C1: populate service type for correct refund calculation
+            serviceType:    sub.frequency === "One-Time" || sub.frequency === "One-time" ? "onetime"
+                          : sub.frequency === "Pack of 2" ? "pack2"
+                          : sub.frequency === "Pack of 4" ? "pack4"
+                          : "monthly",
+            scheduledSlotTime: (sub.frequency === "One-Time" || sub.frequency === "One-time")
+                          ? (() => {
+                              // Build ISO datetime from serviceDetails.preferredTimeSlot e.g. "2026-06-15 07:00"
+                              const slot = sub.serviceDetails?.preferredTimeSlot || "";
+                              try { return slot ? new Date(slot).toISOString() : undefined; } catch { return undefined; }
+                            })()
+                          : undefined,
+            visitsUsed:     sub.visitsUsed,
+            visitsTotal:    sub.visitsTotal,
+            packValidityDays: sub.frequency === "Pack of 2" ? 20 : sub.frequency === "Pack of 4" ? 30 : undefined,
+            firstWashDate:  sub.firstWashDate,
           });
           setIsLooking(false);
           return;
