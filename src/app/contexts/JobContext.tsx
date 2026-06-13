@@ -329,7 +329,43 @@ export function JobProvider({ children }: { children: ReactNode }) {
       } catch(e) { console.warn("[Scheduler] Bundle scheduler error:", e); }
 
       try {
-        // 2. Weekly Sunday rating WA for monthly subscriptions
+        // 2. Pack expiry reminders (7 days, 3 days, last day)
+        const { sendPackExpiry7Days, sendPackExpiry3Days, sendPackExpiryLastDay } = await import("../services/whatsappService");
+        const allSubs = DataService.get<any>("SUBSCRIPTIONS") || [];
+        const allCustomers = DataService.get<any>("CUSTOMERS") || [];
+        const reminded7  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_7d")  || "[]"));
+        const reminded3  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_3d")  || "[]"));
+        const remindedL  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_last") || "[]"));
+        const todayDate  = new Date(today);
+
+        allSubs.filter((s: any) => s.status === "Active" && s.visitsExpiry).forEach((s: any) => {
+          const expiry    = new Date(s.visitsExpiry);
+          const daysLeft  = Math.ceil((expiry.getTime() - todayDate.getTime()) / 86400000);
+          const cust      = allCustomers.find((c: any) => c.customerId === s.customerId);
+          if (!cust?.phone) return;
+          const name      = cust.firstName || "Customer";
+          const packName  = s.packageName || "Pack";
+          const remaining = (s.visitsTotal || 0) - (s.visitsUsed || 0);
+
+          if (daysLeft === 7 && !reminded7.has(s.subscriptionId)) {
+            sendPackExpiry7Days(cust.phone, name, packName, s.visitsExpiry, remaining).catch(()=>{});
+            reminded7.add(s.subscriptionId);
+            localStorage.setItem("cc360_expiry_reminded_7d", JSON.stringify([...reminded7]));
+          } else if (daysLeft === 3 && !reminded3.has(s.subscriptionId)) {
+            sendPackExpiry3Days(cust.phone, name, packName, s.visitsExpiry, remaining).catch(()=>{});
+            reminded3.add(s.subscriptionId);
+            localStorage.setItem("cc360_expiry_reminded_3d", JSON.stringify([...reminded3]));
+          } else if (daysLeft <= 0 && daysLeft >= -1 && !remindedL.has(s.subscriptionId)) {
+            sendPackExpiryLastDay(cust.phone, name, packName, remaining).catch(()=>{});
+            remindedL.add(s.subscriptionId);
+            localStorage.setItem("cc360_expiry_reminded_last", JSON.stringify([...remindedL]));
+          }
+        });
+        console.info("[Scheduler] Pack expiry reminders checked");
+      } catch(e) { console.warn("[Scheduler] Pack expiry error:", e); }
+
+      try {
+        // 3. Weekly Sunday rating WA for monthly subscriptions
         const dayOfWeek = new Date().getDay(); // 0 = Sunday
         if (dayOfWeek === 0) {
           const lastSundayRating = localStorage.getItem("cc360_weekly_rating_last_sent");

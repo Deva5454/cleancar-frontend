@@ -43,6 +43,7 @@ export interface RescheduleRequest {
   newDate?: string;
   newSlot?: string;
   notes?: string;
+  rescheduleCount?: number; // total reschedules for this subscription (max 3)
 }
 
 const KEY = "RESCHEDULE_REQUESTS";
@@ -169,6 +170,13 @@ export const rescheduleService = {
     const reqs = readRequests();
     const idx = reqs.findIndex(r => r.id === id);
     if (idx < 0) return;
+
+    // Count total reschedules for this subscription
+    const subId = reqs[idx].subscriptionId;
+    const totalReschedules = reqs.filter(r =>
+      r.subscriptionId === subId && r.status === "CONFIRMED"
+    ).length + 1; // +1 for this one being confirmed now
+
     reqs[idx] = {
       ...reqs[idx],
       status: "CONFIRMED",
@@ -176,9 +184,24 @@ export const rescheduleService = {
       resolvedBy: supervisorId,
       newDate,
       newSlot,
+      rescheduleCount: totalReschedules,
     };
     writeRequests(reqs);
     window.dispatchEvent(new CustomEvent("cc360:reschedule_resolved", { detail: { id, newDate, newSlot } }));
+
+    // WA: Reschedule confirmed to customer
+    const req = reqs[idx];
+    if (req.customerPhone) {
+      import("./whatsappService").then(({ sendRescheduleConfirmed, sendRescheduleLimitReached }) => {
+        sendRescheduleConfirmed(req.customerPhone, req.customerName || "Customer", newDate, newSlot, totalReschedules).catch(()=>{});
+        // If this was the 3rd reschedule, also send the limit-reached warning
+        if (totalReschedules >= 3) {
+          setTimeout(() => {
+            sendRescheduleLimitReached(req.customerPhone, req.customerName || "Customer", "your pack").catch(()=>{});
+          }, 2000);
+        }
+      }).catch(()=>{});
+    }
   },
 
   getPendingCount(): number {

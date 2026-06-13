@@ -362,3 +362,104 @@ export function sendCancellationRejected(params: {
     `We'd love to resolve any concerns you have.`,
   ].join("\n"));
 }
+
+// ── Pack Expiry Reminders ─────────────────────────────────────────────────────
+
+export async function sendPackExpiry7Days(
+  phone: string,
+  customerName: string,
+  packageName: string,
+  expiryDate: string,
+  visitsRemaining: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName}! ⏰`,
+    ``,
+    `Your *${packageName}* expires in *7 days* (on ${expiryDate}).`,
+    `You have *${visitsRemaining} wash${visitsRemaining !== 1 ? "es" : ""}* remaining.`,
+    ``,
+    `📲 Reply WASH to book your next slot or call *080 48 79 45 45*.`,
+    ``,
+    `Unused visits lapse after expiry and are not refundable.`,
+    `— 24/9 Carwashing`,
+  ].join("\n"));
+}
+
+export async function sendPackExpiry3Days(
+  phone: string,
+  customerName: string,
+  packageName: string,
+  expiryDate: string,
+  visitsRemaining: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName}! ⚠️ Reminder`,
+    ``,
+    `Your *${packageName}* expires in *3 days* (on ${expiryDate}).`,
+    `You have *${visitsRemaining} wash${visitsRemaining !== 1 ? "es" : ""}* remaining.`,
+    ``,
+    `📲 Reply WASH to book now or call *080 48 79 45 45*.`,
+    ``,
+    `Don't let your washes lapse!`,
+    `— 24/9 Carwashing`,
+  ].join("\n"));
+}
+
+export async function sendPackExpiryLastDay(
+  phone: string,
+  customerName: string,
+  packageName: string,
+  visitsRemaining: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName}! 🚨 Last Day`,
+    ``,
+    `Your *${packageName}* expires *TODAY*.`,
+    `You have *${visitsRemaining} wash${visitsRemaining !== 1 ? "es" : ""}* remaining.`,
+    ``,
+    `📲 Reply WASH urgently to book or call *080 48 79 45 45*.`,
+    ``,
+    `After today, unused visits cannot be used or refunded.`,
+    `— 24/9 Carwashing`,
+  ].join("\n"));
+}
+
+// ── Reschedule Notifications ──────────────────────────────────────────────────
+
+export async function sendRescheduleConfirmed(
+  phone: string,
+  customerName: string,
+  newDate: string,
+  newSlot: string,
+  rescheduleCount: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName}! Your wash has been rescheduled. ✅`,
+    ``,
+    `📅 New date: *${newDate}*`,
+    `🕐 Time slot: *${newSlot}*`,
+    ``,
+    rescheduleCount >= 2
+      ? `⚠️ Note: You have used ${rescheduleCount} of 3 allowed reschedules for this booking.`
+      : ``,
+    `For queries call *080 48 79 45 45* (10:30 AM – 6:30 PM, Mon–Sat).`,
+    `— 24/9 Carwashing`,
+  ].filter(Boolean).join("\n"));
+}
+
+export async function sendRescheduleLimitReached(
+  phone: string,
+  customerName: string,
+  packageName: string
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName},`,
+    ``,
+    `You have reached the maximum of *3 reschedules* for your *${packageName}* booking.`,
+    ``,
+    `To make any further changes, please call us directly:`,
+    `📞 *080 48 79 45 45* (10:30 AM – 6:30 PM, Mon–Sat)`,
+    ``,
+    `— 24/9 Carwashing`,
+  ].join("\n"));
+}
