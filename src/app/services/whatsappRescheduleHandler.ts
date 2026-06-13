@@ -125,8 +125,7 @@ function createRescheduleRequest(phone: string, source: RescheduleRequest["sourc
   const existing = readRequests();
   const recentCount = existing.filter(r =>
     r.customerPhone.replace(/\D/g, "").slice(-10) === phone.replace(/\D/g, "").slice(-10) &&
-    r.status !== "CANCELLED" &&
-    r.status !== "RESOLVED" &&
+    r.status === "CONFIRMED" && // Count confirmed reschedules only
     new Date(r.requestedAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   ).length;
 
@@ -135,6 +134,12 @@ function createRescheduleRequest(phone: string, source: RescheduleRequest["sourc
     window.dispatchEvent(new CustomEvent("cc360:reschedule_limit_reached", {
       detail: { phone, limit: MAX_RESCHEDULES_PER_BOOKING }
     }));
+    // WA: inform customer they've hit the limit
+    if (customer?.phone) {
+      import("./whatsappService").then(({ sendRescheduleLimitReached }) => {
+        sendRescheduleLimitReached(customer.phone, customer.firstName || "Customer", "your booking").catch(()=>{});
+      }).catch(()=>{});
+    }
     return;
   }
 

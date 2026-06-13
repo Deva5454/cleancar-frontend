@@ -567,6 +567,8 @@ export function CustomerPlanPage() {
   const nextWorkingDay=(from:Date):Date=>{ const d=new Date(from); d.setDate(d.getDate()+1); while(isHoliday(d))d.setDate(d.getDate()+1); return d; };
   const nowCutoffInfo=()=>{ const tatHrs=cfg?.tatWindowHours??3; const n=new Date(),h=n.getHours(),m=n.getMinutes(),t=h*60+m,cutoffMin=(h*60+m)+(tatHrs*60); if(isHoliday(n)||t>=18*60+30)return{nextOnly:true,nwdMinHour:5,tatHrs}; return{nextOnly:false,nwdMinHour:Math.ceil(h+(tatHrs)),tatHrs}; };
   const minOneTimeDate=useMemo(()=>{ const{nextOnly}=nowCutoffInfo(); return nextOnly?nextWorkingDay(new Date()).toISOString().slice(0,10):new Date().toISOString().slice(0,10); },[PUBLIC_HOLIDAYS]);
+  // G11: One-time wash max 10-day validity — customer cannot book more than 10 days ahead
+  const maxOneTimeDate=useMemo(()=>{ const d=new Date(); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); },[]);
   const getOneTimeSlots=(ds:string):string[]=>{
     // Slots 5AM-9PM, 1-hr each. 3-hr TAT same-day. Filters slots where all washers booked.
     if(!ds)return[];
@@ -1658,7 +1660,7 @@ export function CustomerPlanPage() {
                     {packStartOption==="schedule"&&(
                       <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                         <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
-                          <input type="date" min={minOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
+                          <input type="date" min={minOneTimeDate} max={maxOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
                         <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Time slot *</label>
                           <select value={oneTimeHour} onChange={e=>setOneTimeHour(e.target.value)} className="cpp-input">
                             <option value="">Select time</option>
@@ -1669,14 +1671,27 @@ export function CustomerPlanPage() {
                   </div>
                 );
                 if(isOneTime) return (
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+                  <div style={{marginBottom:16}}>
+                    {/* G10: Book Now (Today) option for one-time — mirrors pack2/pack4 flow */}
+                    <div style={{display:"flex",gap:8,marginBottom:12}}>
+                      {([{v:"today",label:"📅 Book Now (Today)",sub:"Immediate scheduling"},{v:"schedule",label:"🗓️ Schedule Later",sub:"Pick a date up to 10 days ahead"}] as const).map(opt=>(
+                        <div key={opt.v} onClick={()=>{ if(opt.v==="today"){handleOneTimeDateChange(new Date().toISOString().slice(0,10));} }}
+                          style={{flex:1,padding:"10px 12px",border:`2px solid ${(opt.v==="today"&&oneTimeDate===new Date().toISOString().slice(0,10))||opt.v==="schedule"&&oneTimeDate!==new Date().toISOString().slice(0,10)?"#6366f1":"#e5e7eb"}`,borderRadius:12,cursor:"pointer",background:(opt.v==="today"&&oneTimeDate===new Date().toISOString().slice(0,10))||(opt.v==="schedule"&&oneTimeDate!==new Date().toISOString().slice(0,10))?"rgba(99,102,241,0.08)":"white"}}>
+                          <div style={{fontWeight:700,fontSize:13,color:"#374151"}}>{opt.label}</div>
+                          <div style={{fontSize:11,color:"#6b7280"}}>{opt.sub}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Max 10 days ahead. Book now for immediate scheduling.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                     <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Date *</label>
-                      <input type="date" min={minOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
+                      <input type="date" min={minOneTimeDate} max={maxOneTimeDate} value={oneTimeDate} onChange={e=>handleOneTimeDateChange(e.target.value)} className="cpp-input" /></div>
                     <div><label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Time slot *</label>
                       <select value={oneTimeHour} onChange={e=>setOneTimeHour(e.target.value)} className="cpp-input">
                         <option value="">Select time</option>
                         {getOneTimeSlots(oneTimeDate).map(s=><option key={s} value={s}>{s}</option>)}
                       </select></div>
+                  </div>
                   </div>
                 );
                 return (

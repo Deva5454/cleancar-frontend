@@ -280,7 +280,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
   lsSet("cleancar_journal_entries", journalEntries);
 
   // Add 2W vehicle to customer's vehicles array
-  const customers = lsGet<any[]>("cleancar_CITY-SURAT_customers");
+  const customers = lsGet<any[]>(`cleancar_${offer.cityId || "CITY-SURAT"}_customers`);
   const custIdx   = customers.findIndex(c => c.customerId === offer.customerId);
   if (custIdx >= 0) {
     const vehicles = customers[custIdx].vehicles || [];
@@ -298,7 +298,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
         addedReason:        "COMPLIMENTARY_OFFER",
       });
       customers[custIdx].vehicles = vehicles;
-      lsSet("cleancar_CITY-SURAT_customers", customers);
+      lsSet(`cleancar_${offer.cityId || "CITY-SURAT"}_customers`, customers);
     }
   }
 

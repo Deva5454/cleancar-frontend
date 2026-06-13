@@ -1029,9 +1029,30 @@ export function SupervisorAppConnected() {
                               onChange={e => setAssignWasherId(e.target.value)}
                             >
                               <option value="">Select washer...</option>
-                              {team.filter(w => w.status === "CHECKED_IN" || w.status === "LATE").map(w => (
-                                <option key={w.id} value={w.id}>{w.name}</option>
-                              ))}
+                              {(() => {
+                                // Rank washers: (1) pincode match → (2) idle (no active jobs) → (3) fewest active jobs
+                                const activeWashers = team.filter((w: any) => w.status === "CHECKED_IN" || w.status === "LATE");
+                                const jobPinCode = (j.pinCode || j.serviceDetails?.area || "").toLowerCase();
+                                const ranked = [...activeWashers].sort((a: any, b: any) => {
+                                  const aPin = (a.pinCode || a.area || "").toLowerCase();
+                                  const bPin = (b.pinCode || b.area || "").toLowerCase();
+                                  const aMatch = jobPinCode && aPin && aPin.includes(jobPinCode.slice(0,4)) ? 0 : 1;
+                                  const bMatch = jobPinCode && bPin && bPin.includes(jobPinCode.slice(0,4)) ? 0 : 1;
+                                  if (aMatch !== bMatch) return aMatch - bMatch;
+                                  const aJobs = jobs.filter((jj: any) => jj.washerId === a.id && ["Assigned","Acknowledged","In Progress"].includes(jj.status)).length;
+                                  const bJobs = jobs.filter((jj: any) => jj.washerId === b.id && ["Assigned","Acknowledged","In Progress"].includes(jj.status)).length;
+                                  return aJobs - bJobs;
+                                });
+                                return ranked.map((w: any) => {
+                                  const activeCount = jobs.filter((jj: any) => jj.washerId === w.id && ["Assigned","Acknowledged","In Progress"].includes(jj.status)).length;
+                                  const pinMatch = jobPinCode && (w.pinCode||w.area||"").toLowerCase().includes(jobPinCode.slice(0,4));
+                                  return (
+                                    <option key={w.id} value={w.id}>
+                                      {pinMatch ? "📍 " : ""}{w.name} ({activeCount} active{activeCount === 0 ? " — idle" : ""})
+                                    </option>
+                                  );
+                                });
+                              })()}
                             </select>
                             <button
                               onClick={() => {

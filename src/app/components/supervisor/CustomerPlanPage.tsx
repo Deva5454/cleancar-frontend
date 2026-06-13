@@ -122,7 +122,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   ],
   monthlyPlans: [
     {
-      id: "water",
+      id: "EXPRESS_WASH",
       name: "Express Wash",
       tagline: "Express Wash — your car, clean every morning",
       icon: "âœ¨",
@@ -145,7 +145,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       prices: { hatchback: 1249, suv: 1499, luxury: 1999 },
     },
     {
-      id: "shampoo",
+      id: "SMART_WASH",
       name: "Smart Wash",
       tagline: "Raksha Plan — clean daily, protected always",
       icon: "🛡️",
@@ -167,7 +167,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
       prices: { hatchback: 1599, suv: 1999, luxury: 2699 },
     },
     {
-      id: "wax",
+      id: "ELITE_WASH",
       name: "Elite Wash",
       tagline: "Raja Seva — showroom condition, every day",
       icon: "ðŸ‘‘",
@@ -318,6 +318,32 @@ export function CustomerPlanPage() {
   const [custEmail, setCustEmail] = useState("");
   const [custReg, setCustReg] = useState("");
   const [custAddress, setCustAddress] = useState("");
+  const [prefTime, setPrefTime] = useState("");
+  // Vehicle change fee (C5 policy: 20% of original subscription value)
+  const [vehicleChangeFee, setVehicleChangeFee] = useState<number | null>(null);
+  const [vehicleChangeFeeWaived, setVehicleChangeFeeWaived] = useState(false);
+  const [vehicleChangeFeeWaiverReason, setVehicleChangeFeeWaiverReason] = useState("");
+
+  const handleCustRegChange = (newReg: string) => {
+    setCustReg(newReg);
+    // Check if this customer has an existing subscription with a different vehicle
+    if (newReg.trim().length >= 5 && custMobile.length >= 10) {
+      try {
+        const subs: any[] = JSON.parse(localStorage.getItem("cleancar_subscriptions") || "[]");
+        const existing = subs.find((s: any) =>
+          s.status === "Active" &&
+          s.serviceDetails?.vehicleReg &&
+          s.serviceDetails.vehicleReg.toUpperCase().replace(/\s/g,"") !== newReg.toUpperCase().replace(/\s/g,"")
+        );
+        if (existing) {
+          const fee = Math.round((existing.priceLocked || existing.pricing?.finalPrice || 0) * 0.20);
+          if (fee > 0) setVehicleChangeFee(fee);
+        } else {
+          setVehicleChangeFee(null);
+        }
+      } catch {}
+    }
+  };
   const [prefTime, setPrefTime] = useState("");
   // One-time booking: specific date + time
   const [oneTimeDate, setOneTimeDate] = useState("");
@@ -597,7 +623,7 @@ export function CustomerPlanPage() {
 
       const sub = createSubscription({
         customerId,
-        packageType: selectedPlan === "wax" ? "ELITE_WASH" : selectedPlan === "shampoo" ? "SMART_WASH" : "EXPRESS_WASH",
+        packageType: selectedPlan === "ELITE_WASH" ? "ELITE_WASH" : selectedPlan === "SMART_WASH" ? "SMART_WASH" : "EXPRESS_WASH",
         packageName: planMode === "monthly"
           ? (planObj?.name || selectedPlan || "Plan")
           : (packObj?.name || selectedPack || "Pack"),
@@ -1241,7 +1267,7 @@ export function CustomerPlanPage() {
                 { label: "Full name *", value: custName, set: setCustName, placeholder: "Amit Patel", col: 1 },
                 { label: "Mobile (WhatsApp) *", value: custMobile, set: setCustMobile, placeholder: "+91 98765 43210", col: 1 },
                 { label: "Email address", value: custEmail, set: setCustEmail, placeholder: "amit@example.com", col: 1 },
-                { label: "Vehicle registration", value: custReg, set: setCustReg, placeholder: "GJ05MJ2345", col: 1 },
+                { label: "Vehicle registration", value: custReg, set: handleCustRegChange, placeholder: "GJ05MJ2345", col: 1 },
               ].map(f => (
                 <div key={f.label}>
                   <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6, color: "#111827" }}>{f.label}</label>
@@ -1249,6 +1275,26 @@ export function CustomerPlanPage() {
                     style={{ width: "100%", padding: "12px 16px", border: "2px solid #E5E7EB", borderRadius: 12, fontFamily: "'Inter', sans-serif", fontSize: 15, outline: "none" }} />
                 </div>
               ))}
+              {/* C5: Vehicle change fee banner */}
+              {vehicleChangeFee !== null && vehicleChangeFee > 0 && (
+                <div style={{ gridColumn: "1 / -1", background: "#FEF3C7", border: "2px solid #F59E0B", borderRadius: 12, padding: "14px 18px" }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#92400E", marginBottom: 6 }}>
+                    ⚠️ Vehicle Change Fee Applies — ₹{vehicleChangeFee.toLocaleString("en-IN")}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#78350F", marginBottom: 10 }}>
+                    Per policy (T&C §4): a 20% vehicle change fee applies on the original subscription value. TSM may waive this with a documented reason.
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 8 }}>
+                    <input type="checkbox" checked={vehicleChangeFeeWaived} onChange={e => setVehicleChangeFeeWaived(e.target.checked)} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#92400E" }}>TSM Waiver — waive this fee</span>
+                  </label>
+                  {vehicleChangeFeeWaived && (
+                    <input value={vehicleChangeFeeWaiverReason} onChange={e => setVehicleChangeFeeWaiverReason(e.target.value)}
+                      placeholder="Reason for waiver (required for audit)"
+                      style={{ width: "100%", padding: "8px 12px", border: "1px solid #F59E0B", borderRadius: 8, fontSize: 13 }} />
+                  )}
+                </div>
+              )}
               <div style={{ gridColumn: "1 / -1" }}>
                 {/* â”€â”€ SMART TIME SLOT SELECTOR â”€â”€ */}
                 {isOneTime ? (
