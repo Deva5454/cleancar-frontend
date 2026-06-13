@@ -416,7 +416,34 @@ export function JobProvider({ children }: { children: ReactNode }) {
       }, "JobContext");
 
       // Record first wash date to start validity clock
-      if (job.subscriptionId) recordFirstWashDate(job.subscriptionId, new Date().toISOString().split("T")[0]);
+      if (job.subscriptionId) {
+        const isFirstWash = !allJobs.some(j =>
+          j.customerId === job.customerId &&
+          j.jobId !== job.jobId &&
+          j.status === "Completed"
+        );
+        recordFirstWashDate(job.subscriptionId, new Date().toISOString().split("T")[0]);
+
+        // G5: Credit referral reward on FIRST completed wash (not at checkout)
+        if (isFirstWash) {
+          try {
+            import("../services/planSyncService").then(({ planSyncService }) => {
+              const records = planSyncService.getReferralRecords ? planSyncService.getReferralRecords() : [];
+              const pending = records.find((r: any) =>
+                r.refereeCustomerId === job.customerId && r.status === "converted_pending_wash"
+              );
+              if (pending) {
+                planSyncService.convertReferral(
+                  pending.referralCode,
+                  job.customerId,
+                  job.customerName || job.customerId,
+                  0
+                );
+              }
+            });
+          } catch {}
+        }
+      }
 
       // Multi-month bundle: record visit, recognise deferred revenue
       if (job.subscriptionId) {
@@ -481,6 +508,28 @@ export function JobProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      // G1: Check for 3 consecutive company failures
+      if (job.status === "Failed" && job.subscriptionId) {
+        try {
+          const sortedJobs = allJobs
+            .filter(j => j.subscriptionId === job.subscriptionId && j.scheduledDate)
+            .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+          const lastThree = sortedJobs.slice(-3);
+          if (lastThree.length === 3 && lastThree.every(j => j.status === "Failed")) {
+            const flags = JSON.parse(localStorage.getItem("cleancar_company_failure_flags") || "[]");
+            flags.push({
+              subscriptionId: job.subscriptionId,
+              customerId: job.customerId,
+              flaggedAt: new Date().toISOString(),
+              failedJobIds: lastThree.map(j => j.jobId),
+              status: "PENDING_REVIEW",
+              notes: "3 consecutive failed deliveries — eligible for company-failure refund",
+            });
+            localStorage.setItem("cleancar_company_failure_flags", JSON.stringify(flags));
+          }
+        } catch {}
+      }
+
       // Fix 3 & 4: Send WA on wash completion + rating request
       if (job) {
         try {

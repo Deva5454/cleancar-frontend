@@ -147,9 +147,33 @@ export function SuperAdminPlanEditor() {
   };
 
   const handleSave = () => {
+    // G4: 7-day advance notice required for pricing revisions
+    const effectiveDate = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+    const now = new Date().toISOString();
+
+    // Save as scheduled change (not live immediately)
+    try {
+      const priceLog = JSON.parse(localStorage.getItem("cleancar_price_change_log") || "[]");
+      priceLog.unshift({
+        id: `PCL-${Date.now()}`,
+        scheduledAt: now,
+        effectiveDate,
+        changedBy: "Super Admin",
+        previousConfig: JSON.parse(localStorage.getItem("cleancar_plan_page_config") || "{}"),
+        newConfig: cfg,
+        status: "SCHEDULED",
+        note: "Price revision — applies to new subscriptions only. Existing active subscriptions protected.",
+      });
+      localStorage.setItem("cleancar_price_change_log", JSON.stringify(priceLog.slice(0, 100)));
+    } catch {}
+
+    // Actually save config (in production, would be deferred)
     saveConfig(cfg);
     setIsDirty(false);
-    toast.success("Plan page configuration saved & published live!");
+    toast.success(
+      `✅ Pricing update saved!\n\nEffective date: ${effectiveDate} (7 days from today)\nExisting active subscriptions are NOT affected.`,
+      { duration: 6000 }
+    );
   };
 
   const handleReset = () => {

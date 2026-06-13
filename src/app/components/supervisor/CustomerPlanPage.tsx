@@ -89,12 +89,12 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     headlineAccent: "every single day.",
     subheadline: "Professional doorstep car wash — before you wake up, after every drive. Photos after every wash on WhatsApp.",
   },
-  trustItems: ["📸 Before & after photos every wash", "ðŸ”„ Free re-wash within 24h", "ðŸ  We come to you", "📞 Cancel anytime"],
+  trustItems: ["📸 Before & after photos every wash", "ðŸ”„ Free re-wash within 24h", "ðŸ  We come to you", "📞 Easy cancellation process"],
   trustStrip: [
     "ðŸ”’ Razorpay secured payments",
     "📸 Before & after photos every wash",
     "ðŸ”„ Free re-wash within 24 hours",
-    "📞 7-day cancellation — no questions asked",
+    "📞 Easy cancellation process",
     "ðŸ  We come to you — home, office, society",
   ],
   vehicleCategories: [

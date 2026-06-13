@@ -78,6 +78,45 @@ export function checkFirstWashReminders(): void {
           notes: `Customer has not booked first wash. Day ${dayToRemind} of 15. ${daysLeft} days left before service lapses.`,
         });
         DataService.setAll("TSM_UPSELL_TASKS", tasks);
+
+        // C6: On Day 15 — lapse the subscription if still no first wash
+        if (dayToRemind === 15) {
+          try {
+            const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
+            const subIdx = subs.findIndex((s: any) => s.subscriptionId === sub.subscriptionId);
+            if (subIdx >= 0 && !subs[subIdx].firstWashDate) {
+              subs[subIdx].status = "Expired";
+              subs[subIdx].lapsedAt = now.toISOString();
+              subs[subIdx].lapseReason = "first_wash_not_taken_day15";
+              DataService.setAll("SUBSCRIPTIONS", subs);
+
+              // WA to customer
+              sendWhatsApp(cust.phone,
+                `⚠️ Hi ${cust.firstName || "Customer"}, your 24/9 Carwashing service has lapsed as your first wash was not booked within 15 days of payment. Please call 080 48 79 45 45 (10:30 AM – 6:30 PM, Mon–Sat) to discuss reactivation options.`,
+                "first_wash_lapse"
+              ).catch(() => {});
+
+              // TSM task for possible reactivation within 3 days
+              const tsm_tasks = DataService.get<any>("TSM_UPSELL_TASKS") || [];
+              tsm_tasks.push({
+                taskId: `LAPSE-${sub.subscriptionId}`,
+                type: "FIRST_WASH_LAPSED",
+                customerId: sub.customerId,
+                customerName: `${cust.firstName || ""} ${cust.lastName || ""}`.trim(),
+                customerPhone: cust.phone,
+                subscriptionId: sub.subscriptionId,
+                lapseDate: now.toISOString().split("T")[0],
+                reactivationDeadline: new Date(now.getTime() + 3 * 86400000).toISOString().split("T")[0],
+                status: "PENDING_TSM_ACTION",
+                notes: "TSM can reactivate within 3 days if customer books first wash immediately. Second lapse requires Super Admin.",
+                createdAt: now.toISOString(),
+                tsmCanReactivate: true,
+                reactivationWindowDays: 3,
+              });
+              DataService.setAll("TSM_UPSELL_TASKS", tsm_tasks);
+            }
+          } catch {}
+        }
       });
   } catch {}
 }

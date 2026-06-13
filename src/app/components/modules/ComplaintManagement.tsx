@@ -89,6 +89,34 @@ export function ComplaintManagement() {
   const handleSubmitComplaint = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // C4: 24-hour re-wash window check
+    if (formData.complaintType === "Service Quality" || formData.complaintType === "Re-Wash Request") {
+      try {
+        const jobs = JSON.parse(localStorage.getItem("cleancar_jobs") || "[]");
+        const custJobs = jobs.filter((j: any) =>
+          (j.customerId === formData.customerId || j.customerPhone === formData.customerPhone) &&
+          j.status === "Completed" && j.completedAt
+        ).sort((a: any, b: any) => b.completedAt.localeCompare(a.completedAt));
+
+        if (custJobs.length > 0) {
+          const lastWash = new Date(custJobs[0].completedAt);
+          const hoursElapsed = (Date.now() - lastWash.getTime()) / 3600000;
+          if (hoursElapsed > 24) {
+            const proceed = window.confirm(
+              `⚠️ Re-Wash Guarantee Expired
+
+The last wash was completed ${Math.round(hoursElapsed)} hours ago. The 24-hour re-wash guarantee has expired.
+
+The complaint will be logged but the re-wash guarantee does not apply. It will be reviewed at company discretion.
+
+Proceed with logging the complaint?`
+            );
+            if (!proceed) return;
+          }
+        }
+      } catch {}
+    }
+
     // Create complaint (this would normally call a service method to create the complaint)
     const newComplaint = {
       customerName: formData.customerName,

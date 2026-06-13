@@ -108,6 +108,8 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
       subscriptionId: `SUB-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       // CRITICAL: Lock price at creation time - this NEVER changes
       priceLocked: subscriptionData.pricing.finalPrice,
+      paymentMethod: (subscriptionData as any).paymentMethod || "UPI",
+      paymentInstrumentHint: (subscriptionData as any).paymentInstrumentHint || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -178,6 +180,36 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
   };
 
   const updateSubscription = (subscriptionId: string, updates: Partial<CustomerSubscription>) => {
+    // G7: Non-transferability — block customerId change
+    if ((updates as any).customerId) {
+      const existing = subscriptions.find(s => s.subscriptionId === subscriptionId);
+      if (existing && (updates as any).customerId !== existing.customerId) {
+        throw new Error("Subscriptions cannot be transferred between customers. Policy: Cancellation Policy §7.");
+      }
+    }
+
+    // C5: Vehicle change fee 20% — log for TSM waiver workflow
+    const existingSub = subscriptions.find(s => s.subscriptionId === subscriptionId);
+    if (existingSub && (updates as any).vehicleReg && (updates as any).vehicleReg !== existingSub.serviceDetails?.vehicleReg) {
+      const changeFee = Math.round(existingSub.priceLocked * 0.20);
+      const vehicleChangeLogs = JSON.parse(localStorage.getItem("cleancar_vehicle_change_requests") || "[]");
+      vehicleChangeLogs.unshift({
+        id: `VCR-${Date.now()}`,
+        subscriptionId,
+        customerId: existingSub.customerId,
+        oldVehicleReg: existingSub.serviceDetails?.vehicleReg || "—",
+        newVehicleReg: (updates as any).vehicleReg,
+        changeFee,
+        originalValue: existingSub.priceLocked,
+        status: "PENDING_PAYMENT",
+        tsmWaived: false,
+        tsmWaiverReason: null,
+        requestedAt: new Date().toISOString(),
+        notes: "Vehicle change fee of 20% applies. TSM can waive with explanation.",
+      });
+      localStorage.setItem("cleancar_vehicle_change_requests", JSON.stringify(vehicleChangeLogs));
+      // In production: block update until payment confirmed OR TSM waiver approved
+    }
     setSubscriptions((prev) =>
       prev.map((sub) => {
         if (sub.subscriptionId === subscriptionId) {

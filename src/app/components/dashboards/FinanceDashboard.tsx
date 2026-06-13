@@ -81,6 +81,15 @@ export function FinanceDashboard() {
       localStorage.setItem("cleancar_accounting_entries", JSON.stringify(entries));
     } catch {}
 
+    // G3: Store refundCommunicatedAt for 7-day dispute window enforcement
+    const updatedWithDate = financeRefunds.map(r => r.id === req.id ? {
+      ...r, financeStatus: "Processed", bankRef, bankName,
+      processedAt: now, processedBy: "Finance",
+      refundCommunicatedAt: now, // G3: dispute window starts here
+    } : r);
+    localStorage.setItem("cleancar_finance_refunds", JSON.stringify(updatedWithDate));
+    setFinanceRefunds(updatedWithDate);
+
     setProcessingId(null);
     setBankRef("");
     setBankName("");
@@ -304,7 +313,15 @@ export function FinanceDashboard() {
               ) : req.refundAmount > 0 ? (
                 processingId === req.id ? (
                   <div className="space-y-2">
-                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    {/* C7: Show original payment instrument */}
+                  {req.paymentMethod && (
+                    <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg p-2 mb-2">
+                      <p className="font-semibold text-blue-800">Original payment instrument:</p>
+                      <p className="text-blue-700">{req.paymentMethod}{req.paymentInstrumentHint ? ` — ${req.paymentInstrumentHint}` : ""}</p>
+                      <p className="text-blue-500 mt-0.5">Refund must be credited to the same instrument per Refund Policy §7.</p>
+                    </div>
+                  )}
+                  <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={bankName} onChange={e => setBankName(e.target.value)}>
                       <option value="">Select bank</option>
                       {["HDFC Bank","ICICI Bank","SBI","Axis Bank","Kotak Bank","Yes Bank","Other"].map(b => (

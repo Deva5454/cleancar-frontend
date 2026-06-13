@@ -49,7 +49,14 @@ const CANCEL_REASONS = [
 const INR = (n: number) => "₹" + Math.max(0, Math.round(n)).toLocaleString("en-IN");
 
 // ─── Policy Calculation ───────────────────────────────────────────────────────
-function computeRefund(total: number, totalDays: number, startDate: string) {
+function computeRefund(total: number, totalDays: number, startDate: string, opts?: {
+  serviceType?: "monthly" | "onetime" | "pack2" | "pack4";
+  scheduledSlotTime?: string; // ISO for one-time
+  visitsUsed?: number;
+  totalVisits?: number;
+  packValidityDays?: number;
+  firstWashDate?: string;
+}) {
   const start   = new Date(startDate);
   const today   = new Date();
   const elapsed = Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86400000));
@@ -58,6 +65,46 @@ function computeRefund(total: number, totalDays: number, startDate: string) {
   const prorata = Math.round(daily * Math.min(elapsed, totalDays));
   const cancelFee = Math.round(total * 0.10);
   const gatewayFee = Math.round(total * 0.02);
+
+  // C1: One-Time Wash — 2-hour window check
+  if (opts?.serviceType === "onetime" && opts?.scheduledSlotTime) {
+    const slotTime = new Date(opts.scheduledSlotTime);
+    const hoursToSlot = (slotTime.getTime() - today.getTime()) / 3600000;
+    if (hoursToSlot > 2) {
+      return { elapsed: 0, pct: 0, prorata: 0, cancelFee: 0, gatewayFee, refund: total - gatewayFee, zone: "full" as const, daily,
+        note: "Full refund — cancelled more than 2 hours before scheduled slot" };
+    } else {
+      return { elapsed, pct, prorata: total, cancelFee: 0, gatewayFee: 0, refund: 0, zone: "none" as const, daily,
+        note: "No refund — cancelled within 2 hours of scheduled slot" };
+    }
+  }
+
+  // G2: Pack validity expiry — no refund if validity period has passed
+  if ((opts?.serviceType === "pack2" || opts?.serviceType === "pack4") && opts?.firstWashDate && opts?.packValidityDays) {
+    const firstWash = new Date(opts.firstWashDate);
+    const expiryDate = new Date(firstWash);
+    expiryDate.setDate(expiryDate.getDate() + opts.packValidityDays);
+    if (today > expiryDate) {
+      return { elapsed, pct: 100, prorata: total, cancelFee: 0, gatewayFee: 0, refund: 0, zone: "none" as const, daily,
+        note: "No refund — pack validity period has expired" };
+    }
+    // C2: 50% consumption cap for packs
+    if (opts?.visitsUsed !== undefined && opts?.totalVisits && opts.totalVisits > 0) {
+      const visitPct = (opts.visitsUsed / opts.totalVisits) * 100;
+      if (visitPct >= 50) {
+        return { elapsed, pct: visitPct, prorata: total, cancelFee: 0, gatewayFee: 0, refund: 0, zone: "none" as const, daily,
+          note: "No refund — more than 50% of pack visits have been used" };
+      }
+      // Less than 50% consumed — prorata on unused visits
+      const unusedVisits = opts.totalVisits - opts.visitsUsed;
+      const pricePerVisit = total / opts.totalVisits;
+      const unusedValue = Math.round(pricePerVisit * unusedVisits);
+      const packCancelFee = Math.round(total * 0.10);
+      const refund = Math.max(0, unusedValue - packCancelFee - gatewayFee);
+      return { elapsed, pct: visitPct, prorata: total - unusedValue, cancelFee: packCancelFee, gatewayFee, refund, zone: "partial" as const, daily,
+        note: `${opts.visitsUsed} of ${opts.totalVisits} visits used. Refund on ${unusedVisits} unused visits.` };
+    }
+  }
 
   // Pre-commencement (not started yet)
   if (elapsed <= 0) {
@@ -98,6 +145,31 @@ export function CancellationRequestPage() {
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [refId, setRefId]                 = useState("");
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeText, setDisputeText]     = useState("");
+  const [disputeSubmitted, setDisputeSubmitted] = useState(false);
+
+  const handleRaiseDispute = () => {
+    if (!disputeText.trim()) return;
+    try {
+      const disputes = JSON.parse(localStorage.getItem("cleancar_disputes") || "[]");
+      disputes.unshift({
+        id: `DISP-${Date.now()}`,
+        cancellationRef: refId,
+        customerId: found?.customerId || "",
+        customerName: found?.customerName || "",
+        customerMobile: custMobile,
+        subscriptionId: found?.subscriptionId || "",
+        disputeText,
+        status: "OPEN",
+        raisedAt: new Date().toISOString(),
+        windowDays: 7,
+      });
+      localStorage.setItem("cleancar_disputes", JSON.stringify(disputes));
+      setDisputeSubmitted(true);
+      setShowDisputeForm(false);
+    } catch {}
+  };
 
   const step1Ok = custMobile.length >= 10 && vehicleReg.trim().length >= 4;
   const step2Ok = reason && (reason !== "Other (please specify)" || otherReason.trim());
@@ -723,6 +795,34 @@ export function CancellationRequestPage() {
             <p style={{ color: "#4A5568", fontSize: 14, marginBottom: 4 }}>
               Reference: <strong style={{ color: "#1565C0", fontFamily: "monospace" }}>{refId}</strong>
             </p>
+            {/* G6: Dispute form — only for accepted cancellations */}
+            {outcome === "accepted" && !disputeSubmitted && (
+              <div style={{ marginTop: 16 }}>
+                {!showDisputeForm ? (
+                  <button onClick={() => setShowDisputeForm(true)}
+                    style={{ background: "none", border: "1px solid #CBD5E0", borderRadius: 8, padding: "8px 16px", fontSize: 13, color: "#4A5568", cursor: "pointer" }}>
+                    Disagree with refund amount? Raise a dispute
+                  </button>
+                ) : (
+                  <div style={{ background: "#FFF3CD", border: "1px solid #FFC107", borderRadius: 12, padding: 16, textAlign: "left" }}>
+                    <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>Raise a Formal Dispute</p>
+                    <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>You have 7 days from settlement communication to raise a dispute. State your reason clearly.</p>
+                    <textarea style={{ width: "100%", border: "1px solid #D1D5DB", borderRadius: 8, padding: 8, fontSize: 13, minHeight: 80, marginBottom: 8 }}
+                      placeholder="Describe your dispute in detail..."
+                      value={disputeText} onChange={e => setDisputeText(e.target.value)} />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setShowDisputeForm(false)} style={{ flex: 1, padding: "8px", border: "1px solid #D1D5DB", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Cancel</button>
+                      <button onClick={handleRaiseDispute} style={{ flex: 1, padding: "8px", background: "#2563EB", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Submit Dispute</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {disputeSubmitted && (
+              <div style={{ marginTop: 12, padding: 12, background: "#ECFDF5", borderRadius: 8, fontSize: 13, color: "#065F46" }}>
+                ✅ Dispute submitted. Our team will review within 7 days.
+              </div>
+            )}
 
             {outcome === "accepted" && calc && found ? (
               <>
