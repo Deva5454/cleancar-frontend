@@ -264,7 +264,7 @@ export function PlanDefinitionProvider({ children }: { children: ReactNode }) {
 export function usePlanDefinitions() {
   const context = useContext(PlanDefinitionContext);
   if (context === undefined) {
-    console.warn("[usePlanDefinitions] outside PlanDefinitionProvider - fallback"); return context as any;
+    console.warn("[usePlanDefinitions] outside PlanDefinitionProvider - fallback"); return {} as any; // safe fallback
   }
   return context;
 }

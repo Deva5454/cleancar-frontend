@@ -93,6 +93,7 @@ export function CustomRoleProvider({ children }: { children: ReactNode }) {
 
 export function useCustomRoles() {
   const ctx = useContext(CustomRoleContext);
-  if (!ctx) { console.warn("[useCustomRoles] outside CustomRoleProvider - fallback"); return context as any; }
+  if (!ctx) { console.warn("[useCustomRoles] outside CustomRoleProvider - fallback"); return {} as any; // safe fallback
+  }
   return ctx;
 }

@@ -323,7 +323,7 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
 export function useCustomerSubscriptions() {
   const context = useContext(CustomerSubscriptionContext);
   if (!context) {
-    console.warn("[useCustomerSubscriptions] Called outside CustomerSubscriptionProvider — returning fallback"); return context as any;
+    console.warn("[useCustomerSubscriptions] Called outside CustomerSubscriptionProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

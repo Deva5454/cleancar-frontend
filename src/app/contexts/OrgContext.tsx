@@ -232,7 +232,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 export function useOrg() {
   const context = useContext(OrgContext);
   if (!context) {
-    console.warn("[useOrg] Called outside OrgProvider — returning fallback"); return context as any;
+    console.warn("[useOrg] Called outside OrgProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

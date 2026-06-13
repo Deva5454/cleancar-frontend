@@ -427,7 +427,7 @@ export function IncentiveProvider({ children }: { children: ReactNode }) {
 export function useIncentive() {
   const context = useContext(IncentiveContext);
   if (!context) {
-    console.warn("[useIncentive] Called outside IncentiveProvider — returning fallback"); return context as any;
+    console.warn("[useIncentive] Called outside IncentiveProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

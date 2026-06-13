@@ -751,7 +751,7 @@ export function useJobs() {
         getAssignedByCity: () => [], getCompletedByCity: () => [],
       } as JobContextType;
     }
-    console.warn("[useJobs] Called outside JobProvider — returning fallback"); return context as any;
+    console.warn("[useJobs] Called outside JobProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

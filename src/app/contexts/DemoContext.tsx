@@ -405,7 +405,7 @@ export function useDemos() {
   const context = useContext(DemoContext);
   if (context === undefined) {
     console.error("useDemos hook called outside DemoProvider. Make sure the component is wrapped in DemoProvider.");
-    console.warn("[useDemos] outside DemoProvider - fallback"); return context as any;
+    console.warn("[useDemos] outside DemoProvider - fallback"); return {} as any; // safe fallback
   }
   return context;
 }

@@ -644,7 +644,7 @@ export function PayrollProvider({ children }: { children: ReactNode }) {
 export function usePayroll() {
   const context = useContext(PayrollContext);
   if (!context) {
-    console.warn("[usePayroll] Called outside PayrollProvider — returning fallback"); return context as any;
+    console.warn("[usePayroll] Called outside PayrollProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

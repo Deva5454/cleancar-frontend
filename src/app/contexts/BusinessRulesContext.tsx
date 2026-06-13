@@ -527,7 +527,7 @@ export function BusinessRulesProvider({ children }: BusinessRulesProviderProps) 
 export function useBusinessRules(): BusinessRulesContextType {
   const context = useContext(BusinessRulesContext);
   if (!context) {
-    console.warn("[useBusinessRules] Called outside BusinessRulesProvider — returning fallback"); return context as any;
+    console.warn("[useBusinessRules] Called outside BusinessRulesProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

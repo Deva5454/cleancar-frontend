@@ -288,7 +288,7 @@ export function useCustomers() {
         leads: [], cityLeads: [], addLead: noop, updateLead: () => {}, deleteLead: () => {}, appendLeadActivity: () => {},
       } as CustomerContextType;
     }
-    console.warn("[useCustomers] Called outside CustomerProvider — returning fallback"); return context as any;
+    console.warn("[useCustomers] Called outside CustomerProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

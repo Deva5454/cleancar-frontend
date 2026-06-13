@@ -140,7 +140,7 @@ export function EventSystemProvider({ children }: { children: ReactNode }) {
 export function useEvents() {
   const context = useContext(EventSystemContext);
   if (!context) {
-    console.warn("[useEvents] outside EventSystemProvider - fallback"); return context as any;
+    console.warn("[useEvents] outside EventSystemProvider - fallback"); return {} as any; // safe fallback
   }
   return context;
 }

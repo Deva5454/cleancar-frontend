@@ -289,14 +289,8 @@ export function useEmployee() {
 
   if (!context) {
     // PREVIEW MODE FALLBACK: Detect if running in preview/standalone mode
-    const isPreviewMode = typeof window !== 'undefined' && (
-      window.location.href.includes('figma.com') ||
-      window.location.href.includes('preview') ||
-      !import.meta.env?.PROD
-    );
-
-    // Provide safe fallback for preview/standalone mode
-    { // Always return safe fallback in all environments
+    // Always return safe fallback in all environments
+    {
       return {
         employees: [],
         cityEmployees: [],
@@ -308,7 +302,7 @@ export function useEmployee() {
       } as any;
     }
 
-    console.warn("[useEmployee] Called outside EmployeeProvider — returning fallback"); return context as any;
+    console.warn("[useEmployee] Called outside EmployeeProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

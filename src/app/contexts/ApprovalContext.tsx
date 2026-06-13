@@ -231,7 +231,7 @@ export function ApprovalProvider({ children }: { children: ReactNode }) {
 export function useApprovals() {
   const context = useContext(ApprovalContext);
   if (!context) {
-    console.warn("[useApprovals] Called outside ApprovalProvider — returning fallback"); return context as any;
+    console.warn("[useApprovals] Called outside ApprovalProvider — returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }

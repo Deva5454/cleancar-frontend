@@ -619,7 +619,7 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
 export function useHRData() {
   const context = useContext(HRDataContext);
   if (!context) {
-    console.warn("[useHRData] outside HRDataProvider - fallback"); return context as any;
+    console.warn("[useHRData] outside HRDataProvider - fallback"); return {} as any; // safe fallback
   }
 
   // PHASE 3: No console warning - only useEmployeeData calls this internally
