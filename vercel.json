@@ -13,24 +13,25 @@
       ]
     },
     {
-      "source": "/(.*)",
+      "source": "/(.*).html",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "no-cache, no-store, must-revalidate"
-        },
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
         {
-          "key": "Pragma",
-          "value": "no-cache"
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
     }
   ],
   "rewrites": [
-    {
-      "source": "/assets/(.*)",
-      "destination": "/assets/$1"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
