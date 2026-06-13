@@ -139,6 +139,73 @@ export function AdvanceTypeSelection() {
           </Card>
         </div>
 
+        {/* Long-Term Advance — only visible if Super Admin has enabled for this role */}
+        {longTermAllowed ? (
+          <div className="max-w-2xl mx-auto mt-4">
+            <Card className="border-2 border-blue-200 hover:border-blue-400 transition-all cursor-pointer relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-bl-full opacity-50" />
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <div className="p-3 bg-blue-100 rounded-lg">
+                      <Calendar className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Long-Term Advance</CardTitle>
+                      <Badge variant="outline" className="mt-2 border-blue-300 text-blue-700">
+                        Planned / Structured
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-600 text-sm">
+                  For larger planned expenses — medical, education, family events. Repaid over 3–12 months via salary deduction.
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span>Structured repayment plan</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span>HR & management approval</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span>Documentation required</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span>3–5 working days processing</span>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate("/advance/long-term/apply")}
+                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
+                  size="lg"
+                >
+                  Apply for Long-Term Advance
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto mt-4">
+            <Card className="border border-gray-200 bg-gray-50 opacity-60">
+              <CardContent className="p-4 flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Long-Term Advance — Not Available</p>
+                  <p className="text-xs text-gray-400 mt-0.5">This option has not been enabled for your role. Contact your HR or Super Admin.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Important Notice */}
         <Card className="border-red-200 bg-red-50 max-w-2xl mx-auto mt-6">
           <CardContent className="p-4">

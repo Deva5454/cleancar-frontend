@@ -50,6 +50,18 @@ export function HRAdvanceManagement() {
   const [advanceSettings, setAdvanceSettings] = useState<AdvanceSettings>(getAdvanceSettings());
   const [washerSupervisorLimit, setWasherSupervisorLimit] = useState(advanceSettings.washerSupervisorLimit);
   const [otherRolesLimit, setOtherRolesLimit] = useState(advanceSettings.otherRolesLimit);
+  const [longTermEnabled, setLongTermEnabled] = useState(advanceSettings.longTermAdvanceEnabled || false);
+  const [longTermRoles, setLongTermRoles] = useState<string[]>(advanceSettings.longTermEnabledRoles || []);
+
+  const ALL_ROLES = ["Car Washer", "Supervisor", "Operations Manager", "Sr Operations Manager",
+    "Cluster Manager", "City Manager", "TSE", "TSM", "CCE", "Store Manager",
+    "HR", "Accounts", "Admin"];
+
+  const toggleRole = (role: string) => {
+    setLongTermRoles(prev =>
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
+    );
+  };
 
   useEffect(() => {
     loadData();
@@ -374,6 +386,33 @@ export function HRAdvanceManagement() {
                   </div>
                 </div>
 
+                {/* Long-Term Advance Permission Control */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-1 text-sm">Long-Term Advance Access</h4>
+                  <p className="text-xs text-gray-500 mb-3">Control which roles can see the Long-Term Advance option. Off by default.</p>
+                  <div className="flex items-center gap-3 mb-3">
+                    <button
+                      onClick={() => { setLongTermEnabled(v => !v); if (longTermEnabled) setLongTermRoles([]); }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${longTermEnabled ? "bg-blue-600" : "bg-gray-300"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${longTermEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                    <span className={`text-sm font-medium ${longTermEnabled ? "text-blue-700" : "text-gray-500"}`}>
+                      {longTermEnabled ? "Enabled — select roles below" : "Disabled for all roles"}
+                    </span>
+                  </div>
+                  {longTermEnabled && (
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {ALL_ROLES.map(role => (
+                        <label key={role} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs ${longTermRoles.includes(role) ? "border-blue-400 bg-blue-50 text-blue-800" : "border-gray-200 text-gray-600"}`}>
+                          <input type="checkbox" checked={longTermRoles.includes(role)} onChange={() => toggleRole(role)} className="accent-blue-600" />
+                          {role}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {advanceSettings.lastUpdatedBy && (
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <p className="text-xs text-gray-700">
@@ -482,7 +521,9 @@ export function HRAdvanceManagement() {
                         updateAdvanceSettings(
                           washerSupervisorLimit,
                           otherRolesLimit,
-                          currentUser.name
+                          currentUser.name,
+                          longTermEnabled,
+                          longTermRoles
                         );
 
                         const updatedSettings = getAdvanceSettings();

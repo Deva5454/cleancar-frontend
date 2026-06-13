@@ -6,6 +6,8 @@
 export interface AdvanceSettings {
   washerSupervisorLimit: number; // Percentage limit for Car Washer and Supervisor
   otherRolesLimit: number; // Percentage limit for all other roles
+  longTermAdvanceEnabled: boolean; // Super Admin toggle — employees can only see long-term if true
+  longTermEnabledRoles: string[]; // Which roles can see long-term advance
   lastUpdatedBy: string;
   lastUpdatedOn: string;
 }
@@ -16,6 +18,8 @@ const STORAGE_KEY = "ADVANCE_SETTINGS";
 const DEFAULT_SETTINGS: AdvanceSettings = {
   washerSupervisorLimit: 50,
   otherRolesLimit: 20,
+  longTermAdvanceEnabled: false, // OFF by default — Super Admin must enable
+  longTermEnabledRoles: [],      // No roles enabled by default
   lastUpdatedBy: "System",
   lastUpdatedOn: new Date().toISOString(),
 };
@@ -41,11 +45,16 @@ export function getAdvanceSettings(): AdvanceSettings {
 export function updateAdvanceSettings(
   washerSupervisorLimit: number,
   otherRolesLimit: number,
-  updatedBy: string
+  updatedBy: string,
+  longTermAdvanceEnabled?: boolean,
+  longTermEnabledRoles?: string[]
 ): void {
+  const current = getAdvanceSettings();
   const settings: AdvanceSettings = {
     washerSupervisorLimit,
     otherRolesLimit,
+    longTermAdvanceEnabled: longTermAdvanceEnabled ?? current.longTermAdvanceEnabled,
+    longTermEnabledRoles: longTermEnabledRoles ?? current.longTermEnabledRoles,
     lastUpdatedBy: updatedBy,
     lastUpdatedOn: new Date().toISOString(),
   };
@@ -87,4 +96,38 @@ export function calculateMaxAdvanceAmount(
     maxAmount,
     limitPercentage,
   };
+}
+
+/**
+ * Check if a specific role can access long-term advance
+ */
+export function canAccessLongTermAdvance(role: string): boolean {
+  const settings = getAdvanceSettings();
+  if (!settings.longTermAdvanceEnabled) return false;
+  if (settings.longTermEnabledRoles.length === 0) return false;
+  return settings.longTermEnabledRoles.includes(role);
+}
+
+/**
+ * Toggle long-term advance for a specific role (Super Admin only)
+ */
+export function setLongTermAdvanceForRole(
+  role: string,
+  enabled: boolean,
+  updatedBy: string
+): void {
+  const settings = getAdvanceSettings();
+  let roles = [...(settings.longTermEnabledRoles || [])];
+  if (enabled && !roles.includes(role)) {
+    roles.push(role);
+  } else if (!enabled) {
+    roles = roles.filter(r => r !== role);
+  }
+  updateAdvanceSettings(
+    settings.washerSupervisorLimit,
+    settings.otherRolesLimit,
+    updatedBy,
+    roles.length > 0,
+    roles
+  );
 }
