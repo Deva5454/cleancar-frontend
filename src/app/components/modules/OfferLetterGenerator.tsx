@@ -125,9 +125,9 @@ const getWorkingHoursForRole = (designation: string): string => {
     return "4:00 AM – 9:00 AM, 6 days/week";
   }
   if (d.includes("tse") || d.includes("sales executive") || d.includes("tele sales")) {
-    return "10:00 AM – 7:00 PM, 6 days/week";
+    return "10:30 AM – 6:30 PM, Mon–Sat";
   }
-  return "10:00 AM – 7:00 PM, 6 days/week";
+  return "10:30 AM – 6:30 PM, Mon–Sat";
 };
 
 export function OfferLetterGenerator() {

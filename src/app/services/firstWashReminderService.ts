@@ -85,33 +85,46 @@ export function checkFirstWashReminders(): void {
             const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
             const subIdx = subs.findIndex((s: any) => s.subscriptionId === sub.subscriptionId);
             if (subIdx >= 0 && !subs[subIdx].firstWashDate) {
+              // C6: Check if this is a second lapse (already lapsed before and was reactivated)
+              const lapseCount = (subs[subIdx].lapseCount || 0) + 1;
+              const isSecondLapse = lapseCount >= 2;
+
               subs[subIdx].status = "Expired";
               subs[subIdx].lapsedAt = now.toISOString();
-              subs[subIdx].lapseReason = "first_wash_not_taken_day15";
+              subs[subIdx].lapseReason = isSecondLapse ? "second_lapse_day15" : "first_wash_not_taken_day15";
+              subs[subIdx].lapseCount = lapseCount;
+              // C6: Second lapse — only Super Admin can reactivate (not TSM)
+              subs[subIdx].requiresSuperAdminReactivation = isSecondLapse;
               DataService.setAll("SUBSCRIPTIONS", subs);
 
               // WA to customer
               sendWhatsApp(cust.phone,
-                `⚠️ Hi ${cust.firstName || "Customer"}, your 24/9 Carwashing service has lapsed as your first wash was not booked within 15 days of payment. Please call 080 48 79 45 45 (10:30 AM – 6:30 PM, Mon–Sat) to discuss reactivation options.`,
+                isSecondLapse
+                  ? `⚠️ Hi ${cust.firstName || "Customer"}, your 24/9 Carwashing service has lapsed again. As this is a repeat lapse, reactivation requires approval from our management team. Please call 080 48 79 45 45 (10:30 AM – 6:30 PM, Mon–Sat).`
+                  : `⚠️ Hi ${cust.firstName || "Customer"}, your 24/9 Carwashing service has lapsed as your first wash was not booked within 15 days of payment. Please call 080 48 79 45 45 (10:30 AM – 6:30 PM, Mon–Sat) to discuss reactivation options.`,
                 "first_wash_lapse", { background: true }
               ).catch(() => {});
 
-              // TSM task for possible reactivation within 3 days
+              // TSM task — but for second lapse, flag as Super Admin only
               const tsm_tasks = DataService.get<any>("TSM_UPSELL_TASKS") || [];
               tsm_tasks.push({
-                taskId: `LAPSE-${sub.subscriptionId}`,
-                type: "FIRST_WASH_LAPSED",
+                taskId: `LAPSE-${sub.subscriptionId}-${lapseCount}`,
+                type: isSecondLapse ? "SECOND_LAPSE_SUPER_ADMIN_REQUIRED" : "FIRST_WASH_LAPSED",
                 customerId: sub.customerId,
                 customerName: `${cust.firstName || ""} ${cust.lastName || ""}`.trim(),
                 customerPhone: cust.phone,
                 subscriptionId: sub.subscriptionId,
                 lapseDate: now.toISOString().split("T")[0],
-                reactivationDeadline: new Date(now.getTime() + 3 * 86400000).toISOString().split("T")[0],
-                status: "PENDING_TSM_ACTION",
-                notes: "TSM can reactivate within 3 days if customer books first wash immediately. Second lapse requires Super Admin.",
+                lapseCount,
+                reactivationDeadline: isSecondLapse ? null : new Date(now.getTime() + 3 * 86400000).toISOString().split("T")[0],
+                status: isSecondLapse ? "PENDING_SUPER_ADMIN_ACTION" : "PENDING_TSM_ACTION",
+                notes: isSecondLapse
+                  ? "⛔ Second lapse — TSM CANNOT reactivate. Requires Super Admin approval only. Super Admin must set a mutually agreed validity period."
+                  : "TSM can reactivate within 3 days if customer books first wash immediately. Second lapse requires Super Admin.",
                 createdAt: now.toISOString(),
-                tsmCanReactivate: true,
-                reactivationWindowDays: 3,
+                tsmCanReactivate: !isSecondLapse,
+                requiresSuperAdmin: isSecondLapse,
+                reactivationWindowDays: isSecondLapse ? null : 3,
               });
               DataService.setAll("TSM_UPSELL_TASKS", tsm_tasks);
             }

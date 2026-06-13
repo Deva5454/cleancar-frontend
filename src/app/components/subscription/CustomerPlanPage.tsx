@@ -42,7 +42,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
   hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
   trustItems: ["📸 Before & after photos every wash","🔄 Free re-wash within 24h","🏠 We come to you","📞 Easy cancellation process"],
-  trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash 24h","📞 7-day cancellation","🏠 Home, office, society"],
+  trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash within 24h","📞 Easy cancellation process","🏠 Home, office, society"],
   vehicleCategories: [
     { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "🚗" },
     { id: "suv", label: "SUV / Sedan / MUV", icon: "🚙" },
@@ -78,7 +78,7 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     { id:"urgent",  name:"Urgent Wash", icon:"⚡", description:"Shampoo+Wax · Washer arrives in 1 hour · Same day only · No reschedule · Amount forfeited if car unavailable", prices:{shampooWax:{hatchback:499,suv:599,luxury:799}}, discount:"Rs 100 premium", validityDays:0, isUrgent:true },
   ],
   commitments: [
-    {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
+    {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel with 7 days' notice per policy."},
     {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"₹225 saving on Hatchback Shampoo."},
     {id:"6month",   term:"6 Months",      discountLabel:"8% off",     perk:"Renewal + free vacuum monthly.", highlight:"great"},
     {id:"9month",   term:"9 Months",      discountLabel:"10% off",    perk:"Renewal + vacuum + priority slots.", highlight:"great"},
@@ -808,7 +808,19 @@ export function CustomerPlanPage() {
       }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
-      if(referralResult?.valid && referralResult.code) planSyncService.convertReferral(referralResult.code, customerId, custName, finalTotal);
+      // G5 FIX: Do NOT fully convert referral at checkout — credit fires on first completed wash.
+      // JobContext.completeJob() looks for status "converted_pending_wash" and calls convertReferral() then.
+      if(referralResult?.valid && referralResult.code) {
+        try {
+          const records = planSyncService.getReferralRecords();
+          const updated = records.map((r: any) =>
+            r.referralCode.toUpperCase() === referralResult.code.toUpperCase()
+              ? { ...r, status: "converted_pending_wash", refereeCustomerId: customerId, refereeName: custName, orderAmount: finalTotal, pendingWashAt: now.toISOString() }
+              : r
+          );
+          planSyncService.saveReferralRecords(updated);
+        } catch(_) {/* non-blocking */}
+      }
       planSyncService.assignReferralCodeToCustomer(customerId, custName);
       // 8️⃣ Create MultiMonthBundle record if customer bought a multi-month pack
       // This wires the purchase into multiMonthBundleService (window tracking,
@@ -872,7 +884,7 @@ export function CustomerPlanPage() {
         {icon:"📞",title:"Confirmation call",detail:"Our team calls within 1 working day to confirm your time slot",color:"#6366f1"},
         {icon:"🚗",title:"Service begins",detail:`Your washer starts within 2 working days at your preferred time: ${prefTime}`,color:"#f59e0b"},
         {icon:"📸",title:"Before & after photos",detail:"WhatsApp photo after every wash. Ask for a re-wash within 24h if unsatisfied.",color:"#06b6d4"},
-        {icon:"🔄",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel anytime with 7 days notice.`,color:"#8b5cf6"},
+        {icon:"🔄",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel with 7 days' notice per policy.`,color:"#8b5cf6"},
       ] : isPack ? [
         {icon:"📲",title:"Pack receipt on WhatsApp",detail:"Invoice and pack details sent immediately",color:"#25d366"},
         {icon:"✅",title:`Pack of ${packVisits} is active`,detail:`Valid for ${packValidity} days from today. No rollover after expiry.`,color:"#10b981"},

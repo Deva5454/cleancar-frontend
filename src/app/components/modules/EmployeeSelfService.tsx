@@ -679,7 +679,7 @@ export function EmployeeSelfService() {
               <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
                 <li>10-minute grace period for late arrivals</li>
                 <li>Available 3 times per month (resets on 1st)</li>
-                <li>Applicable Mon-Sat, 09:00 AM - 07:00 PM only</li>
+                <li>Applicable Mon-Sat, 10:30 AM – 6:30 PM only</li>
                 <li>Exceeding quota triggers Half Day (0.5 days) PL deduction</li>
               </ul>
             </div>

@@ -808,24 +808,51 @@ export function CancellationRequestPage() {
             {/* G6: Dispute form — only for accepted cancellations */}
             {outcome === "accepted" && !disputeSubmitted && (
               <div style={{ marginTop: 16 }}>
-                {!showDisputeForm ? (
-                  <button onClick={() => setShowDisputeForm(true)}
-                    style={{ background: "none", border: "1px solid #CBD5E0", borderRadius: 8, padding: "8px 16px", fontSize: 13, color: "#4A5568", cursor: "pointer" }}>
-                    Disagree with refund amount? Raise a dispute
-                  </button>
-                ) : (
-                  <div style={{ background: "#FFF3CD", border: "1px solid #FFC107", borderRadius: 12, padding: 16, textAlign: "left" }}>
-                    <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>Raise a Formal Dispute</p>
-                    <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>You have 7 days from settlement communication to raise a dispute. State your reason clearly.</p>
-                    <textarea style={{ width: "100%", border: "1px solid #D1D5DB", borderRadius: 8, padding: 8, fontSize: 13, minHeight: 80, marginBottom: 8 }}
-                      placeholder="Describe your dispute in detail..."
-                      value={disputeText} onChange={e => setDisputeText(e.target.value)} />
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => setShowDisputeForm(false)} style={{ flex: 1, padding: "8px", border: "1px solid #D1D5DB", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Cancel</button>
-                      <button onClick={handleRaiseDispute} style={{ flex: 1, padding: "8px", background: "#2563EB", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Submit Dispute</button>
+                {(() => {
+                  // G3: 7-day dispute window enforcement
+                  // Check if refundCommunicatedAt exists in cleancar_finance_refunds for this cancellation
+                  let disputeWindowOpen = true;
+                  let disputeWindowClosedDate = "";
+                  try {
+                    const financeRefunds: any[] = JSON.parse(localStorage.getItem("cleancar_finance_refunds") || "[]");
+                    const matchedRefund = financeRefunds.find((r: any) => r.id === refId || r.subscriptionId === found?.subscriptionId);
+                    if (matchedRefund?.refundCommunicatedAt) {
+                      const communicatedAt = new Date(matchedRefund.refundCommunicatedAt);
+                      const daysSince = Math.floor((Date.now() - communicatedAt.getTime()) / 86400000);
+                      if (daysSince > 7) {
+                        disputeWindowOpen = false;
+                        disputeWindowClosedDate = new Date(communicatedAt.getTime() + 7 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                      }
+                    }
+                  } catch(_) {}
+
+                  if (!disputeWindowOpen) {
+                    return (
+                      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#991B1B" }}>
+                        ⏰ The 7-day dispute window closed on <strong>{disputeWindowClosedDate}</strong>. Disputes must be raised within 7 calendar days of receiving the settlement communication. Please contact us directly if you have concerns.
+                      </div>
+                    );
+                  }
+
+                  return !showDisputeForm ? (
+                    <button onClick={() => setShowDisputeForm(true)}
+                      style={{ background: "none", border: "1px solid #CBD5E0", borderRadius: 8, padding: "8px 16px", fontSize: 13, color: "#4A5568", cursor: "pointer" }}>
+                      Disagree with refund amount? Raise a dispute
+                    </button>
+                  ) : (
+                    <div style={{ background: "#FFF3CD", border: "1px solid #FFC107", borderRadius: 12, padding: 16, textAlign: "left" }}>
+                      <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>Raise a Formal Dispute</p>
+                      <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>You have 7 days from settlement communication to raise a dispute. State your reason clearly.</p>
+                      <textarea style={{ width: "100%", border: "1px solid #D1D5DB", borderRadius: 8, padding: 8, fontSize: 13, minHeight: 80, marginBottom: 8 }}
+                        placeholder="Describe your dispute in detail..."
+                        value={disputeText} onChange={e => setDisputeText(e.target.value)} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setShowDisputeForm(false)} style={{ flex: 1, padding: "8px", border: "1px solid #D1D5DB", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Cancel</button>
+                        <button onClick={handleRaiseDispute} style={{ flex: 1, padding: "8px", background: "#2563EB", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Submit Dispute</button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
             {disputeSubmitted && (
