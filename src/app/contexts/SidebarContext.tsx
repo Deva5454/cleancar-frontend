@@ -66,14 +66,13 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 export function useSidebar() {
   const context = useContext(SidebarContext);
   if (!context) {
-    if (import.meta.hot || !import.meta.env?.PROD) {
-      return {
-        collapsed: false, setCollapsed: () => {}, toggleSidebar: () => {},
-        userToggled: false, setUserToggled: () => {},
-        openGroups: new Set<string>(), toggleGroup: () => {}, openGroup: () => {},
-      } as SidebarContextType;
-    }
-    throw new Error("useSidebar must be used within SidebarProvider");
+    // Always return safe fallback — never throw in production
+    // Throwing causes React error #306 during provider remount cycles
+    return {
+      collapsed: false, setCollapsed: () => {}, toggleSidebar: () => {},
+      userToggled: false, setUserToggled: () => {},
+      openGroups: new Set<string>(), toggleGroup: () => {}, openGroup: () => {},
+    } as SidebarContextType;
   }
   return context;
 }
