@@ -280,7 +280,7 @@ export function useCustomers() {
   const context = useContext(CustomerContext);
   if (!context) {
     // PREVIEW FALLBACK: Safe no-op defaults for Figma Make iframe and dev HMR
-    if (import.meta.hot || !import.meta.env?.PROD) {
+    { // Always return safe fallback in all environments
       const noop = () => { throw new Error("CustomerContext not available in preview"); };
       return {
         customers: [], cityCustomers: [], addCustomer: noop, updateCustomer: () => {}, deleteCustomer: () => {},

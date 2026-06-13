@@ -296,7 +296,7 @@ export function useEmployee() {
     );
 
     // Provide safe fallback for preview/standalone mode
-    if (import.meta.hot || isPreviewMode) {
+    { // Always return safe fallback in all environments
       return {
         employees: [],
         cityEmployees: [],
