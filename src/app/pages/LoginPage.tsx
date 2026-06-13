@@ -333,3 +333,23 @@ export function LoginPage() {
 }
 
 export default LoginPage;
+
+// Emergency console unlock — type unlockAdmin() in F12 Console
+if (typeof window !== 'undefined') {
+  (window as any).unlockAdmin = () => {
+    const k = 'EMPLOYEE_DATABASE_RECORDS';
+    const e = JSON.parse(localStorage.getItem(k) || '[]');
+    const i = e.findIndex((x: any) => x.loginMobile === '9100000001' || x.role === 'Super Admin');
+    if (i >= 0) {
+      e[i].accountStatus = 'active';
+      e[i].failedLoginAttempts = 0;
+      delete e[i].lockedUntil;
+      localStorage.setItem(k, JSON.stringify(e));
+      console.log('Super Admin unlocked. Reloading...');
+      setTimeout(() => location.reload(), 500);
+    } else {
+      localStorage.clear();
+      location.reload();
+    }
+  };
+}
