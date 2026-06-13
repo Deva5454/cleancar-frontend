@@ -1,4 +1,4 @@
-name: Deploy to Vercel
+﻿name: Deploy to Vercel
 
 on:
   push:
@@ -14,5 +14,5 @@ jobs:
           if [ -n "${{ secrets.VERCEL_DEPLOY_HOOK }}" ]; then
             curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
           else
-            echo "VERCEL_DEPLOY_HOOK not set — Vercel deploys via native Git integration"
+            echo "VERCEL_DEPLOY_HOOK not set - Vercel deploys via native Git integration"
           fi
