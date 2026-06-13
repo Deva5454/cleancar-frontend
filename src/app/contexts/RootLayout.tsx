@@ -75,7 +75,9 @@ export function RootLayout() {
       try { return JSON.parse(localStorage.getItem("cc360_session") || "null"); }
       catch { return null; }
     })();
-    if (!_session?.employeeId) {
+    // Exempt /buy from session guard — it's a public purchase page
+    const isBuyPage = window.location.pathname === "/buy" || window.location.pathname === "/book";
+    if (!_session?.employeeId && !isBuyPage) {
       return <Navigate to="/login" replace />;
     }
   }

@@ -3,6 +3,8 @@ import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { CorporateB2BPortal } from "./components/crm/CorporateB2BPortal";
+import { MultiVehicleManager } from "./components/customer/MultiVehicleManager";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
 
 // Loading fallback for lazy-loaded routes
@@ -18,7 +20,7 @@ const HRModule = lazy(() => import("./components/modules/HRModule"));
 const ProfessionalLeaveManagement = lazy(() => import("./components/hr/ProfessionalLeaveManagement"));
 const StatutoryFormsOnboarding = lazy(() => import("./components/hr/StatutoryFormsOnboarding"));
 const TravelReimbursementModule = lazy(() => import("./components/travel/TravelReimbursementModule"));
-import CreateSalaryStructure from "./components/payroll/CreateSalaryStructure";
+const CreateSalaryStructure = lazy(() => import("./components/payroll/CreateSalaryStructure"));
 const ChartOfAccounts = lazy(() => import("./components/finance/ChartOfAccounts"));
 const AdminPlanManagement = lazy(() => import("./components/subscription/AdminPlanManagement"));
 const IncentiveConfiguration = lazy(() => import("./components/incentives/IncentiveConfiguration"));
@@ -36,85 +38,86 @@ const EmployeeEfficiency = lazy(() => import("./components/analytics/EmployeeEff
 const CityComparison = lazy(() => import("./components/analytics/CityComparison"));
 
 // Founder module - converted to regular imports due to fetch errors
-import FounderControlTower from "./components/founder/FounderControlTower";
-import DetailedFinancialView from "./components/founder/DetailedFinancialView";
-import CashFlowDashboard from "./components/founder/CashFlowDashboard";
-import MarketingROIDrilldown from "./components/founder/MarketingROIDrilldown";
+const FounderControlTower = lazy(() => import("./components/founder/FounderControlTower"));
+const DetailedFinancialView = lazy(() => import("./components/founder/DetailedFinancialView"));
+const CashFlowDashboard = lazy(() => import("./components/founder/CashFlowDashboard"));
+const MarketingROIDrilldown = lazy(() => import("./components/founder/MarketingROIDrilldown"));
 
 // Keep these as regular imports (frequently accessed)
 // import { OnboardingPortal } from "./components/OnboardingPortal"; // NOW LAZY
 import { OnboardingRedirect } from "./components/onboarding/OnboardingRedirect";
 import { DevOnlyRoute } from "./components/guards/DevOnlyRoute";
 import { Dashboard } from "./components/Dashboard";
-import { UserManagement } from "./components/modules/UserManagement";
-import { CRMLeadManagementWithFilters } from "./components/modules/CRMLeadManagementWithFilters";
-import { CRMConversionAnalyticsDashboard } from "./components/modules/CRMConversionAnalyticsDashboard";
+const UserManagement = lazy(() => import("./components/modules/UserManagement"));
+const CRMLeadManagementWithFilters = lazy(() => import("./components/modules/CRMLeadManagementWithFilters"));
+const CRMConversionAnalyticsDashboard = lazy(() => import("./components/modules/CRMConversionAnalyticsDashboard"));
 import { CustomerSubscription } from "./components/modules/CustomerSubscription";
-import { SupervisorModuleUpdated } from "./components/modules/SupervisorModuleUpdated";
-import { OperationsManagerApp } from "./components/om/OperationsManagerApp";
-import { ComplaintManagement } from "./components/modules/ComplaintManagement";
-import { InventoryStore } from "./components/modules/InventoryStore";
+const SupervisorModuleUpdated = lazy(() => import("./components/modules/SupervisorModuleUpdated"));
+const OperationsManagerApp = lazy(() => import("./components/om/OperationsManagerApp"));
+const ComplaintManagement = lazy(() => import("./components/modules/ComplaintManagement"));
+const InventoryStore = lazy(() => import("./components/modules/InventoryStore"));
 import { MaterialRequisition } from "./components/inventory/MaterialRequisition";
-import { WasherIssuances } from "./components/inventory/WasherIssuances";
+const WasherIssuances = lazy(() => import("./components/inventory/WasherIssuances"));
 import { WasherStockLedger } from "./components/inventory/WasherStockLedger";
-import { MonthEndVerification } from "./components/inventory/MonthEndVerification";
+const MonthEndVerification = lazy(() => import("./components/inventory/MonthEndVerification"));
 import { MyStock } from "./components/washer/MyStock";
 import { StoreModule } from "./components/modules/StoreModule";
 import { ProcurementModule } from "./components/modules/ProcurementModule";
-import { FinanceModule } from "./components/modules/FinanceModule";
+const FinanceModule = lazy(() => import("./components/modules/FinanceModule"));
 // import { ChartOfAccounts } from "./components/finance/ChartOfAccounts"; // NOW LAZY
-import { RevenueCaptureSystem } from "./components/finance/RevenueCaptureSystem";
-import { PackageCostMatrix } from "./components/finance/PackageCostMatrix";
-import { CostPerWashModule } from "./components/finance/CostPerWashModule";
-import { ActualCostInputs } from "./components/finance/ActualCostInputs";
-import { FinanceTransactions } from "./components/finance/FinanceTransactions";
-import { LedgerEntriesView } from "./components/finance/LedgerEntriesView";
-import { FinanceAnalyticsDashboard } from "./components/finance/FinanceAnalyticsDashboard";
+const RevenueCaptureSystem = lazy(() => import("./components/finance/RevenueCaptureSystem"));
+const PackageCostMatrix = lazy(() => import("./components/finance/PackageCostMatrix"));
+const CostPerWashModule = lazy(() => import("./components/finance/CostPerWashModule"));
+const ActualCostInputs = lazy(() => import("./components/finance/ActualCostInputs"));
+const FinanceTransactions = lazy(() => import("./components/finance/FinanceTransactions"));
+const LedgerEntriesView = lazy(() => import("./components/finance/LedgerEntriesView"));
+const FinanceAnalyticsDashboard = lazy(() => import("./components/finance/FinanceAnalyticsDashboard"));
 import { FinancialReportsModule } from "./components/finance/FinancialReportsModule";
-import InvoiceManagement from "./components/finance/InvoiceManagement";
-import InvoiceDetail from "./components/finance/InvoiceDetail";
-import PaymentManagement from "./components/finance/PaymentManagement";
+const InvoiceManagement = lazy(() => import("./components/finance/InvoiceManagement"));
+const InvoiceDetail = lazy(() => import("./components/finance/InvoiceDetail"));
+const PaymentManagement = lazy(() => import("./components/finance/PaymentManagement"));
 // import { HRModule } from "./components/modules/HRModule"; // NOW LAZY
 // import { ProfessionalLeaveManagement } from "./components/hr/ProfessionalLeaveManagement"; // NOW LAZY
-import { LeavePolicyEngine } from "./components/hr/LeavePolicyEngine";
-import { EmployeeOnboarding } from "./components/hr/EmployeeOnboarding";
-import { ExitFFSettlement } from "./components/hr/ExitFFSettlement";
-import { EmployeeLifecycleManagement } from "./components/hr/EmployeeLifecycleManagement";
+const LeavePolicyEngine = lazy(() => import("./components/hr/LeavePolicyEngine"));
+const EmployeeOnboarding = lazy(() => import("./components/hr/EmployeeOnboarding"));
+const ExitFFSettlement = lazy(() => import("./components/hr/ExitFFSettlement"));
+const EmployeeLifecycleManagement = lazy(() => import("./components/hr/EmployeeLifecycleManagement"));
 import { LettersDocuments } from "./components/hr/LettersDocuments";
-import { IDCardGenerator } from "./components/hr/IDCardGenerator";
+const IDCardGenerator = lazy(() => import("./components/hr/IDCardGenerator"));
 import { HolidayManagement } from "./components/hr/HolidayManagement";
-import { LifeCycleReports } from "./components/hr/LifeCycleReports";
-import { EmployeeLedger } from "./components/hr/EmployeeLedger";
+const LifeCycleReports = lazy(() => import("./components/hr/LifeCycleReports"));
+const EmployeeLedger = lazy(() => import("./components/hr/EmployeeLedger"));
 // import { StatutoryFormsOnboarding } from "./components/hr/StatutoryFormsOnboarding"; // NOW LAZY
-import { StatutoryFormsVerification } from "./components/hr/StatutoryFormsVerification";
-import { OnboardingAutomation } from "./components/hr/OnboardingAutomation";
-import { EmployeeSalaryAssignment } from "./components/payroll/EmployeeSalaryAssignment";
-import { EmployeeSelfService } from "./components/hr/EmployeeSelfService";
-import { AttendanceDataManager } from "./components/admin/AttendanceDataManager";
+const StatutoryFormsVerification = lazy(() => import("./components/hr/StatutoryFormsVerification"));
+const OnboardingAutomation = lazy(() => import("./components/hr/OnboardingAutomation"));
+const EmployeeSalaryAssignment = lazy(() => import("./components/payroll/EmployeeSalaryAssignment"));
+const EmployeeSelfService = lazy(() => import("./components/hr/EmployeeSelfService"));
+const AttendanceDataManager = lazy(() => import("./components/admin/AttendanceDataManager"));
 import { ApprovalCenter as ApprovalCenterHR } from "./components/hr/ApprovalCenter";
 import { TestStatutoryRoutes } from "./components/TestStatutoryRoutes";
-import { DeveloperRouteDirectory } from "./components/developer/DeveloperRouteDirectory";
-import { ApprovalCenter } from "./components/ApprovalCenter";
+const DeveloperRouteDirectory = lazy(() => import("./components/developer/DeveloperRouteDirectory"));
+const ApprovalCenter = lazy(() => import("./components/ApprovalCenter"));
 import { AuditTrail } from "./components/AuditTrail";
-import { SystemAuditDashboard } from "./components/audit/SystemAuditDashboard";
+const SystemAuditDashboard = lazy(() => import("./components/audit/SystemAuditDashboard"));
 import { PerformanceTracking } from "./components/performance/PerformanceTracking";
-import { AccountsModule } from "./components/modules/AccountsModule";
+const AccountsModule = lazy(() => import("./components/modules/AccountsModule"));
 import { ExpenseEntry } from "./components/accounts/ExpenseEntry";
-import { ExpenseAnalytics } from "./components/accounts/ExpenseAnalytics";
-import { VendorPayment } from "./components/accounts/VendorPayment";
-import { GSTDashboard } from "./components/accounts/GSTDashboard";
+const ExpenseAnalytics = lazy(() => import("./components/accounts/ExpenseAnalytics"));
+const VendorPayment = lazy(() => import("./components/accounts/VendorPayment"));
+const GSTDashboard = lazy(() => import("./components/accounts/GSTDashboard"));
 // Phase 1 Accounting Entry System
-import { AccountingEntry } from "./components/accounts/AccountingEntry";
+const AccountingEntry = lazy(() => import("./components/accounts/AccountingEntry"));
 import { JournalEntry } from "./components/accounts/JournalEntry";
-import { AccountsDashboard } from "./components/accounts/AccountsDashboard";
-import { AccountingTransactionList } from "./components/accounts/AccountingTransactionList";
+const AccountsDashboard = lazy(() => import("./components/accounts/AccountsDashboard"));
+const AccountingTransactionList = lazy(() => import("./components/accounts/AccountingTransactionList"));
 import { AccountsLedger } from "./components/accounts/AccountsLedger";
+const PartyLedger = lazy(() => import("./components/accounts/PartyLedger"));
 import { TrialBalance } from "./components/accounts/TrialBalance";
-import { BalanceSheet } from "./components/accounts/BalanceSheet";
-import { LedgerMaster } from "./components/accounts/LedgerMaster";
-import { RazorpayFlow } from "./components/accounts/RazorpayFlow";
-import { ExpenseVoucher } from "./components/accounts/ExpenseVoucher";
-import { ItemMaster } from "./components/accounts/ItemMaster";
+const BalanceSheet = lazy(() => import("./components/accounts/BalanceSheet"));
+const LedgerMaster = lazy(() => import("./components/accounts/LedgerMaster"));
+const RazorpayFlow = lazy(() => import("./components/accounts/RazorpayFlow"));
+const ExpenseVoucher = lazy(() => import("./components/accounts/ExpenseVoucher"));
+const ItemMaster = lazy(() => import("./components/accounts/ItemMaster"));
 const TDSPayableModule = lazy(() => import("./components/accounts/TDSPayableModule"));
 const AdvanceTaxCalculator = lazy(() => import("./components/accounts/AdvanceTaxCalculator"));
 const PayablesDashboard = lazy(() => import("./components/accounts/PayablesDashboard"));
@@ -134,113 +137,120 @@ import { VendorRequest } from "./components/store-manager/VendorRequest";
 // import { CustomerLTVAnalysis } from "./components/analytics/CustomerLTVAnalysis"; // NOW LAZY
 // import { CACDashboard } from "./components/analytics/CACDashboard"; // NOW LAZY
 // import { BreakEvenAnalysis } from "./components/analytics/BreakEvenAnalysis"; // NOW LAZY
-import { AnalyticsDashboardWithDrillDown } from "./components/dashboards/AnalyticsDashboardWithDrillDown";
+const AnalyticsDashboardWithDrillDown = lazy(() => import("./components/dashboards/AnalyticsDashboardWithDrillDown"));
 // import { CostPerWashCalculatorEnhanced } from "./components/analytics/CostPerWashCalculatorEnhanced"; // NOW LAZY
 // import { CostPerWashByPlan } from "./components/analytics/CostPerWashByPlan"; // NOW LAZY
 // import { CostPerWashByConsumption } from "./components/analytics/CostPerWashByConsumption"; // NOW LAZY
 // import { LabourCostPerWash } from "./components/analytics/LabourCostPerWash"; // NOW LAZY
 // import { EmployeeEfficiency } from "./components/analytics/EmployeeEfficiency"; // NOW LAZY
 // import { CityComparison } from "./components/analytics/CityComparison"; // NOW LAZY
-import { RoleBasedAnalyticsDashboard } from "./components/examples/RoleBasedAnalyticsDashboard";
-import { CostPerWashReport } from "./components/reports/CostPerWashReport";
+const RoleBasedAnalyticsDashboard = lazy(() => import("./components/examples/RoleBasedAnalyticsDashboard"));
+const CostPerWashReport = lazy(() => import("./components/reports/CostPerWashReport"));
 // Founder module imports - NOW LAZY
 // import { FounderControlTower } from "./components/founder/FounderControlTower"; // NOW LAZY
 // import { DetailedFinancialView } from "./components/founder/DetailedFinancialView"; // NOW LAZY
 // import { CashFlowDashboard } from "./components/founder/CashFlowDashboard"; // NOW LAZY
 // import { MarketingROIDrilldown } from "./components/founder/MarketingROIDrilldown"; // NOW LAZY
 import { ActivityTimelineWrapper } from "./components/crm/ActivityTimelineWrapper";
-import { NotificationCenter } from "./components/crm/NotificationCenter";
-import { PayrollConfiguration } from "./components/payroll/PayrollConfiguration";
+const NotificationCenter = lazy(() => import("./components/crm/NotificationCenter"));
+const PayrollConfiguration = lazy(() => import("./components/payroll/PayrollConfiguration"));
 import { PayrollConfigTest } from "./components/payroll/PayrollConfigTest";
 // import { CreateSalaryStructure } from "./components/payroll/CreateSalaryStructure"; // NOW LAZY
-import { PayrollRun } from "./components/payroll/PayrollRun";
-import { PayrollProcessing } from "./components/payroll/PayrollProcessing";
-import { PayrollProcessingAdvanced } from "./components/payroll/PayrollProcessingAdvanced";
-import { PayrollReviewApproval } from "./components/payroll/PayrollReviewApproval";
+const PayrollRun = lazy(() => import("./components/payroll/PayrollRun"));
+const PayrollProcessing = lazy(() => import("./components/payroll/PayrollProcessing"));
+const PayrollProcessingAdvanced = lazy(() => import("./components/payroll/PayrollProcessingAdvanced"));
+const PayrollReviewApproval = lazy(() => import("./components/payroll/PayrollReviewApproval"));
 import { SalaryPayableView } from "./components/payroll/SalaryPayableView";
-import { SalaryPaymentScreen } from "./components/payroll/SalaryPaymentScreen";
-import { StatutoryPayablesScreen } from "./components/payroll/StatutoryPayablesScreen";
-import { PlanEditor } from "./components/subscription/PlanEditor";
-import { CommunicationTemplates } from "./components/settings/CommunicationTemplates";
-import { CostConfiguration } from "./components/settings/CostConfiguration";
-import { ServiceZonesManagement } from "./components/modules/ServiceZonesManagement";
-import { WasherJobExecution } from "./components/modules/WasherJobExecution";
+const SalaryPaymentScreen = lazy(() => import("./components/payroll/SalaryPaymentScreen"));
+const StatutoryPayablesScreen = lazy(() => import("./components/payroll/StatutoryPayablesScreen"));
+const PlanEditor = lazy(() => import("./components/subscription/PlanEditor"));
+const CommunicationTemplates = lazy(() => import("./components/settings/CommunicationTemplates"));
+const CostConfiguration = lazy(() => import("./components/settings/CostConfiguration"));
+const ServiceZonesManagement = lazy(() => import("./components/modules/ServiceZonesManagement"));
+const WasherJobExecution = lazy(() => import("./components/modules/WasherJobExecution"));
+import { DataCapture } from "./components/operations/DataCapture";
 import { ExpansionOpportunities } from "./components/modules/ExpansionOpportunities";
-import { SupplierDetail } from "./components/procurement/SupplierDetail";
+const SupplierDetail = lazy(() => import("./components/procurement/SupplierDetail"));
 import { CostTrackingIntegrationDemo } from "./components/demo/CostTrackingIntegrationDemo";
-import { DesignSystemTest } from "./design-system/tests/DesignSystemTest";
-import { ClothExchange } from "./components/cloth-tracking/ClothExchange";
+const DesignSystemTest = lazy(() => import("./design-system/tests/DesignSystemTest"));
+const ClothExchange = lazy(() => import("./components/cloth-tracking/ClothExchange"));
 import { ClothAdminDashboard } from "./components/cloth-tracking/ClothAdminDashboard";
 import { AdvanceTypeSelection } from "./components/advance/AdvanceTypeSelection";
-import { LongTermAdvanceForm } from "./components/advance/LongTermAdvanceForm";
-import { ShortTermAdvanceForm } from "./components/advance/ShortTermAdvanceForm";
-import { EmployeeAdvanceDashboard } from "./components/advance/EmployeeAdvanceDashboard";
+const LongTermAdvanceForm = lazy(() => import("./components/advance/LongTermAdvanceForm"));
+const ShortTermAdvanceForm = lazy(() => import("./components/advance/ShortTermAdvanceForm"));
+const EmployeeAdvanceDashboard = lazy(() => import("./components/advance/EmployeeAdvanceDashboard"));
 import { AdvanceDetailView } from "./components/advance/AdvanceDetailView";
-import { HRAdvanceManagement } from "./components/advance/HRAdvanceManagement";
-import { OtherEarningsModule } from "./components/advance/OtherEarningsModule";
-import { OtherDeductionsModule } from "./components/advance/OtherDeductionsModule";
-import { AdjustmentsReport } from "./components/advance/AdjustmentsReport";
-import { WorkflowControlDemo } from "./components/workflow/WorkflowControlDemo";
+const HRAdvanceManagement = lazy(() => import("./components/advance/HRAdvanceManagement"));
+const OtherEarningsModule = lazy(() => import("./components/advance/OtherEarningsModule"));
+const OtherDeductionsModule = lazy(() => import("./components/advance/OtherDeductionsModule"));
+const AdjustmentsReport = lazy(() => import("./components/advance/AdjustmentsReport"));
+const WorkflowControlDemo = lazy(() => import("./components/workflow/WorkflowControlDemo"));
 import { IncentiveEngineDemo } from "./components/workflow/IncentiveEngineDemo";
-import { WeekOffCoverDemo } from "./components/washer/WeekOffCoverDemo";
+const WeekOffCoverDemo = lazy(() => import("./components/washer/WeekOffCoverDemo"));
 import { SystemIntegrationDemo } from "./components/washer/SystemIntegrationDemo";
-import { WasherCoreScreensDemo } from "./components/washer/WasherCoreScreensDemo";
-import { WasherCoreScreensConnected } from "./components/washer/WasherCoreScreensConnected";
+const WasherCoreScreensDemo = lazy(() => import("./components/washer/WasherCoreScreensDemo"));
+const WasherCoreScreensConnected = lazy(() => import("./components/washer/WasherCoreScreensConnected"));
 import { SupervisorAppConnected } from "./components/supervisor/SupervisorAppConnected";
 import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
-import { ClusterManagerApp } from "./components/cm/ClusterManagerApp";
-import { CityManagerApp } from "./components/city/CityManagerApp";
-import { TeleSalesManagerApp } from "./components/tsm/TeleSalesManagerApp";
-import { TeleSalesExecutiveApp } from "./components/tse/TeleSalesExecutiveApp";
+const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
+const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
+const TeleSalesManagerApp = lazy(() => import("./components/tsm/TeleSalesManagerApp"));
+const SalesHeadApp = lazy(() => import("./components/sh/SalesHeadApp"));
+const SalesManagerApp = lazy(() => import("./components/sm/SalesManagerApp"));
+const TeleSalesExecutiveApp = lazy(() => import("./components/tse/TeleSalesExecutiveApp"));
 import { TSEDiagnostics } from "./components/tse/TSEDiagnostics";
-import { CustomerCareExecutiveApp } from "./components/cce/CustomerCareExecutiveApp";
+const CustomerCareExecutiveApp = lazy(() => import("./components/cce/CustomerCareExecutiveApp"));
 import TestBTLService from "./test-btl-service";
 import { SubscriptionApp } from "./components/subscription/SubscriptionApp";
-import { PlanSelectionScreen } from "./components/subscription/PlanSelectionScreen";
+const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen"));
+const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage"));
+const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 // import { AdminPlanManagement } from "./components/subscription/AdminPlanManagement"; // NOW LAZY
 import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionDiagnostics";
-import { HierarchyDashboard } from "./components/hierarchy/HierarchyDashboard";
+const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard"));
 import { WasherAttendanceHistory } from "./components/washer/WasherAttendanceHistory";
 import { OperationsRouter } from "./components/operations/OperationsRouter";
-import { OperationsDataCapture } from "./components/operations/OperationsDataCapture";
 import { OperationsLayout } from "./components/operations/OperationsLayout";
-import { ClientPortal } from "./components/client/ClientPortal";
-import { WorkingHoursSetup } from "./components/workforce/WorkingHoursSetup";
+const ClientPortal = lazy(() => import("./components/client/ClientPortal"));
+const WorkingHoursSetup = lazy(() => import("./components/workforce/WorkingHoursSetup"));
 import { WorkingHoursTest } from "./components/workforce/WorkingHoursTest";
 import { WorkingHoursSimple } from "./components/workforce/WorkingHoursSimple";
 import { WorkforceDiagnostic } from "./components/workforce/WorkforceDiagnostic";
 // import { IncentiveConfiguration } from "./components/incentives/IncentiveConfiguration"; // NOW LAZY
-import { IncentiveSimulator } from "./components/incentives/IncentiveSimulator";
-import { IncentiveDashboard } from "./components/incentives/IncentiveDashboard";
+const IncentiveSimulator = lazy(() => import("./components/incentives/IncentiveSimulator"));
+const IncentiveDashboard = lazy(() => import("./components/incentives/IncentiveDashboard"));
 import { HRPayrollApproval } from "./components/hr/HRPayrollApproval";
 import { SuperAdminPayrollApproval } from "./components/admin/SuperAdminPayrollApproval";
-import { CityManagement } from "./components/admin/CityManagement";
-import { BusinessRulesPage } from "./components/admin/BusinessRulesPage";
+const CityManagement = lazy(() => import("./components/admin/CityManagement"));
+const BusinessRulesPage = lazy(() => import("./components/admin/BusinessRulesPage"));
 import { ShiftManagementPage } from "./components/admin/ShiftManagementPage"; // MC-10
 import { AttendanceFraudAlertsPage } from "./components/admin/AttendanceFraudAlertsPage"; // MC-09
 import { PermissionManagementPage } from "./components/admin/PermissionManagementPage"; // MC-11
-import { RolePermissionManager } from "./components/admin/RolePermissionManager"; // MC-11 Enhanced
+const RolePermissionManager = lazy(() => import("./components/admin/RolePermissionManager")); // MC-11 Enhanced
+const IncentiveVisibilityAdmin = lazy(() => import("./components/admin/IncentiveVisibilityAdmin")); // Super Admin incentive screen control
 import { RoleSuggestionsPage } from "./components/hr/RoleSuggestionsPage"; // MC-12
-import { HRIntelligenceDashboard } from "./components/hr/HRIntelligenceDashboard";
-import { AccountsPayrollProcessing } from "./components/accounts/AccountsPayrollProcessing";
+const HRIntelligenceDashboard = lazy(() => import("./components/hr/HRIntelligenceDashboard"));
+const AccountsPayrollProcessing = lazy(() => import("./components/accounts/AccountsPayrollProcessing"));
 import { GSTOverview } from "./components/gst/GSTOverview";
-import { GSTVendorMaster } from "./components/gst/GSTVendorMaster";
-import { GSTCustomerMaster } from "./components/gst/GSTCustomerMaster";
-import { GSTTransactionEntry } from "./components/gst/GSTTransactionEntry";
+const GSTVendorMaster = lazy(() => import("./components/gst/GSTVendorMaster"));
+const GSTCustomerMaster = lazy(() => import("./components/gst/GSTCustomerMaster"));
+const GSTTransactionEntry = lazy(() => import("./components/gst/GSTTransactionEntry"));
 import { GSTValidationCentre } from "./components/gst/GSTValidationCentre";
-import { GSTManagerReview } from "./components/gst/GSTManagerReview";
-import { GSTReconciliation } from "./components/gst/GSTReconciliation";
-import { GSTReports } from "./components/gst/GSTReports";
-import { TransactionSubTypeManager } from "./components/gst/TransactionSubTypeManager";
-import { GSTR1Module } from "./components/gst/GSTR1Module";
-import { GSTR3BModule } from "./components/gst/GSTR3BModule";
-import { GSTFilingModule } from "./components/gst/GSTFilingModule";
-import { GSTMonitoringModule } from "./components/gst/GSTMonitoringModule";
-import { BusinessFlowDemo } from "./components/BusinessFlowDemo";
+const GSTManagerReview = lazy(() => import("./components/gst/GSTManagerReview"));
+const GSTReconciliation = lazy(() => import("./components/gst/GSTReconciliation"));
+const GSTReports = lazy(() => import("./components/gst/GSTReports"));
+const TransactionSubTypeManager = lazy(() => import("./components/gst/TransactionSubTypeManager"));
+const GSTR1Module = lazy(() => import("./components/gst/GSTR1Module"));
+const GSTR3BModule = lazy(() => import("./components/gst/GSTR3BModule"));
+const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule"));
+const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule"));
+const BusinessFlowDemo = lazy(() => import("./components/BusinessFlowDemo"));
 import { UnauthorizedPage } from "./components/pages/UnauthorizedPage";
-import { LoginPage } from "./pages/LoginPage";
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
-import { MyAccountPage } from "./components/hr/MyAccountPage";
+const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
+import { AppProvider } from "./contexts/AppProvider";
+import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
 
 export const router = createBrowserRouter([
   {
@@ -250,12 +260,18 @@ export const router = createBrowserRouter([
   // Standalone Onboarding Portal routes (no header/sidebar) - MUST come FIRST
   {
     path: "/onboarding/:empId",
-    element: <Suspense fallback={<PageLoader />}><ErrorBoundary><OnboardingPortal /></ErrorBoundary></Suspense>,
+    element: <ErrorBoundary><OnboardingPortal /></ErrorBoundary>,
   },
   {
     path: "/onboard/:empId",
     element: <OnboardingRedirect />,
   },
+  // Public routes - /buy uses main route AppProvider (see children in "/" route)
+  {
+    path: "/track/:jobId",
+    element: <ErrorBoundary><AppProvider><WasherTrackingPageDirect /></AppProvider></ErrorBoundary>,
+  },
+
   // Main application routes with layout
   {
     path: "/",
@@ -263,6 +279,8 @@ export const router = createBrowserRouter([
     errorElement: (<div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-4 p-8"><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center"><span className="text-red-600 text-xl font-bold">!</span></div><h2 className="text-lg font-semibold text-gray-900">Page Error</h2><p className="text-sm text-gray-500">This page has an error. Other pages still work.</p><a href="/" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">Go to Dashboard</a></div>),
     children: [
       { index: true, element: <Dashboard /> },
+      { path: "buy", element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary> },
+      { path: "book", element: <Navigate to="/buy" replace /> },
 
       // CRM index — nav parent /crm has no route
       {
@@ -297,7 +315,8 @@ export const router = createBrowserRouter([
       { path: "business-flow-demo", element: <DevOnlyRoute element={<BusinessFlowDemo />} /> },
       { path: "users", element: <UserManagement /> },
       { path: "leads", element: <CRMLeadManagementWithFilters /> },
-      { path: "customers", element: <CustomerSubscription /> },
+      { path: "corporate", element: <ErrorBoundary><CorporateB2BPortal /></ErrorBoundary> },
+  { path: "customers", element: <CustomerSubscription /> },
       { path: "car-washer", element: <Navigate to="/washer-core-screens" replace /> },
       { path: "supervisor", element: <SupervisorModuleUpdated /> },
       // Operations layout route with children
@@ -306,7 +325,7 @@ export const router = createBrowserRouter([
         element: <OperationsLayout />,
         children: [
           { index: true, element: <OperationsRouter /> },
-          { path: "data-capture", element: <OperationsDataCapture /> },
+          { path: "data-capture", element: <DataCapture /> },
         ]
       },
       { path: "complaints", element: <ComplaintManagement /> },
@@ -323,7 +342,7 @@ export const router = createBrowserRouter([
       { path: "finance/reports", element: <FinancialReportsModule /> },
       { path: "finance/transactions", element: <FinanceTransactions /> },
       { path: "finance/ledger-entries", element: <LedgerEntriesView /> },
-      { path: "finance/chart-of-accounts", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><ChartOfAccounts /></ErrorBoundary></Suspense> },
+      { path: "finance/chart-of-accounts", element: <ErrorBoundary><ChartOfAccounts /></ErrorBoundary> },
       { path: "finance/invoices", element: <InvoiceManagement /> },
       { path: "finance/invoices/:id", element: <InvoiceDetail /> },
       { path: "finance/payments", element: <PaymentManagement /> },
@@ -331,10 +350,10 @@ export const router = createBrowserRouter([
       { path: "finance/package-cost-matrix", element: <PackageCostMatrix /> },
       { path: "finance/cost-per-wash", element: <CostPerWashModule /> },
       { path: "finance/cost-per-wash/actual-inputs", element: <ActualCostInputs /> },
-      { path: "hr", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><HRModule /></ErrorBoundary></Suspense> },
+      { path: "hr", element: <ErrorBoundary><HRModule /></ErrorBoundary> },
       { path: "hr/leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/enhanced-leave", element: <Navigate to="/hr/professional-leave" replace /> },
-      { path: "hr/professional-leave", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><ProfessionalLeaveManagement /></ErrorBoundary></Suspense> },
+      { path: "hr/professional-leave", element: <ErrorBoundary><ProfessionalLeaveManagement /></ErrorBoundary> },
       { path: "hr/leave-policy-engine", element: <LeavePolicyEngine /> },
       { path: "hr/onboarding", element: <EmployeeOnboarding /> },
       { path: "hr/exit-settlement", element: <ExitFFSettlement /> },
@@ -344,7 +363,7 @@ export const router = createBrowserRouter([
       { path: "hr/holiday-management", element: <HolidayManagement /> },
       { path: "hr/lifecycle-reports", element: <LifeCycleReports /> },
       { path: "hr/employee-ledger", element: <EmployeeLedger /> },
-      { path: "hr/statutory-forms-onboarding", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><StatutoryFormsOnboarding /></ErrorBoundary></Suspense> },
+      { path: "hr/statutory-forms-onboarding", element: <ErrorBoundary><StatutoryFormsOnboarding /></ErrorBoundary> },
       { path: "hr/statutory-forms-verification", element: <StatutoryFormsVerification /> },
       { path: "hr/onboarding-automation", element: <OnboardingAutomation /> },
       { path: "hr/self-service", element: <EmployeeSelfService /> },
@@ -367,13 +386,14 @@ export const router = createBrowserRouter([
       { path: "accounts/accounting-entry", element: <AccountingEntry /> },
       { path: "accounts/expense-voucher", element: <ExpenseVoucher /> },
       { path: "accounts/item-master", element: <ItemMaster /> },
-      { path: "accounts/payables", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><PayablesDashboard /></ErrorBoundary></Suspense> },
-      { path: "accounts/tds-payable", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><TDSPayableModule /></ErrorBoundary></Suspense> },
-      { path: "accounts/advance-tax", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary></Suspense> },
+      { path: "accounts/payables", element: <ErrorBoundary><PayablesDashboard /></ErrorBoundary> },
+      { path: "accounts/tds-payable", element: <ErrorBoundary><TDSPayableModule /></ErrorBoundary> },
+      { path: "accounts/advance-tax", element: <ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary> },
       { path: "accounts/journal-entry", element: <JournalEntry /> },
       { path: "accounts/dashboard", element: <AccountsDashboard /> },
       { path: "accounts/transactions", element: <AccountingTransactionList /> },
       { path: "accounts/ledger", element: <AccountsLedger /> },
+      { path: "accounts/party-ledger", element: <PartyLedger /> },
       { path: "accounts/ledger-master", element: <LedgerMaster /> },
       { path: "accounts/razorpay-flow", element: <RazorpayFlow /> },
       { path: "accounts/trial-balance", element: <TrialBalance /> },
@@ -394,13 +414,14 @@ export const router = createBrowserRouter([
       { path: "gst/gstr3b", element: <GSTR3BModule /> },
       { path: "gst/filing", element: <GSTFilingModule /> },
       { path: "gst/monitoring", element: <GSTMonitoringModule /> },
-      { path: "admin/payroll-approval", element: <SuperAdminPayrollApproval /> },
+            { path: "admin/payroll-approval", element: <SuperAdminPayrollApproval /> },
       { path: "admin/city-management", element: <CityManagement /> },
       { path: "admin/business-rules", element: <BusinessRulesPage /> },
       { path: "admin/shift-management", element: <ShiftManagementPage /> }, // MC-10
       { path: "admin/fraud-alerts", element: <AttendanceFraudAlertsPage /> }, // MC-09
       { path: "admin/permissions", element: <PermissionManagementPage /> }, // MC-11
       { path: "admin/role-permissions", element: <RolePermissionManager /> }, // MC-11 Enhanced: Base role overrides + custom sub-roles
+      { path: "admin/incentive-visibility", element: <IncentiveVisibilityAdmin /> }, // Super Admin: show/hide incentive tab per role/employee
       { path: "hr/role-suggestions", element: <RoleSuggestionsPage /> }, // MC-12
       { path: "hr/intelligence-dashboard", element: <HRIntelligenceDashboard /> },
       { path: "store-manager", element: <StoreManagerModule /> },
@@ -415,18 +436,18 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/analytics/dashboard" replace /> },
           { path: "dashboard", element: <AnalyticsDashboardWithDrillDown /> },
-          { path: "unit-economics", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><UnitEconomicsDashboard /></ErrorBoundary></Suspense> },
-          { path: "customer-ltv", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><CustomerLTVAnalysis /></ErrorBoundary></Suspense> },
-          { path: "cac", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><CACDashboard /></ErrorBoundary></Suspense> },
-          { path: "break-even", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><BreakEvenAnalysis /></ErrorBoundary></Suspense> },
+          { path: "unit-economics", element: <ErrorBoundary><UnitEconomicsDashboard /></ErrorBoundary> },
+          { path: "customer-ltv", element: <ErrorBoundary><CustomerLTVAnalysis /></ErrorBoundary> },
+          { path: "cac", element: <ErrorBoundary><CACDashboard /></ErrorBoundary> },
+          { path: "break-even", element: <ErrorBoundary><BreakEvenAnalysis /></ErrorBoundary> },
           { path: "package-cost-matrix", element: <Navigate to="/finance/package-cost-matrix" replace /> },
 
           // PHASE 3: Consolidated Cost Module Routes
           // Main dashboard: /finance/cost-per-wash (CostPerWashModule)
           // Specialized views:
-          { path: "cost-by-plan", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><CostPerWashByPlan /></ErrorBoundary></Suspense> },
-          { path: "cost-by-consumption", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><CostPerWashByConsumption /></ErrorBoundary></Suspense> },
-          { path: "labour-cost", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><LabourCostPerWash /></ErrorBoundary></Suspense> },
+          { path: "cost-by-plan", element: <ErrorBoundary><CostPerWashByPlan /></ErrorBoundary> },
+          { path: "cost-by-consumption", element: <ErrorBoundary><CostPerWashByConsumption /></ErrorBoundary> },
+          { path: "labour-cost", element: <ErrorBoundary><LabourCostPerWash /></ErrorBoundary> },
           { path: "cost-report", element: <CostPerWashReport /> },
 
           // Legacy redirects for backward compatibility
@@ -436,8 +457,8 @@ export const router = createBrowserRouter([
           { path: "labour-cost-per-wash", element: <Navigate to="/analytics/unit-economics/labour-cost" replace /> },
           { path: "cost-per-wash-report", element: <Navigate to="/analytics/unit-economics/cost-report" replace /> },
 
-          { path: "employee-efficiency", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><EmployeeEfficiency /></ErrorBoundary></Suspense> },
-          { path: "city-comparison", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><CityComparison /></ErrorBoundary></Suspense> },
+          { path: "employee-efficiency", element: <ErrorBoundary><EmployeeEfficiency /></ErrorBoundary> },
+          { path: "city-comparison", element: <ErrorBoundary><CityComparison /></ErrorBoundary> },
           { path: "role-based-demo", element: <DevOnlyRoute element={<RoleBasedAnalyticsDashboard />} /> },
         ]
       },
@@ -464,7 +485,7 @@ export const router = createBrowserRouter([
         element: <Outlet />,
         children: [
           { index: true, element: <Navigate to="/subscription/plan-management" replace /> },
-          { path: "plan-management", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary></Suspense> },
+          { path: "plan-management", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
           { path: "plan-editor", element: <PlanEditor /> },
         ]
       },
@@ -534,6 +555,12 @@ export const router = createBrowserRouter([
           { path: "visibility", element: <SupervisorAppConnected /> },
           { path: "audit-trail", element: <SupervisorAppConnected /> },
           { path: "kpi-dashboard", element: <SupervisorAppConnected /> },
+          { path: "btl-assignments", element: <SupervisorAppConnected /> },
+          { path: "schedule", element: <SupervisorAppConnected /> },
+          { path: "audit-flow", element: <SupervisorAppConnected /> },
+          { path: "audit-result", element: <SupervisorAppConnected /> },
+          { path: "btl-leads", element: <SupervisorAppConnected /> },
+          { path: "*", element: <SupervisorAppConnected /> },
         ]
       },
 
@@ -551,6 +578,8 @@ export const router = createBrowserRouter([
 
       // Tele Sales Manager App (Production) - Pipeline control tower
       { path: "tsm-app", element: <TeleSalesManagerApp /> },
+      { path: "sh-app", element: <SalesHeadApp /> },
+      { path: "sm-app-alliance", element: <SalesManagerApp /> },
 
       // Tele Sales Executive App (Production) - Sales execution interface
       { path: "tse-app", element: <TeleSalesExecutiveApp /> },
@@ -565,7 +594,9 @@ export const router = createBrowserRouter([
       // Subscription Management System (Production) - Dynamic plan system
       { path: "subscription-app", element: <SubscriptionApp /> },
       { path: "plans", element: <PlanSelectionScreen /> },
-      { path: "admin/plans", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary></Suspense> },
+      { path: "buy",   element: <CustomerPlanPage /> },
+      { path: "admin/plans", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
+      { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 
       // Client Portal - Read-only client interface
@@ -578,7 +609,7 @@ export const router = createBrowserRouter([
       { path: "workforce/working-hours", element: <WorkingHoursSetup /> },
 
       // Incentive Management System - Configuration, Simulation & Forecasting
-      { path: "incentives/configuration", element: <Suspense fallback={<PageLoader />}><ErrorBoundary><IncentiveConfiguration /></ErrorBoundary></Suspense> },
+      { path: "incentives/configuration", element: <ErrorBoundary><IncentiveConfiguration /></ErrorBoundary> },
       { path: "incentives/simulator", element: <IncentiveSimulator /> },
       { path: "incentives/forecast", element: <IncentiveDashboard /> },
       { path: "incentives", element: <Navigate to="/incentives/configuration" replace /> },
@@ -595,3 +626,8 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+
+
+
+
