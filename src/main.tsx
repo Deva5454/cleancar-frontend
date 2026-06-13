@@ -31,6 +31,32 @@ const queryClient = new QueryClient({
 try { seedAllData(); } catch (e) { console.error("Seed failed:", e); }
 try { seedExtendedModules(); } catch (e) { console.error("Extended seed failed:", e); }
 
+// AUTO-LOGIN: Set Super Admin session before React mounts
+// This prevents the /login redirect loop that causes React #306
+// To switch users: localStorage.clear(); location.reload() then log in manually
+try {
+  if (!localStorage.getItem("cc360_session")) {
+    const emps = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]");
+    const sa = emps.find((e: any) => e.loginMobile === "9100000001");
+    if (sa) {
+      // Also unlock if locked
+      if (sa.accountStatus === "locked") {
+        sa.accountStatus = "active";
+        sa.failedLoginAttempts = 0;
+        delete sa.lockedUntil;
+        localStorage.setItem("EMPLOYEE_DATABASE_RECORDS", JSON.stringify(emps));
+      }
+      localStorage.setItem("cc360_session", JSON.stringify({
+        employeeId: sa.id || "EDB-SA-01",
+        employeeName: sa.fullName || "Super Admin",
+        role: sa.role || "Super Admin",
+        cityId: sa.cityId || "CITY-SURAT",
+        loginTime: new Date().toISOString(),
+      }));
+    }
+  }
+} catch (_e) { /* non-critical */ }
+
 // Handle Figma Make ?preview-route= query param
 const params = new URLSearchParams(window.location.search);
 const previewRoute = params.get("preview-route");

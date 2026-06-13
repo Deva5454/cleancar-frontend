@@ -40,37 +40,8 @@ export function LoginPage() {
     };
     window.addEventListener("dataservice:quota", handleQuota);
 
-    // AUTO-LOGIN: Super Admin bypass — skips password screen entirely
-    // Remove this block to disable auto-login
-    const existingSession = localStorage.getItem("cc360_session");
-    if (!existingSession) {
-      try {
-        // Unlock Super Admin in case they were locked
-        const EDB_KEY = "EMPLOYEE_DATABASE_RECORDS";
-        const emps = JSON.parse(localStorage.getItem(EDB_KEY) || "[]");
-        const saIdx = emps.findIndex((e: any) => e.loginMobile === "9100000001" || e.role === "Super Admin");
-        if (saIdx >= 0 && emps[saIdx].accountStatus === "locked") {
-          emps[saIdx].accountStatus = "active";
-          emps[saIdx].failedLoginAttempts = 0;
-          delete emps[saIdx].lockedUntil;
-          localStorage.setItem(EDB_KEY, JSON.stringify(emps));
-        }
-        // Set session directly
-        const sa = emps[saIdx >= 0 ? saIdx : 0];
-        if (sa && sa.loginMobile === "9100000001") {
-          localStorage.setItem("cc360_session", JSON.stringify({
-            employeeId: sa.id || "EDB-SA-01",
-            employeeName: sa.fullName || "Super Admin",
-            role: sa.role || "Super Admin",
-            cityId: sa.cityId || "CITY-SURAT",
-            loginTime: new Date().toISOString(),
-          }));
-          navigate("/");
-          return;
-        }
-      } catch (_e) { /* fall through to normal login */ }
-    } else {
-      // Already logged in — go straight to dashboard
+    // If already logged in, redirect to dashboard
+    if (localStorage.getItem("cc360_session")) {
       navigate("/");
       return;
     }
