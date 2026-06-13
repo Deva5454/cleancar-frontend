@@ -7,18 +7,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import {
-  Calendar,
-  Users,
-  Target,
-  AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  FileCheck,
-  UserPlus,
-  Clock,
-  MapPin,
-} from "lucide-react";
+
+    $inner = $args[0].Groups[1].Value
+    if ($inner -notmatch 'DollarSign') {
+        "import {$inner, DollarSign } from `"lucide-react`""
+    } else {
+        $args[0].Value
+    }
+;
 import type { TeamSummary, SupervisorAlert } from "../../services/supervisorDataService";
 
 export interface SupervisorDashboardProps {
@@ -348,4 +344,5 @@ export function SupervisorDashboard({
     </div>
   );
 }
+
 
