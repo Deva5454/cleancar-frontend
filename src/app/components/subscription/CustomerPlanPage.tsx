@@ -40,7 +40,7 @@ export interface AddonConfig { id: string; name: string; price: number; unit: st
 export const DEFAULT_CONFIG: PlanPageConfig = {
   brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
   hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
-  trustItems: ["📸 Before & after photos","🔄 Free re-wash 24h","🏠 We come to you","📞 Cancel anytime"],
+  trustItems: ["📸 Before & after photos every wash","🔄 Free re-wash within 24h","🏠 We come to you","📞 Easy cancellation process"],
   trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash 24h","📞 7-day cancellation","🏠 Home, office, society"],
   vehicleCategories: [
     { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "🚗" },
@@ -542,7 +542,7 @@ export function CustomerPlanPage() {
     : addonTotal; // packs: just the per-visit addon price
   // Multi-month bundle: multiply base price by months with discount applied
   const bundleDiscountedBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4")
-    ? Math.round(packPrice * (1 - ({3:0.05,6:0.08,9:0.10,12:0.12} as Record<number,number>)[bundleMonths] ?? 0)) * bundleMonths
+    ? Math.round(packPrice * (1 - (({3:0.05,6:0.08,9:0.10,12:0.12} as Record<number,number>)[bundleMonths] || 0))) * bundleMonths
     : basePrice;
   const effectiveBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? bundleDiscountedBase : basePrice;
   const total = effectiveBase + addonGrandTotal;
@@ -708,7 +708,7 @@ export function CustomerPlanPage() {
       const now=new Date();
       const invNum=`INV-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-6)}`;
       const nameParts=custName.trim().split(" "),firstName=nameParts[0]||custName,lastName=nameParts.slice(1).join(" ")||"—";
-      const existing=customers.find(c=>c.phone===custMobile||(custEmail&&c.email===custEmail));
+      const existing=customers.find((c:any)=>c.phone===custMobile||(custEmail&&c.email===custEmail));
       let customerId:string;
       if(existing){customerId=existing.customerId;}
       else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"],gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTCustomer:!!(custGST&&gstStatus==="valid")} as any); customerId=nc.customerId;}
@@ -744,6 +744,38 @@ export function CustomerPlanPage() {
         source: "DIGITAL",
         activationDate: new Date().toISOString().slice(0,10),
       }).catch(()=>{/* non-blocking — localStorage is primary */});
+      // 7️⃣ Fire auto-job-creation events — JobContext listens for these
+      try {
+        if(planMode === "monthly") {
+          window.dispatchEvent(new CustomEvent("cc360:subscription_created", { detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packageType: selectedPlan === "wax" ? "ELITE_WASH" : selectedPlan === "shampoo" ? "SMART_WASH" : "EXPRESS_WASH",
+            packageName: sub.packageName,
+            startDate: now.toISOString().split("T")[0],
+            preferredTimeSlot: prefTime || "06:00",
+            vehicleType: activeCat || "hatchback",
+            addOns: addons,
+            frequency: "Monthly",
+            cityId: city || "CITY-SURAT",
+          }}));
+        } else if(selectedPack === "pack2" || selectedPack === "pack4") {
+          const firstDate = oneTimeDate || now.toISOString().split("T")[0];
+          window.dispatchEvent(new CustomEvent("cc360:pack_purchased", { detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packageType: selectedPack,
+            packageName: sub.packageName,
+            firstVisitDate: firstDate,
+            totalVisits: selectedPack === "pack2" ? 2 : 4,
+            vehicleType: activeCat || "hatchback",
+            vehicleReg: custReg,
+            addOns: addons,
+            frequency: selectedPack === "pack2" ? "Pack of 2" : "Pack of 4",
+            cityId: city || "CITY-SURAT",
+          }}));
+        }
+      } catch(_) {/* non-blocking */}
       recordRevenue({customerId,subscriptionId:sub.subscriptionId,type:planMode==="monthly"?"Subscription":"One-Time",amount:finalTotal,receivedDate:now.toISOString().split("T")[0],paymentMethod:"UPI",invoiceNumber:invNum,status:"Received",cityId:city||"CITY-SURAT"});
       const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTInvoice:!!(custGST&&gstStatus==="valid"),items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
@@ -756,6 +788,7 @@ export function CustomerPlanPage() {
         const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`🏢 *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"✅ B2B GST Invoice — eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
         sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
           .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
+        try { (window as any)._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${encodeURIComponent(invoiceMsg)}`; } catch(_){}
       }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
