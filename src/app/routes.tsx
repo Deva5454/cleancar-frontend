@@ -250,6 +250,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
 import { AppProvider } from "./contexts/AppProvider";
+import { AppProviderSimple } from "./contexts/AppProviderSimple";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
 
 export const router = createBrowserRouter([
@@ -266,7 +267,15 @@ export const router = createBrowserRouter([
     path: "/onboard/:empId",
     element: <OnboardingRedirect />,
   },
-  // Public routes - /buy uses main route AppProvider (see children in "/" route)
+  // Public routes
+  {
+    path: "/buy",
+    element: <ErrorBoundary><AppProviderSimple><CustomerPlanPage /></AppProviderSimple></ErrorBoundary>,
+  },
+  {
+    path: "/book",
+    element: <Navigate to="/buy" replace />,
+  },
   {
     path: "/track/:jobId",
     element: <ErrorBoundary><AppProvider><WasherTrackingPageDirect /></AppProvider></ErrorBoundary>,
@@ -279,8 +288,6 @@ export const router = createBrowserRouter([
     errorElement: (<div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 gap-4 p-8"><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center"><span className="text-red-600 text-xl font-bold">!</span></div><h2 className="text-lg font-semibold text-gray-900">Page Error</h2><p className="text-sm text-gray-500">This page has an error. Other pages still work.</p><a href="/" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">Go to Dashboard</a></div>),
     children: [
       { index: true, element: <Dashboard /> },
-      { path: "buy", element: <ErrorBoundary><CustomerPlanPage /></ErrorBoundary> },
-      { path: "book", element: <Navigate to="/buy" replace /> },
 
       // CRM index — nav parent /crm has no route
       {
@@ -594,7 +601,7 @@ export const router = createBrowserRouter([
       // Subscription Management System (Production) - Dynamic plan system
       { path: "subscription-app", element: <SubscriptionApp /> },
       { path: "plans", element: <PlanSelectionScreen /> },
-      { path: "buy",   element: <CustomerPlanPage /> },
+
       { path: "admin/plans", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
