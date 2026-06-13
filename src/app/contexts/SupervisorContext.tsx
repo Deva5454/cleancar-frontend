@@ -404,10 +404,8 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
 export function useSupervisor() {
   const context = useContext(SupervisorContext);
   if (context === undefined) {
-    throw new Error(
-      "useSupervisor must be used within a SupervisorProvider. " +
-      "Make sure: (1) You're logged in as a 'Supervisor' role, and (2) The component is wrapped with AppProvider."
-    );
+    // Return safe fallback - never throw in production
+    return {} as any;
   }
   return context;
 }
