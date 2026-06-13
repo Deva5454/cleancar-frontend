@@ -206,6 +206,44 @@ export function TSMComplimentary2W() {
               </div>
             ))}
           </div>
+          {/* Month-over-month trend — last 4 months */}
+          {(() => {
+            const months: string[] = [];
+            const d = new Date();
+            for (let i = 3; i >= 0; i--) {
+              const m = new Date(d.getFullYear(), d.getMonth() - i, 1);
+              months.push(m.toISOString().slice(0, 7));
+            }
+            const trend = months.map(m => ({
+              month: m,
+              label: new Date(m + "-01").toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+              ...getMarketingExpenseSummary(m),
+            }));
+            const maxCost = Math.max(...trend.map(t => t.totalCost), 1);
+            return (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-600">📊 4-Month Trend</p>
+                <div className="space-y-2">
+                  {trend.map(t => (
+                    <div key={t.month} className="bg-gray-50 rounded-lg p-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-semibold text-gray-700">{t.label}</span>
+                        <span className="text-xs text-gray-500">{t.totalOffers} offers · ₹{t.totalCost.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.round((t.totalCost / maxCost) * 100)}%` }} />
+                      </div>
+                      <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                        <span>✅ {t.completed} done</span>
+                        <span>🆕 {t.newConversions} conv</span>
+                        <span>🔄 {t.retentions} ret</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

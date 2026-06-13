@@ -806,6 +806,11 @@ export function CustomerPlanPage() {
       // Full confirmation (with washer + slot) sent separately via tatTrackingService.markAssigned().
       if(notifyPref==="whatsapp"||notifyPref==="both"){
         sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
+        // Team alert to TSM/Admin — new subscription notification (OM excluded per journey doc)
+        try {
+          const teamAlertMsg = `🔔 *New Subscription — 24/9 Carwashing*\n\nCustomer: *${custName}*\nMobile: ${custMobile}\nVehicle: ${carModel} (${catLabel})\nPlan: *${invoice?.items?.[0]?.name||"Subscription"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")} (incl. GST)\nArea: ${pincodeLabel}\nInvoice: ${invNum}\n\n⏳ Action required: Assign washer within 2 working days.`;
+          sendTeamAlert(cfg.brand.whatsappNumber, teamAlertMsg).catch(()=>{});
+        } catch {}
         const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
         const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`🏢 *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"✅ B2B GST Invoice — eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
         sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})

@@ -365,9 +365,17 @@ export function getMarketingExpenseSummary(month: string, cityId?: string): {
   retentions:      number;
   completed:       number;
   pending:         number;
+  byReason:        Record<string, { count: number; cost: number }>;
 } {
   const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
-  const filtered = all.filter(o => o.cityId === cityId && o.createdAt.startsWith(month));
+  // cityId filter is optional — if not provided, return all cities
+  const filtered = all.filter(o => (!cityId || o.cityId === cityId) && o.createdAt.startsWith(month));
+  const byReason: Record<string, { count: number; cost: number }> = {};
+  filtered.forEach(o => {
+    if (!byReason[o.reasonCode]) byReason[o.reasonCode] = { count: 0, cost: 0 };
+    byReason[o.reasonCode].count += 1;
+    byReason[o.reasonCode].cost  += o.estimatedCost;
+  });
   return {
     totalOffers:    filtered.length,
     totalCost:      filtered.reduce((s, o) => s + o.estimatedCost, 0),
@@ -375,5 +383,6 @@ export function getMarketingExpenseSummary(month: string, cityId?: string): {
     retentions:     filtered.filter(o => o.reasonCode === "RETENTION_INCENTIVE").length,
     completed:      filtered.filter(o => o.status === "COMPLETED").length,
     pending:        filtered.filter(o => o.status === "PENDING_TSM_APPROVAL").length,
+    byReason,
   };
 }
