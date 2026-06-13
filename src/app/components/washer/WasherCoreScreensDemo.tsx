@@ -22,6 +22,8 @@ import { DaySummaryScreen } from "./DaySummaryScreen";
 import type { DayStatus } from "./WasherHomeDashboard";
 import type { CheckInWindow, ValidationState } from "./WasherCheckIn";
 import type { JobCard } from "./WasherMySchedule";
+import { useJobs } from "../../contexts/JobContext";
+import { useRole } from "../../contexts/RoleContext";
 import type { WashStep, ConsumableItem } from "./WasherActiveWash";
 import type { TimeBandStatus, EligibilityStatus } from "./WasherIncentiveTracker";
 import type { CheckOutTiming } from "./WasherCheckOut";
@@ -86,7 +88,33 @@ export function WasherCoreScreensDemo() {
     completedTime: "5:30 PM",
   };
 
-  const mockJobs: JobCard[] = [
+  // Real jobs from JobContext — filtered to this washer and today
+  const { jobs } = useJobs() as any;
+  const { currentUser } = useRole() as any;
+  const today = new Date().toISOString().split("T")[0];
+
+  const realJobs: JobCard[] = (jobs || [])
+    .filter((j: any) =>
+      j.scheduledDate === today &&
+      (j.washerId === currentUser?.employeeId || j.washerId === currentUser?.id || !j.washerId)
+    )
+    .map((j: any, idx: number) => ({
+      id: j.jobId,
+      registrationNumber: j.vehicleDetails?.registration || j.vehicleReg || "—",
+      ownerName: j.customerName || j.customerId || "Customer",
+      vehicleType: j.vehicleDetails?.category || "Sedan",
+      packageName: j.packageName || "Wash",
+      location: j.serviceDetails?.area || j.pincode || "Surat",
+      status: j.status === "In Progress" ? "IN_PROGRESS" : j.status === "Completed" ? "DONE" : "PENDING",
+      isCover: j.jobType === "Add-on" || false,
+      isLocked: !isCheckedIn && idx > 0,
+      lockReason: !isCheckedIn && idx > 0 ? "Complete check-in first" : undefined,
+      sequenceNumber: idx + 1,
+      scheduledTime: j.timeSlot || "06:00",
+    }));
+
+  // Fall back to mock if no real jobs today
+  const mockJobs: JobCard[] = realJobs.length > 0 ? realJobs : [
     {
       id: "1",
       registrationNumber: "MH-12-AB-1234",
@@ -356,7 +384,7 @@ export function WasherCoreScreensDemo() {
               </CardHeader>
             </Card>
             <WasherMySchedule
-              jobs={mockJobs}
+              jobs={realJobs.length > 0 ? realJobs : mockJobs}
               isCheckedIn={isCheckedIn}
               activeJobId={activeJobId}
               onJobClick={(id) => logger.log("Job clicked:", id)}

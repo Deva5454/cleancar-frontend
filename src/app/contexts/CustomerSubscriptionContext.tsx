@@ -27,6 +27,7 @@ import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
 // REMOVED: circular import useFinance from FinanceContext
 import { useCity } from "./CityContext";
+import { periodicScheduleService } from "../services/periodicScheduleService";
 
 // Types
 export interface CustomerSubscription {
@@ -149,6 +150,28 @@ export function CustomerSubscriptionProvider({ children }: { children: ReactNode
         amount: newSubscription.pricing?.finalPrice || 0,
         recipients: bookingInfo.alertRecipients,
       });
+    } catch (_e) { /* non-critical */ }
+
+    // Auto-generate first job and periodic schedule
+    try {
+      // Initialize periodic schedule anchored to start date
+      periodicScheduleService.getCustomerOccurrences(newSubscription.customerId); // init if needed
+      
+      // Fire event so JobContext can pick up and create the first job
+      window.dispatchEvent(new CustomEvent("cc360:subscription_created", {
+        detail: {
+          subscriptionId: newSubscription.subscriptionId,
+          customerId: newSubscription.customerId,
+          packageType: newSubscription.packageType,
+          packageName: newSubscription.packageName,
+          startDate: newSubscription.startDate,
+          preferredTimeSlot: newSubscription.serviceDetails?.preferredTimeSlot || "06:00",
+          vehicleType: newSubscription.serviceDetails?.vehicleType || "hatchback",
+          addOns: newSubscription.serviceDetails?.addOns || [],
+          frequency: newSubscription.frequency,
+          cityId: city,
+        }
+      }));
     } catch (_e) { /* non-critical */ }
 
     return newSubscription;

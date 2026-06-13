@@ -77,7 +77,9 @@ export function SupervisorAppConnected() {
     currentShift,
     shiftFocusAreas,
     isLoading,
-  } = useSupervisor();
+    jobs,
+    assignJobToWasher,
+  } = useSupervisor() as any;
 
   // URL is source of truth — derived via useMemo, not useState
   // SCREEN_TO_PATH and PATH_TO_SCREEN defined below
@@ -235,6 +237,8 @@ export function SupervisorAppConnected() {
 
   // Auto-assign cars handlers
   const [autoAssignModalOpen, setAutoAssignModalOpen] = useState(false);
+  const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
+  const [assignWasherId, setAssignWasherId] = useState<string>("");
   const [selectedAbsentWasher, setSelectedAbsentWasher] = useState<{ id: string; name: string } | null>(null);
 
   const handleAutoAssignCars = (washerId: string) => {
@@ -983,6 +987,73 @@ export function SupervisorAppConnected() {
               onNavigate={handleNavigate}
               onCashDeposit={() => setShowCashDeposit(true)}
             />
+
+            {/* Unassigned Jobs — quick assign panel */}
+            {(() => {
+              const today = new Date().toISOString().split("T")[0];
+              const unassigned = (jobs || []).filter((j: any) =>
+                j.scheduledDate === today && j.status === "Unassigned"
+              );
+              if (unassigned.length === 0) return null;
+              return (
+                <div className="mt-4 px-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-gray-800">
+                      ⚠️ {unassigned.length} Unassigned Job{unassigned.length > 1 ? "s" : ""} Today
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {unassigned.map((j: any) => (
+                      <div key={j.jobId} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{j.packageName}</p>
+                            <p className="text-xs text-gray-500">{j.customerName || j.customerId} · {j.timeSlot} · {j.vehicleDetails?.registration || ""}</p>
+                            <p className="text-xs text-gray-400">{j.serviceDetails?.area || j.cityId || "Surat"}</p>
+                          </div>
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unassigned</span>
+                        </div>
+                        {assigningJobId === j.jobId ? (
+                          <div className="flex gap-2 mt-1">
+                            <select
+                              className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+                              value={assignWasherId}
+                              onChange={e => setAssignWasherId(e.target.value)}
+                            >
+                              <option value="">Select washer...</option>
+                              {team.filter(w => w.status === "CHECKED_IN" || w.status === "LATE").map(w => (
+                                <option key={w.id} value={w.id}>{w.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                if (assignWasherId) {
+                                  const washer = team.find(w => w.id === assignWasherId);
+                                  assignJobToWasher(j.jobId, assignWasherId, washer?.name || assignWasherId);
+                                  toast.success(`Job assigned to ${washer?.name || assignWasherId}`);
+                                  setAssigningJobId(null);
+                                  setAssignWasherId("");
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-semibold"
+                            >Assign</button>
+                            <button
+                              onClick={() => { setAssigningJobId(null); setAssignWasherId(""); }}
+                              className="px-2 py-1.5 border border-gray-300 text-xs rounded-lg"
+                            >✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setAssigningJobId(j.jobId); setAssignWasherId(""); }}
+                            className="w-full mt-1 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >Assign Washer</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </TabsContent>
 
           {/* Screen 2: Team Attendance */}

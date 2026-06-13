@@ -93,7 +93,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
   // IMPORTANT: All hooks must be called BEFORE any conditional returns (Rules of Hooks)
   const { employees, attendanceRecords } = useEmployeeData();
   const { emit } = useEvents();
-  const { getAssignedByCity, getCompletedByCity, getUnassignedByCity } = useJobs();
+  const { getAssignedByCity, getCompletedByCity, getUnassignedByCity, jobs, assignJobToWasher } = useJobs() as any;
 
   // State - ALL useState hooks must be declared before any conditional returns
   const [summary, setSummary] = useState<TeamSummary>({
@@ -383,6 +383,8 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
     shiftFocusAreas,
     isLoading,
     error,
+    jobs,
+    assignJobToWasher,
   }),
   [summary, team, alerts, unreadAlertsCount, auditTasks, clothBatches, schedule, leads, incentive, issues]); // eslint-disable-line react-hooks/exhaustive-deps
 

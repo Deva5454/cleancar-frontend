@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { checkFirstWashReminders } from "../services/firstWashReminderService";
+import { periodicNotificationService } from "../services/periodicNotificationService";
 import { checkPackExpiries } from "../services/whatsappRescheduleHandler";
 import { checkSubscriptionRatings, checkWasherAcknowledgements } from "../services/tatTrackingService";
 
@@ -98,6 +99,9 @@ function PeriodicScheduler() {
       try { checkPackExpiries(); } catch {}
       try { checkSubscriptionRatings(); } catch {}
       try { checkWasherAcknowledgements(); } catch {}
+      // D-1 deadline check: auto-confirm if no customer response
+      try { periodicNotificationService.checkD1Deadline(); } catch {}
+      try { periodicNotificationService.checkNoResponseExpiry(); } catch {}
     };
     // Run on mount
     runChecks();

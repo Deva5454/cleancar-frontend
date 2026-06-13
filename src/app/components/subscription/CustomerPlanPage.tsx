@@ -464,6 +464,39 @@ export function CustomerPlanPage() {
         window._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`;
       }
 
+      // 7️⃣ Fire auto-job-creation events
+      try {
+        if(planMode === "monthly") {
+          window.dispatchEvent(new CustomEvent("cc360:subscription_created", { detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packageType: selectedPlan === "wax" ? "ELITE_WASH" : selectedPlan === "shampoo" ? "SMART_WASH" : "EXPRESS_WASH",
+            packageName: sub.packageName,
+            startDate: now.toISOString().split("T")[0],
+            preferredTimeSlot: prefTime || "06:00",
+            vehicleType: activeCat || "hatchback",
+            addOns: addons,
+            frequency: "Monthly",
+            cityId: city || "CITY-SURAT",
+          }}));
+        } else if(selectedPack === "pack2" || selectedPack === "pack4") {
+          const firstDate = oneTimeDate || now.toISOString().split("T")[0];
+          window.dispatchEvent(new CustomEvent("cc360:pack_purchased", { detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packageType: selectedPack,
+            packageName: sub.packageName,
+            firstVisitDate: firstDate,
+            totalVisits: selectedPack === "pack2" ? 2 : 4,
+            vehicleType: activeCat || "hatchback",
+            vehicleReg: custReg,
+            addOns: addons,
+            frequency: selectedPack === "pack2" ? "Pack of 2" : "Pack of 4",
+            cityId: city || "CITY-SURAT",
+          }}));
+        }
+      } catch(_) {}
+
       setIsProcessing(false);
       goTo(7);
     } catch (err) {

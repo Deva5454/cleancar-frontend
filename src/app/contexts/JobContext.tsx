@@ -171,6 +171,76 @@ export function JobProvider({ children }: { children: ReactNode }) {
   // Backend sync (background, non-blocking)
   useSync("JOBS", allJobs);
 
+  // Listen for new subscription → auto-create first job
+  useEffect(() => {
+    const handleNewSubscription = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d?.subscriptionId) return;
+      const start = new Date(d.startDate || new Date());
+      if (start.getDay() === 0) start.setDate(start.getDate() + 1); // skip Sunday
+      const dateStr = start.toISOString().split("T")[0];
+      const rawSlot = (d.preferredTimeSlot || "06:00").slice(0, 5);
+      const hour = parseInt(rawSlot.split(":")[0], 10);
+      const safeSlot = (hour >= 5 && hour < 9) ? rawSlot : "06:00";
+      try {
+        createJob({
+          customerId: d.customerId,
+          subscriptionId: d.subscriptionId,
+          scheduledDate: dateStr,
+          timeSlot: safeSlot,
+          status: "Unassigned",
+          jobType: "Regular",
+          packageName: d.packageName || "Subscription Wash",
+          packageType: d.packageType,
+          frequency: d.frequency,
+          vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: "" },
+          serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
+          cityId: d.cityId || "CITY-SURAT",
+          notes: `Auto-generated from subscription ${d.subscriptionId}`,
+        } as any);
+        console.log("[JobContext] Auto-created job from subscription:", d.subscriptionId);
+      } catch (err: any) {
+        console.warn("[JobContext] Could not auto-create job:", err?.message);
+      }
+    };
+    window.addEventListener("cc360:subscription_created", handleNewSubscription);
+    return () => window.removeEventListener("cc360:subscription_created", handleNewSubscription);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for pack purchase → auto-create first visit job
+  useEffect(() => {
+    const handlePackPurchase = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d?.subscriptionId || !d?.firstVisitDate) return;
+      const date = new Date(d.firstVisitDate);
+      if (date.getDay() === 0) date.setDate(date.getDate() + 1);
+      const dateStr = date.toISOString().split("T")[0];
+      const safeSlot = "06:00";
+      try {
+        createJob({
+          customerId: d.customerId,
+          subscriptionId: d.subscriptionId,
+          scheduledDate: dateStr,
+          timeSlot: safeSlot,
+          status: "Unassigned",
+          jobType: "Regular",
+          packageName: d.packageName || "Pack Visit",
+          packageType: d.packageType,
+          frequency: d.frequency,
+          vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: d.vehicleReg || "" },
+          serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
+          cityId: d.cityId || "CITY-SURAT",
+          notes: `Pack visit 1/${d.totalVisits} — auto from ${d.subscriptionId}`,
+        } as any);
+        console.log("[JobContext] Auto-created pack visit job:", d.subscriptionId);
+      } catch (err: any) {
+        console.warn("[JobContext] Could not auto-create pack job:", err?.message);
+      }
+    };
+    window.addEventListener("cc360:pack_purchased", handlePackPurchase);
+    return () => window.removeEventListener("cc360:pack_purchased", handlePackPurchase);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derived state — memoized so consumers only re-render when allJobs actually changes
   const unassignedJobs = useMemo(() =>
     allJobs.filter((j) => j.status === "Unassigned"), [allJobs]);
