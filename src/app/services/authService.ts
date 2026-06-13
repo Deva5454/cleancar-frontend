@@ -91,9 +91,17 @@ class AuthServiceClass {
 
     // Check lockout
     if (employee.accountStatus === "locked") {
-      const lockedUntil = employee.lockedUntil ? new Date(employee.lockedUntil) : null;
-      if (lockedUntil && lockedUntil > new Date()) {
-        return { success: false, error: "ACCOUNT_LOCKED", lockedUntil: employee.lockedUntil };
+      // Super Admin is NEVER locked out — auto-unlock immediately
+      const isSuperAdminLocked = employee.loginMobile === "9100000001" || employee.role === "Super Admin";
+      if (isSuperAdminLocked) {
+        employeeDatabaseService.update(employee.id, {
+          accountStatus: "active", failedLoginAttempts: 0, lockedUntil: undefined
+        });
+      } else {
+        const lockedUntil = employee.lockedUntil ? new Date(employee.lockedUntil) : null;
+        if (lockedUntil && lockedUntil > new Date()) {
+          return { success: false, error: "ACCOUNT_LOCKED", lockedUntil: employee.lockedUntil };
+        }
       }
       // Lockout expired — unlock automatically
       employeeDatabaseService.update(employee.id, {
@@ -110,9 +118,11 @@ class AuthServiceClass {
 
     if (!isValid) {
       const attempts = (employee.failedLoginAttempts || 0) + 1;
-      const shouldLock = attempts >= 5;
+      // Super Admin is NEVER locked out — always allow reset
+      const isSuperAdmin = employee.loginMobile === "9100000001" || employee.role === "Super Admin";
+      const shouldLock = !isSuperAdmin && attempts >= 5;
       employeeDatabaseService.update(employee.id, {
-        failedLoginAttempts: attempts,
+        failedLoginAttempts: isSuperAdmin ? 0 : attempts,
         accountStatus: shouldLock ? "locked" : employee.accountStatus,
         lockedUntil: shouldLock
           ? new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 min lockout

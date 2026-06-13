@@ -95,6 +95,8 @@ interface AppProviderProps {
 function PeriodicScheduler() {
   useEffect(() => {
     const runChecks = () => {
+      // Set global background mode flag — prevents WA calls from opening browser tabs
+      (window as any).__cc360_background_run = true;
       try { checkFirstWashReminders(); } catch {}
       try { checkPackExpiries(); } catch {}
       try { checkSubscriptionRatings(); } catch {}
@@ -102,6 +104,7 @@ function PeriodicScheduler() {
       // D-1 deadline check: auto-confirm if no customer response
       try { periodicNotificationService.checkD1Deadline(); } catch {}
       try { periodicNotificationService.checkNoResponseExpiry(); } catch {}
+      (window as any).__cc360_background_run = false;
     };
     // Run on mount
     runChecks();

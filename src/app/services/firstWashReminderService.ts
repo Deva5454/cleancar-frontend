@@ -54,7 +54,7 @@ export function checkFirstWashReminders(): void {
           `Or call: 080 48 79 45 45`;
 
         import("./whatsappService").then(ws => {
-          ws.sendWhatsApp(cust.phone, msg).catch(() => {});
+          ws.sendWhatsApp(cust.phone, msg, "first_wash_reminder", { background: true }).catch(() => {});
         });
 
         // Mark as sent
@@ -93,7 +93,7 @@ export function checkFirstWashReminders(): void {
               // WA to customer
               sendWhatsApp(cust.phone,
                 `⚠️ Hi ${cust.firstName || "Customer"}, your 24/9 Carwashing service has lapsed as your first wash was not booked within 15 days of payment. Please call 080 48 79 45 45 (10:30 AM – 6:30 PM, Mon–Sat) to discuss reactivation options.`,
-                "first_wash_lapse"
+                "first_wash_lapse", { background: true }
               ).catch(() => {});
 
               // TSM task for possible reactivation within 3 days

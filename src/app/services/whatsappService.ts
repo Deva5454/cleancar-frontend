@@ -38,14 +38,16 @@ export interface WAResult {
 export async function sendWhatsApp(
   phone: string,
   message: string,
-  templateName: string = "booking_confirmation"
+  templateName: string = "booking_confirmation",
+  opts?: { background?: boolean }  // background=true suppresses browser tab fallback
 ): Promise<WAResult> {
   const apiKey = import.meta.env.VITE_INTERAKT_API_KEY;
   const mobile = phone.replace(/\D/g, "").slice(-10);
 
-  // No API key → fall back to wa.me tab-open (current behaviour, zero disruption)
+  // No API key → fall back to wa.me tab-open ONLY for user-initiated calls
+  // Background/scheduled calls log to console instead of opening browser tabs
   if (!apiKey || !mobile) {
-    if (mobile) {
+    if (mobile && !opts?.background && !(window as any).__cc360_background_run) {
       window.open(
         `https://wa.me/91${mobile}?text=${encodeURIComponent(message)}`,
         "_blank"
