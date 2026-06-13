@@ -54,6 +54,8 @@ interface Job {
   serviceFrequency: string;
   subscriptionMonth: string;
   complimentaryBenefits?: string;
+  isComplimentary?: boolean;  // true = complimentary 2W wash for a 4W customer
+  vehicle4WReg?: string;       // linked 4W subscription vehicle
   specialNotes?: string;
   isDemoAccepted?: boolean;
   status?: string;
@@ -222,6 +224,25 @@ export function WasherJobInfo({ job }: WasherJobInfoProps) {
             <p className="text-sm font-medium text-gray-500">Subscription Progress</p>
             <p className="text-base text-gray-900 mt-1">{job.subscriptionMonth}</p>
           </div>
+
+          {/* Complimentary 2W banner — shown prominently so washer knows this is FREE service */}
+          {job.isComplimentary && (
+            <div className="bg-purple-50 border-2 border-purple-400 rounded-lg p-3 mb-2">
+              <div className="flex items-start gap-2">
+                <span className="text-2xl">🏍️</span>
+                <div>
+                  <p className="font-bold text-purple-800 text-sm">⭐ COMPLIMENTARY 2-WHEELER WASH</p>
+                  <p className="text-purple-700 text-xs mt-0.5">This is a FREE wash offered as a conversion/retention incentive. <strong>Do NOT collect any payment.</strong></p>
+                  {job.vehicle4WReg && (
+                    <p className="text-purple-600 text-xs mt-1">Linked 4W subscription: <strong>{job.vehicle4WReg}</strong></p>
+                  )}
+                  <div className="mt-2 text-xs text-purple-700 bg-purple-100 rounded p-2">
+                    <strong>Washer note:</strong> Cost (₹85) is charged to Marketing Expense — not to customer. You earn 0.4 incentive units for this job.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {job.complimentaryBenefits && (
             <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">

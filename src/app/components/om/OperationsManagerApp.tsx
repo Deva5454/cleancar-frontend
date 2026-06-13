@@ -75,6 +75,7 @@ import { Clock, Sun, Briefcase, FileText, Moon, Lock } from "lucide-react";
 
 
 import { useRole } from "../../contexts/RoleContext";
+import { getMarketingExpenseSummary } from "../../services/complimentary2WService";
 
 
 
@@ -2101,8 +2102,30 @@ export function OperationsManagerApp() {
 
 
         <TabsContent value="reports" className="mt-0">
-
-
+          {/* Complimentary 2W Marketing Spend Summary */}
+          {(() => {
+            const month = new Date().toISOString().slice(0, 7);
+            const summary = getMarketingExpenseSummary(month);
+            if (summary.totalOffers === 0) return null;
+            return (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mx-4 mt-4">
+                <p className="text-sm font-bold text-purple-900 mb-2">🏍️ Complimentary 2W Washes — {month}</p>
+                <div className="grid grid-cols-4 gap-3 text-center">
+                  {[
+                    { label: "Total Offers", value: summary.totalOffers },
+                    { label: "Marketing Spend", value: `₹${summary.totalCost}` },
+                    { label: "New Conversions", value: summary.newConversions },
+                    { label: "Retentions", value: summary.retentions },
+                  ].map(k => (
+                    <div key={k.label} className="bg-white rounded-lg p-2">
+                      <div className="text-lg font-bold text-purple-800">{k.value}</div>
+                      <div className="text-xs text-gray-500">{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <OMReportsAnalytics
 

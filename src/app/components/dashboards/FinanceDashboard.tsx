@@ -9,6 +9,7 @@ import { MASTER_KPI_DATA, MASTER_APPROVALS } from "../../data/masterData";
 import { loadCashDeposits } from "../supervisor/CashDepositScreen";
 import { toast } from "sonner";
 import { getAllActiveBundles } from "../../services/multiMonthBundleService";
+import { getMarketingExpenseSummary } from "../../services/complimentary2WService";
 
 export function FinanceDashboard() {
   // Payroll data from centralized source
@@ -423,6 +424,66 @@ export function FinanceDashboard() {
             <p className="text-xs text-gray-400 italic">
               ⚠️ Revenue recognised when wash is marked Verified by Supervisor. Forfeited visits (window expired, unused) recognised at window expiry.
             </p>
+          </div>
+        );
+      })()}
+
+      {/* ── Complimentary 2W Marketing Expense Section ─────────────────── */}
+      {(() => {
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const summary = getMarketingExpenseSummary(currentMonth);
+        const INR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+        // Read journal entries for complimentary washes
+        let journalEntries: any[] = [];
+        try { journalEntries = JSON.parse(localStorage.getItem("cleancar_journal_entries") || "[]").filter((e: any) => e.referenceType === "Complimentary2W"); } catch {}
+        if (summary.totalOffers === 0 && journalEntries.length === 0) return null;
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">🏍️ Complimentary 2W Wash — Marketing Expense</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Free 2-wheeler washes offered to 4W customers as conversion/retention incentives. Debited to Marketing Expenses.</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total Offers", value: String(summary.totalOffers), color: "text-blue-700" },
+                { label: "Marketing Spend", value: INR(summary.totalCost), color: "text-red-700" },
+                { label: "New Conversions", value: String(summary.newConversions), color: "text-green-700" },
+                { label: "Retention", value: String(summary.retentions), color: "text-purple-700" },
+              ].map(k => (
+                <Card key={k.label}>
+                  <CardContent className="p-4 text-center">
+                    <div className="text-xs font-semibold text-gray-500 mb-1">{k.label}</div>
+                    <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {journalEntries.length > 0 && (
+              <Card>
+                <CardContent className="p-4 overflow-x-auto">
+                  <p className="text-xs font-semibold text-gray-700 mb-3">Journal Entries — Debit: Marketing Expenses / Credit: Service Rendered</p>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        {["Date","Narration","Debit (Mktg Exp)","Credit (Service)"].map(h => (
+                          <th key={h} className="text-left py-2 px-2 text-gray-500 font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {journalEntries.slice(0, 20).map((e: any) => (
+                        <tr key={e.entryId} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-2 text-gray-500">{e.entryDate}</td>
+                          <td className="py-2 px-2 text-gray-700 max-w-xs truncate">{e.narration}</td>
+                          <td className="py-2 px-2 font-semibold text-red-700">{INR(e.lines?.[0]?.debit || 0)}</td>
+                          <td className="py-2 px-2 font-semibold text-green-700">{INR(e.lines?.[1]?.credit || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            )}
           </div>
         );
       })()}

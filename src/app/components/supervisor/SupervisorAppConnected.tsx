@@ -1007,8 +1007,16 @@ export function SupervisorAppConnected() {
                       <div key={j.jobId} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <p className="text-sm font-semibold text-gray-900">{j.packageName}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-900">{j.packageName}</p>
+                              {j.isComplimentary && (
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">🏍️ COMP 2W</span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500">{j.customerName || j.customerId} · {j.timeSlot} · {j.vehicleDetails?.registration || ""}</p>
+                            {j.isComplimentary && (
+                              <p className="text-xs text-purple-600 font-medium">Free 2W wash · Linked 4W: {j.vehicle4WReg || "see offer"} · Cost → Marketing Expense</p>
+                            )}
                             <p className="text-xs text-gray-400">{j.serviceDetails?.area || j.cityId || "Surat"}</p>
                           </div>
                           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unassigned</span>

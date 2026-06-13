@@ -84,7 +84,7 @@ function addDays(days: number): string {
  * TSM sets monthly cap for a TSE.
  */
 export function setTseCap(tseId: string, tseName: string, cap: number): void {
-  const all  = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
+  const all  = lsGet<TseCapConfig>(TSE_CAPS_KEY);
   const mon  = currentMonth();
   const idx  = all.findIndex(c => c.tseId === tseId && c.month === mon);
   if (idx >= 0) {
@@ -92,7 +92,7 @@ export function setTseCap(tseId: string, tseName: string, cap: number): void {
   } else {
     all.push({ tseId, tseName, monthlyCapSet: cap, month: mon, usedCount: 0 });
   }
-  DataService.setAll(TSE_CAPS_KEY, all);
+  lsSet(TSE_CAPS_KEY, all);
 }
 
 /**
@@ -104,7 +104,7 @@ export function getTseCapStatus(tseId: string): {
   remaining:  number;
   canOffer:   boolean;
 } {
-  const all = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
+  const all = lsGet<TseCapConfig>(TSE_CAPS_KEY);
   const mon = currentMonth();
   const rec = all.find(c => c.tseId === tseId && c.month === mon);
   const cap  = rec?.monthlyCapSet ?? 5;  // default 5 if TSM hasn't set
@@ -116,7 +116,7 @@ export function getTseCapStatus(tseId: string): {
  * Get all TSE cap statuses for TSM dashboard.
  */
 export function getAllTseCapStatuses(cityId?: string): TseCapConfig[] {
-  const all = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
+  const all = lsGet<TseCapConfig>(TSE_CAPS_KEY);
   return all.filter(c => c.month === currentMonth());
 }
 
@@ -173,12 +173,12 @@ export function createOffer(params: {
   };
 
   // Save offer
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   all.push(offer);
-  DataService.setAll(OFFERS_KEY, all);
+  lsSet(OFFERS_KEY, all);
 
   // Increment TSE used count
-  const caps = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
+  const caps = lsGet<TseCapConfig>(TSE_CAPS_KEY);
   const mon  = currentMonth();
   const capIdx = caps.findIndex(c => c.tseId === params.tseId && c.month === mon);
   if (capIdx >= 0) {
@@ -186,7 +186,7 @@ export function createOffer(params: {
   } else {
     caps.push({ tseId: params.tseId, tseName: params.tseName, monthlyCapSet: 5, month: mon, usedCount: 1 });
   }
-  DataService.setAll(TSE_CAPS_KEY, caps);
+  lsSet(TSE_CAPS_KEY, caps);
 
   // Notify TSM
   window.dispatchEvent(new CustomEvent("cc360:complimentary_offer_pending", {
@@ -204,7 +204,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
   jobId?:  string;
   error?:  string;
 } {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   const idx = all.findIndex(o => o.offerId === offerId);
   if (idx < 0) return { success: false, error: "Offer not found" };
   if (all[idx].status !== "PENDING_TSM_APPROVAL") return { success: false, error: `Offer is already ${all[idx].status}` };
@@ -221,7 +221,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
     jobId,
     approvedAt:       new Date().toISOString(),
   };
-  DataService.setAll(OFFERS_KEY, all);
+  lsSet(OFFERS_KEY, all);
 
   // Create job record
   const jobs = lsGet<any[]>("JOBS");
@@ -250,10 +250,19 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
     validUntil:       offer.validUntil,
     createdAt:        new Date().toISOString(),
   });
-  lsSet("JOBS", jobs);
+  // Write job into DataService-compatible key so JobContext and Supervisor can see it
+  const jobCityId = offer.cityId || "CITY-SURAT";
+  const jobStorageKey = `cleancar_${jobCityId}_jobs`;
+  const existingJobs = JSON.parse(localStorage.getItem(jobStorageKey) || "[]");
+  existingJobs.push(jobs[jobs.length - 1]);
+  localStorage.setItem(jobStorageKey, JSON.stringify(existingJobs));
+  // Fire event so JobContext picks it up in memory
+  window.dispatchEvent(new CustomEvent("cc360:complimentary_job_created", {
+    detail: { jobId, offerId: offer.offerId, cityId: jobCityId, isComplimentary: true, vehicleReg: offer.vehicle2WReg, vehicle4WReg: offer.vehicle4WReg }
+  }));
 
   // Journal entry: Debit Marketing Expenses / Credit Service Rendered
-  const journalEntries = lsGet<any[]>("JOURNAL_ENTRIES");
+  const journalEntries = lsGet<any[]>("cleancar_journal_entries");
   const entryRef = generateId("JNL");
   journalEntries.push({
     entryId:       entryRef,
@@ -268,10 +277,10 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
     cityId:        offer.cityId,
     createdAt:     new Date().toISOString(),
   });
-  lsSet("JOURNAL_ENTRIES", journalEntries);
+  lsSet("cleancar_journal_entries", journalEntries);
 
   // Add 2W vehicle to customer's vehicles array
-  const customers = lsGet<any[]>("CUSTOMERS");
+  const customers = lsGet<any[]>("cleancar_CITY-SURAT_customers");
   const custIdx   = customers.findIndex(c => c.customerId === offer.customerId);
   if (custIdx >= 0) {
     const vehicles = customers[custIdx].vehicles || [];
@@ -289,7 +298,7 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
         addedReason:        "COMPLIMENTARY_OFFER",
       });
       customers[custIdx].vehicles = vehicles;
-      lsSet("CUSTOMERS", customers);
+      lsSet("cleancar_CITY-SURAT_customers", customers);
     }
   }
 
@@ -305,22 +314,22 @@ export function approveOffer(offerId: string, tsmId: string, tsmName: string): {
  * TSM rejects an offer.
  */
 export function rejectOffer(offerId: string, tsmId: string, reason: string): boolean {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   const idx = all.findIndex(o => o.offerId === offerId);
   if (idx < 0) return false;
 
   // Decrement TSE used count on rejection
   const offer = all[idx];
-  const caps  = DataService.get<TseCapConfig[]>(TSE_CAPS_KEY) || [];
+  const caps  = lsGet<TseCapConfig>(TSE_CAPS_KEY);
   const mon   = currentMonth();
   const capIdx = caps.findIndex(c => c.tseId === offer.offeredByTseId && c.month === mon);
   if (capIdx >= 0 && caps[capIdx].usedCount > 0) {
     caps[capIdx].usedCount -= 1;
-    DataService.setAll(TSE_CAPS_KEY, caps);
+    lsSet(TSE_CAPS_KEY, caps);
   }
 
   all[idx] = { ...all[idx], status: "REJECTED", approvedByTsmId: tsmId, rejectionReason: reason };
-  DataService.setAll(OFFERS_KEY, all);
+  lsSet(OFFERS_KEY, all);
   return true;
 }
 
@@ -328,23 +337,23 @@ export function rejectOffer(offerId: string, tsmId: string, reason: string): boo
  * Mark offer / job as completed.
  */
 export function markOfferCompleted(offerId: string): void {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   const idx = all.findIndex(o => o.offerId === offerId);
   if (idx >= 0) {
     all[idx] = { ...all[idx], status: "COMPLETED", completedAt: new Date().toISOString() };
-    DataService.setAll(OFFERS_KEY, all);
+    lsSet(OFFERS_KEY, all);
   }
 }
 
 // ── Read helpers ──────────────────────────────────────────────────────────────
 
 export function getPendingOffersForTSM(cityId: string): Complimentary2WOffer[] {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   return all.filter(o => o.cityId === cityId && o.status === "PENDING_TSM_APPROVAL");
 }
 
 export function getOffersByTSE(tseId: string): Complimentary2WOffer[] {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   const mon = currentMonth();
   return all.filter(o => o.offeredByTseId === tseId && o.createdAt.startsWith(mon));
 }
@@ -357,7 +366,7 @@ export function getMarketingExpenseSummary(month: string, cityId?: string): {
   completed:       number;
   pending:         number;
 } {
-  const all = DataService.get<Complimentary2WOffer[]>(OFFERS_KEY) || [];
+  const all = lsGet<Complimentary2WOffer>(OFFERS_KEY);
   const filtered = all.filter(o => o.cityId === cityId && o.createdAt.startsWith(month));
   return {
     totalOffers:    filtered.length,

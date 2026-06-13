@@ -287,6 +287,25 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:urgent_wash_purchased", handleUrgentWash);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for complimentary 2W job created → reload jobs so washer/supervisor see it immediately
+  useEffect(() => {
+    const handleComplimentaryJob = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d?.jobId) return;
+      // Re-load all jobs from storage so the new complimentary job appears
+      try {
+        const jobKey = `cleancar_${d.cityId || "CITY-SURAT"}_jobs`;
+        const stored = JSON.parse(localStorage.getItem(jobKey) || "[]");
+        setAllJobs(stored);
+        console.log("[JobContext] Complimentary 2W job added to queue:", d.jobId);
+      } catch(err) {
+        console.warn("[JobContext] Could not reload jobs after complimentary job:", err);
+      }
+    };
+    window.addEventListener("cc360:complimentary_job_created", handleComplimentaryJob);
+    return () => window.removeEventListener("cc360:complimentary_job_created", handleComplimentaryJob);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derived state — memoized so consumers only re-render when allJobs actually changes
   const unassignedJobs = useMemo(() =>
     allJobs.filter((j) => j.status === "Unassigned"), [allJobs]);

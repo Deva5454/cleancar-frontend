@@ -43,6 +43,18 @@ export function TSEComplimentary2W({
     if (!vehicle2WReg.trim()) { toast.error("Enter 2-wheeler registration number"); return; }
     if (!vehicle2WBrand.trim()) { toast.error("Enter brand/model"); return; }
 
+    // Guard: ensure the linked 4W subscription is actually Active
+    if (linkedSubscriptionId) {
+      try {
+        const subs: any[] = JSON.parse(localStorage.getItem("cleancar_subscriptions") || "[]");
+        const sub = subs.find((s: any) => s.subscriptionId === linkedSubscriptionId);
+        if (sub && sub.status !== "Active") {
+          toast.error(`Cannot offer complimentary wash — the linked 4W subscription is "${sub.status}", not Active.`);
+          return;
+        }
+      } catch {}
+    }
+
     setSubmitting(true);
     const result = createOffer({
       customerId, customerName, customerPhone,
