@@ -100,16 +100,15 @@ export function CityProvider({ children }: CityProviderProps) {
     localStorage.setItem("cleancar_selected_city", city);
   }, [city]);
 
-  // Sync city from URL on every render (catches React Router Link navigations).
-  // BrowserRouter's Link/navigate() do not fire popstate, but they cause
-  // re-renders in parent components which re-run this effect.
-  // Only calls setCityState when the city value actually changes — no render loop.
+  // Sync city from URL — runs only when location.search changes, not every render
+  // Fixed: removed no-dep-array effect that was causing infinite render loops
   useEffect(() => {
     const urlCityId = getCityFromURL();
     if (urlCityId && urlCityId !== city) {
       setCityState(urlCityId);
     }
-  }); // intentionally no dep array — must re-run on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [window.location.search]); // only re-run when URL search params change
 
   // Also handle browser back/forward navigation (fires popstate)
   useEffect(() => {
