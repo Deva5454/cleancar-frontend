@@ -1,4 +1,4 @@
-// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
@@ -264,31 +264,31 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
 
-      // CRM index — nav parent /crm has no route
+      // CRM index â€” nav parent /crm has no route
       {
         path: "crm",
         element: <Navigate to="/leads" replace />
       },
 
-      // Payroll index — nav parent /payroll has no route
+      // Payroll index â€” nav parent /payroll has no route
       {
         path: "payroll",
         element: <Navigate to="/payroll/run" replace />
       },
 
-      // Admin index — nav parent /admin has no route
+      // Admin index â€” nav parent /admin has no route
       {
         path: "admin",
         element: <Navigate to="/admin/city-management" replace />
       },
 
-      // Reports index — nav parent /reports has no route
+      // Reports index â€” nav parent /reports has no route
       {
         path: "reports",
         element: <Navigate to="/finance/reports" replace />
       },
 
-      // Operations-management — the Operations nav section points here but route doesn't exist
+      // Operations-management â€” the Operations nav section points here but route doesn't exist
       {
         path: "operations-management",
         element: <Navigate to="/operations" replace />
@@ -546,7 +546,7 @@ export const router = createBrowserRouter([
       // City Manager App (Production) - Control tower interface
       { path: "city-app", element: <CityManagerApp /> },
 
-      // Organization Hierarchy Dashboard - City → Cluster → Pincode
+      // Organization Hierarchy Dashboard - City â†’ Cluster â†’ Pincode
       { path: "hierarchy-dashboard", element: <HierarchyDashboard /> },
 
       // Tele Sales Manager App (Production) - Pipeline control tower
