@@ -8,13 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
-    $inner = $args[0].Groups[1].Value
-    if ($inner -notmatch 'DollarSign') {
-        "import {$inner, DollarSign } from `"lucide-react`""
-    } else {
-        $args[0].Value
-    }
-;
+import {
+  Users, AlertTriangle, CheckCircle, TrendingUp,
+  FileCheck, UserPlus, Clock, MapPin, Target,
+  DollarSign,
+} from "lucide-react";
 import type { TeamSummary, SupervisorAlert } from "../../services/supervisorDataService";
 
 export interface SupervisorDashboardProps {
