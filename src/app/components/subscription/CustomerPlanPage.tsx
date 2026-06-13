@@ -12,6 +12,7 @@ import { IncentiveApiService } from "../../services/IncentiveApiService";
 import { sendWhatsApp, sendBookingPending, sendTeamAlert } from "../../services/whatsappService";
 import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
+import { createBundle } from "../../services/multiMonthBundleService";
 
 // ─── CONFIG TYPES ─────────────────────────────────────────────────────────────
 export interface PlanPageConfig {
@@ -79,8 +80,9 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel anytime. 7 days' notice."},
     {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"₹225 saving on Hatchback Shampoo."},
-    {id:"6month",   term:"6 Months",      discountLabel:"10% off",    perk:"Renewal + free vacuum monthly.", highlight:"great"},
-    {id:"12month",  term:"12 Months",     discountLabel:"18% off",    perk:"Vacuum + tyre dressing + priority.", highlight:"best"},
+    {id:"6month",   term:"6 Months",      discountLabel:"8% off",     perk:"Renewal + free vacuum monthly.", highlight:"great"},
+    {id:"9month",   term:"9 Months",      discountLabel:"10% off",    perk:"Renewal + vacuum + priority slots.", highlight:"great"},
+    {id:"12month",  term:"12 Months",     discountLabel:"12% off",    perk:"Vacuum + tyre dressing + priority.", highlight:"best"},
   ],
   comboBundles: [
     {id:"andar-se-sundar", name:"Andar Se Sundar 🌟", addonIds:["vacuum","dashboard"], prices:{hatchback:299,suv:399,luxury:549}, savings:{hatchback:49,suv:49,luxury:49}},
@@ -262,7 +264,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
   const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"🚗";
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
-  const discountPct = commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
+  const discountPct = commitment==="3month"?5:commitment==="6month"?8:commitment==="9month"?10:commitment==="12month"?12:0;
   const discountAmt = planMode==="monthly"?Math.round(planPrice*discountPct/100):0;
   const finalTotal = Math.max(0, total - discountAmt - (couponDiscount||0) - (referralDiscount||0) - (promoDiscount||0));
   const grandTotal = Math.round(finalTotal*1.18);
@@ -547,7 +549,7 @@ export function CustomerPlanPage() {
   const effectiveBase = bundleMonths > 0 && (selectedPack==="pack2"||selectedPack==="pack4") ? bundleDiscountedBase : basePrice;
   const total = effectiveBase + addonGrandTotal;
   const isOneTime=planMode==="pack"&&selectedPack==="onetime";
-  const discountPct=commitment==="3month"?5:commitment==="6month"?10:commitment==="12month"?18:0;
+  const discountPct=commitment==="3month"?5:commitment==="6month"?8:commitment==="9month"?10:commitment==="12month"?12:0;
   // Discount applies to base plan price only (not add-ons)
   const discountAmt=planMode==="monthly"?Math.round(planPrice*commitMonths*discountPct/100):0;
   const couponDiscount = couponResult?.valid ? (couponResult.discount||0) : 0;
@@ -773,6 +775,20 @@ export function CustomerPlanPage() {
             addOns: addons,
             frequency: selectedPack === "pack2" ? "Pack of 2" : "Pack of 4",
             cityId: city || "CITY-SURAT",
+            isBundle: bundleMonths > 0,
+          }}));
+        } else if(selectedPack === "urgent") {
+          window.dispatchEvent(new CustomEvent("cc360:urgent_wash_purchased", { detail: {
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packageType: "urgent",
+            packageName: sub.packageName,
+            visitDate: oneTimeDate || now.toISOString().split("T")[0],
+            visitTime: oneTimeHour || "06:00",
+            vehicleType: activeCat || "hatchback",
+            vehicleReg: custReg,
+            addOns: addons,
+            cityId: city || "CITY-SURAT",
           }}));
         }
       } catch(_) {/* non-blocking */}
@@ -794,6 +810,25 @@ export function CustomerPlanPage() {
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
       if(referralResult?.valid && referralResult.code) planSyncService.convertReferral(referralResult.code, customerId, custName, finalTotal);
       planSyncService.assignReferralCodeToCustomer(customerId, custName);
+      // 8️⃣ Create MultiMonthBundle record if customer bought a multi-month pack
+      // This wires the purchase into multiMonthBundleService (window tracking,
+      // soft cap enforcement, deferred revenue, visit reminders, cancellation refund).
+      // Without this call the bundle system is completely disconnected from the purchase.
+      if (bundleMonths > 0 && (selectedPack === "pack2" || selectedPack === "pack4")) {
+        try {
+          createBundle({
+            subscriptionId: sub.subscriptionId,
+            customerId,
+            packSize:         selectedPack === "pack2" ? 2 : 4,
+            bundleMonths:     bundleMonths as 3 | 6 | 9 | 12,
+            baseMonthlyPrice: packPrice,
+            source:           "BUY_PAGE",
+            paymentDate:      now.toISOString().split("T")[0],
+          });
+        } catch(e) {
+          console.error("[BuyPage] createBundle failed — subscription created but bundle record missing:", e);
+        }
+      }
       setIsProcessing(false);
       setShowConfetti(true);
       setTimeout(()=>setShowConfetti(false),4000);
@@ -1178,7 +1213,7 @@ export function CustomerPlanPage() {
                               <div style={{flex:1}}>
                                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                                   <div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{c.term}</div>
-                                  {selectedPlan&&planPrice>0&&(()=>{const m=c.id==="3month"?3:c.id==="6month"?6:c.id==="12month"?12:1;const d=c.id==="3month"?5:c.id==="6month"?10:c.id==="12month"?18:0;const gross=planPrice*m;const disc=Math.round(gross*d/100);return m>1?(<div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:13,fontWeight:800,color:"#4f46e5"}}>{inr(gross-disc)}</div><div style={{fontSize:10,color:"#94a3b8",textDecoration:"line-through"}}>{inr(gross)}</div></div>):null;})()}
+                                  {selectedPlan&&planPrice>0&&(()=>{const m=c.id==="3month"?3:c.id==="6month"?6:c.id==="9month"?9:c.id==="12month"?12:1;const d=c.id==="3month"?5:c.id==="6month"?8:c.id==="9month"?10:c.id==="12month"?12:0;const gross=planPrice*m;const disc=Math.round(gross*d/100);return m>1?(<div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:13,fontWeight:800,color:"#4f46e5"}}>{inr(gross-disc)}</div><div style={{fontSize:10,color:"#94a3b8",textDecoration:"line-through"}}>{inr(gross)}</div></div>):null;})()}
                                 </div>
                                 <div style={{fontSize:11,color:"#64748b",marginTop:2,lineHeight:1.4}}>{c.perk}</div>
                               </div>
@@ -1795,9 +1830,21 @@ export function CustomerPlanPage() {
               {showTnC==="terms"?"📋 Terms & Conditions":showTnC==="refund"?"💰 Refund Policy":"❌ Cancellation Policy"}
             </h3>
             <p style={{color:"#64748b",fontSize:14,lineHeight:1.7}}>
-              {showTnC==="terms"&&"By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints."}
-              {showTnC==="refund"&&"Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred."}
-              {showTnC==="cancel"&&"You may cancel your subscription with 7 days' written notice via WhatsApp or email. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 12 months) may have different terms as specified at the time of purchase."}
+              {showTnC==="terms"&&<>
+                By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are subject to availability in your area. We reserve the right to reschedule in case of weather or operational constraints.
+                <br/><br/>
+                <strong>Multi-Month Pack Bundles:</strong> When you purchase a Pack of 2 or Pack of 4 across multiple months, your visits are managed as a total pool across all windows. Each 30-day window begins from your <em>first wash date</em> (not the payment date). A soft cap of 2× your monthly pack size applies per window — e.g. Pack of 4 × 3 months allows a maximum of 8 visits in any single window. Visits unused at the end of each window are forfeited and do not carry forward to the next window.
+              </>}
+              {showTnC==="refund"&&<>
+                Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred.
+                <br/><br/>
+                <strong>Multi-Month Pack Bundle Refunds:</strong> Refund eligibility is based on visits consumed, not time elapsed. If you have used fewer than 50% of your total bundle visits, you are eligible for a refund on unused visits less a 10% cancellation fee and up to 2% gateway charges. If 50% or more visits have been used, no refund is applicable — however you retain your remaining visits until the bundle end date. Advance use of visits (using more in one window) counts toward the 50% threshold.
+              </>}
+              {showTnC==="cancel"&&<>
+                You may cancel your subscription with 7 days' written notice via WhatsApp or email. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 12 months) may have different terms as specified at the time of purchase.
+                <br/><br/>
+                <strong>Multi-Month Pack Bundle Cancellations:</strong> Cancellations are processed based on the percentage of visits consumed across your total bundle. Under 50% consumed → partial refund (visits used charged at per-visit rate + 10% fee). Over 50% consumed → no refund, but remaining visits stay active until your bundle end date. Priority scheduling (1-hour TAT) applies to all bundle visits throughout the validity period. Unused visits within an expired 30-day window are forfeited — they cannot be used in future windows.
+              </>}
             </p>
             <button onClick={()=>setShowTnC(null)} className="cpp-btn-primary" style={{marginTop:8}}>Got it, close</button>
           </div>

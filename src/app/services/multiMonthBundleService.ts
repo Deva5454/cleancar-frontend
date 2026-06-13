@@ -15,6 +15,12 @@
 const lsGet = <T>(key: string): T[] => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
 const lsSet = (key: string, data: any) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
 
+// DataService compatibility shim — multiMonthBundleService uses DataService.get/setAll pattern
+const DataService = {
+  get: <T>(key: string, _cityId?: string): T[] => lsGet<T>(key),
+  setAll: (key: string, data: any, _cityId?: string) => lsSet(key, data),
+};
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type BundlePackSize = 2 | 4;

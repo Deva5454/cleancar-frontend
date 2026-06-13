@@ -72,6 +72,13 @@ export interface Job {
   // Revenue
   amount?: number;     // price charged for this job — used in JOB_COMPLETED event
 
+  // Priority scheduling
+  // 1 = Multi-month bundle (highest — paid bulk upfront, 1-hr TAT guaranteed)
+  // 2 = Urgent wash (paid ₹100 premium, 1-hr TAT)
+  // 3 = Regular job
+  // When both bundle and urgent come in simultaneously, bundle (rank 1) wins — per business decision C2.
+  priorityRank?: 1 | 2 | 3;
+
   // Timestamps
   assignedAt?: string;
   acknowledgedAt?: string;
@@ -197,6 +204,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
           cityId: d.cityId || "CITY-SURAT",
           notes: `Auto-generated from subscription ${d.subscriptionId}`,
+          priorityRank: 3, // Regular subscription job
         } as any);
         console.log("[JobContext] Auto-created job from subscription:", d.subscriptionId);
       } catch (err: any) {
@@ -231,6 +239,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
           cityId: d.cityId || "CITY-SURAT",
           notes: `Pack visit 1/${d.totalVisits} — auto from ${d.subscriptionId}`,
+          priorityRank: 1, // Multi-month bundle — highest priority (C2 decision: bundle > urgent wash)
         } as any);
         console.log("[JobContext] Auto-created pack visit job:", d.subscriptionId);
       } catch (err: any) {
@@ -239,6 +248,43 @@ export function JobProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("cc360:pack_purchased", handlePackPurchase);
     return () => window.removeEventListener("cc360:pack_purchased", handlePackPurchase);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for urgent wash purchase → auto-create job with priorityRank 2
+  // Priority rule C2: Bundle (rank 1) > Urgent wash (rank 2) > Regular (rank 3)
+  useEffect(() => {
+    const handleUrgentWash = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d?.subscriptionId) return;
+      const date = new Date(d.visitDate || new Date().toISOString().split("T")[0]);
+      if (date.getDay() === 0) date.setDate(date.getDate() + 1);
+      const dateStr = date.toISOString().split("T")[0];
+      const safeSlot = d.visitTime && parseInt(d.visitTime.split(":")[0]) >= 5 && parseInt(d.visitTime.split(":")[0]) < 9
+        ? d.visitTime : "06:00";
+      try {
+        createJob({
+          customerId: d.customerId,
+          subscriptionId: d.subscriptionId,
+          scheduledDate: dateStr,
+          timeSlot: safeSlot,
+          status: "Unassigned",
+          jobType: "Regular",
+          packageName: d.packageName || "Urgent Wash",
+          packageType: "urgent",
+          frequency: "One-Time",
+          vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: d.vehicleReg || "" },
+          serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot, specialInstructions: "⚡ URGENT — 1-hour arrival SLA" },
+          cityId: d.cityId || "CITY-SURAT",
+          notes: "Urgent wash — ₹100 premium paid. 1-hour TAT. Priority rank 2 (below multi-month bundle).",
+          priorityRank: 2,
+        } as any);
+        console.log("[JobContext] Auto-created urgent wash job:", d.subscriptionId);
+      } catch (err: any) {
+        console.warn("[JobContext] Could not auto-create urgent job:", err?.message);
+      }
+    };
+    window.addEventListener("cc360:urgent_wash_purchased", handleUrgentWash);
+    return () => window.removeEventListener("cc360:urgent_wash_purchased", handleUrgentWash);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived state — memoized so consumers only re-render when allJobs actually changes

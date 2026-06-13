@@ -8,6 +8,7 @@ import { DollarSign, CheckCircle, Clock, TrendingUp, AlertCircle } from "lucide-
 import { MASTER_KPI_DATA, MASTER_APPROVALS } from "../../data/masterData";
 import { loadCashDeposits } from "../supervisor/CashDepositScreen";
 import { toast } from "sonner";
+import { getAllActiveBundles } from "../../services/multiMonthBundleService";
 
 export function FinanceDashboard() {
   // Payroll data from centralized source
@@ -350,6 +351,81 @@ export function FinanceDashboard() {
           </Card>
         ))}
       </div>
+
+      {/* ── Multi-Month Bundle Revenue Section ─────────────────────────────── */}
+      {(() => {
+        const bundles = getAllActiveBundles();
+        if (bundles.length === 0) return null;
+        const totalCollected  = bundles.reduce((s, b) => s + b.finalTotalPrice, 0);
+        const totalRecognised = bundles.reduce((s, b) => s + b.revenueRecognised, 0);
+        const totalDeferred   = bundles.reduce((s, b) => s + b.deferredRevenue, 0);
+        const totalVisitsUsed = bundles.reduce((s, b) => s + b.visitsUsed, 0);
+        const totalVisits     = bundles.reduce((s, b) => s + b.totalVisits, 0);
+        const INR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+        return (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">📦 Multi-Month Bundle Revenue</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Revenue recognised per visit completed. Deferred = cash collected but service not yet delivered.</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Cash Collected", value: INR(totalCollected), color: "text-blue-700", bg: "bg-blue-50" },
+                { label: "Revenue Recognised", value: INR(totalRecognised), color: "text-green-700", bg: "bg-green-50" },
+                { label: "Deferred Revenue", value: INR(totalDeferred), color: "text-amber-700", bg: "bg-amber-50" },
+                { label: "Visits Used / Total", value: `${totalVisitsUsed} / ${totalVisits}`, color: "text-purple-700", bg: "bg-purple-50" },
+              ].map(k => (
+                <Card key={k.label}>
+                  <CardContent className="p-4 text-center">
+                    <div className={`text-xs font-semibold ${k.color} mb-1`}>{k.label}</div>
+                    <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <Card>
+              <CardContent className="p-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      {["Bundle ID","Pack","Months","Collected","Recognised","Deferred","Visits","Window End","Status"].map(h => (
+                        <th key={h} className="text-left py-2 px-2 text-gray-500 font-semibold whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bundles.map(b => {
+                      const activeW = b.windows.find(w => w.status === "ACTIVE");
+                      return (
+                        <tr key={b.bundleId} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 px-2 font-mono text-gray-400">{b.bundleId.slice(0,12)}</td>
+                          <td className="py-2 px-2">Pack {b.packSize}</td>
+                          <td className="py-2 px-2">{b.bundleMonths}M</td>
+                          <td className="py-2 px-2 font-semibold text-blue-700">{INR(b.finalTotalPrice)}</td>
+                          <td className="py-2 px-2 font-semibold text-green-700">{INR(b.revenueRecognised)}</td>
+                          <td className="py-2 px-2 font-semibold text-amber-700">{INR(b.deferredRevenue)}</td>
+                          <td className="py-2 px-2">{b.visitsUsed}/{b.totalVisits}</td>
+                          <td className="py-2 px-2 text-gray-500">{activeW?.endDate || b.bundleEndDate || "—"}</td>
+                          <td className="py-2 px-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              b.status === "ACTIVE" ? "bg-green-100 text-green-700" :
+                              b.status === "PENDING_FIRST_WASH" ? "bg-amber-100 text-amber-700" :
+                              "bg-gray-100 text-gray-500"
+                            }`}>{b.status.replace(/_/g," ")}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+            <p className="text-xs text-gray-400 italic">
+              ⚠️ Revenue recognised when wash is marked Verified by Supervisor. Forfeited visits (window expired, unused) recognised at window expiry.
+            </p>
+          </div>
+        );
+      })()}
 
     </div>
   );

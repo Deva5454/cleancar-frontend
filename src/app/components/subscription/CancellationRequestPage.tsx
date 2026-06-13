@@ -18,6 +18,7 @@
 import { useState, useEffect } from "react";
 import { loadConfig, type PlanPageConfig } from "./CustomerPlanPage";
 import { sendCancellationReceived } from "../../services/whatsappService";
+import { getBundleBySubscriptionId, calculateCancellationRefund as calcBundleRefund } from "../../services/multiMonthBundleService";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FoundSubscription {
@@ -174,7 +175,16 @@ export function CancellationRequestPage() {
   const step1Ok = custMobile.length >= 10 && vehicleReg.trim().length >= 4;
   const step2Ok = reason && (reason !== "Other (please specify)" || otherReason.trim());
 
-  const calc = found ? computeRefund(found.totalAmount, found.totalDays, found.startDate) : null;
+  // If this subscription has a multi-month bundle, use the bundle's visit-based
+  // refund calculation (multiMonthBundleService) instead of the time-based formula.
+  // This ensures both customer and supervisor pages use identical logic.
+  const bundleRecord   = found ? getBundleBySubscriptionId(found.subscriptionId) : null;
+  const bundleRefund   = bundleRecord ? calcBundleRefund(bundleRecord.bundleId) : null;
+  const calc = found
+    ? bundleRecord
+      ? null  // bundle subscriptions show bundleRefund panel instead
+      : computeRefund(found.totalAmount, found.totalDays, found.startDate)
+    : null;
 
   // ── Lookup subscription from localStorage stores ─────────────────────────
   const handleLookup = () => {
