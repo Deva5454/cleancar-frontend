@@ -40,6 +40,31 @@ function loadConfig(): PlanPageConfig {
   return DEFAULT_CONFIG;
 }
 
+// G4: Apply any pending price change if effectiveDate has passed.
+// Called on component mount — acts as the daily scheduler trigger.
+function applyScheduledPriceChanges() {
+  try {
+    const pending = JSON.parse(localStorage.getItem("cleancar_plan_page_config_pending") || "null");
+    if (!pending) return;
+    const today = new Date().toISOString().split("T")[0];
+    if (today >= pending.effectiveDate) {
+      // Apply the config now
+      saveConfig(pending.config);
+      localStorage.removeItem("cleancar_plan_page_config_pending");
+
+      // Mark the log entry as APPLIED
+      const priceLog = JSON.parse(localStorage.getItem("cleancar_price_change_log") || "[]");
+      const updated = priceLog.map((entry: any) =>
+        entry.effectiveDate === pending.effectiveDate && entry.status === "SCHEDULED"
+          ? { ...entry, status: "APPLIED", appliedAt: new Date().toISOString() }
+          : entry
+      );
+      localStorage.setItem("cleancar_price_change_log", JSON.stringify(updated));
+      console.info(`[G4] Price revision applied — effective ${pending.effectiveDate}`);
+    }
+  } catch {}
+}
+
 function saveConfig(cfg: PlanPageConfig) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   window.dispatchEvent(new Event("planConfigUpdated"));
@@ -129,6 +154,17 @@ export function SuperAdminPlanEditor() {
   const [cfg, setCfg] = useState<PlanPageConfig>(loadConfig);
   const [activeTab, setActiveTab] = useState<"editor" | "preview" | "coupons" | "promotions" | "referral" | "sync">("editor");
   const [isDirty, setIsDirty] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{effectiveDate: string; scheduledAt: string} | null>(null);
+
+  // G4: On mount — apply any scheduled price changes that are now due,
+  // and show a banner if there is a pending change not yet effective.
+  React.useEffect(() => {
+    applyScheduledPriceChanges();
+    try {
+      const p = JSON.parse(localStorage.getItem("cleancar_plan_page_config_pending") || "null");
+      if (p) setPendingChange({ effectiveDate: p.effectiveDate, scheduledAt: p.scheduledAt });
+    } catch {}
+  }, []);
 
   // Guard: Super Admin only
   if (currentRole !== "Super Admin") {
@@ -147,11 +183,12 @@ export function SuperAdminPlanEditor() {
   };
 
   const handleSave = () => {
-    // G4: 7-day advance notice required for pricing revisions
+    // G4: 7-day advance notice required for pricing revisions.
+    // Config is NOT applied immediately — it is queued as SCHEDULED.
+    // applyScheduledPriceChanges() runs on next app load after effectiveDate passes.
     const effectiveDate = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
     const now = new Date().toISOString();
 
-    // Save as scheduled change (not live immediately)
     try {
       const priceLog = JSON.parse(localStorage.getItem("cleancar_price_change_log") || "[]");
       priceLog.unshift({
@@ -165,14 +202,20 @@ export function SuperAdminPlanEditor() {
         note: "Price revision — applies to new subscriptions only. Existing active subscriptions protected.",
       });
       localStorage.setItem("cleancar_price_change_log", JSON.stringify(priceLog.slice(0, 100)));
+
+      // Save the pending config separately — NOT live until effectiveDate
+      localStorage.setItem("cleancar_plan_page_config_pending", JSON.stringify({
+        config: cfg,
+        effectiveDate,
+        scheduledAt: now,
+      }));
     } catch {}
 
-    // Actually save config (in production, would be deferred)
-    saveConfig(cfg);
+    // Do NOT call saveConfig(cfg) here — config goes live only on effectiveDate
     setIsDirty(false);
     toast.success(
-      `✅ Pricing update saved!\n\nEffective date: ${effectiveDate} (7 days from today)\nExisting active subscriptions are NOT affected.`,
-      { duration: 6000 }
+      `📅 Pricing revision scheduled!\n\nEffective date: ${effectiveDate} (7 days from today)\nExisting active subscriptions are NOT affected.\nNew subscriptions from ${effectiveDate} onwards will use the updated pricing.`,
+      { duration: 8000 }
     );
   };
 
@@ -217,10 +260,30 @@ export function SuperAdminPlanEditor() {
           </button>
           <button onClick={handleSave}
             style={{ padding: "9px 22px", background: "#2196F3", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-            ðŸ’¾ Save & Publish
+            ðŸ’¾ Schedule (7-day notice)
           </button>
         </div>
       </div>
+      {/* G4: Pending price change banner */}
+      {pendingChange && (
+        <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13, color: "#92400E" }}>
+            ⏳ <strong>Scheduled price revision pending</strong> — Goes live on <strong>{pendingChange.effectiveDate}</strong>. Scheduled on {new Date(pendingChange.scheduledAt).toLocaleDateString("en-IN")}. Existing active subscriptions are not affected.
+          </div>
+          <button onClick={() => {
+            if (window.confirm("Cancel the scheduled price revision? The pending changes will be discarded.")) {
+              localStorage.removeItem("cleancar_plan_page_config_pending");
+              const log = JSON.parse(localStorage.getItem("cleancar_price_change_log") || "[]");
+              const updated = log.map((e: any) => e.status === "SCHEDULED" ? { ...e, status: "CANCELLED", cancelledAt: new Date().toISOString() } : e);
+              localStorage.setItem("cleancar_price_change_log", JSON.stringify(updated));
+              setPendingChange(null);
+              toast.success("Scheduled price revision cancelled.");
+            }
+          }} style={{ fontSize: 12, padding: "4px 12px", background: "#DC2626", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+            Cancel Revision
+          </button>
+        </div>
+      )}
       {/* TAB BAR */}
       <div style={{ background: "#fff", borderBottom: "1.5px solid #E5E7EB", padding: "0 24px", display: "flex", gap: 0, overflowX: "auto" }}>
         {([{id:"editor",label:"Plan Editor",color:"#2196F3"},{id:"coupons",label:"Coupons",color:"#10b981"},{id:"promotions",label:"Promotions",color:"#f59e0b"},{id:"referral",label:"Referrals",color:"#6366f1"},{id:"sync",label:"Price Sync",color:"#7c3aed"}] as const).map(tab => (
