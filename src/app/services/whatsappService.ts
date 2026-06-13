@@ -289,5 +289,74 @@ export async function sendWeeklyRatingRequest(params: {
     `Questions? Call/WhatsApp: *+91-08048794545*`;
   await sendWhatsApp(params.customerPhone, message);
 }
+// ── Cancellation & Refund Notifications ─────────────────────────────────────
 
+export function sendCancellationReceived(params: {
+  customerPhone: string;
+  customerName: string;
+  refId: string;
+  refundAmount: number;
+  refundZone: "full" | "partial" | "none";
+  packageName: string;
+}) {
+  const refundLine = params.refundZone === "none"
+    ? "No refund applicable (service > 70% elapsed)"
+    : `Estimated refund: ₹${params.refundAmount.toLocaleString("en-IN")}`;
 
+  return sendWhatsApp(params.customerPhone, [
+    `🔔 *Cancellation Request Received — 24/9 Carwashing*`,
+    ``,
+    `Hi ${params.customerName},`,
+    `Your cancellation request has been received and is under review.`,
+    ``,
+    `*Reference:* ${params.refId}`,
+    `*Service:* ${params.packageName}`,
+    `*Status:* ${refundLine}`,
+    ``,
+    `Our TSM will review and process within 2–3 working days.`,
+    `Queries: 080 48 79 45 45`,
+  ].join("\n"));
+}
+
+export function sendRefundProcessed(params: {
+  customerPhone: string;
+  customerName: string;
+  refId: string;
+  refundAmount: number;
+  bankRef: string;
+  paymentMethod: string;
+}) {
+  return sendWhatsApp(params.customerPhone, [
+    `✅ *Refund Processed — 24/9 Carwashing*`,
+    ``,
+    `Hi ${params.customerName},`,
+    `Your refund of *₹${params.refundAmount.toLocaleString("en-IN")}* has been processed.`,
+    ``,
+    `*Cancellation Ref:* ${params.refId}`,
+    `*Bank Reference:* ${params.bankRef}`,
+    `*Method:* ${params.paymentMethod}`,
+    ``,
+    `Please allow 5–7 working days for the amount to reflect.`,
+    `Queries: 080 48 79 45 45`,
+  ].join("\n"));
+}
+
+export function sendCancellationRejected(params: {
+  customerPhone: string;
+  customerName: string;
+  refId: string;
+  reason: string;
+}) {
+  return sendWhatsApp(params.customerPhone, [
+    `ℹ️ *Cancellation Update — 24/9 Carwashing*`,
+    ``,
+    `Hi ${params.customerName},`,
+    `Regarding your cancellation request *${params.refId}*:`,
+    ``,
+    `*Decision:* Not processed`,
+    `*Reason:* ${params.reason}`,
+    ``,
+    `For queries, call us at *080 48 79 45 45* or WhatsApp this number.`,
+    `We'd love to resolve any concerns you have.`,
+  ].join("\n"));
+}

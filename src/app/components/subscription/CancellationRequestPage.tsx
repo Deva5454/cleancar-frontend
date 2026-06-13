@@ -17,6 +17,7 @@
 
 import { useState, useEffect } from "react";
 import { loadConfig, type PlanPageConfig } from "./CustomerPlanPage";
+import { sendCancellationReceived } from "../../services/whatsappService";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FoundSubscription {
@@ -295,6 +296,18 @@ export function CancellationRequestPage() {
       const complaints = JSON.parse(localStorage.getItem("cleancar_complaints") || "[]");
       complaints.unshift(cceTicket);
       localStorage.setItem("cleancar_complaints", JSON.stringify(complaints));
+    } catch (_) {}
+
+    // WA: Cancellation received confirmation
+    try {
+      sendCancellationReceived({
+        customerPhone: custMobile,
+        customerName: found.customerName,
+        refId: id,
+        refundAmount: calc.refund,
+        refundZone: calc.zone,
+        packageName: found.packageName,
+      });
     } catch (_) {}
 
     setOutcome("accepted");

@@ -1,4 +1,5 @@
 import React from "react";
+import { sendRefundProcessed } from "../../services/whatsappService";
 // Dashboard for Accounts role
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
@@ -19,6 +20,72 @@ export function FinanceDashboard() {
 
   // Cash deposits — merged from MASTER_APPROVALS + live SUPERVISOR_CASH_DEPOSITS
   const [liveDeposits, setLiveDeposits] = React.useState(() => loadCashDeposits());
+  const [financeRefunds, setFinanceRefunds] = React.useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem("cleancar_finance_refunds") || "[]"); } catch { return []; }
+  });
+  const [processingId, setProcessingId] = React.useState<string | null>(null);
+  const [bankRef, setBankRef] = React.useState("");
+  const [bankName, setBankName] = React.useState("");
+  const [rejectRefundReason, setRejectRefundReason] = React.useState("");
+  const [rejectingRefundId, setRejectingRefundId] = React.useState<string | null>(null);
+
+  const refreshRefunds = () => {
+    try {
+      setFinanceRefunds(JSON.parse(localStorage.getItem("cleancar_finance_refunds") || "[]"));
+    } catch {}
+  };
+
+  const pendingRefunds = financeRefunds.filter(r => r.financeStatus === "Pending");
+  const processedRefunds = financeRefunds.filter(r => r.financeStatus !== "Pending");
+
+  const handleProcessRefund = (req: any) => {
+    if (!bankRef.trim() || !bankName.trim()) { alert("Enter bank name and reference number"); return; }
+    const now = new Date().toISOString();
+    const updated = financeRefunds.map(r => r.id === req.id ? {
+      ...r,
+      financeStatus: "Processed",
+      bankRef,
+      bankName,
+      processedAt: now,
+      processedBy: "Finance",
+    } : r);
+    localStorage.setItem("cleancar_finance_refunds", JSON.stringify(updated));
+    setFinanceRefunds(updated);
+
+    // WA to customer
+    try {
+      sendRefundProcessed({
+        customerPhone: req.customerMobile,
+        customerName: req.customerName,
+        refId: req.id,
+        refundAmount: req.refundAmount,
+        bankRef,
+        paymentMethod: req.paymentMethod || bankName,
+      });
+    } catch {}
+
+    // Journal entry
+    try {
+      const entries = JSON.parse(localStorage.getItem("cleancar_accounting_entries") || "[]");
+      entries.unshift({
+        id: `JE-REFUND-${Date.now()}`,
+        date: now.split("T")[0],
+        type: "REFUND_PROCESSED",
+        debit: "Customer Advance / Refund Payable",
+        credit: "Bank / Cash",
+        amount: req.refundAmount,
+        narration: `Refund processed for ${req.customerName} (${req.subscriptionId}) — Ref: ${req.id} — Bank Ref: ${bankRef}`,
+        status: "POSTED",
+        createdAt: now,
+      });
+      localStorage.setItem("cleancar_accounting_entries", JSON.stringify(entries));
+    } catch {}
+
+    setProcessingId(null);
+    setBankRef("");
+    setBankName("");
+    alert(`Refund of ₹${Math.round(req.refundAmount).toLocaleString("en-IN")} processed. Customer notified via WhatsApp.`);
+  };
   React.useEffect(() => {
     const interval = setInterval(() => setLiveDeposits(loadCashDeposits()), 10000);
     return () => clearInterval(interval);
@@ -199,6 +266,74 @@ export function FinanceDashboard() {
           </div>
         </CardContent>
       </Card>
+      {/* Refund Processing Queue */}
+      <div>
+        <h3 className="text-lg font-bold text-gray-900 mb-3">
+          Refund Processing Queue
+          {pendingRefunds.length > 0 && (
+            <span className="ml-2 text-sm bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{pendingRefunds.length} pending</span>
+          )}
+        </h3>
+        {financeRefunds.length === 0 ? (
+          <Card><CardContent className="p-6 text-center text-gray-400 text-sm">No refund requests yet. Approved cancellations from TSM will appear here.</CardContent></Card>
+        ) : financeRefunds.map((req: any) => (
+          <Card key={req.id} className={`mb-3 border-l-4 ${req.financeStatus === "Pending" ? "border-l-amber-400" : "border-l-green-400"}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-sm">{req.customerName}</p>
+                  <p className="text-xs text-gray-500">{req.customerMobile} · {req.subscriptionId}</p>
+                  <p className="text-xs text-gray-400">Ref: {req.id} · {req.packageName}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-lg font-bold ${req.refundAmount > 0 ? "text-green-700" : "text-red-600"}`}>
+                    {req.refundAmount > 0 ? `₹${Math.round(req.refundAmount).toLocaleString("en-IN")}` : "No Refund"}
+                  </p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${req.financeStatus === "Pending" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                    {req.financeStatus}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Reason: {req.reason} · Approved by TSM: {req.tsmProcessedBy}</p>
+
+              {req.financeStatus === "Processed" ? (
+                <div className="text-xs bg-green-50 p-2 rounded-lg">
+                  <p>✅ Processed · Bank: {req.bankName} · Ref: {req.bankRef}</p>
+                  <p className="text-gray-400">{new Date(req.processedAt).toLocaleDateString("en-IN")}</p>
+                </div>
+              ) : req.refundAmount > 0 ? (
+                processingId === req.id ? (
+                  <div className="space-y-2">
+                    <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={bankName} onChange={e => setBankName(e.target.value)}>
+                      <option value="">Select bank</option>
+                      {["HDFC Bank","ICICI Bank","SBI","Axis Bank","Kotak Bank","Yes Bank","Other"].map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                    <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Bank UTR / Transaction Reference" value={bankRef} onChange={e => setBankRef(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setProcessingId(null)} className="flex-1">Cancel</Button>
+                      <Button size="sm" onClick={() => handleProcessRefund(req)} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                        Confirm Refund Processed
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={() => { setProcessingId(req.id); setBankRef(""); setBankName(""); }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                    Mark Refund as Processed
+                  </Button>
+                )
+              ) : (
+                <div className="text-xs bg-gray-50 p-2 rounded-lg text-gray-500">No refund applicable — cancellation fee covers 100%</div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
     </div>
   );
 }
