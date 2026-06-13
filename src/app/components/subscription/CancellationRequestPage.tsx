@@ -12,7 +12,7 @@
  *                         CCE will call the customer to discuss and resolve
  *   Step 4 — Confirmation screen
  *
- * Policy: 24/9 Carwashing Pvt. Ltd. — Cancellation Policy effective 1 June 2025
+ * Policy: 24/9 Carwashing Pvt. Ltd. — Cancellation Policy effective 1 June 2026
  */
 
 import { useState, useEffect } from "react";
@@ -667,7 +667,7 @@ export function CancellationRequestPage() {
           <div>
             <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Your Refund Calculation</h2>
             <p style={{ fontSize: 14, color: "#4A5568", marginBottom: 20 }}>
-              Computed as per 24/9 Carwashing Pvt. Ltd. Cancellation Policy (effective 1 June 2025).
+              Computed as per 24/9 Carwashing Pvt. Ltd. Cancellation Policy (effective 1 June 2026).
             </p>
 
             {/* Subscription Summary */}
@@ -960,7 +960,7 @@ export function CancellationRequestPage() {
                 <button onClick={() => setShowPolicyModal(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#6B7280" }}>✕</button>
               </div>
               <div style={{ padding: "18px 22px", overflowY: "auto", fontSize: 13, lineHeight: 1.8, color: "#374151" }}>
-                <p style={{ fontSize: 11, color: "#9CA3AF" }}>Effective Date: 1 June 2025 · 24/9 Carwashing Pvt. Ltd.</p>
+                <p style={{ fontSize: 11, color: "#9CA3AF" }}>Effective Date: 1 June 2026 · 24/9 Carwashing Pvt. Ltd.</p>
                 <p><strong>1. How to Request</strong><br />Written request via email support@249carwashing.com or in person. Include name, subscription/invoice, vehicle reg, and reason. WhatsApp to field staff is NOT valid.</p>
                 <p><strong>2. Fee Schedule</strong></p>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 12 }}>

@@ -8,7 +8,7 @@
  *  3. Accept T&C for the cancellation
  *  4. Submit a formal cancellation request (stored in localStorage + WhatsApp)
  *
- * Policy: 24/9 Carwashing Pvt. Ltd. Cancellation Policy effective 1 June 2025
+ * Policy: 24/9 Carwashing Pvt. Ltd. Cancellation Policy effective 1 June 2026
  *   - Before service starts (>5 days): nil fee, full refund less gateway (max 2%)
  *   - Day 1 – 70% elapsed: prorata + 10% of total contract value
  *   - After 70% elapsed: 100% forfeited, no refund
@@ -581,7 +581,7 @@ export function CancellationRequestPage() {
                 <button onClick={() => setShowPolicy(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#6B7280" }}>✕</button>
               </div>
               <div style={{ padding: "20px 24px", overflowY: "auto", fontSize: 13, lineHeight: 1.8, color: "#374151" }}>
-                <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>24/9 Carwashing Pvt. Ltd. · Effective Date: 1st June 2025</p>
+                <p style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 12 }}>24/9 Carwashing Pvt. Ltd. · Effective Date: 1st June 2026</p>
                 <p><strong>1. How to Request</strong><br />Submit a written request via email to support@249carwashing.com or in person. Include your name, subscription/invoice number, vehicle registration, and reason. Verbal or WhatsApp requests to field staff are not valid.</p>
                 <div style={{ background: "#FFF3E0", border: "1px solid #FFB74D", borderRadius: 8, padding: "10px 12px", marginBottom: 12, fontSize: 12 }}>
                   <strong>Fee Schedule</strong>

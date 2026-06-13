@@ -11,6 +11,7 @@ import { useSync } from "../hooks/useSync";
 import { recordFirstWashDate } from "../services/firstWashReminderService";
 import { getBundleBySubscriptionId, recordBundleVisit, recordBundleFirstWash } from "../services/multiMonthBundleService";
 import { markOfferCompleted } from "../services/complimentary2WService";
+import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow } from "../services/whatsappService";
 
 // Types
 export interface Job {
@@ -306,6 +307,57 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:complimentary_job_created", handleComplimentaryJob);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── DAILY SCHEDULER ──────────────────────────────────────────────────────────
+  // Runs once per app session on mount. Handles all time-based background tasks:
+  // 1. Advance bundle windows (Month 2, 3 activation + visit forfeiture)
+  // 2. Check low visit reminders (1 visit left + ≤5 days in window)
+  // 3. Weekly Sunday rating WA for monthly subscriptions
+  // In production this would be a backend cron — for now it runs on app load.
+  useEffect(() => {
+    const runDailyScheduler = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const lastRun = localStorage.getItem("cc360_daily_scheduler_last_run");
+      if (lastRun === today) return; // Already ran today this session
+      localStorage.setItem("cc360_daily_scheduler_last_run", today);
+
+      try {
+        // 1. Advance bundle windows
+        const { advanceBundleWindows, checkLowVisitReminders } = await import("../services/multiMonthBundleService");
+        advanceBundleWindows();
+        checkLowVisitReminders();
+        console.info("[Scheduler] Bundle windows advanced and low-visit reminders checked");
+      } catch(e) { console.warn("[Scheduler] Bundle scheduler error:", e); }
+
+      try {
+        // 2. Weekly Sunday rating WA for monthly subscriptions
+        const dayOfWeek = new Date().getDay(); // 0 = Sunday
+        if (dayOfWeek === 0) {
+          const lastSundayRating = localStorage.getItem("cc360_weekly_rating_last_sent");
+          if (lastSundayRating !== today) {
+            localStorage.setItem("cc360_weekly_rating_last_sent", today);
+            const { sendWeeklyRatingRequest } = await import("../services/whatsappService");
+            const customers = DataService.get<any>("CUSTOMERS") || [];
+            const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
+            // Send to all active monthly subscription customers
+            const activeMonthlyCustIds = new Set(
+              subs.filter((s: any) => s.status === "Active" && s.billingCycle === "Monthly").map((s: any) => s.customerId)
+            );
+            customers.filter((c: any) => activeMonthlyCustIds.has(c.customerId) && c.phone).forEach((c: any) => {
+              try {
+                sendWeeklyRatingRequest({ customerPhone: c.phone, customerName: c.firstName || "Customer" });
+              } catch {}
+            });
+            console.info(`[Scheduler] Weekly rating WA sent to ${activeMonthlyCustIds.size} customers`);
+          }
+        }
+      } catch(e) { console.warn("[Scheduler] Weekly rating error:", e); }
+    };
+
+    // Run after a short delay to avoid blocking initial render
+    const timer = setTimeout(runDailyScheduler, 3000);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derived state — memoized so consumers only re-render when allJobs actually changes
   const unassignedJobs = useMemo(() =>
     allJobs.filter((j) => j.status === "Unassigned"), [allJobs]);
@@ -394,22 +446,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
         customerName: job.customerName || job.customerId,
         scheduledDate: job.scheduledDate,
       }, "JobContext");
-
-      // WA3: Stage 2 - Booking Confirmed WA to customer
-      try {
-        const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
-        const cust = customers.find((c: any) => c.customerId === job.customerId);
-        if (cust?.phone) {
-          sendBookingConfirmed({
-            customerPhone: cust.phone,
-            customerName: cust.firstName || "Customer",
-            planLabel: job.packageName || "Wash",
-            slot: job.timeSlot || job.scheduledTime || "Morning",
-            supervisorName: "",
-            supervisorPhone: "",
-          });
-        }
-      } catch {}
+      // NOTE: Stage 2 WA (Booking Confirmed) fires in acknowledgeJob()
+      // when the WASHER acknowledges — not here on supervisor assign.
+      // Per customer journey doc: Stage 2 fires only after BOTH supervisor assigns AND washer accepts.
     }
   };
 
@@ -422,10 +461,29 @@ export function JobProvider({ children }: { children: ReactNode }) {
   };
 
   const acknowledgeJob = (jobId: string) => {
+    const job = allJobs.find(j => j.jobId === jobId);
     updateJob(jobId, {
       status: "Acknowledged",
       acknowledgedAt: new Date().toISOString(),
     });
+    // WA3: Stage 2 — Booking Confirmed WA fires HERE (washer has acknowledged)
+    // Per customer journey doc: fires only after BOTH supervisor assigns AND washer accepts.
+    if (job) {
+      try {
+        const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
+        const cust = customers.find((c: any) => c.customerId === job.customerId);
+        if (cust?.phone) {
+          sendBookingConfirmed({
+            customerPhone: cust.phone,
+            customerName: cust.firstName || "Customer",
+            planLabel: job.packageName || "Wash",
+            slot: job.timeSlot || (job as any).scheduledTime || "Morning",
+            supervisorName: "",
+            supervisorPhone: "",
+          });
+        }
+      } catch {}
+    }
   };
 
   const startJob = (jobId: string) => {
@@ -550,6 +608,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
               message: `${job.customerName} has 1 ${job.packageName} visit remaining — convert to monthly`,
             }, "JobContext");
             createPackUpsellTask({ customerId: job.customerId, customerName: job.customerName||"", customerPhone: job.customerPhone||"", subscriptionId: job.subscriptionId||"", packageName: job.packageName||"Pack", trigger: "PACK_VISIT_LOW", cityId: job.cityId||"CITY-SURAT" });
+            // WA: Pack visit low notification to customer
+            try {
+              const customers = DataService.get<any>("CUSTOMERS");
+              const cust = customers.find((c:any) => c.customerId === job.customerId);
+              if (cust?.phone) {
+                sendPackVisitLow(cust.phone, cust.firstName || "Customer", job.packageName || "Pack", 1);
+              }
+            } catch {}
           }
           if (remaining <= 0) {
             emit("PACK_EXHAUSTED", {

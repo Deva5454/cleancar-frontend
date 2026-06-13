@@ -460,7 +460,7 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                           ₹{plan.baseMonthlyPrice.toLocaleString()}
                         </div>
                         <div className="text-xs text-gray-500">
-                          ₹{Math.round(plan.baseMonthlyPrice / 26)}/wash
+                          ₹{Math.round(plan.baseMonthlyPrice / 30)}/wash
                         </div>
                       </div>
                     </div>
