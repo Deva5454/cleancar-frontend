@@ -774,6 +774,7 @@ export function CustomerPlanPage() {
             customerId,
             packageType: selectedPack,
             packageName: sub.packageName,
+            packVariant: _washRef.current || "shampoo",
             firstVisitDate: firstDate,
             totalVisits: selectedPack === "pack2" ? 2 : 4,
             vehicleType: activeCat || "hatchback",

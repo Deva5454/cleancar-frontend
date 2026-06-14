@@ -28,6 +28,8 @@ export interface Job {
   frequency?: string;
   offerId?: string;          // links to complimentary offer
   isComplimentary?: boolean; // true for complimentary 2W wash
+  packVariant?: "waterWash" | "shampoo" | "shampooWax"; // which service type for pack2/pack4 jobs
+  oneTimeVariant?: "waterWash" | "shampoo" | "shampooWax"; // which service type for onetime jobs
   vehicleDetails: {
     category: string;
     color: string;
@@ -235,6 +237,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           jobType: "Regular",
           packageName: d.packageName || "Pack Visit",
           packageType: d.packageType,
+          packVariant: d.packVariant || "shampoo",
           frequency: d.frequency,
           vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: d.vehicleReg || "" },
           serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
