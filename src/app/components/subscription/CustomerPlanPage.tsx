@@ -10,6 +10,7 @@ import { tatTrackingService } from "../../services/tatTrackingService";
 import { getBookingSlot } from "../../services/bookingWindowService";
 import { IncentiveApiService } from "../../services/IncentiveApiService";
 import { sendWhatsApp, sendBookingPending, sendTeamAlert } from "../../services/whatsappService";
+import { PlanInfoModal, InfoBtn } from "./PlanInfoModal";
 import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
 import { createBundle } from "../../services/multiMonthBundleService";
@@ -453,6 +454,8 @@ export function CustomerPlanPage() {
   const [addonFreqMonth, setAddonFreqMonth] = useState<number>(4); // visits/month for add-ons
 
   const [bundleFreq, setBundleFreq] = useState<Record<string,string>>({});
+  // ⓘ Plan info modal state
+  const [infoModal, setInfoModal] = useState<{planId?:string;packId?:string;addonName?:string}|null>(null);
   const _washRef = useRef<string>("shampoo");
   const [, _forceWashRender] = useState(0);
   const setSelectedWashType = useCallback((v:string)=>{ _washRef.current=v; _forceWashRender(n=>n+1); },[]);
@@ -1203,7 +1206,10 @@ export function CustomerPlanPage() {
                           {plan.popular && <div style={{position:"absolute",top:-1,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ac},#f59e0b)`,color:"white",fontSize:10,fontWeight:800,padding:"4px 14px",borderRadius:"0 0 10px 10px",letterSpacing:0.5,whiteSpace:"nowrap"}}>⭐ MOST POPULAR</div>}
                           <div style={{textAlign:"center",paddingTop:plan.popular?12:0}}>
                             <div style={{fontSize:36,marginBottom:8,filter:`drop-shadow(0 4px 8px ${ac}40)`}}>{plan.icon}</div>
-                            <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4}}>{plan.name}</div>
+                            <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                              {plan.name}
+                              <InfoBtn color={ac} onClick={()=>setInfoModal({planId:plan.id})} />
+                            </div>
                             <div style={{fontSize:26,fontWeight:800,color:sel?"#4f46e5":ac,marginBottom:2,fontFamily:"'Playfair Display',serif"}}>{inr(price)}</div>
                             <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>₹{pw}/wash · 30 washes/month</div>
                             <div style={{borderTop:`1px dashed ${br}`,paddingTop:10}}>
@@ -1271,7 +1277,10 @@ export function CustomerPlanPage() {
                         <div key={pack.id} className={`cpp-card ${sel?"selected":""}`} onClick={()=>setSelectedPack(pack.id)}>
                           <div style={{textAlign:"center"}}>
                             <div style={{fontSize:32,marginBottom:8}}>{pack.icon}</div>
-                            <div style={{fontSize:15,fontWeight:800,color:"#0f172a"}}>{pack.name}</div>
+                            <div style={{fontSize:15,fontWeight:800,color:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                              {pack.name}
+                              <InfoBtn color={colors[i]} onClick={()=>setInfoModal({packId:pack.id})} />
+                            </div>
                             {dp>0&&<div style={{fontSize:22,fontWeight:800,color:colors[i],fontFamily:"'Playfair Display',serif",margin:"6px 0"}}>{inr(dp)}</div>}
                             {dp>0&&pack.id!=="onetime"&&(
                               <div style={{fontSize:11,fontWeight:600,marginBottom:4,opacity:0.85,color:colors[i]}}>
@@ -1497,7 +1506,10 @@ export function CustomerPlanPage() {
                           {sel&&<span style={{color:"white",fontSize:13,fontWeight:800}}>✓</span>}
                         </div>
                         <div style={{flex:1}}>
-                          <div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{addon.name}</div>
+                          <div style={{fontSize:14,fontWeight:700,color:"#0f172a",display:"flex",alignItems:"center",gap:4}}>
+                            {addon.name}
+                            <InfoBtn color={ac} onClick={()=>setInfoModal({addonName:addon.name})} />
+                          </div>
                           <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{addon.description}</div>
                           <div style={{fontSize:10,color:"#94a3b8",marginTop:2,textTransform:"uppercase",letterSpacing:0.5}}>{addon.unit}</div>
                         </div>
@@ -1798,7 +1810,10 @@ export function CustomerPlanPage() {
                   <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",background:row.bg,borderBottom:"1px solid rgba(148,163,184,0.1)"}}>
                     <span style={{fontSize:18,flexShrink:0}}>{row.icon}</span>
                     <span style={{fontSize:12,color:"#64748b",width:70,flexShrink:0}}>{row.label}</span>
-                    <span style={{fontSize:13,color:"#0f172a",fontWeight:600}}>{row.value}</span>
+                    <span style={{fontSize:13,color:"#0f172a",fontWeight:600,flex:1}}>{row.value}</span>
+                    {row.label === "Plan" && (
+                      <InfoBtn color="#6366f1" onClick={()=>setInfoModal(planMode==="monthly"?{planId:selectedPlan??undefined}:{packId:selectedPack??undefined})} />
+                    )}
                   </div>
                 ))}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",background:"linear-gradient(135deg,#1e1b4b,#4c1d95)"}}>
@@ -1892,6 +1907,23 @@ export function CustomerPlanPage() {
             <button onClick={()=>setShowTnC(null)} className="cpp-btn-primary" style={{marginTop:8}}>Got it, close</button>
           </div>
         </div>
+      )}
+
+      {/* ⓘ Plan Info Modal — triggered from plan/pack/addon ⓘ buttons */}
+      {infoModal && (
+        <PlanInfoModal
+          planId={infoModal.planId ?? null}
+          packId={infoModal.packId ?? null}
+          addonName={infoModal.addonName ?? null}
+          onClose={() => setInfoModal(null)}
+          onSelect={
+            infoModal.planId
+              ? () => setSelectedPlan(infoModal.planId!)
+              : infoModal.packId
+              ? () => setSelectedPack(infoModal.packId!)
+              : undefined
+          }
+        />
       )}
     </div>
   );
