@@ -929,8 +929,9 @@ export function SupervisorAppConnected() {
 
               {/* Lead Notifications Bell */}
               <button
-                className="relative"
-                onClick={() => setShowNotifications(!showNotifications)}
+                type="button"
+                style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:"4px"}}
+                onClick={(e) => { e.stopPropagation(); setShowNotifications(!showNotifications); }}
               >
                 <Bell className="h-5 w-5 text-indigo-600" />
                 {unreadLeadNotificationsCount > 0 && (
@@ -945,8 +946,9 @@ export function SupervisorAppConnected() {
 
               {/* System Alerts Bell */}
               <button
-                className="relative"
-                onClick={() => navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts")}
+                type="button"
+                style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:"4px"}}
+                onClick={(e) => { e.stopPropagation(); navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts"); }}
               >
                 <Bell className="h-5 w-5 text-red-600" />
                 {unreadAlertsCount > 0 && (
