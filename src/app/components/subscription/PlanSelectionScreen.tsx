@@ -286,9 +286,12 @@ export function PlanSelectionScreen() {
                             </div>
                           ))}
                         {plan.features.length > 8 && (
-                          <div style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>
-                            + {plan.features.length - 8} more features
-                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); }}
+                            style={{ background: "none", border: "none", color: "#6366f1", fontSize: 12, cursor: "pointer", padding: "4px 0", fontWeight: 600, fontFamily: "inherit", display: "block" }}
+                          >
+                            Show more
+                          </button>
                         )}
                       </div>
 

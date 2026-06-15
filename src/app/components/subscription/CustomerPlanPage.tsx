@@ -42,8 +42,8 @@ export interface AddonConfig { id: string; name: string; price: number; unit: st
 export const DEFAULT_CONFIG: PlanPageConfig = {
   brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
   hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
-  trustItems: ["📸 Before & after photos every wash","🔄 Free re-wash within 24h","🏠 We come to you","📞 Easy cancellation process"],
-  trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","🔄 Free re-wash within 24h","📞 Easy cancellation process","🏠 Home, office, society"],
+  trustItems: ["📸 Before & after photos every wash","🏠 We come to you","📞 Easy cancellation process"],
+  trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","📞 Easy cancellation process","🏠 Home, office, society"],
   vehicleCategories: [
     { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "🚗" },
     { id: "suv", label: "SUV / Sedan / MUV", icon: "🚙" },
@@ -262,6 +262,14 @@ function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
 // ─── LIVE COST PANEL ─────────────────────────────────────────────────────────
 function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selectedPack,planPrice,packPrice,addons,addonTotal,total,commitment,commitments,cfg,vehicleCat,basePrice,couponDiscount=0,referralDiscount=0,promoDiscount=0,couponCode,referralCode,commitMonths=1,addonFreqMonth=4,addonGrandTotal=0}: any) {
   const planObj = cfg.monthlyPlans.find((p:any)=>p.id===selectedPlan);
+  const packObj = cfg.packs.find((p:any)=>p.id===selectedPack);
+  const planDisplayName = planMode==="monthly"
+    ? (planObj?.name || selectedPlan || "Plan")
+    : selectedPack==="pack2" ? "Pack of 2"
+    : selectedPack==="pack4" ? "Pack of 4"
+    : selectedPack==="urgent" ? "Urgent Wash"
+    : selectedPack==="onetime" ? "One-Time Wash"
+    : (packObj?.name || selectedPack || "Pack");
   const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"🚗";
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
@@ -318,7 +326,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontSize:11,color:"#64748b"}}>{commitMonths>1?`${commitMonths}-Month Subscription`:"Monthly Plan"}</div>
-                <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{planObj?.icon} {planObj?.name}</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{planMode==="monthly"?planObj?.icon:"📦"} {planDisplayName}</div>
                 {planMode==="monthly" && <div style={{fontSize:11,color:"#7c3aed"}}>₹{inr(planPrice)}/mo × {commitMonths} mo{commitMonths>1?` = ${inr(planPrice*commitMonths)}`:""}</div>}
               </div>
               <div style={{fontSize:16,fontWeight:800,color:"#4f46e5"}}>{inr(planMode==="monthly"?planPrice*commitMonths:planPrice)}</div>
@@ -413,7 +421,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
 
       {/* Trust footer */}
       <div style={{background:"#f8fafc",padding:"12px 22px",borderTop:"1px solid #f1f5f9"}}>
-        {["🔒 Razorpay secured payment","📸 Before & after photos","🔄 Free re-wash within 24h"].map(t=>(
+        {["🔒 Razorpay secured payment","📸 Before & after photos"].map(t=>(
           <div key={t} style={{fontSize:11,color:"#94a3b8",marginBottom:3,display:"flex",alignItems:"center",gap:4}}>{t}</div>
         ))}
       </div>
@@ -597,6 +605,24 @@ export function CustomerPlanPage() {
     const result = planSyncService.validateCoupon(couponInput.trim(), total, selectedPlan||undefined);
     setCouponResult(result.valid ? {...result, code:couponInput.trim().toUpperCase()} : result);
   };
+
+  // SLIDE 8: Speed checkout — lookup returning customer by mobile number
+  const handleMobileLookup = useCallback((mobile: string) => {
+    if (mobile.length !== 10) return;
+    const existing = customers.find((c: any) => c.phone === mobile);
+    if (!existing) return;
+    if (!custName && existing.firstName)
+      setCustName(`${existing.firstName} ${existing.lastName || ""}`.trim());
+    if (!custEmail && existing.email)
+      setCustEmail(existing.email);
+    if (!custAddress && existing.address?.line1)
+      setCustAddress(existing.address.line1);
+    if (!custReg && existing.vehicleDetails?.registrationNumber)
+      setCustReg(existing.vehicleDetails.registrationNumber);
+    if (!pincode && existing.address?.pinCode)
+      setPincode(existing.address.pinCode);
+  }, [customers, custName, custEmail, custAddress, custReg, pincode]);
+
   const handleApplyReferral = () => {
     // Check vehicle-based 400-day referral lock
     if (custReg && planSyncService.isVehicleReferralLocked(custReg)) {
@@ -1071,13 +1097,7 @@ export function CustomerPlanPage() {
                         <div style={{textAlign:"center"}}>
                           <div style={{fontSize:40,marginBottom:10,filter:selected?"drop-shadow(0 4px 8px rgba(99,102,241,0.4))":undefined}}>{cat.icon}</div>
                           <div style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{cat.label}</div>
-                          {activeCat===cat.id && selectedPlan===null && (
-                            <div style={{marginTop:8}}>
-                              {cfg.monthlyPlans.map(p=>(
-                                <div key={p.id} style={{fontSize:11,color:"#6366f1",fontWeight:600}}>{p.icon} from {inr(p.prices[cat.id])}</div>
-                              ))}
-                            </div>
-                          )}
+                          
                         </div>
                       </div>
                     );
@@ -1085,19 +1105,7 @@ export function CustomerPlanPage() {
                 </div>
               </div>
 
-              {/* Price preview banner */}
-              {activeCat && (
-                <div style={{marginBottom:28,padding:"16px 20px",background:"linear-gradient(135deg,#1e1b4b,#312e81)",borderRadius:16,display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
-                  <div style={{fontSize:13,color:"rgba(199,210,254,0.8)",fontWeight:600,flexShrink:0}}>💡 Plans for your {catLabel}:</div>
-                  {cfg.monthlyPlans.map(p=>(
-                    <div key={p.id} style={{textAlign:"center"}}>
-                      <div style={{fontSize:12,color:"rgba(199,210,254,0.7)"}}>{p.icon} {p.name}</div>
-                      <div style={{fontSize:18,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>{inr(p.prices[activeCat])}</div>
-                      <div style={{fontSize:10,color:"rgba(199,210,254,0.5)"}}>/month</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              
 
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="cpp-btn-primary" onClick={()=>goTo(2)} disabled={!step1Ok}>
@@ -1208,12 +1216,12 @@ export function CustomerPlanPage() {
                             <div style={{fontSize:36,marginBottom:8,filter:`drop-shadow(0 4px 8px ${ac}40)`}}>{plan.icon}</div>
                             <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                               {plan.name}
-                              <InfoBtn color={ac} onClick={()=>setInfoModal({planId:plan.id})} />
+                              <button onClick={(e)=>{e.stopPropagation();setInfoModal({planId:plan.id});}} style={{background:"none",border:"none",color:ac,fontSize:11,cursor:"pointer",padding:"0 2px",fontWeight:700,fontFamily:"inherit",textDecoration:"underline"}}>Show more</button>
                             </div>
                             <div style={{fontSize:26,fontWeight:800,color:sel?"#4f46e5":ac,marginBottom:2,fontFamily:"'Playfair Display',serif"}}>{inr(price)}</div>
                             <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>₹{pw}/wash · 30 washes/month</div>
                             <div style={{borderTop:`1px dashed ${br}`,paddingTop:10}}>
-                              {plan.features.slice(0,5).map((f,fi)=>(
+                              {plan.features.slice(0,3).map((f,fi)=>(
                                 <div key={fi} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                                   <div style={{width:16,height:16,borderRadius:"50%",background:f.included?`linear-gradient(135deg,${ac},${ac}99)`:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                                     <span style={{fontSize:9,color:f.included?"white":"#cbd5e1",fontWeight:800}}>{f.included?"✓":"×"}</span>
@@ -1279,7 +1287,7 @@ export function CustomerPlanPage() {
                             <div style={{fontSize:32,marginBottom:8}}>{pack.icon}</div>
                             <div style={{fontSize:15,fontWeight:800,color:"#0f172a",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                               {pack.name}
-                              <InfoBtn color={colors[i]} onClick={()=>setInfoModal({packId:pack.id})} />
+                              <button onClick={(e)=>{e.stopPropagation();setInfoModal({packId:pack.id});}} style={{background:"none",border:"none",color:colors[i],fontSize:11,cursor:"pointer",padding:"0 2px",fontWeight:700,fontFamily:"inherit",textDecoration:"underline"}}>Show more</button>
                             </div>
                             {dp>0&&<div style={{fontSize:22,fontWeight:800,color:colors[i],fontFamily:"'Playfair Display',serif",margin:"6px 0"}}>{inr(dp)}</div>}
                             {dp>0&&pack.id!=="onetime"&&(
@@ -1508,7 +1516,7 @@ export function CustomerPlanPage() {
                         <div style={{flex:1}}>
                           <div style={{fontSize:14,fontWeight:700,color:"#0f172a",display:"flex",alignItems:"center",gap:4}}>
                             {addon.name}
-                            <InfoBtn color={ac} onClick={()=>setInfoModal({addonName:addon.name})} />
+                            <button onClick={(e)=>{e.stopPropagation();setInfoModal({addonName:addon.name});}} style={{background:"none",border:"none",color:ac,fontSize:11,cursor:"pointer",padding:"0 2px",fontWeight:700,fontFamily:"inherit",textDecoration:"underline"}}>See more</button>
                           </div>
                           <div style={{fontSize:11,color:"#64748b",marginTop:1}}>{addon.description}</div>
                           <div style={{fontSize:10,color:"#94a3b8",marginTop:2,textTransform:"uppercase",letterSpacing:0.5}}>{addon.unit}</div>
@@ -1539,7 +1547,7 @@ export function CustomerPlanPage() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
                 {[
                   {label:"Full name *",value:custName,onChange:setCustName,placeholder:"Rajesh Patel",icon:"👤"},
-                  {label:"Mobile number *",value:custMobile,onChange:setCustMobile,placeholder:"10-digit number",type:"tel",icon:"📱"},
+                  {label:"Mobile number *",value:custMobile,onChange:setCustMobile,onBlur:()=>handleMobileLookup(custMobile),placeholder:"10-digit number",type:"tel",icon:"📱"},
                   {label:"Email address",value:custEmail,onChange:setCustEmail,placeholder:"Optional",type:"email",icon:"✉️"},
                   {label:"Vehicle registration",value:custReg,onChange:setCustReg,placeholder:"GJ05AB1234",icon:"🔢"},
                 ].map(({label,value,onChange,placeholder,type,icon})=>(
@@ -1889,7 +1897,7 @@ export function CustomerPlanPage() {
                 <br/><br/>
                 <strong>Cancellation Channel:</strong> You may cancel your subscription via WhatsApp, email, or our online form at 249carwashing.genxa.in/cancel-service — a reference number is generated immediately upon submission.
                 <br/><br/>
-                <strong>Multi-Month Pack Bundles:</strong> When you purchase a Pack of 2 or Pack of 4 across multiple months, your visits are managed as a total pool across all windows. Each 30-day window begins from your <em>first wash date</em> (not the payment date). A soft cap of 2× your monthly pack size applies per window — e.g. Pack of 4 × 3 months allows a maximum of 8 visits in any single window. Visits unused at the end of each window are forfeited and do not carry forward to the next window.
+                <strong>Multi-Month Pack Bundles:</strong> When you purchase a Pack of 2 or Pack of 4 across multiple months, your visits are managed as a total pool across all windows. Each 30-day window begins from your <em>first wash date</em> (not the payment date). Visits unused at the end of each window are forfeited and do not carry forward to the next window.
               </>}
               {showTnC==="refund"&&<>
                 Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred.

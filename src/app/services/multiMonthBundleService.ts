@@ -3,7 +3,7 @@
  * 
  * Handles all business logic for Multi-Month Visit Bundles:
  * - Pack of 2 or Pack of 4 across 3, 6, 9, or 12 consecutive 30-day windows
- * - Total pool model with 2× soft cap per window
+ * - Total pool model — visits can be used freely across any window (no cap)
  * - Windows start from first wash date (not payment date, not calendar month)
  * - Deferred revenue recognition per visit completed
  * - Visit-based cancellation refund formula
@@ -31,7 +31,7 @@ export interface BundleWindow {
   startDate:       string;      // ISO date — from first wash date for W1, +30 days each subsequent
   endDate:         string;      // ISO date — startDate + 29 days
   visitsAllotted:  number;      // Pack size (2 or 4)
-  softCap:         number;      // 2 × visitsAllotted
+  softCap:         number;      // DEPRECATED — no cap. Field kept for backward compat.
   visitsUsed:      number;      // incremented on each completed job
   visitsForfeited: number;      // set on window expiry if unused
   status:          "UPCOMING" | "ACTIVE" | "COMPLETED" | "EXPIRED";
@@ -184,7 +184,7 @@ export function createBundle(params: {
     startDate:       "",             // set when first wash date confirmed
     endDate:         "",
     visitsAllotted:  packSize,
-    softCap:         packSize * 2,
+    softCap:         packSize * bundleMonths, // cap removed — set to total so never reached
     visitsUsed:      0,
     visitsForfeited: 0,
     status:          "UPCOMING" as const,
@@ -280,10 +280,7 @@ export function recordBundleVisit(bundleId: string, jobId: string): {
 
   const window = { ...b.windows[wIdx] };
   
-  // Check soft cap
-  if (window.visitsUsed >= window.softCap) {
-    return { success: false, revenueRecognised: b.revenueRecognised, deferredRevenue: b.deferredRevenue, visitsRemaining: b.totalVisits - b.visitsUsed, windowVisitsRemaining: 0, softCapReached: true, message: `Soft cap reached: max ${window.softCap} visits in this window` };
-  }
+  // Soft cap removed (Slide 9) — customers can use visits freely across windows
 
   // Record visit
   window.visitsUsed += 1;
@@ -306,7 +303,7 @@ export function recordBundleVisit(bundleId: string, jobId: string): {
     revenueRecognised: recognised,
     deferredRevenue: b.deferredRevenue,
     visitsRemaining: b.totalVisits - b.visitsUsed,
-    windowVisitsRemaining: window.softCap - window.visitsUsed,
+    windowVisitsRemaining: b.totalVisits - b.visitsUsed,
     softCapReached: false,
     message: `Visit recorded. Revenue recognised: Rs ${recognised}`,
   };
@@ -389,12 +386,10 @@ export function canRequestWash(bundleId: string): {
   const activeWindow = b.windows.find(w => w.status === "ACTIVE" && todayStr >= w.startDate && todayStr <= w.endDate);
   if (!activeWindow) return { canRequest: false, reason: "No active window right now", visitsLeft: 0, windowEnd: "" };
 
-  if (activeWindow.visitsUsed >= activeWindow.softCap) {
-    return { canRequest: false, reason: `Monthly soft cap reached (${activeWindow.softCap} visits used). Next window opens ${addDays(activeWindow.endDate, 1)}.`, visitsLeft: 0, windowEnd: activeWindow.endDate };
-  }
+  // Soft cap check removed — no advance usage restriction
 
   const totalLeft = b.totalVisits - b.visitsUsed;
-  return { canRequest: true, visitsLeft: Math.min(activeWindow.softCap - activeWindow.visitsUsed, totalLeft), windowEnd: activeWindow.endDate };
+  return { canRequest: true, visitsLeft: totalLeft, windowEnd: activeWindow.endDate };
 }
 
 /**
