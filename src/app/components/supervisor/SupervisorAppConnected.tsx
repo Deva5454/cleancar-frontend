@@ -20,12 +20,13 @@ import { SupervisorMaterialManagement } from "./SupervisorMaterialManagement";
 import { BTLLeadScreen, LeadPipelineView } from "./BTLLeadScreen";
 import { BTLLeadScreenSimple } from "./BTLLeadScreenSimple";
 import { IncentiveTrackerScreen } from "./IncentiveTrackerScreen";
-import { EscalationScreen } from "./EscalationScreen";
+import { EscalationScreen } from "./EscalationScreen"; // full version
 import { EscalationScreenSimple } from "./EscalationScreenSimple";
 import { AlertCenterScreen, StickyAlertBanner } from "./AlertCenterScreen";
 import { HierarchyVisibilityScreen } from "./HierarchyVisibilityScreen";
 import { AuditTrailScreen } from "./AuditTrailScreen";
 import { DailyFlowScreen } from "./DailyFlowScreen";
+import { SupervisorPeriodicScheduleScreen } from "./SupervisorPeriodicScheduleScreen";
 import { KPIDashboardScreen } from "./KPIDashboardScreen";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Card, CardContent } from "../ui/card";
@@ -121,6 +122,7 @@ export function SupervisorAppConnected() {
     "cover":        "/supervisor-app/cover",
     "visibility":   "/supervisor-app/visibility",
     "audit-trail":  "/supervisor-app/audit-trail",
+    "daily-flow":   "/supervisor-app/daily-flow",
     "audit-flow":   "/supervisor-app/audit",
     "audit-result": "/supervisor-app/audit",
     "kpi-dashboard":"/supervisor-app/kpi-dashboard",
@@ -178,12 +180,11 @@ export function SupervisorAppConnected() {
 
     // Show toast notification for user feedback
     if (typeof window !== 'undefined' && washer) {
-      toast.info(`Calling ${washer.name} at ${washer.phone || 'N/A'}\n\nIn production: This would initiate a phone call.`);
+      toast.info(`Calling ${washer.name} at ${washer.phone || "N/A"}...`);
     }
 
-    // In production: initiate phone call or show call dialog
     if (washer?.phone) {
-      // Uncomment for production: window.location.href = `tel:${washer.phone}`;
+      window.location.href = `tel:${washer.phone}`;
     }
   };
 
@@ -235,10 +236,31 @@ export function SupervisorAppConnected() {
     }
   };
 
+  // ── Escalation modal state (replaces prompt/confirm) ──────────────────────
+  const [escalationModal, setEscalationModal] = useState<{
+    type: string;
+    title: string;
+    fields: { key: string; label: string; type?: string; options?: string[] }[];
+    data: Record<string, string>;
+    onSubmit: (data: Record<string, string>) => void;
+  } | null>(null);
+
+  const openEscalationModal = (
+    type: string,
+    title: string,
+    fields: { key: string; label: string; type?: string; options?: string[] }[],
+    onSubmit: (data: Record<string, string>) => void
+  ) => {
+    const data: Record<string, string> = {};
+    fields.forEach(f => { data[f.key] = ""; });
+    setEscalationModal({ type, title, fields, data, onSubmit });
+  };
+
   // Auto-assign cars handlers
   const [autoAssignModalOpen, setAutoAssignModalOpen] = useState(false);
   const [assigningJobId, setAssigningJobId] = useState<string | null>(null);
   const [assignWasherId, setAssignWasherId] = useState<string>("");
+  const [assigningInProgress, setAssigningInProgress] = useState(false);
   const [selectedAbsentWasher, setSelectedAbsentWasher] = useState<{ id: string; name: string } | null>(null);
 
   const handleAutoAssignCars = (washerId: string) => {
@@ -270,27 +292,46 @@ export function SupervisorAppConnected() {
     }
   };
 
-  // Mock car data for absent washer
+  // Real car data from jobs context for the absent washer
   const getAssignedCars = (washerId: string) => {
+    const today = new Date().toISOString().split("T")[0];
+    const washerJobs = (jobs || []).filter((j: any) =>
+      j.washerId === washerId &&
+      j.scheduledDate === today &&
+      ["Assigned", "Acknowledged", "In Progress"].includes(j.status)
+    );
+    if (washerJobs.length > 0) {
+      return washerJobs.map((j: any) => ({
+        carId: j.jobId,
+        carName: `${j.packageName || "Wash"} — ${j.vehicleDetails?.registration || j.customerId}`,
+        location: j.serviceDetails?.area || j.cityId || "Surat",
+      }));
+    }
+    // Fallback if no real jobs found
     return [
-      { carId: "CAR-001", carName: "Honda City MH12AB1234", location: "Athwalines, Surat" },
-      { carId: "CAR-002", carName: "Maruti Swift GJ05CD5678", location: "Piplod, Surat" },
-      { carId: "CAR-003", carName: "Hyundai i20 GJ05EF9012", location: "Adajan, Surat" },
-      { carId: "CAR-004", carName: "Toyota Innova GJ05GH3456", location: "Vesu, Surat" },
+      { carId: "CAR-001", carName: "No jobs found for this washer today", location: "Surat" },
     ];
   };
 
-  // Mock available washers with capacity
+  // Real washer capacity from jobs context
   const getAvailableWashers = () => {
     return team
       .filter(w => w.status === "CHECKED_IN" || w.status === "LATE")
-      .map(w => ({
-        id: w.id,
-        name: w.name,
-        currentCars: Math.floor(Math.random() * 3), // Simulated current cars
-        maxCapacity: 5, // Max 5 cars per washer
-        distanceKm: Math.random() * 10,
-      }));
+      .map(w => {
+        const today = new Date().toISOString().split("T")[0];
+        const activeCount = (jobs || []).filter((j: any) =>
+          j.washerId === w.id &&
+          j.scheduledDate === today &&
+          ["Assigned", "Acknowledged", "In Progress"].includes(j.status)
+        ).length;
+        return {
+          id: w.id,
+          name: w.name,
+          currentCars: activeCount,
+          maxCapacity: 5,
+          distanceKm: 0,
+        };
+      });
   };
 
   // Cover redistribution handlers
@@ -453,6 +494,15 @@ export function SupervisorAppConnected() {
       washer.currentLocation || { lat: 21.1702, lng: 72.8311 }
     );
 
+    // Determine package type from the washer's current job
+    const today = new Date().toISOString().split("T")[0];
+    const washerJob = (jobs || []).find((j: any) =>
+      j.washerId === washer.id &&
+      j.scheduledDate === today &&
+      ["Assigned", "Acknowledged", "In Progress"].includes(j.status)
+    );
+    const detectedPackage = washerJob?.packageType || "SHAMPOO_WASH";
+
     setAuditFlow({
       active: true,
       washerId: washer.id,
@@ -461,6 +511,7 @@ export function SupervisorAppConnected() {
       photos: 0,
       gpsValid: gpsValidation.isValid,
       gpsDistance: gpsValidation.distanceMeters,
+      packageType: detectedPackage,
     });
     navigate(SCREEN_TO_PATH["audit-flow"] ?? "/supervisor-app");
   };
@@ -597,18 +648,31 @@ export function SupervisorAppConnected() {
   );
 
   const handleManualAttendanceOverride = () => {
-    const washerId = prompt("Enter Washer ID:");
-    const reason = prompt("Enter reason:");
-    const selfieUrl = "SELFIE_PLACEHOLDER.jpg";
-    if (washerId && reason) {
-      escalationService.requestAttendanceOverride(washerId, reason, selfieUrl, "SUP-001");
-    }
+    const washers = team.map(w => w.name).join("|");
+    openEscalationModal("attendance_override", "Manual Attendance Override", [
+      { key: "washerName", label: "Washer", type: "select", options: team.map(w => w.name) },
+      { key: "reason", label: "Reason for override" },
+    ], (data) => {
+      const washer = team.find(w => w.name === data.washerName);
+      if (washer && data.reason) {
+        escalationService.requestAttendanceOverride(washer.id, data.reason, "", currentUser?.employeeId || "SUP-001");
+        toast.success(`Attendance override submitted for ${washer.name}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleForceEarlyCheckout = (washerId: string) => {
-    if (confirm(`Force early checkout for ${washerId}?`)) {
-      escalationService.forceEarlyCheckOut(washerId, "SUP-001");
-    }
+    const washer = team.find(w => w.id === washerId);
+    openEscalationModal("force_checkout", `Force Early Checkout — ${washer?.name || washerId}`, [
+      { key: "reason", label: "Reason for early checkout" },
+    ], (data) => {
+      if (data.reason) {
+        escalationService.forceEarlyCheckOut(washerId, currentUser?.employeeId || "SUP-001");
+        toast.success(`Early checkout processed for ${washer?.name || washerId}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleReassignCoverFromEscalation = () => {
@@ -617,65 +681,99 @@ export function SupervisorAppConnected() {
   };
 
   const handlePauseWasherSchedule = (washerId: string) => {
-    const reason = prompt("Enter reason for pausing schedule:");
-    if (reason) {
-      escalationService.pauseWasherSchedule(washerId, reason, "SUP-001");
-    }
+    const washer = team.find(w => w.id === washerId);
+    openEscalationModal("pause_schedule", `Pause Schedule — ${washer?.name || washerId}`, [
+      { key: "reason", label: "Reason for pausing schedule" },
+    ], (data) => {
+      if (data.reason) {
+        escalationService.pauseWasherSchedule(washerId, data.reason, currentUser?.employeeId || "SUP-001");
+        toast.success(`Schedule paused for ${washer?.name || washerId}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleVehicleDamageEscalation = () => {
-    const washerId = prompt("Enter Washer ID:");
-    const vehicleDetails = prompt("Enter vehicle details:");
-    const notes = prompt("Enter notes:");
-    if (washerId && vehicleDetails && notes) {
-      escalationService.escalateVehicleDamage(
-        washerId,
-        vehicleDetails,
-        "PHOTO_PLACEHOLDER.jpg",
-        notes,
-        "SUP-001"
-      );
-    }
+    openEscalationModal("vehicle_damage", "Vehicle Damage Escalation", [
+      { key: "washerName", label: "Washer", type: "select", options: team.map(w => w.name) },
+      { key: "vehicleDetails", label: "Vehicle details (registration, model)" },
+      { key: "notes", label: "Damage description" },
+    ], (data) => {
+      const washer = team.find(w => w.name === data.washerName);
+      if (washer && data.vehicleDetails && data.notes) {
+        escalationService.escalateVehicleDamage(washer.id, data.vehicleDetails, "", data.notes, currentUser?.employeeId || "SUP-001");
+        toast.warning(`Vehicle damage escalation submitted for ${washer.name}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleSOSAlert = () => {
-    if (confirm("🔴 TRIGGER SOS SAFETY ALERT? This will notify all managers.")) {
-      escalationService.triggerSOSAlert("SUP-001", { lat: 21.1702, lng: 72.8311 }, "Emergency");
-    }
+    openEscalationModal("sos", "🔴 SOS Safety Alert", [
+      { key: "situation", label: "Describe the emergency situation" },
+    ], (data) => {
+      if (data.situation) {
+        escalationService.triggerSOSAlert(currentUser?.employeeId || "SUP-001", { lat: 21.1702, lng: 72.8311 }, data.situation);
+        toast.error(`SOS Alert triggered. All managers notified.`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleIncentiveOverrideRequest = () => {
-    const caseType = prompt("Enter case type:");
-    const reason = prompt("Enter reason:");
-    if (caseType && reason) {
-      escalationService.requestIncentiveOverride(caseType, reason, "SUP-001");
-    }
+    openEscalationModal("incentive_override", "Incentive Override Request", [
+      { key: "caseType", label: "Case type", type: "select", options: ["Missed visit credit", "Quality dispute", "Bonus correction", "Other"] },
+      { key: "reason", label: "Reason / supporting details" },
+    ], (data) => {
+      if (data.caseType && data.reason) {
+        escalationService.requestIncentiveOverride(data.caseType, data.reason, currentUser?.employeeId || "SUP-001");
+        toast.success("Incentive override request submitted to Finance");
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleReassignCarAction = () => {
-    const carId = prompt("Enter Car ID:");
-    const fromWasherId = prompt("From Washer ID:");
-    const toWasherId = prompt("To Washer ID:");
-    const reason = prompt("Enter reason:");
-    if (carId && fromWasherId && toWasherId && reason) {
-      escalationService.reassignCar(carId, fromWasherId, toWasherId, reason, "SUP-001");
-    }
+    openEscalationModal("reassign_car", "Reassign Car Between Washers", [
+      { key: "fromWasherName", label: "From washer", type: "select", options: team.map(w => w.name) },
+      { key: "toWasherName", label: "To washer", type: "select", options: team.map(w => w.name) },
+      { key: "reason", label: "Reason for reassignment" },
+    ], (data) => {
+      const fromW = team.find(w => w.name === data.fromWasherName);
+      const toW   = team.find(w => w.name === data.toWasherName);
+      if (fromW && toW && data.reason) {
+        escalationService.reassignCar("JOB", fromW.id, toW.id, data.reason, currentUser?.employeeId || "SUP-001");
+        toast.success(`Car reassigned from ${fromW.name} to ${toW.name}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleBatchInvalidationAction = () => {
-    const washerId = prompt("Enter Washer ID:");
-    const batchId = prompt("Enter Batch ID (A/B/C/D):");
-    const reason = prompt("Enter reason:");
-    if (washerId && batchId && reason) {
-      escalationService.invalidateBatch(washerId, batchId, reason, "SUP-001");
-    }
+    openEscalationModal("batch_invalidation", "Cloth Batch Invalidation", [
+      { key: "washerName", label: "Washer", type: "select", options: team.map(w => w.name) },
+      { key: "batchId", label: "Batch ID", type: "select", options: ["A", "B", "C", "D"] },
+      { key: "reason", label: "Reason for invalidation" },
+    ], (data) => {
+      const washer = team.find(w => w.name === data.washerName);
+      if (washer && data.batchId && data.reason) {
+        escalationService.invalidateBatch(washer.id, data.batchId, data.reason, currentUser?.employeeId || "SUP-001");
+        toast.warning(`Batch ${data.batchId} invalidated for ${washer.name}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleEscalateToOpsManager = (issueId: string) => {
-    const reason = prompt("Enter escalation reason:");
-    if (reason) {
-      escalationService.escalateToOpsManager(issueId, reason, "SUP-001");
-    }
+    openEscalationModal("escalate_ops", "Escalate to Ops Manager", [
+      { key: "reason", label: "Escalation reason" },
+    ], (data) => {
+      if (data.reason) {
+        escalationService.escalateToOpsManager(issueId, data.reason, currentUser?.employeeId || "SUP-001");
+        toast.info("Escalated to Operations Manager");
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleMarkIssueInProgress = (issueId: string) => {
@@ -683,10 +781,15 @@ export function SupervisorAppConnected() {
   };
 
   const handleResolveEscalationIssue = (issueId: string) => {
-    const resolution = prompt("Enter resolution notes:");
-    if (resolution) {
-      escalationService.resolveIssue(issueId, resolution, "SUP-001");
-    }
+    openEscalationModal("resolve_issue", "Resolve Issue", [
+      { key: "resolution", label: "Resolution notes" },
+    ], (data) => {
+      if (data.resolution) {
+        escalationService.resolveIssue(issueId, data.resolution, currentUser?.employeeId || "SUP-001");
+        toast.success("Issue resolved");
+      }
+      setEscalationModal(null);
+    });
   };
 
   // Alert system handlers
@@ -697,14 +800,25 @@ export function SupervisorAppConnected() {
     navigate(SCREEN_TO_PATH["cover"] ?? "/supervisor-app");
   };
 
-  const handleViewDetailsFromAlert = () => {
+  const handleViewDetailsFromAlert = (alert?: any) => {
+    if (alert?.actionUrl) {
+      const screen = alert.actionUrl.split("/").pop() || "dashboard";
+      navigate(SCREEN_TO_PATH[screen] ?? "/supervisor-app");
+    } else {
+      navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts");
+    }
   };
 
   const handleEscalateAlert = (alertId: string) => {
-    const reason = prompt("Enter escalation reason:");
-    if (reason) {
-      alertService.escalateAlert(alertId, "SUP-001", reason);
-    }
+    openEscalationModal("escalate_alert", "Escalate Alert", [
+      { key: "reason", label: "Escalation reason" },
+    ], (data) => {
+      if (data.reason) {
+        alertService.escalateAlert(alertId, currentUser?.employeeId || "SUP-001", data.reason);
+        toast.info("Alert escalated to Ops Manager");
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleMarkPresentFromAlert = (washerId: string) => {
@@ -725,8 +839,13 @@ export function SupervisorAppConnected() {
   };
 
   const handleResolveAlert = (alertId: string) => {
-    const notes = prompt("Enter resolution notes (optional):");
-    alertService.resolveAlert(alertId, "SUP-001", notes || undefined);
+    openEscalationModal("resolve_alert", "Resolve Alert", [
+      { key: "notes", label: "Resolution notes (optional)" },
+    ], (data) => {
+      alertService.resolveAlert(alertId, currentUser?.employeeId || "SUP-001", data.notes || undefined);
+      toast.success("Alert resolved");
+      setEscalationModal(null);
+    });
   };
 
   // Hierarchy visibility handlers
@@ -825,8 +944,11 @@ export function SupervisorAppConnected() {
               </button>
 
               {/* System Alerts Bell */}
-              <div className="relative">
-                <Bell className="h-5 w-5 text-gray-600" />
+              <button
+                className="relative"
+                onClick={() => navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts")}
+              >
+                <Bell className="h-5 w-5 text-red-600" />
                 {unreadAlertsCount > 0 && (
                   <Badge
                     variant="outline"
@@ -835,7 +957,7 @@ export function SupervisorAppConnected() {
                     {unreadAlertsCount}
                   </Badge>
                 )}
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -970,6 +1092,15 @@ export function SupervisorAppConnected() {
               <TabsTrigger value="visibility" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
                 Visibility
               </TabsTrigger>
+              <TabsTrigger value="cover" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
+                Cover
+              </TabsTrigger>
+              <TabsTrigger value="audit-trail" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
+                Audit Trail
+              </TabsTrigger>
+              <TabsTrigger value="kpi-dashboard" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
+                KPI
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -977,8 +1108,8 @@ export function SupervisorAppConnected() {
           <TabsContent value="dashboard" className="mt-0">
             <SupervisorDashboard
               todayDate={new Date()}
-              dayNumber={15}
-              totalDays={26}
+              dayNumber={new Date().getDate()}
+              totalDays={new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()}
               summary={summary}
               alerts={alerts}
               currentShift={currentShift}
@@ -1055,17 +1186,20 @@ export function SupervisorAppConnected() {
                               })()}
                             </select>
                             <button
-                              onClick={() => {
-                                if (assignWasherId) {
+                              disabled={assigningInProgress || !assignWasherId}
+                              onClick={async () => {
+                                if (assignWasherId && !assigningInProgress) {
+                                  setAssigningInProgress(true);
                                   const washer = team.find(w => w.id === assignWasherId);
-                                  assignJobToWasher(j.jobId, assignWasherId, washer?.name || assignWasherId);
+                                  await assignJobToWasher(j.jobId, assignWasherId, washer?.name || assignWasherId);
                                   toast.success(`Job assigned to ${washer?.name || assignWasherId}`);
                                   setAssigningJobId(null);
                                   setAssignWasherId("");
+                                  setAssigningInProgress(false);
                                 }
                               }}
-                              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-semibold"
-                            >Assign</button>
+                              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >{assigningInProgress ? "Assigning..." : "Assign"}</button>
                             <button
                               onClick={() => { setAssigningJobId(null); setAssignWasherId(""); }}
                               className="px-2 py-1.5 border border-gray-300 text-xs rounded-lg"
@@ -1106,7 +1240,7 @@ export function SupervisorAppConnected() {
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
             {auditFlow ? (
-              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType="SHAMPOO_WASH" checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
+              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType={(auditFlow as any).packageType || "SHAMPOO_WASH"} checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
             ) : (
               <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />
             )}
@@ -1118,7 +1252,7 @@ export function SupervisorAppConnected() {
               <AuditFlowScreen
                 washerId={auditFlow.washerId}
                 washerName={auditFlow.washerName}
-                packageType="SHAMPOO_WASH"
+                packageType={(auditFlow as any).packageType || "SHAMPOO_WASH"}
                 checklist={auditFlow.checklist}
                 gpsValid={auditFlow.gpsValid}
                 gpsDistance={auditFlow.gpsDistance}
@@ -1151,23 +1285,13 @@ export function SupervisorAppConnected() {
           </TabsContent>
 
           {/* Screen 5: Team Schedule */}
-          <TabsContent value="schedule" className="mt-0 p-4">
-            <Card>
-              <CardContent className="p-8 text-center">
-                <h3 className="text-lg font-bold mb-2">Team Schedule & Cars</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  {schedule.length} washers • {summary.totalUnitsCompleted} units completed
-                </p>
-                <p className="text-xs text-gray-500">
-                  Full schedule view with job reassignment and cover management
-                </p>
-              </CardContent>
-            </Card>
+          <TabsContent value="schedule" className="mt-0">
+            <SupervisorPeriodicScheduleScreen />
           </TabsContent>
 
           {/* Screen 6: BTL Leads */}
           <TabsContent value="leads" className="mt-0">
-            <BTLLeadScreenSimple
+            <BTLLeadScreen
               leads={btlLeads}
               metrics={leadMetrics}
               onSubmitLead={handleSubmitLeadWithParams}
@@ -1182,9 +1306,21 @@ export function SupervisorAppConnected() {
 
           {/* Screen 8: Issues */}
           <TabsContent value="issues" className="mt-0">
-            <EscalationScreenSimple
+            <EscalationScreen
               issues={escalationIssues}
               summary={escalationSummary}
+              onManualOverride={handleManualAttendanceOverride}
+              onForceCheckout={handleForceEarlyCheckout}
+              onReassignCover={handleReassignCoverFromEscalation}
+              onPauseSchedule={handlePauseWasherSchedule}
+              onVehicleDamage={handleVehicleDamageEscalation}
+              onSOSAlert={handleSOSAlert}
+              onIncentiveOverride={handleIncentiveOverrideRequest}
+              onReassignCar={handleReassignCarAction}
+              onBatchInvalidation={handleBatchInvalidationAction}
+              onEscalateToOps={handleEscalateToOpsManager}
+              onMarkInProgress={handleMarkIssueInProgress}
+              onResolveIssue={handleResolveEscalationIssue}
             />
           </TabsContent>
 
@@ -1246,6 +1382,51 @@ export function SupervisorAppConnected() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Escalation Action Modal — replaces all prompt()/confirm() */}
+      {escalationModal && (
+        <div style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"440px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+            <h3 style={{fontWeight:800,fontSize:"18px",marginBottom:"4px",color:"#0f172a"}}>{escalationModal.title}</h3>
+            <div style={{height:2,background:"linear-gradient(90deg,#6366f1,#8b5cf6)",borderRadius:2,marginBottom:"20px"}} />
+            <div style={{display:"flex",flexDirection:"column",gap:"14px",marginBottom:"20px"}}>
+              {escalationModal.fields.map(field => (
+                <div key={field.key}>
+                  <label style={{display:"block",fontSize:"12px",fontWeight:700,color:"#475569",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.05em"}}>{field.label}</label>
+                  {field.type === "select" && field.options ? (
+                    <select
+                      value={escalationModal.data[field.key] || ""}
+                      onChange={e => setEscalationModal(prev => prev ? {...prev, data: {...prev.data, [field.key]: e.target.value}} : null)}
+                      style={{width:"100%",border:"1.5px solid #e2e8f0",borderRadius:"10px",padding:"10px 12px",fontSize:"14px",background:"#f8fafc",color:"#0f172a",outline:"none"}}
+                    >
+                      <option value="">Select...</option>
+                      {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <textarea
+                      value={escalationModal.data[field.key] || ""}
+                      onChange={e => setEscalationModal(prev => prev ? {...prev, data: {...prev.data, [field.key]: e.target.value}} : null)}
+                      rows={2}
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                      style={{width:"100%",border:"1.5px solid #e2e8f0",borderRadius:"10px",padding:"10px 12px",fontSize:"14px",background:"#f8fafc",color:"#0f172a",outline:"none",resize:"vertical",fontFamily:"inherit"}}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:"10px"}}>
+              <button
+                onClick={() => setEscalationModal(null)}
+                style={{flex:1,padding:"12px",border:"1.5px solid #e2e8f0",borderRadius:"10px",cursor:"pointer",fontSize:"14px",fontWeight:600,color:"#475569",background:"#f8fafc"}}
+              >Cancel</button>
+              <button
+                onClick={() => escalationModal.onSubmit(escalationModal.data)}
+                style={{flex:2,padding:"12px",border:"none",borderRadius:"10px",cursor:"pointer",fontSize:"14px",fontWeight:700,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white"}}
+              >Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Auto-Assign Cars Modal */}
       {selectedAbsentWasher && (

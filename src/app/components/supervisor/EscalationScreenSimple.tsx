@@ -17,21 +17,12 @@ export function EscalationScreenSimple({ issues, summary }: EscalationScreenSimp
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* MEGA VISIBLE DEBUG BANNER */}
-      <div className="bg-red-400 border-4 border-black p-6 m-4">
-        <h1 className="text-3xl font-black text-center text-white mb-2">
-          ✅ ESCALATION SCREEN IS RENDERING!
-        </h1>
-        <div className="bg-white p-4 rounded-lg text-center">
-          <p className="text-2xl font-bold text-red-600">Issues Count: {issues.length}</p>
-          <p className="text-xl font-bold text-orange-600">Open Issues: {summary?.openCount || 0}</p>
-        </div>
-      </div>
+
 
       {/* HEADER */}
-      <div className="bg-red-600 text-white p-4">
+      <div className="bg-indigo-600 text-white p-4">
         <h1 className="text-xl font-bold">Escalation Control Panel</h1>
-        <p className="text-sm">Simplified Version for Testing</p>
+        <p className="text-sm">Issues Overview</p>
       </div>
 
       {/* ESCALATION MATRIX */}
