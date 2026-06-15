@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Supervisor App - Complete Implementation
  * All 8 screens with centralized data and functional buttons
  * Integrated with existing design system
@@ -29,7 +29,7 @@ import { DailyFlowScreen } from "./DailyFlowScreen";
 import { SupervisorPeriodicScheduleScreen } from "./SupervisorPeriodicScheduleScreen";
 import { KPIDashboardScreen } from "./KPIDashboardScreen";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Card, CardContent } from "../ui/card";
+import { Card, CardContent, CardHeader } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Bell } from "lucide-react";
@@ -82,7 +82,7 @@ export function SupervisorAppConnected() {
     assignJobToWasher,
   } = useSupervisor() as any;
 
-  // URL is source of truth — derived via useMemo, not useState
+  // URL is source of truth â€” derived via useMemo, not useState
   // SCREEN_TO_PATH and PATH_TO_SCREEN defined below
   // Offline detection for field supervisors
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -146,7 +146,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleTabChange = (value: string) => {
-    // URL is source of truth — just navigate, useMemo derives currentScreen
+    // URL is source of truth â€” just navigate, useMemo derives currentScreen
     navigate(SCREEN_TO_PATH[value] ?? "/supervisor-app", { replace: true });
   };
 
@@ -236,7 +236,7 @@ export function SupervisorAppConnected() {
     }
   };
 
-  // ── Escalation modal state (replaces prompt/confirm) ──────────────────────
+  // â”€â”€ Escalation modal state (replaces prompt/confirm) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [escalationModal, setEscalationModal] = useState<{
     type: string;
     title: string;
@@ -288,7 +288,7 @@ export function SupervisorAppConnected() {
         .map(([name, cars]) => `${name}: ${cars.join(", ")}`)
         .join("\n");
 
-      toast.success(`✅ Car Auto-Assignment Completed\n\nAbsent Washer: ${selectedAbsentWasher?.name}\nTotal Cars Reassigned: ${assignments.length}\n\nNew Assignments:\n${summaryText}\n\nIn production: This would update the database and notify assigned washers.`);
+      toast.success(`âœ… Car Auto-Assignment Completed\n\nAbsent Washer: ${selectedAbsentWasher?.name}\nTotal Cars Reassigned: ${assignments.length}\n\nNew Assignments:\n${summaryText}\n\nIn production: This would update the database and notify assigned washers.`);
     }
   };
 
@@ -303,7 +303,7 @@ export function SupervisorAppConnected() {
     if (washerJobs.length > 0) {
       return washerJobs.map((j: any) => ({
         carId: j.jobId,
-        carName: `${j.packageName || "Wash"} — ${j.vehicleDetails?.registration || j.customerId}`,
+        carName: `${j.packageName || "Wash"} â€” ${j.vehicleDetails?.registration || j.customerId}`,
         location: j.serviceDetails?.area || j.cityId || "Surat",
       }));
     }
@@ -424,7 +424,7 @@ export function SupervisorAppConnected() {
 
     // Visual feedback
     if (typeof window !== 'undefined' && fromWasher && toWasher) {
-      toast.success(`✅ Cover Reassignment Successful\n\nReassigned ${units.toFixed(1)} units\nFrom: ${fromWasher.name}\nTo: ${toWasher.name}\n\nIn production: Notifications would be sent to both washers.`);
+      toast.success(`âœ… Cover Reassignment Successful\n\nReassigned ${units.toFixed(1)} units\nFrom: ${fromWasher.name}\nTo: ${toWasher.name}\n\nIn production: Notifications would be sent to both washers.`);
     }
   };
 
@@ -664,7 +664,7 @@ export function SupervisorAppConnected() {
 
   const handleForceEarlyCheckout = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
-    openEscalationModal("force_checkout", `Force Early Checkout — ${washer?.name || washerId}`, [
+    openEscalationModal("force_checkout", `Force Early Checkout â€” ${washer?.name || washerId}`, [
       { key: "reason", label: "Reason for early checkout" },
     ], (data) => {
       if (data.reason) {
@@ -682,7 +682,7 @@ export function SupervisorAppConnected() {
 
   const handlePauseWasherSchedule = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
-    openEscalationModal("pause_schedule", `Pause Schedule — ${washer?.name || washerId}`, [
+    openEscalationModal("pause_schedule", `Pause Schedule â€” ${washer?.name || washerId}`, [
       { key: "reason", label: "Reason for pausing schedule" },
     ], (data) => {
       if (data.reason) {
@@ -709,7 +709,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleSOSAlert = () => {
-    openEscalationModal("sos", "🔴 SOS Safety Alert", [
+    openEscalationModal("sos", "ðŸ”´ SOS Safety Alert", [
       { key: "situation", label: "Describe the emergency situation" },
     ], (data) => {
       if (data.situation) {
@@ -833,7 +833,7 @@ export function SupervisorAppConnected() {
 
       if (confirmed) {
         alertService.markAlertActioned(`ALERT-${washerId}`, "SUP-001");
-        toast.success(`✅ ${washer.name} marked as ABSENT\n\nCover redistribution initiated.\nOps Manager notified.\n\nIn production: This would update the database and trigger notifications.`);
+        toast.success(`âœ… ${washer.name} marked as ABSENT\n\nCover redistribution initiated.\nOps Manager notified.\n\nIn production: This would update the database and trigger notifications.`);
       }
     }
   };
@@ -895,7 +895,7 @@ export function SupervisorAppConnected() {
       {/* Offline indicator for field supervisors */}
       {!isOnline && (
         <div className="bg-amber-500 text-white text-center text-xs py-1.5 px-3 font-medium">
-          ⚠ You are offline — changes will sync when connection is restored
+          âš  You are offline â€” changes will sync when connection is restored
         </div>
       )}
         <p className="text-gray-600">Loading supervisor data...</p>
@@ -908,7 +908,7 @@ export function SupervisorAppConnected() {
       {/* DEV ONLY: Debug display showing logged-in user */}
       {import.meta.env.DEV && currentUser.employeeId && (
         <div className="fixed top-0 right-0 z-50 m-2 px-3 py-1 bg-purple-600 text-white text-xs rounded-full shadow-lg">
-          👤 {currentUser.name} ({currentUser.employeeId})
+          ðŸ‘¤ {currentUser.name} ({currentUser.employeeId})
         </div>
       )}
 
@@ -919,7 +919,7 @@ export function SupervisorAppConnected() {
             <div>
               <h1 className="text-lg font-bold text-gray-900">Supervisor App</h1>
               <p className="text-xs text-gray-600">
-                Shift {currentShift} • {team.length} washers
+                Shift {currentShift} â€¢ {team.length} washers
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1119,7 +1119,7 @@ export function SupervisorAppConnected() {
               onCashDeposit={() => setShowCashDeposit(true)}
             />
 
-            {/* Unassigned Jobs — quick assign panel */}
+            {/* Unassigned Jobs â€” quick assign panel */}
             {(() => {
               const today = new Date().toISOString().split("T")[0];
               const unassigned = (jobs || []).filter((j: any) =>
@@ -1130,7 +1130,7 @@ export function SupervisorAppConnected() {
                 <div className="mt-4 px-1">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-gray-800">
-                      ⚠️ {unassigned.length} Unassigned Job{unassigned.length > 1 ? "s" : ""} Today
+                      âš ï¸ {unassigned.length} Unassigned Job{unassigned.length > 1 ? "s" : ""} Today
                     </h3>
                   </div>
                   <div className="space-y-2">
@@ -1141,12 +1141,12 @@ export function SupervisorAppConnected() {
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-semibold text-gray-900">{j.packageName}</p>
                               {j.isComplimentary && (
-                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">🏍️ COMP 2W</span>
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">ðŸï¸ COMP 2W</span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500">{j.customerName || j.customerId} · {j.timeSlot} · {j.vehicleDetails?.registration || ""}</p>
+                            <p className="text-xs text-gray-500">{j.customerName || j.customerId} Â· {j.timeSlot} Â· {j.vehicleDetails?.registration || ""}</p>
                             {j.isComplimentary && (
-                              <p className="text-xs text-purple-600 font-medium">Free 2W wash · Linked 4W: {j.vehicle4WReg || "see offer"} · Cost → Marketing Expense</p>
+                              <p className="text-xs text-purple-600 font-medium">Free 2W wash Â· Linked 4W: {j.vehicle4WReg || "see offer"} Â· Cost â†’ Marketing Expense</p>
                             )}
                             <p className="text-xs text-gray-400">{j.serviceDetails?.area || j.cityId || "Surat"}</p>
                           </div>
@@ -1161,7 +1161,7 @@ export function SupervisorAppConnected() {
                             >
                               <option value="">Select washer...</option>
                               {(() => {
-                                // Rank washers: (1) pincode match → (2) idle (no active jobs) → (3) fewest active jobs
+                                // Rank washers: (1) pincode match â†’ (2) idle (no active jobs) â†’ (3) fewest active jobs
                                 const activeWashers = team.filter((w: any) => w.status === "CHECKED_IN" || w.status === "LATE");
                                 const jobPinCode = (j.pinCode || j.serviceDetails?.area || "").toLowerCase();
                                 const ranked = [...activeWashers].sort((a: any, b: any) => {
@@ -1179,7 +1179,7 @@ export function SupervisorAppConnected() {
                                   const pinMatch = jobPinCode && (w.pinCode||w.area||"").toLowerCase().includes(jobPinCode.slice(0,4));
                                   return (
                                     <option key={w.id} value={w.id}>
-                                      {pinMatch ? "📍 " : ""}{w.name} ({activeCount} active{activeCount === 0 ? " — idle" : ""})
+                                      {pinMatch ? "ðŸ“ " : ""}{w.name} ({activeCount} active{activeCount === 0 ? " â€” idle" : ""})
                                     </option>
                                   );
                                 });
@@ -1203,7 +1203,7 @@ export function SupervisorAppConnected() {
                             <button
                               onClick={() => { setAssigningJobId(null); setAssignWasherId(""); }}
                               className="px-2 py-1.5 border border-gray-300 text-xs rounded-lg"
-                            >✕</button>
+                            >âœ•</button>
                           </div>
                         ) : (
                           <button
@@ -1383,7 +1383,7 @@ export function SupervisorAppConnected() {
         </Tabs>
       </div>
 
-      {/* Escalation Action Modal — replaces all prompt()/confirm() */}
+      {/* Escalation Action Modal â€” replaces all prompt()/confirm() */}
       {escalationModal && (
         <div style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
           <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"440px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
