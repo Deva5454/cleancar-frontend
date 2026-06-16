@@ -58,6 +58,19 @@ const PKG_COLORS: Record<string, string> = {
   ELITE_2W: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
+const PKG_DISPLAY: Record<string, string> = {
+  EXPRESS_WASH: "Express Wash",
+  SMART_WASH:   "Smart Wash",
+  ELITE_WASH:   "Elite Wash",
+  ELITE_2W:     "Elite 2W",
+  SHINE:        "Express Wash",
+  PROTECT:      "Smart Wash",
+  ELITE:        "Elite Wash",
+  Standard:     "Smart Wash",
+  Premium:      "Elite Wash",
+  Basic:        "Express Wash",
+};
+
 const STATUS_COLORS: Record<string, string> = {
   scheduled:    "bg-teal-50 text-teal-700 border-teal-200",
   completed:    "bg-green-50 text-green-700 border-green-200",
