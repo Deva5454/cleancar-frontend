@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SupervisorPeriodicScheduleScreen.tsx
  *
  * Supervisor view for managing periodic service schedules.
@@ -39,7 +39,7 @@ import {
 import { mockWasherDataService } from "../../services/mockWasherDataService";
 import { useRole } from "../../contexts/RoleContext";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface CustomerRow {
   customerId: string;
@@ -49,7 +49,7 @@ interface CustomerRow {
   monthlyUsage: MonthlyUsage;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PKG_COLORS: Record<string, string> = {
   SHINE:    "bg-blue-50 text-blue-700 border-blue-200",
@@ -76,7 +76,7 @@ function usageBar(used: number, cap: number): string {
   return `${used}/${cap}`;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function SupervisorPeriodicScheduleScreen() {
   const { currentUser } = useRole();
@@ -97,19 +97,19 @@ export function SupervisorPeriodicScheduleScreen() {
   const [activeTab, setActiveTab] = useState<"periodic" | "bookings">("periodic");
   const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
 
-  // ── Seed + load ─────────────────────────────────────────────────────────────
+  // â”€â”€ Seed + load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const loadRows = useCallback(() => {
     setLoading(true);
     try {
-      // ── Package type normaliser ───────────────────────────────────────────
+      // â”€â”€ Package type normaliser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const PKG_MAP: Record<string, string> = {
         SMART_WASH: "SMART_WASH", ELITE_WASH: "ELITE_WASH", EXPRESS_WASH: "EXPRESS_WASH",
         Standard: "SMART_WASH", Premium: "ELITE_WASH", Basic: "EXPRESS_WASH",
         PROTECT: "SMART_WASH", ELITE: "ELITE_WASH", SHINE: "EXPRESS_WASH",
       };
 
-      // ── Build customer name map ───────────────────────────────────────────
+      // â”€â”€ Build customer name map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const custMap: Record<string, string> = {};
       try {
         const rawCusts = localStorage.getItem("cleancar_CITY-SURAT_customers");
@@ -120,7 +120,7 @@ export function SupervisorPeriodicScheduleScreen() {
         }
       } catch (_) {}
 
-      // ── Clear stale schedule so we re-seed fresh each time ───────────────
+      // â”€â”€ Clear stale schedule so we re-seed fresh each time â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Only clear if no occurrences fall within next lookAheadDays
       const todayStr = new Date().toISOString().split("T")[0];
       const horizonDate = new Date(); horizonDate.setDate(horizonDate.getDate() + lookAheadDays);
@@ -135,9 +135,9 @@ export function SupervisorPeriodicScheduleScreen() {
         }
       } catch (_) { localStorage.removeItem("cleancar_periodic_schedules"); }
 
-      // ── Seed from real Active subscriptions ──────────────────────────────
+      // â”€â”€ Seed from real Active subscriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // Use a ROTATING anchor: subscription index % 15 determines which day
-      // offset (0–14) so occurrences are spread across the next 14 days.
+      // offset (0â€“14) so occurrences are spread across the next 14 days.
       // This means every 3-day window will have data.
       try {
         const rawSubs = localStorage.getItem("cleancar_CITY-SURAT_subscriptions");
@@ -149,9 +149,9 @@ export function SupervisorPeriodicScheduleScreen() {
             const pkg = PKG_MAP[s.packageType] || PKG_MAP[s.packageName] || "SMART_WASH";
             const custName = custMap[s.customerId] || s.customerId;
             // Rotate anchor: offset 0-14 days back so occurrences land today through +14
-            // SMART_WASH interval=15 days → offset 0 puts occurrence on day 1 (tomorrow)
-            // EXPRESS_WASH interval=30 days → offset 0 puts occurrence on day 10
-            // ELITE_WASH interval=7 days → offset 0 puts occurrence on day 1
+            // SMART_WASH interval=15 days â†’ offset 0 puts occurrence on day 1 (tomorrow)
+            // EXPRESS_WASH interval=30 days â†’ offset 0 puts occurrence on day 10
+            // ELITE_WASH interval=7 days â†’ offset 0 puts occurrence on day 1
             // We want occurrence in next 3 days: offset such that anchor+1 = today+slot
             const intervalMap: Record<string, number> = {
               SMART_WASH: 15, ELITE_WASH: 7, EXPRESS_WASH: 30,
@@ -167,7 +167,7 @@ export function SupervisorPeriodicScheduleScreen() {
         }
       } catch (_) {}
 
-      // ── Update names in existing schedules ───────────────────────────────
+      // â”€â”€ Update names in existing schedules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       try {
         const raw = localStorage.getItem("cleancar_periodic_schedules");
         if (raw && Object.keys(custMap).length > 0) {
@@ -183,7 +183,7 @@ export function SupervisorPeriodicScheduleScreen() {
         }
       } catch (_) {}
 
-      // ── Fallback: mock jobs if no real subs found ─────────────────────────
+      // â”€â”€ Fallback: mock jobs if no real subs found â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       try {
         const existing = JSON.parse(localStorage.getItem("cleancar_periodic_schedules") || "{}");
         if (Object.keys(existing).length === 0) {
@@ -286,43 +286,19 @@ export function SupervisorPeriodicScheduleScreen() {
 
   useEffect(() => { loadRows(); }, [loadRows]);
 
-  // ── Reschedule flow ──────────────────────────────────────────────────────────
+  // â”€â”€ Reschedule flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function openReschedule(row: CustomerRow, occ: PeriodicOccurrence) {
+    // View-only: supervisor cannot reschedule — show info modal only
     setRescheduleTarget({
       customerId:   row.customerId,
       customerName: row.customerName,
       occ,
       usage: row.monthlyUsage,
     });
-    setNewDate(occ.scheduledDate);
-    setReason("");
-    setRescheduleError("");
   }
 
-  function confirmReschedule() {
-    if (!rescheduleTarget) return;
-    if (!newDate) { setRescheduleError("Please select a new date."); return; }
-    if (!reason.trim()) { setRescheduleError("Reason is required."); return; }
-
-    const result = periodicScheduleService.reschedule(
-      rescheduleTarget.customerId,
-      rescheduleTarget.occ.id,
-      newDate,
-      supervisorId,
-      reason,
-    );
-
-    if (result.success) {
-      toast.success(result.message);
-      setRescheduleTarget(null);
-      loadRows();
-    } else {
-      setRescheduleError(result.message);
-    }
-  }
-
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const totalDue = rows.reduce((s, r) => s + r.occurrences.length, 0);
 
@@ -337,7 +313,7 @@ export function SupervisorPeriodicScheduleScreen() {
             Periodic Service Schedule
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Next {lookAheadDays} days · {totalDue} service{totalDue !== 1 ? "s" : ""} due ·
+            Next {lookAheadDays} days Â· {totalDue} service{totalDue !== 1 ? "s" : ""} due Â·
             Tap any service to view details
           </p>
         </div>
@@ -392,7 +368,7 @@ export function SupervisorPeriodicScheduleScreen() {
       <Alert className="border-amber-200 bg-amber-50 py-2">
         <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
         <AlertDescription className="text-xs text-amber-800">
-          <strong>Cap rule:</strong> You can move a service to a different day in the same month —
+          <strong>Cap rule:</strong> You can move a service to a different day in the same month â€”
           but the customer cannot receive an additional service beyond their plan's monthly allowance.
           Completed services cannot be rescheduled.
         </AlertDescription>
@@ -425,7 +401,7 @@ export function SupervisorPeriodicScheduleScreen() {
                       }`}>
                         {PERIODIC_SERVICE_META[svc as keyof typeof PERIODIC_SERVICE_META]?.icon}
                         {" "}{usageBar(v.used, v.cap)}
-                        {v.used >= v.cap && " 🔒"}
+                        {v.used >= v.cap && " ðŸ”’"}
                       </span>
                     ))}
                 </div>
@@ -462,7 +438,7 @@ export function SupervisorPeriodicScheduleScreen() {
                           )}
                           {occ.rescheduleReason && (
                             <span className="text-xs text-gray-400 italic">
-                              · {occ.rescheduleReason}
+                              Â· {occ.rescheduleReason}
                             </span>
                           )}
                         </div>
@@ -532,7 +508,7 @@ export function SupervisorPeriodicScheduleScreen() {
                   </div>
                   {job.status === "Unassigned" && (
                     <p className="text-xs text-amber-600 font-medium mt-2 pt-2 border-t border-gray-100">
-                      Washer not yet assigned — go to Dashboard to assign
+                      Washer not yet assigned â€” go to Dashboard to assign
                     </p>
                   )}
                 </CardContent>
@@ -542,7 +518,7 @@ export function SupervisorPeriodicScheduleScreen() {
         </div>
       )}
 
-      {/* Reschedule info notice — supervisor is view only */}
+      {/* Reschedule info notice â€” supervisor is view only */}
       {rescheduleTarget && (
         <div style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
           <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"400px"}}>
@@ -555,7 +531,7 @@ export function SupervisorPeriodicScheduleScreen() {
             <p style={{fontSize:"12px",color:"#64748b",marginBottom:"16px"}}>
               Scheduled: {formatDate(rescheduleTarget.occ.scheduledDate)}{" "}
               {rescheduleTarget.occ.status === "rescheduled" && rescheduleTarget.occ.rescheduledBy && (
-                <span style={{color:"#7c3aed"}}> — Rescheduled by {rescheduleTarget.occ.rescheduledBy}</span>
+                <span style={{color:"#7c3aed"}}> â€” Rescheduled by {rescheduleTarget.occ.rescheduledBy}</span>
               )}
             </p>
             <div style={{background:"#f1f5f9",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
