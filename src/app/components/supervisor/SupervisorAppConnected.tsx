@@ -1487,6 +1487,15 @@ export function SupervisorAppConnected() {
         </div>
       )}
 
+      {/* Lead Pipeline View */}
+      {selectedPipeline && (
+        <LeadPipelineView
+          lead={selectedPipeline.lead}
+          pipeline={selectedPipeline.pipeline}
+          onClose={handleClosePipeline}
+        />
+      )}
+
       {/* Auto-Assign Cars Modal */}
       {selectedAbsentWasher && (
         <AutoAssignCarsModal
