@@ -368,6 +368,104 @@ export function JobProvider({ children }: { children: ReactNode }) {
       } catch(e) { console.warn("[Scheduler] Pack expiry error:", e); }
 
       try {
+        // 4. Generate tomorrow's jobs from active subscriptions (runs at 9 PM)
+        const nowHour = new Date().getHours();
+        const seedKey = `cc360_jobs_seeded_${today}`;
+        // Run between 9 PM and 11 PM, once per day
+        if (nowHour >= 21 && !localStorage.getItem(seedKey)) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+          const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
+            .filter((s: any) => s.status === "Active");
+          const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
+          const washers: any[] = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]")
+            .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR"));
+          const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
+
+          // Build pincode→washer map for round-robin assignment
+          const washerByPin: Record<string, any[]> = {};
+          washers.forEach((w: any) => {
+            (w.pinCodes || ["395001"]).forEach((pin: string) => {
+              const p = pin.replace("PIN-", "");
+              if (!washerByPin[p]) washerByPin[p] = [];
+              washerByPin[p].push(w);
+            });
+          });
+          const washerIdx: Record<string, number> = {};
+
+          const PKG_MAP: Record<string, string> = {
+            Basic: "EXPRESS_WASH", SHINE: "EXPRESS_WASH",
+            Standard: "SMART_WASH", PROTECT: "SMART_WASH",
+            Premium: "ELITE_WASH", ELITE: "ELITE_WASH",
+            EXPRESS_WASH: "EXPRESS_WASH", SMART_WASH: "SMART_WASH", ELITE_WASH: "ELITE_WASH",
+          };
+          const SLOTS = ["05:00 AM","05:30 AM","06:00 AM","06:30 AM","07:00 AM","07:30 AM","08:00 AM","08:30 AM"];
+
+          const existingSubIds = new Set(
+            existingJobs
+              .filter((j: any) => j.scheduledDate === tomorrowStr)
+              .map((j: any) => j.subscriptionId)
+          );
+
+          const newJobs: any[] = [];
+          activeSubs.forEach((sub: any, i: number) => {
+            if (existingSubIds.has(sub.subscriptionId)) return; // already have tomorrow's job
+            const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
+            const pin = (cust.pinCode || "395001").replace("PIN-", "");
+            const available = washerByPin[pin] || washerByPin["395001"] || washers;
+            if (!available || available.length === 0) return;
+
+            const idx = washerIdx[pin] || 0;
+            const washer = available[idx % available.length];
+            washerIdx[pin] = idx + 1;
+
+            const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
+            const slotIdx = (washerIdx[pin] - 1) % SLOTS.length;
+
+            newJobs.push({
+              jobId: `JOB-${tomorrowStr}-${String(i).padStart(4, "0")}`,
+              customerId: sub.customerId,
+              subscriptionId: sub.subscriptionId,
+              washerId: washer.id,
+              scheduledDate: tomorrowStr,
+              timeSlot: SLOTS[slotIdx],
+              status: "Unassigned",
+              jobType: "Regular",
+              packageName: pkgType,
+              packageType: pkgType,
+              customerName: `${cust.firstName || ""} ${cust.lastName || ""}`.trim() || sub.customerId,
+              vehicleDetails: {
+                category: sub.serviceDetails?.vehicleType || "Sedan",
+                color: cust.vehicleColor || "White",
+                brand: cust.vehicleBrand || "Maruti",
+                registration: cust.vehicleReg || `GJ05${String(i).padStart(4, "0")}`,
+              },
+              location: {
+                addressLine1: cust.address || "Surat",
+                area: cust.area || "Adajan",
+                city: "Surat",
+                pinCode: pin,
+              },
+              serviceDetails: { addOns: sub.serviceDetails?.addOns || [], specialInstructions: "" },
+              subscriptionStartDate: sub.startDate || "2026-01-01",
+              cityId: "CITY-SURAT",
+              city: "Surat",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          });
+
+          if (newJobs.length > 0) {
+            localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existingJobs, ...newJobs]));
+            localStorage.setItem(seedKey, "1");
+            console.info(`[Scheduler] Generated ${newJobs.length} jobs for ${tomorrowStr}`);
+          }
+        }
+      } catch(e) { console.warn("[Scheduler] Job seeder error:", e); }
+
+      try {
         // 3. Weekly Sunday rating WA for monthly subscriptions
         const dayOfWeek = new Date().getDay(); // 0 = Sunday
         if (dayOfWeek === 0) {
