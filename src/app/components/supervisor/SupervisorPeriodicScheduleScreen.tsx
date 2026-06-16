@@ -287,9 +287,35 @@ export function SupervisorPeriodicScheduleScreen() {
           }
         } catch (_) {}
 
+        // Build washer name map from EMPLOYEE_DATABASE_RECORDS
+        const washerNameMap2: Record<string, string> = {};
+        try {
+          const rawEDB = localStorage.getItem("EMPLOYEE_DATABASE_RECORDS");
+          if (rawEDB) {
+            (JSON.parse(rawEDB) as any[])
+              .filter((e: any) => e.designation === "Car Washer")
+              .forEach((e: any) => {
+                washerNameMap2[e.id] = e.fullName || `${e.firstName} ${e.lastName}`.trim();
+              });
+          }
+        } catch (_) {}
+
+        // Build customer phone map
+        const custPhoneMap2: Record<string, string> = {};
+        try {
+          const rawCp = localStorage.getItem("cleancar_CITY-SURAT_customers");
+          if (rawCp) {
+            (JSON.parse(rawCp) as any[]).forEach((c: any) => {
+              custPhoneMap2[c.customerId] = c.phone || c.mobile || "";
+            });
+          }
+        } catch (_) {}
+
         bookingJobs = bookingJobs.map((j: any) => ({
           ...j,
           customerName: custNameMap2[j.customerId] || j.customerName || j.customerId || "Customer",
+          customerPhone: custPhoneMap2[j.customerId] || "",
+          washerDisplayName: j.washerId ? (washerNameMap2[j.washerId] || j.washerName || j.washerId) : null,
         }));
 
         bookingJobs.sort((a, b) => (a.scheduledDate || "").localeCompare(b.scheduledDate || ""));
@@ -517,6 +543,12 @@ export function SupervisorPeriodicScheduleScreen() {
                     </span>
                     {job.vehicleDetails?.registration && (
                       <span>Vehicle: {job.vehicleDetails.registration}</span>
+                    )}
+                    {job.washerDisplayName && (
+                      <span className="text-blue-600">Washer: {job.washerDisplayName}</span>
+                    )}
+                    {job.customerPhone && (
+                      <a href={`tel:${job.customerPhone}`} className="text-indigo-600 underline">{job.customerPhone}</a>
                     )}
                     {job.location?.area && (
                       <span>Area: {job.location.area}</span>
