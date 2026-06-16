@@ -96,8 +96,6 @@ export function SupervisorPeriodicScheduleScreen() {
   const [rescheduleError, setRescheduleError] = useState("");
   const [activeTab, setActiveTab] = useState<"periodic" | "bookings">("periodic");
   const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"periodic" | "bookings">("periodic");
-  const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
 
   // â”€â”€ Seed + load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
