@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { sendRefundProcessed } from "../../services/whatsappService";
 // Dashboard for Accounts role
 import { Card, CardContent } from "../ui/card";
@@ -20,7 +20,7 @@ export function FinanceDashboard() {
     { id: 4, employee: "Ramesh Patel", role: "Supervisor", baseSalary: 25000, adhocEarnings: 2000, deductions: 500, netSalary: 26500, status: "Pending", month: "Mar 2026" },
   ];
 
-  // Cash deposits — merged from MASTER_APPROVALS + live SUPERVISOR_CASH_DEPOSITS
+  // Cash deposits â€” merged from MASTER_APPROVALS + live SUPERVISOR_CASH_DEPOSITS
   const [liveDeposits, setLiveDeposits] = React.useState(() => loadCashDeposits());
   const [financeRefunds, setFinanceRefunds] = React.useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem("cleancar_finance_refunds") || "[]"); } catch { return []; }
@@ -76,7 +76,7 @@ export function FinanceDashboard() {
         debit: "Customer Advance / Refund Payable",
         credit: "Bank / Cash",
         amount: req.refundAmount,
-        narration: `Refund processed for ${req.customerName} (${req.subscriptionId}) — Ref: ${req.id} — Bank Ref: ${bankRef}`,
+        narration: `Refund processed for ${req.customerName} (${req.subscriptionId}) â€” Ref: ${req.id} â€” Bank Ref: ${bankRef}`,
         status: "POSTED",
         createdAt: now,
       });
@@ -95,7 +95,7 @@ export function FinanceDashboard() {
     setProcessingId(null);
     setBankRef("");
     setBankName("");
-    alert(`Refund of ₹${Math.round(req.refundAmount).toLocaleString("en-IN")} processed. Customer notified via WhatsApp.`);
+    alert(`Refund of â‚¹${Math.round(req.refundAmount).toLocaleString("en-IN")} processed. Customer notified via WhatsApp.`);
   };
   React.useEffect(() => {
     const interval = setInterval(() => setLiveDeposits(loadCashDeposits()), 10000);
@@ -115,17 +115,22 @@ export function FinanceDashboard() {
         collectedAt: a.date || new Date().toISOString(),
         isLive: false,
       })),
-    // From live CashDepositScreen submissions
+    // From live CashDepositScreen submissions (COLLECTED + DEPOSITED)
     ...liveDeposits
-      .filter(d => d.status === "DEPOSITED")
+      .filter(d => d.status === "DEPOSITED" || d.status === "COLLECTED")
       .map(d => ({
         id: d.id,
         supervisor: d.supervisorName,
         amount: d.amount,
-        status: "Pending Verification",
+        status: d.status === "DEPOSITED" ? "Pending Verification" : "Collected - Not Yet Deposited",
         bankRefNumber: d.bankRefNumber,
         collectedAt: d.collectedAt,
+        customerName: d.customerName,
+        customerMobile: d.customerMobile,
+        subscriptionId: d.subscriptionId,
+        notes: d.notes,
         isLive: true,
+        canVerify: d.status === "DEPOSITED",
       })),
   ];
 
@@ -149,7 +154,19 @@ export function FinanceDashboard() {
       localStorage.setItem("SUPERVISOR_CASH_DEPOSITS", JSON.stringify(updated));
       setLiveDeposits(updated);
     }
-    toast.success(`Cash deposit of ₹${amount.toLocaleString()} from ${supervisorName} verified`);
+    toast.success(`Cash deposit of â‚¹${amount.toLocaleString()} from ${supervisorName} verified`);
+  };
+
+  const handleRejectDeposit = (supervisorName: string, amount: number, depositId?: string) => {
+    const reason = window.prompt(`Reason for rejecting deposit from ${supervisorName}:`);
+    if (!reason) return;
+    if (depositId) {
+      const all = loadCashDeposits();
+      const updated = all.map((d: any) => d.id === depositId ? { ...d, status: "REJECTED", rejectedAt: new Date().toISOString(), rejectionReason: reason } : d);
+      localStorage.setItem("SUPERVISOR_CASH_DEPOSITS", JSON.stringify(updated));
+      setLiveDeposits(updated);
+    }
+    toast.error("Deposit rejected: " + reason);
   };
 
   return (
@@ -183,7 +200,7 @@ export function FinanceDashboard() {
               <div className="bg-blue-50 text-blue-600 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2">
                 <DollarSign className="w-6 h-6" />
               </div>
-              <p className="text-2xl font-bold">₹{(stats.monthlyPayroll / 1000).toFixed(0)}K</p>
+              <p className="text-2xl font-bold">â‚¹{(stats.monthlyPayroll / 1000).toFixed(0)}K</p>
               <p className="text-xs text-gray-500">Monthly Payroll</p>
             </div>
           </CardContent>
@@ -194,7 +211,7 @@ export function FinanceDashboard() {
               <div className="bg-purple-50 text-purple-600 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2">
                 <AlertCircle className="w-6 h-6" />
               </div>
-              <p className="text-2xl font-bold">₹{(stats.cashPending / 1000).toFixed(0)}K</p>
+              <p className="text-2xl font-bold">â‚¹{(stats.cashPending / 1000).toFixed(0)}K</p>
               <p className="text-xs text-gray-500">Cash Pending</p>
             </div>
           </CardContent>
@@ -205,7 +222,7 @@ export function FinanceDashboard() {
               <div className="bg-red-50 text-red-600 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2">
                 <DollarSign className="w-6 h-6" />
               </div>
-              <p className="text-2xl font-bold">₹{(stats.vendorPayables / 1000).toFixed(0)}K</p>
+              <p className="text-2xl font-bold">â‚¹{(stats.vendorPayables / 1000).toFixed(0)}K</p>
               <p className="text-xs text-gray-500">Vendor Payables</p>
             </div>
           </CardContent>
@@ -232,17 +249,17 @@ export function FinanceDashboard() {
               <div key={record.id} className="flex items-center justify-between p-4 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium">{record.employee}</p>
-                  <p className="text-sm text-gray-600">{record.role} • {record.month}</p>
+                  <p className="text-sm text-gray-600">{record.role} â€¢ {record.month}</p>
                   <div className="flex gap-4 mt-2 text-sm">
-                    <span className="text-gray-600">Base: ₹{record.baseSalary.toLocaleString()}</span>
-                    <span className="text-green-600">+₹{record.adhocEarnings.toLocaleString()}</span>
-                    <span className="text-red-600">-₹{record.deductions.toLocaleString()}</span>
+                    <span className="text-gray-600">Base: â‚¹{record.baseSalary.toLocaleString()}</span>
+                    <span className="text-green-600">+â‚¹{record.adhocEarnings.toLocaleString()}</span>
+                    <span className="text-red-600">-â‚¹{record.deductions.toLocaleString()}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                   <div className="text-right">
                     <p className="text-xs text-gray-500">Net Salary</p>
-                    <p className="text-xl font-bold">₹{record.netSalary.toLocaleString()}</p>
+                    <p className="text-xl font-bold">â‚¹{record.netSalary.toLocaleString()}</p>
                   </div>
                   <Button size="sm" onClick={() => handleApprovePayroll(record.employee)}>
                     <CheckCircle className="w-4 h-4 mr-1" />
@@ -267,7 +284,7 @@ export function FinanceDashboard() {
                   <p className="text-sm text-gray-600">Cash collection pending deposit</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                  <p className="text-2xl font-bold">₹{deposit.amount.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">â‚¹{deposit.amount.toLocaleString()}</p>
                   {(deposit as any).bankRefNumber && <p className="text-xs text-gray-500">Ref: {(deposit as any).bankRefNumber}</p>}
                   {(deposit as any).isLive && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Live</span>}
                   <Button size="sm" onClick={() => handleVerifyDeposit(deposit.supervisor, deposit.amount, (deposit as any).isLive ? (deposit as any).id : undefined)}>Verify Deposit</Button>
@@ -293,23 +310,23 @@ export function FinanceDashboard() {
               <div className="flex items-start justify-between mb-2">
                 <div>
                   <p className="font-semibold text-sm">{req.customerName}</p>
-                  <p className="text-xs text-gray-500">{req.customerMobile} · {req.subscriptionId}</p>
-                  <p className="text-xs text-gray-400">Ref: {req.id} · {req.packageName}</p>
+                  <p className="text-xs text-gray-500">{req.customerMobile} Â· {req.subscriptionId}</p>
+                  <p className="text-xs text-gray-400">Ref: {req.id} Â· {req.packageName}</p>
                 </div>
                 <div className="text-right">
                   <p className={`text-lg font-bold ${req.refundAmount > 0 ? "text-green-700" : "text-red-600"}`}>
-                    {req.refundAmount > 0 ? `₹${Math.round(req.refundAmount).toLocaleString("en-IN")}` : "No Refund"}
+                    {req.refundAmount > 0 ? `â‚¹${Math.round(req.refundAmount).toLocaleString("en-IN")}` : "No Refund"}
                   </p>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${req.financeStatus === "Pending" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                     {req.financeStatus}
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mb-3">Reason: {req.reason} · Approved by TSM: {req.tsmProcessedBy}</p>
+              <p className="text-xs text-gray-500 mb-3">Reason: {req.reason} Â· Approved by TSM: {req.tsmProcessedBy}</p>
 
               {req.financeStatus === "Processed" ? (
                 <div className="text-xs bg-green-50 p-2 rounded-lg">
-                  <p>✅ Processed · Bank: {req.bankName} · Ref: {req.bankRef}</p>
+                  <p>âœ… Processed Â· Bank: {req.bankName} Â· Ref: {req.bankRef}</p>
                   <p className="text-gray-400">{new Date(req.processedAt).toLocaleDateString("en-IN")}</p>
                 </div>
               ) : req.refundAmount > 0 ? (
@@ -319,8 +336,8 @@ export function FinanceDashboard() {
                   {req.paymentMethod && (
                     <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg p-2 mb-2">
                       <p className="font-semibold text-blue-800">Original payment instrument:</p>
-                      <p className="text-blue-700">{req.paymentMethod}{req.paymentInstrumentHint ? ` — ${req.paymentInstrumentHint}` : ""}</p>
-                      <p className="text-blue-500 mt-0.5">Refund must be credited to the same instrument per Refund Policy §7.</p>
+                      <p className="text-blue-700">{req.paymentMethod}{req.paymentInstrumentHint ? ` â€” ${req.paymentInstrumentHint}` : ""}</p>
+                      <p className="text-blue-500 mt-0.5">Refund must be credited to the same instrument per Refund Policy Â§7.</p>
                     </div>
                   )}
                   <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -346,14 +363,14 @@ export function FinanceDashboard() {
                   </Button>
                 )
               ) : (
-                <div className="text-xs bg-gray-50 p-2 rounded-lg text-gray-500">No refund applicable — cancellation fee covers 100%</div>
+                <div className="text-xs bg-gray-50 p-2 rounded-lg text-gray-500">No refund applicable â€” cancellation fee covers 100%</div>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* ── Multi-Month Bundle Revenue Section ─────────────────────────────── */}
+      {/* â”€â”€ Multi-Month Bundle Revenue Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(() => {
         const bundles = getAllActiveBundles();
         if (bundles.length === 0) return null;
@@ -362,11 +379,11 @@ export function FinanceDashboard() {
         const totalDeferred   = bundles.reduce((s, b) => s + b.deferredRevenue, 0);
         const totalVisitsUsed = bundles.reduce((s, b) => s + b.visitsUsed, 0);
         const totalVisits     = bundles.reduce((s, b) => s + b.totalVisits, 0);
-        const INR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+        const INR = (n: number) => "â‚¹" + Math.round(n).toLocaleString("en-IN");
         return (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">📦 Multi-Month Bundle Revenue</h3>
+              <h3 className="text-lg font-bold text-gray-900">ðŸ“¦ Multi-Month Bundle Revenue</h3>
               <p className="text-xs text-gray-500 mt-0.5">Revenue recognised per visit completed. Deferred = cash collected but service not yet delivered.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -406,7 +423,7 @@ export function FinanceDashboard() {
                           <td className="py-2 px-2 font-semibold text-green-700">{INR(b.revenueRecognised)}</td>
                           <td className="py-2 px-2 font-semibold text-amber-700">{INR(b.deferredRevenue)}</td>
                           <td className="py-2 px-2">{b.visitsUsed}/{b.totalVisits}</td>
-                          <td className="py-2 px-2 text-gray-500">{activeW?.endDate || b.bundleEndDate || "—"}</td>
+                          <td className="py-2 px-2 text-gray-500">{activeW?.endDate || b.bundleEndDate || "â€”"}</td>
                           <td className="py-2 px-2">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                               b.status === "ACTIVE" ? "bg-green-100 text-green-700" :
@@ -422,17 +439,17 @@ export function FinanceDashboard() {
               </CardContent>
             </Card>
             <p className="text-xs text-gray-400 italic">
-              ⚠️ Revenue recognised when wash is marked Verified by Supervisor. Forfeited visits (window expired, unused) recognised at window expiry.
+              âš ï¸ Revenue recognised when wash is marked Verified by Supervisor. Forfeited visits (window expired, unused) recognised at window expiry.
             </p>
           </div>
         );
       })()}
 
-      {/* ── Complimentary 2W Marketing Expense Section ─────────────────── */}
+      {/* â”€â”€ Complimentary 2W Marketing Expense Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(() => {
         const currentMonth = new Date().toISOString().slice(0, 7);
         const summary = getMarketingExpenseSummary(currentMonth);
-        const INR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+        const INR = (n: number) => "â‚¹" + Math.round(n).toLocaleString("en-IN");
         // Read journal entries for complimentary washes
         let journalEntries: any[] = [];
         try { journalEntries = JSON.parse(localStorage.getItem("cleancar_journal_entries") || "[]").filter((e: any) => e.referenceType === "Complimentary2W"); } catch {}
@@ -440,7 +457,7 @@ export function FinanceDashboard() {
         return (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">🏍️ Complimentary 2W Wash — Marketing Expense</h3>
+              <h3 className="text-lg font-bold text-gray-900">ðŸï¸ Complimentary 2W Wash â€” Marketing Expense</h3>
               <p className="text-xs text-gray-500 mt-0.5">Free 2-wheeler washes offered to 4W customers as conversion/retention incentives. Debited to Marketing Expenses.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -461,7 +478,7 @@ export function FinanceDashboard() {
             {journalEntries.length > 0 && (
               <Card>
                 <CardContent className="p-4 overflow-x-auto">
-                  <p className="text-xs font-semibold text-gray-700 mb-3">Journal Entries — Debit: Marketing Expenses / Credit: Service Rendered</p>
+                  <p className="text-xs font-semibold text-gray-700 mb-3">Journal Entries â€” Debit: Marketing Expenses / Credit: Service Rendered</p>
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-200">
