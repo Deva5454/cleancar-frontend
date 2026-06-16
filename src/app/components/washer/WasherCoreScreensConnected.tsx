@@ -1,12 +1,13 @@
-/**
- * WASHER CORE SCREENS — CONNECTED
- * Self-contained flow: Dashboard → Check-In → Schedule → Active Wash → Check-Out → Day Summary
+﻿/**
+ * WASHER CORE SCREENS â€” CONNECTED
+ * Self-contained flow: Dashboard â†’ Check-In â†’ Schedule â†’ Active Wash â†’ Check-Out â†’ Day Summary
  * All state managed locally. Syncs to WasherContext but does NOT depend on it for flow control.
  */
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
+import { useRole } from "../../contexts/RoleContext";
 import { WasherHomeDashboard, type DayStatus } from "./WasherHomeDashboard";
 import { WasherCheckIn, type ValidationState } from "./WasherCheckIn";
 import { WasherMySchedule, type JobCard } from "./WasherMySchedule";
@@ -22,18 +23,18 @@ type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "c
 export function WasherCoreScreensConnected() {
   const navigate = useNavigate();
 
-  // Context — used for profile/stats display only
+  // Context â€” used for profile/stats display only
   const { profile, stats, refreshData } = useWasher();
   const { completedJobs } = useWasherJobs();
 
-  // ── LOCAL FLOW STATE ──────────────────────────────────────────────────────
+  // â”€â”€ LOCAL FLOW STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [screen, setScreen]           = useState<Screen>("dashboard");
   const [checkedIn, setCheckedIn]     = useState(false);
   const [checkedOut, setCheckedOut]   = useState(false);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [showDaySummary, setShowDaySummary] = useState(false);
 
-  // Jobs — seeded from mock service, mutations tracked here
+  // Jobs â€” seeded from mock service, mutations tracked here
   const [jobs, setJobs] = useState<CustomerJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
@@ -49,27 +50,27 @@ export function WasherCoreScreensConnected() {
     face: ValidationState; gps: ValidationState;
   }>({ face: "PENDING", gps: "PENDING" });
 
-  // ── SEED JOBS ON MOUNT ────────────────────────────────────────────────────
+  // â”€â”€ SEED JOBS ON MOUNT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     mockWasherDataService.clearCache();
     const seeded = mockWasherDataService.getTodayJobs("WASHER-DEMO");
     setJobs(seeded);
   }, []);
 
-  // ── DERIVED ───────────────────────────────────────────────────────────────
+  // â”€â”€ DERIVED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const activeJob      = jobs.find(j => j.id === activeJobId) ?? null;
   const completedLocal = jobs.filter(j => j.status === "Completed");
   const pendingLocal   = jobs.filter(j => j.status === "Assigned" || j.status === "Acknowledged");
 
-  // ── HELPERS ───────────────────────────────────────────────────────────────
+  // â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const updateJobStatus = (jobId: string, status: CustomerJob["status"]) => {
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j));
     mockWasherDataService.updateJobStatus(jobId, status);
   };
 
-  // ── HANDLERS: CHECK-IN ────────────────────────────────────────────────────
+  // â”€â”€ HANDLERS: CHECK-IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleStartCheckInCamera = () => {
-    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-In Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3E✓ Captured%3C/text%3E%3C/svg%3E");
+    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-In Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3Eâœ“ Captured%3C/text%3E%3C/svg%3E");
     setTimeout(() => setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" }), 600);
   };
   const handleRetakeCheckIn = () => {
@@ -88,7 +89,7 @@ export function WasherCoreScreensConnected() {
       });
     }
 
-    // Fix 3: Send WA to customer — washer arrived
+    // Fix 3: Send WA to customer â€” washer arrived
     if (currentJob) {
       import("../../services/whatsappService").then(ws => {
         import("../../services/washerLocationService").then(({ getTrackingUrl }) => {
@@ -115,7 +116,7 @@ export function WasherCoreScreensConnected() {
     refreshData();
   };
 
-  // ── HANDLERS: SCHEDULE ────────────────────────────────────────────────────
+  // â”€â”€ HANDLERS: SCHEDULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleStartJob = (jobId: string) => {
     updateJobStatus(jobId, "In Progress");
     setActiveJobId(jobId);
@@ -129,7 +130,7 @@ export function WasherCoreScreensConnected() {
     }
   };
 
-  // ── HANDLERS: ACTIVE WASH ─────────────────────────────────────────────────
+  // â”€â”€ HANDLERS: ACTIVE WASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleCompleteJob = () => {
     if (activeJobId) updateJobStatus(activeJobId, "Completed");
     setActiveJobId(null);
@@ -137,9 +138,9 @@ export function WasherCoreScreensConnected() {
     refreshData();
   };
 
-  // ── HANDLERS: CHECK-OUT ───────────────────────────────────────────────────
+  // â”€â”€ HANDLERS: CHECK-OUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleStartCheckOutCamera = () => {
-    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-Out Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3E✓ Captured%3C/text%3E%3C/svg%3E");
+    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-Out Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3Eâœ“ Captured%3C/text%3E%3C/svg%3E");
     setTimeout(() => setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" }), 600);
   };
   const handleRetakeCheckOut = () => {
@@ -151,7 +152,7 @@ export function WasherCoreScreensConnected() {
     setShowDaySummary(true);
   };
 
-  // ── MAP JOBS TO CARDS ─────────────────────────────────────────────────────
+  // â”€â”€ MAP JOBS TO CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const mapJobsToCards = (): JobCard[] =>
     jobs.map((job, index) => ({
       id: job.id,
@@ -177,7 +178,7 @@ export function WasherCoreScreensConnected() {
     if (checkedIn)  return "WORKING";
     return "NOT_CHECKED_IN";
   };
-  // ── DAY SUMMARY ───────────────────────────────────────────────────────────
+  // â”€â”€ DAY SUMMARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (showDaySummary) {
     return (
       <DaySummaryScreen
@@ -203,7 +204,7 @@ export function WasherCoreScreensConnected() {
     );
   }
 
-  // ── SCREEN CONTENT ────────────────────────────────────────────────────────
+  // â”€â”€ SCREEN CONTENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderScreen = () => {
     switch (screen) {
 
@@ -357,14 +358,14 @@ export function WasherCoreScreensConnected() {
     }
   };
 
-  // ── BOTTOM NAV ────────────────────────────────────────────────────────────
+  // â”€â”€ BOTTOM NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const navItems = [
-    { screen: "dashboard" as Screen, label: "Home",      icon: "🏠" },
-    { screen: "checkin"   as Screen, label: "Check-In",  icon: "✅" },
-    { screen: "schedule"  as Screen, label: "Schedule",  icon: "📋" },
-    { screen: "active"    as Screen, label: "Active",    icon: "🚿" },
-    { screen: "incentive" as Screen, label: "Earnings",  icon: "₹"  },
-    { screen: "checkout"  as Screen, label: "Check-Out", icon: "🔚" },
+    { screen: "dashboard" as Screen, label: "Home",      icon: "ðŸ " },
+    { screen: "checkin"   as Screen, label: "Check-In",  icon: "âœ…" },
+    { screen: "schedule"  as Screen, label: "Schedule",  icon: "ðŸ“‹" },
+    { screen: "active"    as Screen, label: "Active",    icon: "ðŸš¿" },
+    { screen: "incentive" as Screen, label: "Earnings",  icon: "â‚¹"  },
+    { screen: "checkout"  as Screen, label: "Check-Out", icon: "ðŸ”š" },
   ];
 
   return (
