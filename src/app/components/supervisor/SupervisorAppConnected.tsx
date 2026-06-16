@@ -167,10 +167,10 @@ export function SupervisorAppConnected() {
   };
 
   const handleTriggerCover = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Triggering cover redistribution for ${washer.name}\n\nIn production: This would show the cover assignment modal with:\n- Available washers\n- Job redistribution plan\n- Capacity analysis`);
+    const washer = team.find((w: any) => w.id === washerId);
+    if (washer) {
+      toast.info(`Opening cover plan for ${washer.name}`);
+      handleReassignFromAlert(washerId);
     }
   };
 
@@ -796,8 +796,21 @@ export function SupervisorAppConnected() {
   const [systemAlerts] = useState(() => alertService.getAlerts("SUP-001"));
   const [alertSummary] = useState(() => alertService.getAlertSummary("SUP-001"));
 
-  const handleReassignFromAlert = () => {
-    navigate(SCREEN_TO_PATH["cover"] ?? "/supervisor-app");
+  const handleReassignFromAlert = (washerId?: string) => {
+    // If already on cover tab, navigate away then back to force re-render
+    if (location.pathname === "/supervisor-app/cover") {
+      navigate("/supervisor-app/dashboard", { replace: true });
+      setTimeout(() => navigate("/supervisor-app/cover"), 50);
+    } else {
+      navigate(SCREEN_TO_PATH["cover"] ?? "/supervisor-app/cover");
+    }
+    // Pre-select the absent washer in cover plan if provided
+    if (washerId) {
+      const washer = team.find((w: any) => w.id === washerId);
+      if (washer && coverPlan) {
+        setCoverPlan({ ...coverPlan, highlightedWasherId: washerId });
+      }
+    }
   };
 
   const handleViewDetailsFromAlert = (alert?: any) => {
