@@ -263,8 +263,36 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             : undefined,
           unitsCompleted: completedJobs.length,
           unitsTarget: 25,
-          lastAuditDate: undefined,
-          auditStatus: "DUE" as const,
+          // Compute audit status from localStorage audit records
+          lastAuditDate: (() => {
+            try {
+              const auditKey = `SUPERVISOR_AUDITS_${emp.employeeId}`;
+              const raw = localStorage.getItem(auditKey);
+              if (raw) {
+                const audits = JSON.parse(raw);
+                const last = audits[audits.length - 1];
+                return last?.timestamp ? new Date(last.timestamp) : undefined;
+              }
+            } catch (_) {}
+            return undefined;
+          })(),
+          auditStatus: (() => {
+            try {
+              const auditKey = `SUPERVISOR_AUDITS_${emp.employeeId}`;
+              const raw = localStorage.getItem(auditKey);
+              if (raw) {
+                const audits = JSON.parse(raw);
+                const last = audits[audits.length - 1];
+                if (last?.timestamp) {
+                  const daysSince = Math.floor((Date.now() - new Date(last.timestamp).getTime()) / 86400000);
+                  if (daysSince <= 3) return "COMPLETED" as const;
+                  if (daysSince <= 7) return "DUE" as const;
+                  return "OVERDUE" as const;
+                }
+              }
+            } catch (_) {}
+            return "DUE" as const; // default: due if no audit record
+          })(),
           clothBatchId: `CLT-${emp.employeeId}`,
           clothBatchStatus,
           clothIssueDate,
@@ -302,10 +330,21 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
         pendingJobs: (() => { try { return getUnassignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
         totalUnitsCompleted: teamMembers.reduce((sum, m) => sum + m.unitsCompleted, 0),
         totalUnitsTarget: Math.max(1, teamMembers.length * 25),
-        auditsPending: 0,
-        auditsCompleted: 0,
-        activeAlerts: 0,
-        leadsToday: 0,
+        auditsPending: teamMembers.filter(m => m.auditStatus === "DUE" || m.auditStatus === "OVERDUE").length,
+        auditsCompleted: teamMembers.filter(m => m.auditStatus === "COMPLETED").length,
+        activeAlerts: 0, // computed after alerts are built
+        leadsToday: (() => {
+          try {
+            const raw = localStorage.getItem("cleancar_btl_leads");
+            if (!raw) return 0;
+            const leads = JSON.parse(raw);
+            const todayStr = new Date().toISOString().split("T")[0];
+            return leads.filter((l: any) =>
+              l.capturedBy === (currentUser?.employeeId || supervisorId) &&
+              (l.captureDate || l.createdAt || "").startsWith(todayStr)
+            ).length;
+          } catch { return 0; }
+        })(),
       };
       setSummary(summary);
 

@@ -52,10 +52,26 @@ interface CustomerRow {
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PKG_COLORS: Record<string, string> = {
-  SHINE:    "bg-blue-50 text-blue-700 border-blue-200",
-  PROTECT:  "bg-purple-50 text-purple-700 border-purple-200",
-  ELITE:    "bg-green-50 text-green-700 border-green-200",
-  ELITE_2W: "bg-amber-50 text-amber-700 border-amber-200",
+  SHINE:        "bg-blue-50 text-blue-700 border-blue-200",
+  PROTECT:      "bg-purple-50 text-purple-700 border-purple-200",
+  ELITE:        "bg-green-50 text-green-700 border-green-200",
+  ELITE_2W:     "bg-amber-50 text-amber-700 border-amber-200",
+  EXPRESS_WASH: "bg-blue-50 text-blue-700 border-blue-200",
+  SMART_WASH:   "bg-purple-50 text-purple-700 border-purple-200",
+  ELITE_WASH:   "bg-green-50 text-green-700 border-green-200",
+};
+
+const PKG_DISPLAY: Record<string, string> = {
+  EXPRESS_WASH: "Express Wash",
+  SMART_WASH:   "Smart Wash",
+  ELITE_WASH:   "Elite Wash",
+  ELITE_2W:     "Elite 2W",
+  SHINE:        "Express Wash",
+  PROTECT:      "Smart Wash",
+  ELITE:        "Elite Wash",
+  Standard:     "Smart Wash",
+  Premium:      "Elite Wash",
+  Basic:        "Express Wash",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -388,7 +404,7 @@ export function SupervisorPeriodicScheduleScreen() {
                   <User className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-semibold text-gray-800">{row.customerName}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${PKG_COLORS[row.packageType] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                    {row.packageType}
+                    {PKG_DISPLAY[row.packageType] ?? row.packageType}
                   </span>
                 </div>
                 {/* Monthly usage badges */}

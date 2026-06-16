@@ -388,11 +388,32 @@ export function SupervisorAppConnected() {
       return;
     }
 
-    // Default behavior: auto-generate from team data
+    // Default behavior: auto-generate from team data using real absent washer
     if (team && team.length > 0 && !coverPlan && scenario !== "cover") {
-      const absentWasher = team.find(w => w.status === "LEAVE") || team[0];
+      // Priority: LEAVE > ABSENT > first washer with most jobs
+      const absentWasher =
+        team.find((w: any) => w.isOnLeave || w.status === "LEAVE") ||
+        team.find((w: any) => w.status === "ABSENT") ||
+        team[0];
       if (absentWasher) {
-        const jobsToRedistribute = mockWasherDataService.getTodayJobs(absentWasher.id, 25);
+        // Use real jobs from JobContext instead of mock data
+        const today = new Date().toISOString().split("T")[0];
+        const realJobsForWasher = (jobs || []).filter((j: any) =>
+          j.washerId === absentWasher.id &&
+          j.scheduledDate === today &&
+          ["Assigned","Acknowledged","In Progress","Unassigned"].includes(j.status)
+        );
+        const jobsToRedistribute = realJobsForWasher.length > 0
+          ? realJobsForWasher.map((j: any) => ({
+              id: j.jobId,
+              customerId: j.customerId,
+              customerFirstName: j.customerName || j.customerId,
+              scheduledTime: j.timeSlot || "08:00",
+              area: j.location?.area || j.serviceDetails?.area || "Surat",
+              packageType: j.packageName || "Daily Wash",
+              subscriptionStartDate: today,
+            }))
+          : mockWasherDataService.getTodayJobs(absentWasher.id, 8);
         const availableWashers = team
           .filter(w => w.status === "CHECKED_IN" && w.id !== absentWasher.id)
           .slice(0, 12)
