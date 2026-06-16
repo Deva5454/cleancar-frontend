@@ -52,26 +52,10 @@ interface CustomerRow {
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PKG_COLORS: Record<string, string> = {
-  SHINE:        "bg-blue-50 text-blue-700 border-blue-200",
-  PROTECT:      "bg-purple-50 text-purple-700 border-purple-200",
-  ELITE:        "bg-green-50 text-green-700 border-green-200",
-  ELITE_2W:     "bg-amber-50 text-amber-700 border-amber-200",
-  EXPRESS_WASH: "bg-blue-50 text-blue-700 border-blue-200",
-  SMART_WASH:   "bg-purple-50 text-purple-700 border-purple-200",
-  ELITE_WASH:   "bg-green-50 text-green-700 border-green-200",
-};
-
-const PKG_DISPLAY: Record<string, string> = {
-  EXPRESS_WASH: "Express Wash",
-  SMART_WASH:   "Smart Wash",
-  ELITE_WASH:   "Elite Wash",
-  ELITE_2W:     "Elite 2W",
-  SHINE:        "Express Wash",
-  PROTECT:      "Smart Wash",
-  ELITE:        "Elite Wash",
-  Standard:     "Smart Wash",
-  Premium:      "Elite Wash",
-  Basic:        "Express Wash",
+  SHINE:    "bg-blue-50 text-blue-700 border-blue-200",
+  PROTECT:  "bg-purple-50 text-purple-700 border-purple-200",
+  ELITE:    "bg-green-50 text-green-700 border-green-200",
+  ELITE_2W: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -110,6 +94,8 @@ export function SupervisorPeriodicScheduleScreen() {
   const [newDate, setNewDate]     = useState("");
   const [reason, setReason]       = useState("");
   const [rescheduleError, setRescheduleError] = useState("");
+  const [activeTab, setActiveTab] = useState<"periodic" | "bookings">("periodic");
+  const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"periodic" | "bookings">("periodic");
   const [upcomingJobs, setUpcomingJobs] = useState<any[]>([]);
 
@@ -287,35 +273,9 @@ export function SupervisorPeriodicScheduleScreen() {
           }
         } catch (_) {}
 
-        // Build washer name map from EMPLOYEE_DATABASE_RECORDS
-        const washerNameMap2: Record<string, string> = {};
-        try {
-          const rawEDB = localStorage.getItem("EMPLOYEE_DATABASE_RECORDS");
-          if (rawEDB) {
-            (JSON.parse(rawEDB) as any[])
-              .filter((e: any) => e.designation === "Car Washer")
-              .forEach((e: any) => {
-                washerNameMap2[e.id] = e.fullName || `${e.firstName} ${e.lastName}`.trim();
-              });
-          }
-        } catch (_) {}
-
-        // Build customer phone map
-        const custPhoneMap2: Record<string, string> = {};
-        try {
-          const rawCp = localStorage.getItem("cleancar_CITY-SURAT_customers");
-          if (rawCp) {
-            (JSON.parse(rawCp) as any[]).forEach((c: any) => {
-              custPhoneMap2[c.customerId] = c.phone || c.mobile || "";
-            });
-          }
-        } catch (_) {}
-
         bookingJobs = bookingJobs.map((j: any) => ({
           ...j,
           customerName: custNameMap2[j.customerId] || j.customerName || j.customerId || "Customer",
-          customerPhone: custPhoneMap2[j.customerId] || "",
-          washerDisplayName: j.washerId ? (washerNameMap2[j.washerId] || j.washerName || j.washerId) : null,
         }));
 
         bookingJobs.sort((a, b) => (a.scheduledDate || "").localeCompare(b.scheduledDate || ""));
@@ -388,6 +348,30 @@ export function SupervisorPeriodicScheduleScreen() {
         </button>
       </div>
 
+      {/* Sub-tab selector */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab("periodic")}
+          className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+            activeTab === "periodic"
+              ? "bg-white text-teal-700 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Periodic Services {totalDue > 0 ? `(${totalDue})` : ""}
+        </button>
+        <button
+          onClick={() => setActiveTab("bookings")}
+          className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+            activeTab === "bookings"
+              ? "bg-white text-indigo-700 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Upcoming Bookings {upcomingJobs.length > 0 ? `(${upcomingJobs.length})` : ""}
+        </button>
+      </div>
+
       {/* Look-ahead selector */}
       <div className="flex gap-2">
         {[3, 7, 14].map(d => (
@@ -430,7 +414,7 @@ export function SupervisorPeriodicScheduleScreen() {
                   <User className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-semibold text-gray-800">{row.customerName}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${PKG_COLORS[row.packageType] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                    {PKG_DISPLAY[row.packageType as keyof typeof PKG_DISPLAY] ?? row.packageType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                    {row.packageType}
                   </span>
                 </div>
                 {/* Monthly usage badges */}
@@ -543,12 +527,6 @@ export function SupervisorPeriodicScheduleScreen() {
                     </span>
                     {job.vehicleDetails?.registration && (
                       <span>Vehicle: {job.vehicleDetails.registration}</span>
-                    )}
-                    {job.washerDisplayName && (
-                      <span className="text-blue-600">Washer: {job.washerDisplayName}</span>
-                    )}
-                    {job.customerPhone && (
-                      <a href={`tel:${job.customerPhone}`} className="text-indigo-600 underline">{job.customerPhone}</a>
                     )}
                     {job.location?.area && (
                       <span>Area: {job.location.area}</span>
