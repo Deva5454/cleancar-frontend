@@ -101,14 +101,79 @@ export function SupervisorPeriodicScheduleScreen() {
   const loadRows = useCallback(() => {
     setLoading(true);
     try {
-      // Seed all today's jobs into periodicScheduleService if not already done
+      // ── Source 1: real subscriptions from localStorage ──────────────────
+      const today = new Date().toISOString().split("T")[0];
+      // Anchor start date 10 days ago so occurrences fall in the next 14 days
+      const anchorDate = new Date();
+      anchorDate.setDate(anchorDate.getDate() - 10);
+      const anchor = anchorDate.toISOString().split("T")[0];
+
+      // Map seedAllData packageType names → periodicScheduleService keys
+      const PKG_MAP: Record<string, string> = {
+        SMART_WASH:   "SMART_WASH",
+        ELITE_WASH:   "ELITE_WASH",
+        EXPRESS_WASH: "EXPRESS_WASH",
+        Standard:     "SMART_WASH",
+        Premium:      "ELITE_WASH",
+        Basic:        "EXPRESS_WASH",
+        SHINE:        "EXPRESS_WASH",
+        PROTECT:      "SMART_WASH",
+        ELITE:        "ELITE_WASH",
+      };
+
+      // Read real subscriptions
+      try {
+        const rawSubs = localStorage.getItem("cleancar_CITY-SURAT_subscriptions");
+        if (rawSubs) {
+          const subs: any[] = JSON.parse(rawSubs);
+          subs
+            .filter((s: any) => s.status === "Active" || s.status === "active")
+            .forEach((s: any) => {
+              const pkg = PKG_MAP[s.packageType] || PKG_MAP[s.frequency] || "SMART_WASH";
+              const custName = s.packageName || s.customerId || "Customer";
+              // Use anchor date so occurrences fall within next 14 days
+              periodicScheduleService.initCustomer(
+                s.customerId,
+                custName,
+                pkg,
+                anchor
+              );
+            });
+        }
+      } catch (_) {}
+
+      // Read real customers for better names
+      try {
+        const rawCusts = localStorage.getItem("cleancar_CITY-SURAT_customers");
+        if (rawCusts) {
+          const custs: any[] = JSON.parse(rawCusts);
+          const custMap: Record<string, string> = {};
+          custs.forEach((c: any) => {
+            custMap[c.customerId] = `${c.firstName || ""} ${c.lastName || ""}`.trim() || c.phone;
+          });
+          // Re-init with real names (initCustomer won't overwrite existing — clear first)
+          const rawSchedules = localStorage.getItem("cleancar_periodic_schedules");
+          if (rawSchedules) {
+            const schedules = JSON.parse(rawSchedules);
+            Object.keys(schedules).forEach(customerId => {
+              if (custMap[customerId]) {
+                schedules[customerId].customerName = custMap[customerId];
+              }
+            });
+            localStorage.setItem("cleancar_periodic_schedules", JSON.stringify(schedules));
+          }
+        }
+      } catch (_) {}
+
+      // ── Source 2: mockWasherDataService fallback ─────────────────────────
       const jobs = mockWasherDataService.getTodayJobs();
       periodicScheduleService.seedFromJobs(
-        jobs.map(j => ({
+        jobs.map((j: any) => ({
           id: j.id,
           customerFirstName: j.customerFirstName,
-          packageType: j.packageType,
-          subscriptionStartDate: j.subscriptionStartDate,
+          packageType: PKG_MAP[j.packageType] || j.packageType,
+          // Use anchor date for mock jobs too so they appear in next 14 days
+          subscriptionStartDate: anchor,
         }))
       );
 
