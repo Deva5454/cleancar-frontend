@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useRole } from "../../contexts/RoleContext";
 import { WasherHomeDashboard, type DayStatus } from "./WasherHomeDashboard";
 import { WasherCheckIn, type ValidationState } from "./WasherCheckIn";
 import { WasherMySchedule, type JobCard } from "./WasherMySchedule";
@@ -26,6 +27,7 @@ export function WasherCoreScreensConnected() {
   // Context â€” used for profile/stats display only
   const { profile, stats, refreshData } = useWasher();
   const { completedJobs } = useWasherJobs();
+  const { currentUser } = useRole();
 
   // â”€â”€ LOCAL FLOW STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [screen, setScreen]           = useState<Screen>("dashboard");
