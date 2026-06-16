@@ -620,19 +620,23 @@ export function SupervisorAppConnected() {
     );
     const detectedPackage = washerJob?.packageType || washerJob?.packageName || "SMART_WASH";
 
+    // Also get real GPS + selfie from SupervisorContext team data
+    const teamMember = team.find((t: any) => t.id === washer.id);
+
     setAuditFlow({
       active: true,
       washerId: washer.id,
       washerName: washer.name,
-      washerGPS: washer.gpsLocation,
-      washerSelfieUrl: washer.selfieUrl,
+      washerGPS: teamMember?.gpsLocation || washer.currentLocation || null,
+      washerSelfieUrl: teamMember?.selfieUrl || washer.selfieUrl || null,
       checklist,
       photos: 0,
       gpsValid: gpsValidation.isValid,
       gpsDistance: gpsValidation.distanceMeters,
       packageType: detectedPackage,
     });
-    navigate(SCREEN_TO_PATH["audit-flow"] ?? "/supervisor-app");
+    // Stay on audit tab — AuditFlowScreen renders inline when auditFlow is set
+    navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app/audit");
   };
 
   const handleToggleChecklistItem = (itemId: string) => {
