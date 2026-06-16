@@ -16,7 +16,7 @@ import { WasherJobDetail } from "./WasherJobDetail";
 import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
 import { WasherCheckOut } from "./WasherCheckOut";
 import { DaySummaryScreen } from "./DaySummaryScreen";
-import { mockWasherDataService } from "../../services/mockWasherDataService";
+import { mockWasherDataService, computePeriodicFlagsB } from "../../services/mockWasherDataService";
 import type { CustomerJob } from "../../services/mockWasherDataService";
 
 type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "checkout";
@@ -82,7 +82,7 @@ export function WasherCoreScreensConnected() {
       const raw = localStorage.getItem("cleancar_CITY-SURAT_jobs");
       if (raw) {
         const myJobs = JSON.parse(raw).filter((j: any) => j.washerId===washerId && j.scheduledDate===today && ["Assigned","Acknowledged","In Progress"].includes(j.status));
-        loaded = myJobs.map((j: any) => ({ id:j.jobId, timeSlot:j.timeSlot||"06:00 AM", customerFirstName:j.customerName||"Customer", area:j.location?.area||"Surat", pinCode:j.location?.pinCode||"395001", city:j.city||"Surat", addressLine1:j.location?.addressLine1||"", vehicleCategory:j.vehicleDetails?.category||"Sedan", vehicleColor:j.vehicleDetails?.color||"White", vehicleBrand:j.vehicleDetails?.brand||"Maruti", vehicleRegistration:j.vehicleDetails?.registration||"", packageName:j.packageType||j.packageName||"EXPRESS_WASH", packageType:j.packageType||j.packageName||"EXPRESS_WASH", serviceFrequency:"Daily", subscriptionMonth:today.slice(0,7), subscriptionStartDate:j.subscriptionStartDate||"2026-01-01", jobType:j.jobType||"Regular", status:j.status||"Assigned", specialInstructions:j.serviceDetails?.specialInstructions||"", parkingInstructions:j.parkingInstructions||"", isCoverJob:j.isCoverJob||false, serviceDetails:j.serviceDetails||{addOns:[]}, customerId:j.customerId||"" }));
+        loaded = myJobs.map((j: any) => { const periodicFlags = (() => { try { return computePeriodicFlagsB(j.jobId, j.packageType || j.packageName || "EXPRESS_WASH", j.subscriptionStartDate || "2026-01-01"); } catch(_) { return {}; } })(); return { id:j.jobId, timeSlot:j.timeSlot||"06:00 AM", customerFirstName:j.customerName||"Customer", area:j.location?.area||"Surat", pinCode:j.location?.pinCode||"395001", city:j.city||"Surat", addressLine1:j.location?.addressLine1||"", vehicleCategory:j.vehicleDetails?.category||"Sedan", vehicleColor:j.vehicleDetails?.color||"White", vehicleBrand:j.vehicleDetails?.brand||"Maruti", vehicleRegistration:j.vehicleDetails?.registration||"", packageName:j.packageType||j.packageName||"EXPRESS_WASH", packageType:j.packageType||j.packageName||"EXPRESS_WASH", serviceFrequency:"Daily", subscriptionMonth:today.slice(0,7), subscriptionStartDate:j.subscriptionStartDate||"2026-01-01", jobType:j.jobType||"Regular", status:j.status||"Assigned", specialInstructions:j.serviceDetails?.specialInstructions||"", parkingInstructions:j.parkingInstructions||"", isCoverJob:j.isCoverJob||false, serviceDetails:j.serviceDetails||{addOns:[]}, customerId:j.customerId||"", ...periodicFlags }; });
       }
     } catch(_) {}
     if (loaded.length === 0) { mockWasherDataService.clearCache(); loaded = mockWasherDataService.getTodayJobs(washerId); }
@@ -98,6 +98,15 @@ export function WasherCoreScreensConnected() {
   const updateJobStatus = (jobId: string, status: CustomerJob["status"]) => {
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j));
     mockWasherDataService.updateJobStatus(jobId, status);
+    // Persist status to localStorage so supervisor sees the update
+    try {
+      const key = "cleancar_CITY-SURAT_jobs";
+      const allJobs = JSON.parse(localStorage.getItem(key) || "[]");
+      const updated = allJobs.map((j: any) =>
+        j.jobId === jobId ? { ...j, status, updatedAt: new Date().toISOString() } : j
+      );
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch (_) {}
   };
 
   // â”€â”€ HANDLERS: CHECK-IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -111,7 +120,48 @@ export function WasherCoreScreensConnected() {
   };
   const handleSubmitCheckIn = () => {
     setCheckedIn(true);
-    setCheckInTime(new Date());
+    const checkInNow = new Date();
+    setCheckInTime(checkInNow);
+
+    // Persist check-in to attendance records so supervisor can see it
+    try {
+      const washerId = (currentUser as any)?.employeeId || "";
+      if (washerId) {
+        const today = checkInNow.toISOString().split("T")[0];
+        const timeStr = `${String(checkInNow.getHours()).padStart(2,"0")}:${String(checkInNow.getMinutes()).padStart(2,"0")}:00`;
+        const attKey = "cleancar_CITY-SURAT_attendance_records";
+        const records = JSON.parse(localStorage.getItem(attKey) || "[]");
+        const existingIdx = records.findIndex((r: any) => r.employeeId === washerId && r.date === today);
+        const newRecord = {
+          attendanceId: `ATT-${washerId}-${today}`,
+          employeeId: washerId,
+          cityId: "CITY-SURAT",
+          date: today,
+          status: "Present",
+          checkInTime: timeStr,
+          lateMinutes: checkInNow.getHours() >= 9 ? (checkInNow.getHours() - 9) * 60 + checkInNow.getMinutes() : 0,
+          checkOutTime: undefined,
+        };
+        if (existingIdx >= 0) {
+          records[existingIdx] = { ...records[existingIdx], checkInTime: timeStr, status: "Present" };
+        } else {
+          records.push(newRecord);
+        }
+        localStorage.setItem(attKey, JSON.stringify(records));
+
+        // Also save field check-in session for supervisor selfie/GPS
+        const sessionKey = `field_checkin_session_${washerId}`;
+        const session = {
+          employeeId: washerId,
+          checkInTime: checkInNow.toISOString(),
+          checkInSelfieBase64: checkInPhoto || "",
+          gpsLat: null,
+          gpsLng: null,
+          date: today,
+        };
+        localStorage.setItem(sessionKey, JSON.stringify(session));
+      }
+    } catch (_) {}
 
     // Fix: start GPS tracking on check-in
     const currentJob = activeJobId ? jobs.find(j => j.id === activeJobId) : null;
@@ -196,7 +246,7 @@ export function WasherCoreScreensConnected() {
       status: job.status === "In Progress" ? "IN_PROGRESS"
             : job.status === "Completed"   ? "DONE"
             : job.status === "Cancelled"   ? "ISSUE" : "PENDING",
-      isCover: false,
+      isCover: (job as any).isCoverJob === true,
       isLocked: !checkedIn || (activeJobId !== null && job.id !== activeJobId && job.status !== "Completed"),
       lockReason: !checkedIn ? "Complete check-in first"
                 : (activeJobId !== null && job.id !== activeJobId) ? "Complete active job first" : undefined,
