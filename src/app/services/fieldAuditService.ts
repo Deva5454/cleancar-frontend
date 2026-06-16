@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Field Audit Service
  * Handles quality control audits with strict compliance
  */
@@ -66,38 +66,89 @@ class FieldAuditService {
   // ========== AUDIT DASHBOARD ==========
 
   getAuditWashers(supervisorId: string): AuditWasher[] {
-    // In production: GET /api/supervisor/:id/audit-washers
-    const now = new Date();
-    const washers: AuditWasher[] = [];
+    // Read real washers from EMPLOYEE_DATABASE_RECORDS
+    const PINCODE_GPS: Record<string, { lat: number; lng: number }> = {
+      "395001": { lat: 21.1959, lng: 72.8302 },
+      "PIN-395001": { lat: 21.1959, lng: 72.8302 },
+      "395007": { lat: 21.1384, lng: 72.7842 },
+      "PIN-395007": { lat: 21.1384, lng: 72.7842 },
+      "395009": { lat: 21.1783, lng: 72.7942 },
+      "PIN-395009": { lat: 21.1783, lng: 72.7942 },
+    };
 
-    const names = [
-      "Rajesh Kumar",
-      "Amit Patel",
-      "Suresh Shah",
-      "Vikram Singh",
-      "Manoj Joshi",
-      "Rahul Mehta",
+    try {
+      const raw = typeof localStorage !== "undefined"
+        ? localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") : null;
+      if (raw) {
+        const allEmps: any[] = JSON.parse(raw);
+        // Find supervisor pincodes
+        const sup = allEmps.find((e: any) =>
+          e.id === supervisorId || e.loginMobile === supervisorId
+        );
+        const supPins: string[] = sup?.pinCodes || [];
+        const washers = allEmps.filter((e: any) =>
+          e.designation === "Car Washer" &&
+          (supPins.length === 0 || (e.pinCodes || []).some((p: string) => supPins.includes(p)))
+        );
+
+        if (washers.length > 0) {
+          return washers.map((w: any, i: number) => {
+            // Get last audit from localStorage
+            let daysSince = 5; // default PENDING
+            let lastAuditDate: Date | undefined;
+            try {
+              const auditRaw = localStorage.getItem(`SUPERVISOR_AUDITS_${w.id}`);
+              if (auditRaw) {
+                const audits = JSON.parse(auditRaw);
+                if (audits.length > 0) {
+                  const last = audits[audits.length - 1];
+                  lastAuditDate = new Date(last.timestamp);
+                  daysSince = Math.floor((Date.now() - lastAuditDate.getTime()) / 86400000);
+                }
+              }
+            } catch (_) {}
+
+            const pin = (w.pinCodes || [])[0] || "395001";
+            const base = PINCODE_GPS[pin] || { lat: 21.1702, lng: 72.8311 };
+
+            return {
+              id: w.id,
+              name: w.fullName || `${w.firstName || ""} ${w.lastName || ""}`.trim(),
+              lastAuditDate,
+              daysSinceAudit: daysSince,
+              status: !lastAuditDate
+                ? ("OVERDUE" as const)
+                : daysSince >= this.OVERDUE_DAYS
+                  ? ("OVERDUE" as const)
+                  : daysSince >= 3
+                    ? ("PENDING" as const)
+                    : ("COMPLETED" as const),
+              currentLocation: {
+                lat: base.lat + Math.sin(i * 1.7) * 0.002,
+                lng: base.lng + Math.cos(i * 1.7) * 0.002,
+              },
+              activeJob: w.id,
+            };
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Fallback — real Surat washer names if EDB not loaded
+    const fallback = [
+      { id: "EDB-CW-SUR1A", name: "Mahesh Bharwad" },
+      { id: "EDB-CW-SUR1B", name: "Ramesh Koli" },
+      { id: "EDB-CW-SUR1C", name: "Sunil Thakor" },
     ];
-
-    for (let i = 0; i < 6; i++) {
-      const daysSince = Math.floor(0.5 * 10);
-      const lastAuditDate = daysSince < 9 ? new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000) : undefined;
-
-      washers.push({
-        id: `WASHER-${String(i + 1).padStart(3, "0")}`,
-        name: names[i],
-        lastAuditDate,
-        daysSinceAudit: daysSince,
-        status: !lastAuditDate ? "OVERDUE" : daysSince >= this.OVERDUE_DAYS ? "OVERDUE" : daysSince >= 3 ? "PENDING" : "COMPLETED",
-        currentLocation: {
-          lat: 21.1702 + (0.5 - 0.5) * 0.05,
-          lng: 72.8311 + (0.5 - 0.5) * 0.05,
-        },
-        activeJob: i % 2 === 0 ? `Job ${i + 1}` : undefined,
-      });
-    }
-
-    return washers;
+    return fallback.map((w, i) => ({
+      id: w.id,
+      name: w.name,
+      lastAuditDate: undefined,
+      daysSinceAudit: 5,
+      status: "PENDING" as const,
+      currentLocation: { lat: 21.1959 + i * 0.002, lng: 72.8302 + i * 0.002 },
+      activeJob: w.id,
+    }));
   }
 
   getAuditSummary(supervisorId: string) {
@@ -148,14 +199,14 @@ class FieldAuditService {
   ): { isValid: boolean; distanceMeters: number } {
     // Haversine formula (simplified)
     const R = 6371e3; // Earth radius in meters
-    const φ1 = (supervisorGPS.lat * Math.PI) / 180;
-    const φ2 = (washerGPS.lat * Math.PI) / 180;
-    const Δφ = ((washerGPS.lat - supervisorGPS.lat) * Math.PI) / 180;
-    const Δλ = ((washerGPS.lng - supervisorGPS.lng) * Math.PI) / 180;
+    const Ï†1 = (supervisorGPS.lat * Math.PI) / 180;
+    const Ï†2 = (washerGPS.lat * Math.PI) / 180;
+    const Î”Ï† = ((washerGPS.lat - supervisorGPS.lat) * Math.PI) / 180;
+    const Î”Î» = ((washerGPS.lng - supervisorGPS.lng) * Math.PI) / 180;
 
     const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      Math.sin(Î”Ï† / 2) * Math.sin(Î”Ï† / 2) +
+      Math.cos(Ï†1) * Math.cos(Ï†2) * Math.sin(Î”Î» / 2) * Math.sin(Î”Î» / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
