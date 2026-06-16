@@ -1001,21 +1001,16 @@ export function SupervisorAppConnected() {
   );
 
   // Audit trail handlers
-  const [auditTrailData, setAuditTrailData] = useState(() => {
-    // Use real supervisor ID if available
-    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
-    return auditTrailService.getAuditTrail(supId);
-  });
-  const [auditTrailSummary, setAuditTrailSummary] = useState(() => {
-    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
-    return auditTrailService.getAuditTrailSummary(supId);
-  });
+  const [auditTrailData, setAuditTrailData] = useState(() =>
+    auditTrailService.getAuditTrail("ALL")
+  );
+  const [auditTrailSummary, setAuditTrailSummary] = useState(() =>
+    auditTrailService.getAuditTrailSummary("ALL")
+  );
 
-  // Refresh audit trail when navigating to audit-trail tab
   const refreshAuditTrail = () => {
-    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
-    setAuditTrailData(auditTrailService.getAuditTrail(supId));
-    setAuditTrailSummary(auditTrailService.getAuditTrailSummary(supId));
+    setAuditTrailData(auditTrailService.getAuditTrail("ALL"));
+    setAuditTrailSummary(auditTrailService.getAuditTrailSummary("ALL"));
   };
 
   // Daily flow handlers
