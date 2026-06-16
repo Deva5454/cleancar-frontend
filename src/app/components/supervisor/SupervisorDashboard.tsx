@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SCREEN 1: Supervisor Dashboard
  * Central command screen for daily operations
  * Alert-first design with quick navigation
@@ -274,15 +274,13 @@ export function SupervisorDashboard({
               ))
             )}
 
-            {alerts.length > 5 && (
-              <Button
+            <Button
                 variant="outline"
                 className="w-full mt-2"
                 onClick={() => onNavigate("alerts")}
               >
                 View All {alerts.length} Alerts
               </Button>
-            )}
           </CardContent>
         </Card>
 
