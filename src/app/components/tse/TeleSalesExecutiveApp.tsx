@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tele Sales Executive (TSE) - Main Application
  * Web-only interface for sales execution and lead conversion
  *
@@ -56,6 +56,58 @@ interface ActiveCallSession {
   notes: string;
   tags: string[];
   pricingData: PricingCalculation;
+}
+
+function Comp2WCustomerLookup({ onSelect, onCancel }: { onSelect: (c: any) => void; onCancel: () => void }) {
+  const [mobile, setMobile] = React.useState("");
+  const [result, setResult] = React.useState<any>(null);
+  const [error, setError] = React.useState("");
+
+  const handleSearch = () => {
+    setError(""); setResult(null);
+    if (mobile.length < 10) { setError("Enter valid 10-digit mobile"); return; }
+    try {
+      const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
+      const subs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]");
+      const cust = customers.find((c: any) => c.mobile === mobile || c.phone === mobile || c.loginMobile === mobile);
+      if (!cust) { setError("No customer found with this mobile"); return; }
+      const activeSub = subs.find((s: any) => s.customerId === cust.customerId && s.status === "Active");
+      if (!activeSub) { setError("Customer has no active 4W subscription"); return; }
+      setResult({ ...cust, subscriptionId: activeSub.subscriptionId, vehicleReg: cust.vehicleReg || activeSub.vehicleReg || "" });
+    } catch(_) { setError("Error searching customer"); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm font-semibold text-blue-800 mb-1">No active call in session</p>
+        <p className="text-xs text-blue-600">Search for customer by mobile to create a complimentary 2W offer</p>
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 border rounded px-3 py-2 text-sm"
+          placeholder="Customer mobile number"
+          value={mobile}
+          onChange={e => setMobile(e.target.value.replace(/\D/g,"").slice(0,10))}
+          onKeyDown={e => e.key === "Enter" && handleSearch()}
+        />
+        <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium" onClick={handleSearch}>Search</button>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {result && (
+        <div className="border rounded-lg p-4 space-y-2">
+          <p className="font-semibold">{result.firstName} {result.lastName}</p>
+          <p className="text-sm text-gray-600">{result.mobile || mobile}</p>
+          {result.subscriptionId && <p className="text-xs text-green-700 font-medium">Active sub: {result.subscriptionId}</p>}
+          {result.vehicleReg && <p className="text-xs text-gray-500">Vehicle: {result.vehicleReg}</p>}
+          <div className="flex gap-2 pt-2">
+            <button className="bg-green-600 text-white px-4 py-2 rounded text-sm font-medium" onClick={() => onSelect({ ...result, id: result.customerId, name: `${result.firstName} ${result.lastName}`.trim(), phone: result.mobile || mobile })}>Create Offer</button>
+            <button className="border px-4 py-2 rounded text-sm" onClick={onCancel}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TeleSalesExecutiveApp() {
@@ -148,7 +200,7 @@ export function TeleSalesExecutiveApp() {
     }
   };
 
-  // Handle canceling a call — A3 FIX: require confirmation to prevent accidental mid-call cancel
+  // Handle canceling a call â€” A3 FIX: require confirmation to prevent accidental mid-call cancel
   const handleCancelCall = () => {
     const confirmCancel = window.confirm(
       "Cancel this call? All call notes and pricing selections will be lost."
@@ -190,7 +242,7 @@ export function TeleSalesExecutiveApp() {
       }
     }
     logger.log("CRM Update:", crmUpdate);
-    // Reset call session and return to lead queue — queue auto-refreshes via interval
+    // Reset call session and return to lead queue â€” queue auto-refreshes via interval
     setActiveCallSession(null);
     setCurrentScreen("LEAD_QUEUE");
     toast.success("CRM updated successfully!");
@@ -310,7 +362,7 @@ export function TeleSalesExecutiveApp() {
                 <div>
                   <div className="text-xs text-gray-600">Revenue Today</div>
                   <div className="text-lg font-bold text-gray-900">
-                    ₹{dailyStats.revenueGenerated.toLocaleString()}
+                    â‚¹{dailyStats.revenueGenerated.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -377,7 +429,7 @@ export function TeleSalesExecutiveApp() {
                 onClick={() => setCurrentScreen("COMP_2W")}
                 disabled={currentScreen === "ACTIVE_CALL" || currentScreen === "CRM_UPDATE"}
               >
-                🛵 2W Offer
+                ðŸ›µ 2W Offer
               </Button>
               {/* A5 FIX: Renewals screen was declared but had no nav button */}
               <Button
@@ -407,7 +459,7 @@ export function TeleSalesExecutiveApp() {
               <span className="text-sm font-medium text-red-900">
                 {alerts[0].title}
               </span>
-              <span className="text-sm text-red-700">— {alerts[0].message}</span>
+              <span className="text-sm text-red-700">â€” {alerts[0].message}</span>
             </div>
             <Button
               variant="ghost"
@@ -449,12 +501,31 @@ export function TeleSalesExecutiveApp() {
         {currentScreen === "INCENTIVE_TRACKER" && <TSEIncentiveTracker />}
         {currentScreen === "COMP_2W" && (
           <div className="p-4">
-            <TSEComplimentary2W
-              customerId="" customerName="" customerPhone="" vehicle4WReg=""
-              reasonCode="NEW_CONVERSION_INCENTIVE"
-              onDone={() => setCurrentScreen("LEAD_QUEUE")}
-              onCancel={() => setCurrentScreen("LEAD_QUEUE")}
-            />
+            {activeCallSession ? (
+              <TSEComplimentary2W
+                customerId={activeCallSession.lead.id || ""}
+                customerName={activeCallSession.lead.name || ""}
+                customerPhone={activeCallSession.lead.phone || ""}
+                vehicle4WReg={activeCallSession.lead.vehicleReg || activeCallSession.lead.vehicle?.registration || ""}
+                linkedSubscriptionId={activeCallSession.lead.subscriptionId || ""}
+                reasonCode="NEW_CONVERSION_INCENTIVE"
+                onDone={() => setCurrentScreen("LEAD_QUEUE")}
+                onCancel={() => setCurrentScreen("LEAD_QUEUE")}
+              />
+            ) : (
+              <Comp2WCustomerLookup
+                onSelect={(customer) => {
+                  setActiveCallSession({
+                    lead: customer,
+                    callStartTime: new Date(),
+                    notes: "",
+                    tags: [],
+                    pricingData: {} as any,
+                  });
+                }}
+                onCancel={() => setCurrentScreen("LEAD_QUEUE")}
+              />
+            )}
           </div>
         )}
       </div>
