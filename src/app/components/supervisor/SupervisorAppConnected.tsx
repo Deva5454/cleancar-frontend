@@ -1001,8 +1001,22 @@ export function SupervisorAppConnected() {
   );
 
   // Audit trail handlers
-  const [auditTrailData] = useState(() => auditTrailService.getAuditTrail("SUP-001"));
-  const [auditTrailSummary] = useState(() => auditTrailService.getAuditTrailSummary("SUP-001"));
+  const [auditTrailData, setAuditTrailData] = useState(() => {
+    // Use real supervisor ID if available
+    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
+    return auditTrailService.getAuditTrail(supId);
+  });
+  const [auditTrailSummary, setAuditTrailSummary] = useState(() => {
+    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
+    return auditTrailService.getAuditTrailSummary(supId);
+  });
+
+  // Refresh audit trail when navigating to audit-trail tab
+  const refreshAuditTrail = () => {
+    const supId = currentUser?.employeeId || "EDB-SUP-SUR1";
+    setAuditTrailData(auditTrailService.getAuditTrail(supId));
+    setAuditTrailSummary(auditTrailService.getAuditTrailSummary(supId));
+  };
 
   // Daily flow handlers
   const [dailyFlowData] = useState(() => dailyFlowService.getDailyFlow("SUP-001"));
@@ -1492,7 +1506,17 @@ export function SupervisorAppConnected() {
 
           {/* Audit Trail (Bonus Tab) */}
           <TabsContent value="audit-trail" className="mt-0">
-            <AuditTrailScreen logs={auditTrailData} summary={auditTrailSummary} />
+            <div>
+              <div className="flex justify-end p-2">
+                <button
+                  onClick={refreshAuditTrail}
+                  className="text-xs text-indigo-600 underline"
+                >
+                  Refresh
+                </button>
+              </div>
+              <AuditTrailScreen logs={auditTrailData} summary={auditTrailSummary} />
+            </div>
           </TabsContent>
 
           {/* Daily Flow (Bonus Tab) */}
