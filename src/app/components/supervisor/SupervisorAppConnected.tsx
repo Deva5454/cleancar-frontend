@@ -1028,6 +1028,18 @@ export function SupervisorAppConnected() {
     auditTrailService.getAuditTrailSummary("ALL")
   );
 
+  // Job notifications state
+  const [jobNotifications, setJobNotifications] = React.useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem("SUPERVISOR_JOB_NOTIFICATIONS") || "[]"); } catch(_) { return []; }
+  });
+  const unreadJobNotifs = jobNotifications.filter((n: any) => !n.read).length;
+
+  const markJobNotifsRead = () => {
+    const updated = jobNotifications.map((n: any) => ({ ...n, read: true }));
+    setJobNotifications(updated);
+    localStorage.setItem("SUPERVISOR_JOB_NOTIFICATIONS", JSON.stringify(updated));
+  };
+
   const refreshAuditTrail = () => {
     setAuditTrailData(auditTrailService.getAuditTrail("ALL"));
     setAuditTrailSummary(auditTrailService.getAuditTrailSummary("ALL"));
