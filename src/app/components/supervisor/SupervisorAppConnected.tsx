@@ -822,7 +822,10 @@ export function SupervisorAppConnected() {
   };
 
   const handleMarkPresentFromAlert = (washerId: string) => {
-    alertService.markAlertActioned(`ALERT-${washerId}`, "SUP-001");
+    const washer = team.find(w => w.id === washerId);
+    alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "SUP-001");
+    alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "SUP-001");
+    toast.success(`${washer?.name || washerId} marked as PRESENT`);
   };
 
   const handleMarkAbsentFromAlert = (washerId: string) => {

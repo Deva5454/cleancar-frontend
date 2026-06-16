@@ -125,109 +125,143 @@ class AlertService {
   // ========== ALERT GENERATION ==========
 
   getAlerts(supervisorId: string): Alert[] {
-    // In production: GET /api/supervisor/:id/alerts
     const alerts: Alert[] = [];
 
-    // Generate mock alerts
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-001",
-        configKey: "NO_CHECKIN_DELAY",
-        title: "Washer Not Checked-In (5:10 AM)",
-        description: "Rajesh Kumar has not checked in. Expected: 5:00 AM",
-        washerId: "WASHER-001",
-        washerName: "Rajesh Kumar",
-        minutesAgo: 5,
-        status: "PENDING",
-        actions: [
-          { id: "call", label: "Call Washer", icon: "phone", action: "CALL", washerId: "WASHER-001" },
-          { id: "markabsent", label: "Mark Absent", icon: "userx", action: "MARK_ABSENT", washerId: "WASHER-001" },
-          { id: "autoassign", label: "Auto-Assign Cars", icon: "car", action: "AUTO_ASSIGN_CARS", washerId: "WASHER-001" },
-          { id: "escalate", label: "Escalate", icon: "alert", action: "ESCALATE" },
-        ],
-      })
-    );
+    // Read real employees from EMPLOYEE_DATABASE_RECORDS
+    let washers: any[] = [];
+    try {
+      const raw = localStorage.getItem("EMPLOYEE_DATABASE_RECORDS");
+      if (raw) {
+        const allEmps = JSON.parse(raw);
+        // Find the supervisor to get their pincodes
+        const sup = allEmps.find((e: any) =>
+          e.id === supervisorId ||
+          e.loginMobile === supervisorId
+        );
+        const supPins: string[] = sup?.pinCodes || [];
+        // Get washers under this supervisor (same pincodes)
+        washers = allEmps.filter((e: any) =>
+          e.designation === "Car Washer" &&
+          (supPins.length === 0 ||
+            (e.pinCodes || []).some((p: string) => supPins.includes(p)))
+        );
+      }
+    } catch (_) {}
 
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-002",
-        configKey: "GPS_MISMATCH",
-        title: "GPS Location Mismatch",
-        description: "Amit Patel GPS is 850m away from assigned location",
-        washerId: "WASHER-005",
-        washerName: "Amit Patel",
-        minutesAgo: 12,
-        status: "PENDING",
-        actions: [
-          { id: "verify", label: "Verify GPS", icon: "map", action: "VERIFY_GPS", washerId: "WASHER-005" },
-          { id: "call", label: "Call Washer", icon: "phone", action: "CALL", washerId: "WASHER-005" },
-          { id: "escalate", label: "Escalate", icon: "alert", action: "ESCALATE" },
-        ],
-      })
-    );
+    // Fallback to hardcoded if no real data found
+    if (washers.length === 0) {
+      washers = [
+        { id: "EDB-CW-SUR1A", fullName: "Mahesh Bharwad", mobile: "9100000009", status: "Active" },
+        { id: "EDB-CW-SUR1B", fullName: "Ramesh Koli",    mobile: "9100000010", status: "Active" },
+        { id: "EDB-CW-SUR1C", fullName: "Sunil Thakor",   mobile: "9100000011", status: "Active" },
+      ];
+    }
 
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-003",
-        configKey: "LOW_UNITS",
-        title: "Low Unit Progress",
-        description: "Team completed only 45/180 units by 7:45 AM",
-        minutesAgo: 8,
-        status: "PENDING",
-        actions: [
-          { id: "reassign", label: "Reassign", icon: "repeat", action: "REASSIGN" },
-          { id: "view", label: "View Details", icon: "eye", action: "VIEW_DETAILS" },
-        ],
-      })
-    );
+    const today = new Date().toISOString().split("T")[0];
 
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-004",
-        configKey: "AUDIT_OVERDUE",
-        title: "Audit Overdue",
-        description: "Suresh Shah - Last audit 5 days ago",
-        washerId: "WASHER-008",
-        washerName: "Suresh Shah",
-        minutesAgo: 25,
-        status: "PENDING",
-        actions: [
-          { id: "audit", label: "Start Audit", icon: "clipboard", action: "START_AUDIT", washerId: "WASHER-008" },
-          { id: "escalate", label: "Escalate", icon: "alert", action: "ESCALATE" },
-        ],
-      })
-    );
+    // Get attendance records for today
+    let attendance: any[] = [];
+    try {
+      const raw = localStorage.getItem(`cleancar_CITY-SURAT_attendance`);
+      if (raw) attendance = JSON.parse(raw).filter((a: any) => a.date === today);
+    } catch (_) {}
 
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-005",
-        configKey: "ISSUE_UNRESOLVED",
-        title: "Issue Unresolved (15 min)",
-        description: "Quality issue reported 18 minutes ago - No action taken",
-        washerId: "WASHER-012",
-        washerName: "Vikram Singh",
-        minutesAgo: 18,
-        status: "ESCALATED",
-        escalatedTo: "Ops Manager",
-        actions: [],
-      })
-    );
+    // Build real alerts from actual washer data
+    washers.forEach((w: any, i: number) => {
+      const todayAtt = attendance.find((a: any) => a.employeeId === w.id);
+      const isOnLeave = w.status === "On Leave";
 
-    alerts.push(
-      this.createAlert({
-        id: "ALERT-006",
-        configKey: "LEAD_QUALITY",
-        title: "Lead Quality Issue",
-        description: "Conversion rate dropped to 28% (threshold: 30%)",
-        minutesAgo: 35,
-        status: "PENDING",
-        actions: [
-          { id: "view", label: "View Details", icon: "eye", action: "VIEW_DETAILS" },
-        ],
-      })
-    );
+      // Alert: not checked in (active washers only)
+      if (!isOnLeave && !todayAtt) {
+        alerts.push(this.createAlert({
+          id: `ALERT-NOCHECKIN-${w.id}`,
+          configKey: "NO_CHECKIN_DELAY",
+          title: `${w.fullName} Not Checked In`,
+          description: `${w.fullName} has not checked in today. Expected by 5:00 AM.`,
+          washerId: w.id,
+          washerName: w.fullName,
+          minutesAgo: 5 + i * 3,
+          status: "PENDING",
+          actions: [
+            { id: `call-${w.id}`, label: "Call Washer", icon: "phone", action: "CALL", washerId: w.id },
+            { id: `absent-${w.id}`, label: "Mark Absent", icon: "userx", action: "MARK_ABSENT", washerId: w.id },
+            { id: `assign-${w.id}`, label: "Auto-Assign Cars", icon: "car", action: "AUTO_ASSIGN_CARS", washerId: w.id },
+            { id: `esc-${w.id}`, label: "Escalate", icon: "alert", action: "ESCALATE" },
+          ],
+        }));
+      }
 
-    return alerts;
+      // Alert: late check-in
+      if (todayAtt?.status === "Late") {
+        alerts.push(this.createAlert({
+          id: `ALERT-LATE-${w.id}`,
+          configKey: "GPS_MISMATCH",
+          title: `${w.fullName} Checked In Late`,
+          description: `${w.fullName} checked in late. Expected: 5:00 AM.`,
+          washerId: w.id,
+          washerName: w.fullName,
+          minutesAgo: 10 + i * 5,
+          status: "PENDING",
+          actions: [
+            { id: `call-${w.id}`, label: "Call Washer", icon: "phone", action: "CALL", washerId: w.id },
+            { id: `audit-${w.id}`, label: "Start Audit", icon: "clipboard", action: "START_AUDIT", washerId: w.id },
+          ],
+        }));
+      }
+
+      // Alert: on leave — reassign their cars
+      if (isOnLeave) {
+        alerts.push(this.createAlert({
+          id: `ALERT-LEAVE-${w.id}`,
+          configKey: "COVER_PENDING",
+          title: `${w.fullName} On Leave`,
+          description: `${w.fullName} is on leave today. Cars need reassignment.`,
+          washerId: w.id,
+          washerName: w.fullName,
+          minutesAgo: 30,
+          status: "PENDING",
+          actions: [
+            { id: `assign-${w.id}`, label: "Auto-Assign Cars", icon: "car", action: "AUTO_ASSIGN_CARS", washerId: w.id },
+            { id: "reassign", label: "Cover Plan", icon: "repeat", action: "REASSIGN" },
+          ],
+        }));
+      }
+    });
+
+    // Always add a team-level audit reminder
+    alerts.push(this.createAlert({
+      id: "ALERT-AUDIT-TEAM",
+      configKey: "AUDIT_OVERDUE",
+      title: "Daily Audit Required",
+      description: "Conduct field audit for at least 2 washers today.",
+      minutesAgo: 20,
+      status: "PENDING",
+      actions: [
+        { id: "audit-team", label: "Start Audit", icon: "clipboard", action: "START_AUDIT", washerId: washers[0]?.id },
+        { id: "view", label: "View Details", icon: "eye", action: "VIEW_DETAILS" },
+      ],
+    }));
+
+    // Apply persisted actions (so resolved/actioned alerts stay that way)
+    try {
+      const actions = JSON.parse(localStorage.getItem("SUPERVISOR_ALERT_ACTIONS") || "{}");
+      alerts.forEach(alert => {
+        if (actions[alert.id]) {
+          alert.status = actions[alert.id].status as AlertStatus;
+          if (actions[alert.id].status === "ACTIONED") alert.actionedAt = new Date(actions[alert.id].actionedAt);
+          if (actions[alert.id].status === "RESOLVED") alert.resolvedAt = new Date(actions[alert.id].actionedAt);
+          if (actions[alert.id].status === "ESCALATED") {
+            alert.escalatedAt = new Date(actions[alert.id].actionedAt);
+            alert.escalatedTo = "Ops Manager";
+          }
+        }
+      });
+    } catch (_) {}
+
+    return alerts.sort((a, b) => {
+      const p = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+      return (p[a.priority] || 2) - (p[b.priority] || 2);
+    });
   }
 
   getAlertSummary(supervisorId: string): AlertSummary {
