@@ -153,11 +153,10 @@ export function SupervisorAppConnected() {
   };
 
   const handleViewWasherDetails = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Viewing details for ${washer.name}\n\nIn production: This would navigate to the washer detail view showing:\n- Performance metrics\n- Attendance history\n- Unit completion\n- Quality scores`);
-    }
+    const washer = team.find((w: any) => w.id === washerId);
+    // Navigate to Team tab — washer cards are visible there
+    navigate(SCREEN_TO_PATH["team"] ?? "/supervisor-app/team");
+    if (washer) toast.info(`Viewing ${washer.name} on Team tab`);
   };
 
   const handleManualOverride = (washerId: string) => {
@@ -253,11 +252,16 @@ export function SupervisorAppConnected() {
   };
 
   const handleAddNote = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Adding note for ${washer.name}\n\nIn production: This would show a note-adding modal.`);
-    }
+    const washer = team.find((w: any) => w.id === washerId);
+    openEscalationModal("add_note", `Add Note — ${washer?.name || washerId}`, [
+      { key: "category", label: "Category", type: "select", options: ["Performance", "Attendance", "Behaviour", "Quality", "General"] },
+      { key: "note", label: "Note" },
+    ], (data) => {
+      if (data.note) {
+        toast.success(`Note saved for ${washer?.name || washerId}: ${data.note}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   // â”€â”€ Escalation modal state (replaces prompt/confirm) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -700,8 +704,13 @@ export function SupervisorAppConnected() {
   };
 
   const handleReassignCoverFromEscalation = () => {
-    escalationService.navigateToCoverReassignment();
-    navigate(SCREEN_TO_PATH["cover"] ?? "/supervisor-app");
+    // Navigate to cover tab — escalationService.navigateToCoverReassignment() removed (method does not exist)
+    if (location.pathname === "/supervisor-app/cover") {
+      navigate("/supervisor-app/dashboard", { replace: true });
+      setTimeout(() => navigate("/supervisor-app/cover"), 50);
+    } else {
+      navigate(SCREEN_TO_PATH["cover"] ?? "/supervisor-app/cover");
+    }
   };
 
   const handlePauseWasherSchedule = (washerId: string) => {

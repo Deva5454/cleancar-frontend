@@ -48,29 +48,71 @@ class EscalationService {
   // ========== ISSUE MANAGEMENT ==========
 
   getIssues(supervisorId: string): Issue[] {
-    // In production: GET /api/supervisor/:id/issues
-    const issues: Issue[] = [];
+    // Read real washers from EMPLOYEE_DATABASE_RECORDS
+    let washers: any[] = [];
+    try {
+      const raw = typeof localStorage !== "undefined" ? localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") : null;
+      if (raw) {
+        const allEmps = JSON.parse(raw);
+        // Find supervisor to get pincodes
+        const sup = allEmps.find((e: any) => e.id === supervisorId || e.loginMobile === supervisorId);
+        const supPins: string[] = sup?.pinCodes || [];
+        washers = allEmps.filter((e: any) =>
+          e.designation === "Car Washer" &&
+          (supPins.length === 0 || (e.pinCodes || []).some((p: string) => supPins.includes(p)))
+        );
+      }
+    } catch (_) {}
 
+    // Fallback
+    if (washers.length === 0) {
+      washers = [
+        { id: "EDB-CW-SUR1A", fullName: "Mahesh Bharwad" },
+        { id: "EDB-CW-SUR1B", fullName: "Ramesh Koli" },
+        { id: "EDB-CW-SUR1C", fullName: "Sunil Thakor" },
+      ];
+    }
+
+    // Read persisted issues from localStorage
+    const ISSUES_KEY = "SUPERVISOR_ISSUES";
+    try {
+      const persisted = typeof localStorage !== "undefined" ? localStorage.getItem(ISSUES_KEY) : null;
+      if (persisted) {
+        return JSON.parse(persisted).map((i: any) => ({
+          ...i,
+          raisedAt: new Date(i.raisedAt),
+          minutesSinceRaised: Math.floor((Date.now() - new Date(i.raisedAt).getTime()) / 60000),
+          isCritical: Math.floor((Date.now() - new Date(i.raisedAt).getTime()) / 60000) > this.CRITICAL_THRESHOLD_MINUTES,
+        }));
+      }
+    } catch (_) {}
+
+    // Generate seed issues from real washers (deterministic — no Math.random)
     const issueTypes: IssueType[] = ["ATTENDANCE", "QUALITY", "DAMAGE", "SAFETY", "CUSTOMER_COMPLAINT"];
     const statuses: IssueStatus[] = ["OPEN", "IN_PROGRESS", "ESCALATED"];
-    const washerNames = ["Rajesh Kumar", "Amit Patel", "Suresh Shah", "Vikram Singh"];
+    const descriptions = [
+      "Washer checked in 25 minutes late today",
+      "Customer reported incomplete interior cleaning",
+      "Minor scratch reported on customer vehicle door",
+      "Washer left work area without supervisor permission",
+      "Customer complained about water spots on windshield",
+    ];
 
-    for (let i = 0; i < 5; i++) {
-      const minutesAgo = Math.floor(Math.random() * 60);
+    const issues: Issue[] = washers.slice(0, Math.min(washers.length, 5)).map((w: any, i: number) => {
+      const minutesAgo = 10 + i * 12; // deterministic: 10, 22, 34, 46, 58 minutes
       const raisedAt = new Date(Date.now() - minutesAgo * 60 * 1000);
-
-      issues.push({
-        id: `ISSUE-${i + 1}`,
-        washerId: `WASHER-${String(i + 1).padStart(3, "0")}`,
-        washerName: washerNames[i % washerNames.length],
+      return {
+        id: `ISSUE-${w.id}-${i + 1}`,
+        washerId: w.id,
+        washerName: w.fullName,
         type: issueTypes[i % issueTypes.length],
         status: statuses[i % statuses.length],
-        description: `Issue ${i + 1} description`,
+        description: descriptions[i % descriptions.length],
         raisedAt,
         minutesSinceRaised: minutesAgo,
         isCritical: minutesAgo > this.CRITICAL_THRESHOLD_MINUTES,
-      });
-    }
+      };
+    });
 
     return issues;
   }

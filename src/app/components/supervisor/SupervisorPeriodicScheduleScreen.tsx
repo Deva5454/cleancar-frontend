@@ -20,7 +20,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
@@ -339,7 +338,7 @@ export function SupervisorPeriodicScheduleScreen() {
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Next {lookAheadDays} days · {totalDue} service{totalDue !== 1 ? "s" : ""} due ·
-            Tap any service to reschedule within the month
+            Tap any service to view details
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadRows} disabled={loading}>
@@ -482,14 +481,7 @@ export function SupervisorPeriodicScheduleScreen() {
                           Cap full
                         </div>
                       ) : (
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-7 text-xs gap-1 text-purple-700 border-purple-200 hover:bg-purple-50"
-                          onClick={() => openReschedule(row, occ)}
-                        >
-                          <Repeat2 className="w-3 h-3" />
-                          Reschedule
-                        </Button>
+                        <div className="text-xs text-gray-400 italic">Scheduled</div>
                       )}
                       <ChevronRight className="w-4 h-4 text-gray-300" />
                     </div>
@@ -550,103 +542,33 @@ export function SupervisorPeriodicScheduleScreen() {
         </div>
       )}
 
-      {/* Reschedule dialog */}
-      <Dialog
-        open={!!rescheduleTarget}
-        onOpenChange={v => { if (!v) setRescheduleTarget(null); }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Repeat2 className="w-4 h-4 text-purple-600" />
-              Reschedule Service
-            </DialogTitle>
-            <DialogDescription>
-              {rescheduleTarget && (
-                <>
-                  {PERIODIC_SERVICE_META[rescheduleTarget.occ.serviceType]?.icon}{" "}
-                  <strong>{PERIODIC_SERVICE_META[rescheduleTarget.occ.serviceType]?.name}</strong>{" "}
-                  for <strong>{rescheduleTarget.customerName}</strong>
-                  <br />
-                  Currently: {formatDate(rescheduleTarget.occ.scheduledDate)} ·
-                  Billing month: {rescheduleTarget.occ.billingMonth}
-                </>
+      {/* Reschedule info notice — supervisor is view only */}
+      {rescheduleTarget && (
+        <div style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"400px"}}>
+            <p style={{fontWeight:700,fontSize:"16px",marginBottom:"8px"}}>Reschedule Info</p>
+            <p style={{fontSize:"13px",color:"#475569",marginBottom:"4px"}}>
+              {PERIODIC_SERVICE_META[rescheduleTarget.occ.serviceType]?.icon}{" "}
+              <strong>{PERIODIC_SERVICE_META[rescheduleTarget.occ.serviceType]?.name}</strong>{" "}
+              for <strong>{rescheduleTarget.customerName}</strong>
+            </p>
+            <p style={{fontSize:"12px",color:"#64748b",marginBottom:"16px"}}>
+              Scheduled: {formatDate(rescheduleTarget.occ.scheduledDate)}{" "}
+              {rescheduleTarget.occ.status === "rescheduled" && rescheduleTarget.occ.rescheduledBy && (
+                <span style={{color:"#7c3aed"}}> — Rescheduled by {rescheduleTarget.occ.rescheduledBy}</span>
               )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {rescheduleTarget && (
-            <div className="space-y-4 py-1">
-
-              {/* Monthly cap warning */}
-              {(() => {
-                const svc   = rescheduleTarget.occ.serviceType as keyof MonthlyUsage;
-                const entry = rescheduleTarget.usage[svc];
-                if (!entry || entry.cap === 0) return null;
-                const remaining = entry.cap - entry.used;
-                return (
-                  <div className={`text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${
-                    remaining <= 1
-                      ? "bg-amber-50 border-amber-200 text-amber-800"
-                      : "bg-teal-50 border-teal-200 text-teal-800"
-                  }`}>
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    Monthly allowance: <strong>{entry.used} used / {entry.cap} max</strong>.
-                    Rescheduling moves this occurrence — it does not add an extra service.
-                  </div>
-                );
-              })()}
-
-              {/* New date picker */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">New date</label>
-                <Input
-                  type="date"
-                  value={newDate}
-                  min={`${rescheduleTarget.occ.billingMonth}-01`}
-                  max={`${rescheduleTarget.occ.billingMonth}-31`}
-                  onChange={e => { setNewDate(e.target.value); setRescheduleError(""); }}
-                  className="text-sm"
-                />
-                <p className="text-xs text-gray-400">
-                  Must be within billing month {rescheduleTarget.occ.billingMonth}
-                </p>
-              </div>
-
-              {/* Reason */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Reason (required)</label>
-                <Input
-                  placeholder="e.g. Customer requested, washer unavailable…"
-                  value={reason}
-                  onChange={e => { setReason(e.target.value); setRescheduleError(""); }}
-                  className="text-sm"
-                />
-              </div>
-
-              {/* Error */}
-              {rescheduleError && (
-                <Alert className="border-red-200 bg-red-50 py-2">
-                  <AlertCircle className="h-3.5 w-3.5 text-red-600" />
-                  <AlertDescription className="text-xs text-red-700">
-                    {rescheduleError}
-                  </AlertDescription>
-                </Alert>
-              )}
+            </p>
+            <div style={{background:"#f1f5f9",borderRadius:"8px",padding:"12px",marginBottom:"16px"}}>
+              <p style={{fontSize:"12px",color:"#475569",fontWeight:600}}>Supervisor cannot reschedule periodic services.</p>
+              <p style={{fontSize:"12px",color:"#64748b",marginTop:"4px"}}>Reschedules are initiated by the customer (via app notification) or by TSE on customer request.</p>
             </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRescheduleTarget(null)}>Cancel</Button>
-            <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-              onClick={confirmReschedule}
-            >
-              Confirm Reschedule
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <button
+              onClick={() => setRescheduleTarget(null)}
+              style={{width:"100%",padding:"10px",border:"none",borderRadius:"8px",background:"#6366f1",color:"white",fontWeight:600,cursor:"pointer"}}
+            >Close</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
