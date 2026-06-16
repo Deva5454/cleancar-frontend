@@ -430,7 +430,7 @@ export function SupervisorPeriodicScheduleScreen() {
                   <User className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-semibold text-gray-800">{row.customerName}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${PKG_COLORS[row.packageType] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                    {PKG_DISPLAY[row.packageType] ?? row.packageType}
+                    {PKG_DISPLAY[row.packageType as keyof typeof PKG_DISPLAY] ?? row.packageType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                   </span>
                 </div>
                 {/* Monthly usage badges */}
