@@ -864,16 +864,18 @@ export function SupervisorAppConnected() {
   };
 
   const handleMarkAbsentFromAlert = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      const confirmed = confirm(`Mark ${washer.name} as ABSENT?\n\nThis will:\n- Change status to ABSENT\n- Trigger cover redistribution\n- Notify Operations Manager\n\nContinue?`);
-
-      if (confirmed) {
-        alertService.markAlertActioned(`ALERT-${washerId}`, "SUP-001");
-        toast.success(`âœ… ${washer.name} marked as ABSENT\n\nCover redistribution initiated.\nOps Manager notified.\n\nIn production: This would update the database and trigger notifications.`);
+    const washer = team.find((w: any) => w.id === washerId);
+    const washerName = washer?.name || washerId;
+    openEscalationModal("mark_absent_alert", `Mark Absent — ${washerName}`, [
+      { key: "reason", label: "Reason for absence", type: "select", options: ["Not reachable", "Personal emergency", "Sick leave", "No show", "Other"] },
+    ], (data) => {
+      if (data.reason) {
+        alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "SUP-001");
+        alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "SUP-001");
+        toast.success(`${washerName} marked ABSENT — ${data.reason}. Cover redistribution initiated.`);
       }
-    }
+      setEscalationModal(null);
+    });
   };
 
   const handleResolveAlert = (alertId: string) => {
