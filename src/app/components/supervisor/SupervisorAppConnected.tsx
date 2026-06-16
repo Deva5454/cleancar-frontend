@@ -109,6 +109,7 @@ export function SupervisorAppConnected() {
     "/supervisor-app/visibility":   "visibility",
     "/supervisor-app/audit-trail":  "audit-trail",
     "/supervisor-app/kpi-dashboard":"kpi-dashboard",
+    "/supervisor-app/schedule":     "schedule",
   };
   const SCREEN_TO_PATH: Record<string, string> = {
     "dashboard":    "/supervisor-app",
@@ -126,6 +127,7 @@ export function SupervisorAppConnected() {
     "audit-flow":   "/supervisor-app/audit",
     "audit-result": "/supervisor-app/audit",
     "kpi-dashboard":"/supervisor-app/kpi-dashboard",
+    "schedule":     "/supervisor-app/schedule",
   };
   const currentScreen = useMemo(
     () => PATH_TO_SCREEN[location.pathname] ?? "dashboard",
