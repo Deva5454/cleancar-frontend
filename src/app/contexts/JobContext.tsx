@@ -1,4 +1,4 @@
-/**
+﻿/**
  * JobContext - SINGLE SOURCE OF TRUTH for all job/work order data
  * Used across: Operations, Washer App, Supervisor Dashboard, Finance
  */
@@ -73,13 +73,13 @@ export interface Job {
   units?: number;      // number of wash units in this job
 
   // Revenue
-  amount?: number;     // price charged for this job — used in JOB_COMPLETED event
+  amount?: number;     // price charged for this job â€” used in JOB_COMPLETED event
 
   // Priority scheduling
-  // 1 = Multi-month bundle (highest — paid bulk upfront, 1-hr TAT guaranteed)
-  // 2 = Urgent wash (paid ₹100 premium, 1-hr TAT)
+  // 1 = Multi-month bundle (highest â€” paid bulk upfront, 1-hr TAT guaranteed)
+  // 2 = Urgent wash (paid â‚¹100 premium, 1-hr TAT)
   // 3 = Regular job
-  // When both bundle and urgent come in simultaneously, bundle (rank 1) wins — per business decision C2.
+  // When both bundle and urgent come in simultaneously, bundle (rank 1) wins â€” per business decision C2.
   priorityRank?: 1 | 2 | 3;
 
   // Timestamps
@@ -181,7 +181,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   // Backend sync (background, non-blocking)
   useSync("JOBS", allJobs);
 
-  // Listen for new subscription → auto-create first job
+  // Listen for new subscription â†’ auto-create first job
   useEffect(() => {
     const handleNewSubscription = (e: Event) => {
       const d = (e as CustomEvent).detail;
@@ -218,7 +218,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:subscription_created", handleNewSubscription);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for pack purchase → auto-create first visit job
+  // Listen for pack purchase â†’ auto-create first visit job
   useEffect(() => {
     const handlePackPurchase = (e: Event) => {
       const d = (e as CustomEvent).detail;
@@ -242,8 +242,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
           vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: d.vehicleReg || "" },
           serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot },
           cityId: d.cityId || "CITY-SURAT",
-          notes: `Pack visit 1/${d.totalVisits} — auto from ${d.subscriptionId}`,
-          priorityRank: 1, // Multi-month bundle — highest priority (C2 decision: bundle > urgent wash)
+          notes: `Pack visit 1/${d.totalVisits} â€” auto from ${d.subscriptionId}`,
+          priorityRank: 1, // Multi-month bundle â€” highest priority (C2 decision: bundle > urgent wash)
         } as any);
         console.log("[JobContext] Auto-created pack visit job:", d.subscriptionId);
       } catch (err: any) {
@@ -254,7 +254,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:pack_purchased", handlePackPurchase);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for urgent wash purchase → auto-create job with priorityRank 2
+  // Listen for urgent wash purchase â†’ auto-create job with priorityRank 2
   // Priority rule C2: Bundle (rank 1) > Urgent wash (rank 2) > Regular (rank 3)
   useEffect(() => {
     const handleUrgentWash = (e: Event) => {
@@ -277,9 +277,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
           packageType: "urgent",
           frequency: "One-Time",
           vehicleDetails: { category: d.vehicleType || "hatchback", color: "", brand: "", registration: d.vehicleReg || "" },
-          serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot, specialInstructions: "⚡ URGENT — 1-hour arrival SLA" },
+          serviceDetails: { addOns: d.addOns || [], area: "", preferredTimeSlot: safeSlot, specialInstructions: "âš¡ URGENT â€” 1-hour arrival SLA" },
           cityId: d.cityId || "CITY-SURAT",
-          notes: "Urgent wash — ₹100 premium paid. 1-hour TAT. Priority rank 2 (below multi-month bundle).",
+          notes: "Urgent wash â€” â‚¹100 premium paid. 1-hour TAT. Priority rank 2 (below multi-month bundle).",
           priorityRank: 2,
         } as any);
         console.log("[JobContext] Auto-created urgent wash job:", d.subscriptionId);
@@ -291,7 +291,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:urgent_wash_purchased", handleUrgentWash);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for complimentary 2W job created → reload jobs so washer/supervisor see it immediately
+  // Listen for complimentary 2W job created â†’ reload jobs so washer/supervisor see it immediately
   useEffect(() => {
     const handleComplimentaryJob = (e: Event) => {
       const d = (e as CustomEvent).detail;
@@ -310,12 +310,12 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("cc360:complimentary_job_created", handleComplimentaryJob);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── DAILY SCHEDULER ──────────────────────────────────────────────────────────
+  // â”€â”€ DAILY SCHEDULER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Runs once per app session on mount. Handles all time-based background tasks:
   // 1. Advance bundle windows (Month 2, 3 activation + visit forfeiture)
-  // 2. Check low visit reminders (1 visit left + ≤5 days in window)
+  // 2. Check low visit reminders (1 visit left + â‰¤5 days in window)
   // 3. Weekly Sunday rating WA for monthly subscriptions
-  // In production this would be a backend cron — for now it runs on app load.
+  // In production this would be a backend cron â€” for now it runs on app load.
   useEffect(() => {
     const runDailyScheduler = async () => {
       const today = new Date().toISOString().split("T")[0];
@@ -384,7 +384,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
             .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR"));
           const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
 
-          // Build pincode→washer map for round-robin assignment
+          // Build pincodeâ†’washer map for round-robin assignment
           const washerByPin: Record<string, any[]> = {};
           washers.forEach((w: any) => {
             (w.pinCodes || ["395001"]).forEach((pin: string) => {
@@ -431,7 +431,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
               washerId: washer.id,
               scheduledDate: tomorrowStr,
               timeSlot: SLOTS[slotIdx],
-              status: "Unassigned",
+              status: "Assigned", // Auto-assigned by pincode — washer sees immediately
               jobType: "Regular",
               packageName: pkgType,
               packageType: pkgType,
@@ -495,7 +495,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Derived state — memoized so consumers only re-render when allJobs actually changes
+  // Derived state â€” memoized so consumers only re-render when allJobs actually changes
   const unassignedJobs = useMemo(() =>
     allJobs.filter((j) => j.status === "Unassigned"), [allJobs]);
 
@@ -507,7 +507,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const completedJobs = useMemo(() =>
     allJobs.filter((j) => j.status === "Completed" || j.status === "Verified"), [allJobs]);
 
-  // City-scoped helpers — useCallback for stable references
+  // City-scoped helpers â€” useCallback for stable references
   const getJobsByCityId    = useCallback((cityId: string): Job[] =>
     allJobs.filter(j => j.cityId === cityId), [allJobs]);
   const getUnassignedByCity = useCallback((cityId: string): Job[] =>
@@ -518,19 +518,19 @@ export function JobProvider({ children }: { children: ReactNode }) {
     allJobs.filter(j => ["Completed","Verified"].includes(j.status) && j.cityId === cityId), [allJobs]);
 
   const createJob = (jobData: Omit<Job, "jobId" | "createdAt" | "updatedAt">): Job => {
-    // ✅ BUSINESS RULE: No jobs on Sunday (absolute rest day)
+    // âœ… BUSINESS RULE: No jobs on Sunday (absolute rest day)
     if (jobData.scheduledDate) {
       const dayOfWeek = new Date(jobData.scheduledDate).getDay();
       if (dayOfWeek === 0) {
-        throw new Error("Sunday is an absolute rest day — no jobs can be scheduled.");
+        throw new Error("Sunday is an absolute rest day â€” no jobs can be scheduled.");
       }
     }
 
-    // ✅ BUSINESS RULE: Jobs must be within wash band 05:00–09:00
+    // âœ… BUSINESS RULE: Jobs must be within wash band 05:00â€“09:00
     if (jobData.timeSlot) {
       const hour = parseInt((jobData.timeSlot).split(":")[0], 10);
       if (hour < 5 || hour >= 9) {
-        throw new Error("Jobs must be scheduled within the wash band: 05:00–09:00.");
+        throw new Error("Jobs must be scheduled within the wash band: 05:00â€“09:00.");
       }
     }
 
@@ -584,7 +584,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
         scheduledDate: job.scheduledDate,
       }, "JobContext");
       // NOTE: Stage 2 WA (Booking Confirmed) fires in acknowledgeJob()
-      // when the WASHER acknowledges — not here on supervisor assign.
+      // when the WASHER acknowledges â€” not here on supervisor assign.
       // Per customer journey doc: Stage 2 fires only after BOTH supervisor assigns AND washer accepts.
     }
   };
@@ -603,7 +603,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       status: "Acknowledged",
       acknowledgedAt: new Date().toISOString(),
     });
-    // WA3: Stage 2 — Booking Confirmed WA fires HERE (washer has acknowledged)
+    // WA3: Stage 2 â€” Booking Confirmed WA fires HERE (washer has acknowledged)
     // Per customer journey doc: fires only after BOTH supervisor assigns AND washer accepts.
     if (job) {
       try {
@@ -668,7 +668,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
         customerId:  job.customerId,
         customerName:job.customerName,
         packageName: job.packageName,
-        amount:      job.amount || 0,       // ← revenue amount now flows through
+        amount:      job.amount || 0,       // â† revenue amount now flows through
         cityId:      job.cityId,
         qualityScore:  verificationData?.qualityScore,
         complianceScore: verificationData?.complianceScore,
@@ -742,7 +742,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
               subscriptionId:  job.subscriptionId,
               packageName:     job.packageName,
               customerName:    job.customerName,
-              message: `${job.customerName} has 1 ${job.packageName} visit remaining — convert to monthly`,
+              message: `${job.customerName} has 1 ${job.packageName} visit remaining â€” convert to monthly`,
             }, "JobContext");
             createPackUpsellTask({ customerId: job.customerId, customerName: job.customerName||"", customerPhone: job.customerPhone||"", subscriptionId: job.subscriptionId||"", packageName: job.packageName||"Pack", trigger: "PACK_VISIT_LOW", cityId: job.cityId||"CITY-SURAT" });
             // WA: Pack visit low notification to customer
@@ -767,7 +767,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
               if (cust?.phone) {
                 import("../services/whatsappService").then(({sendWhatsApp}) => {
                   sendWhatsApp(cust.phone,
-                    `Hi ${cust.firstName || ""}! Your ${job.packageName || "wash pack"} is complete. All visits have been used. Book your next wash at 249carwashing.genxa.in/buy — 249 Carwashing`,
+                    `Hi ${cust.firstName || ""}! Your ${job.packageName || "wash pack"} is complete. All visits have been used. Book your next wash at 249carwashing.genxa.in/buy â€” 249 Carwashing`,
                     "pack_visit_reminder"
                   );
                 });
@@ -791,7 +791,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
               flaggedAt: new Date().toISOString(),
               failedJobIds: lastThree.map(j => j.jobId),
               status: "PENDING_REVIEW",
-              notes: "3 consecutive failed deliveries — eligible for company-failure refund",
+              notes: "3 consecutive failed deliveries â€” eligible for company-failure refund",
             });
             localStorage.setItem("cleancar_company_failure_flags", JSON.stringify(flags));
           }
@@ -1019,7 +1019,7 @@ export function useJobs() {
         getAssignedByCity: () => [], getCompletedByCity: () => [],
       } as JobContextType;
     }
-    console.warn("[useJobs] Called outside JobProvider — returning fallback"); return {} as any; // safe fallback
+    console.warn("[useJobs] Called outside JobProvider â€” returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }
