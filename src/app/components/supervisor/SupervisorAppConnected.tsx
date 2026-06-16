@@ -944,22 +944,7 @@ export function SupervisorAppConnected() {
                 )}
               </button>
 
-              {/* System Alerts Bell */}
-              <button
-                type="button"
-                style={{position:"relative",background:"none",border:"none",cursor:"pointer",padding:"4px"}}
-                onClick={(e) => { e.stopPropagation(); navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts"); }}
-              >
-                <Bell className="h-5 w-5 text-red-600" />
-                {unreadAlertsCount > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-600 text-white border-0 text-xs"
-                  >
-                    {unreadAlertsCount}
-                  </Badge>
-                )}
-              </button>
+
             </div>
           </div>
         </div>
