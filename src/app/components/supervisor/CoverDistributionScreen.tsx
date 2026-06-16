@@ -3,7 +3,7 @@
  * Review → Adjust → Confirm system-generated allocation
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -56,6 +56,21 @@ export function CoverDistributionScreen({
   const [overrides, setOverrides] = useState<Record<string, { exceededBy: number }>>({});
   const [omNotified, setOmNotified] = useState(false);
   const [omAcknowledged, setOmAcknowledged] = useState(false);
+  const [washerPhones, setWasherPhones] = useState<Record<string, string>>({});
+
+  // Load washer phone numbers from EMPLOYEE_DATABASE_RECORDS
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("EMPLOYEE_DATABASE_RECORDS");
+      if (raw) {
+        const phones: Record<string, string> = {};
+        (JSON.parse(raw) as any[]).forEach((e: any) => {
+          phones[e.id] = e.mobile || e.loginMobile || "";
+        });
+        setWasherPhones(phones);
+      }
+    } catch (_) {}
+  }, []);
 
   // Check for pending alert (7:45 AM)
   const hour = currentTime.getHours();
@@ -331,7 +346,17 @@ export function CoverDistributionScreen({
                         <p className="font-bold text-gray-900">{washer.name}</p>
                         <div className="flex items-center gap-2 text-xs text-gray-600">
                           <MapPin className="h-3 w-3" />
-                          <span>{washer.distanceKm.toFixed(1)} km away</span>
+                          <span>{washer.distanceKm > 0 ? `${washer.distanceKm.toFixed(1)} km away` : "Same area"}</span>
+                          {washerPhones[washer.id] && (
+                            <a
+                              href={`tel:${washerPhones[washer.id]}`}
+                              className="flex items-center gap-1 text-blue-600 underline ml-2"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Phone className="h-3 w-3" />
+                              Call
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>

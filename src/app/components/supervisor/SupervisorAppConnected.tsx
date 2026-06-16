@@ -414,10 +414,40 @@ export function SupervisorAppConnected() {
               subscriptionStartDate: today,
             }))
           : mockWasherDataService.getTodayJobs(absentWasher.id, 8);
+        // Include any active washer — not just CHECKED_IN (covers GAP shift)
+        const PINCODE_GPS: Record<string, { lat: number; lng: number }> = {
+          "395001": { lat: 21.1959, lng: 72.8302 },
+          "395007": { lat: 21.1384, lng: 72.7842 },
+          "395009": { lat: 21.1783, lng: 72.7942 },
+          "PIN-395001": { lat: 21.1959, lng: 72.8302 },
+          "PIN-395007": { lat: 21.1384, lng: 72.7842 },
+          "PIN-395009": { lat: 21.1783, lng: 72.7942 },
+        };
+        const absentPin = (absentWasher as any).assignedPincodes?.[0] || "395001";
+        const absentGPS = PINCODE_GPS[absentPin] || { lat: 21.1702, lng: 72.8311 };
+
         const availableWashers = team
-          .filter(w => w.status === "CHECKED_IN" && w.id !== absentWasher.id)
+          .filter((w: any) => !w.isOnLeave && w.status !== "LEAVE" && w.status !== "ABSENT" && w.id !== absentWasher.id)
           .slice(0, 12)
-          .map(w => ({ id: w.id, name: w.name, baseUnits: w.unitsCompleted, area: "Surat" }));
+          .map((w: any) => {
+            // Calculate approximate distance from pincode GPS
+            const wPin = w.assignedPincodes?.[0] || "395001";
+            const wGPS = PINCODE_GPS[wPin] || { lat: 21.1702, lng: 72.8311 };
+            const distKm = Math.round(
+              Math.sqrt(
+                Math.pow((wGPS.lat - absentGPS.lat) * 111, 2) +
+                Math.pow((wGPS.lng - absentGPS.lng) * 111, 2)
+              ) * 10
+            ) / 10;
+            return {
+              id: w.id,
+              name: w.name,
+              phone: w.phone || "",
+              baseUnits: w.unitsCompleted || 0,
+              area: wPin.replace("PIN-", ""),
+              distanceKm: distKm,
+            };
+          });
 
         const plan = coverRedistributionService.generateCoverPlan(
           absentWasher.id,
@@ -443,7 +473,16 @@ export function SupervisorAppConnected() {
   const handleConfirmAndNotify = () => {
     if (!coverPlan) return;
     coverRedistributionService.confirmAndNotify(coverPlan);
-    setCoverPlan({ ...coverPlan, status: "NOTIFIED" });
+    const notifiedPlan = { ...coverPlan, status: "NOTIFIED" as const };
+    setCoverPlan(notifiedPlan);
+    // Persist cover plan status
+    try {
+      localStorage.setItem("SUPERVISOR_COVER_PLAN", JSON.stringify({
+        ...notifiedPlan,
+        generatedAt: notifiedPlan.generatedAt?.toISOString?.() || new Date().toISOString(),
+      }));
+    } catch (_) {}
+    toast.success(`Cover plan confirmed. ${coverPlan.coverWashers.length} washers notified.`);
   };
 
   const handleCoverReassign = (fromWasherId: string, toWasherId: string, units: number) => {
@@ -498,16 +537,42 @@ export function SupervisorAppConnected() {
 
   const handleContactCustomers = () => {
     if (!coverPlan) {
-      logger.warn("No cover plan available");
+      toast.error("No cover plan available");
       return;
     }
-
-    coverRedistributionService.contactCustomers(coverPlan.absentWasher.jobs);
-
-    // Visual feedback for user
-    if (typeof window !== 'undefined') {
-      toast.success(`Adjusting allocation for cover capacity shortage\n\nAbsent Washer: ${coverPlan.absentWasher.name}\nAffected Jobs: ${coverPlan.absentWasher.jobs.length}\nUnassigned Units: ${coverPlan.unassignedUnits.toFixed(1)}\n\nIn production: This would open a modal to manually adjust job allocations across available washers.`);
-    }
+    const affected = coverPlan.absentWasher.jobs.length;
+    const unassigned = coverPlan.unassignedUnits;
+    openEscalationModal("adjust_allocation", `Adjust Allocation — ${coverPlan.absentWasher.name} Absent`, [
+      { key: "action", label: "Action", type: "select", options: [
+        "Postpone affected washes to tomorrow",
+        "Redistribute to part-time washers",
+        "Contact customers to reschedule",
+        "Mark as service skipped today",
+      ]},
+      { key: "notes", label: `Notes (${affected} jobs affected, ${unassigned.toFixed(1)} unassigned units)` },
+    ], (data) => {
+      if (data.action) {
+        coverRedistributionService.contactCustomers(coverPlan.absentWasher.jobs);
+        // Persist allocation decision
+        try {
+          const key = "COVER_ALLOCATION_ACTIONS";
+          const existing = JSON.parse(localStorage.getItem(key) || "[]");
+          existing.push({
+            id: `ALLOC-${Date.now()}`,
+            supervisorId: currentUser?.employeeId || "SUP-001",
+            absentWasherId: coverPlan.absentWasher.id,
+            absentWasherName: coverPlan.absentWasher.name,
+            action: data.action,
+            notes: data.notes,
+            affectedJobs: affected,
+            timestamp: new Date().toISOString(),
+          });
+          localStorage.setItem(key, JSON.stringify(existing));
+        } catch (_) {}
+        toast.success(`Allocation adjusted: ${data.action}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   // Field audit handlers

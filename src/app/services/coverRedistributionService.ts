@@ -71,7 +71,7 @@ class CoverRedistributionService {
     const sortedWashers = availableWashers
       .map((w) => ({
         ...w,
-        distanceKm: 0.8 * 5, // Simulated distance
+        distanceKm: (w as any).distanceKm ?? 0, // Use real distance if provided
       }))
       .sort((a, b) => {
         // First by load (lowest first)
