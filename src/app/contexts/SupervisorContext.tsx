@@ -256,13 +256,58 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             ? new Date(todayAttendance.checkInTime)
             : undefined,
           gpsLocation: (status === "CHECKED_IN" || status === "LATE")
-            ? { lat: 21.1702, lng: 72.8311 }
+            ? (() => {
+                // Map pincode to approximate GPS coordinates for Surat areas
+                const PINCODE_GPS: Record<string, { lat: number; lng: number }> = {
+                  "395001": { lat: 21.1959, lng: 72.8302 }, // Adajan
+                  "395002": { lat: 21.1702, lng: 72.8311 }, // Surat city centre
+                  "395003": { lat: 21.2095, lng: 72.8365 }, // Katargam
+                  "395004": { lat: 21.1551, lng: 72.7924 }, // Bhatar
+                  "395005": { lat: 21.1667, lng: 72.8417 }, // Nanpura
+                  "395006": { lat: 21.1458, lng: 72.8208 }, // Udhna
+                  "395007": { lat: 21.1384, lng: 72.7842 }, // Vesu
+                  "395008": { lat: 21.2221, lng: 72.8463 }, // Sachin
+                  "395009": { lat: 21.1783, lng: 72.7942 }, // Piplod
+                  "395010": { lat: 21.1602, lng: 72.7683 }, // Althan
+                  "PIN-395001": { lat: 21.1959, lng: 72.8302 },
+                  "PIN-395002": { lat: 21.1702, lng: 72.8311 },
+                  "PIN-395007": { lat: 21.1384, lng: 72.7842 },
+                  "PIN-395009": { lat: 21.1783, lng: 72.7942 },
+                };
+                const pin = (emp.assignedPincodes || [])[0] || (emp as any).pinCodes?.[0] || "395001";
+                const base = PINCODE_GPS[pin] || { lat: 21.1702, lng: 72.8311 };
+                // Small jitter so washers in same pincode don't overlap on map
+                const idx = teamMembers.length; // approximate index
+                return {
+                  lat: base.lat + (Math.sin(idx * 1.7) * 0.002),
+                  lng: base.lng + (Math.cos(idx * 1.7) * 0.002),
+                };
+              })()
             : undefined,
           selfieUrl: (status === "CHECKED_IN" || status === "LATE")
-            ? `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.firstName)}&background=6366f1&color=fff`
+            ? (() => {
+                // Try to read real selfie from FieldCheckIn session
+                try {
+                  const sessionKey = `field_checkin_session_${emp.employeeId}`;
+                  const raw = localStorage.getItem(sessionKey);
+                  if (raw) {
+                    const session = JSON.parse(raw);
+                    if (session.checkInSelfieBase64) return session.checkInSelfieBase64;
+                  }
+                  // Also try today's session
+                  const todayKey = `field_session_${emp.employeeId}_${new Date().toISOString().split("T")[0]}`;
+                  const rawToday = localStorage.getItem(todayKey);
+                  if (rawToday) {
+                    const session = JSON.parse(rawToday);
+                    if (session.checkInSelfieBase64) return session.checkInSelfieBase64;
+                  }
+                } catch (_) {}
+                // Fall back to avatar with correct name and department colour
+                return `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.firstName + "+" + emp.lastName)}&background=0d9488&color=fff&bold=true&size=128`;
+              })()
             : undefined,
           unitsCompleted: completedJobs.length,
-          unitsTarget: 25,
+          unitsTarget: 20, // Realistic daily target: 20 cars/washer
           // Compute audit status from localStorage audit records
           lastAuditDate: (() => {
             try {
@@ -329,7 +374,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
         completedJobs: (() => { try { return getCompletedByCity(supervisorCityId).filter((j: any) => j.completedAt?.startsWith(new Date().toISOString().split("T")[0])).length; } catch { return 0; } })(),
         pendingJobs: (() => { try { return getUnassignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
         totalUnitsCompleted: teamMembers.reduce((sum, m) => sum + m.unitsCompleted, 0),
-        totalUnitsTarget: Math.max(1, teamMembers.length * 25),
+        totalUnitsTarget: Math.max(1, teamMembers.length * 20), // 20 cars/washer/day (realistic)
         auditsPending: teamMembers.filter(m => m.auditStatus === "DUE" || m.auditStatus === "OVERDUE").length,
         auditsCompleted: teamMembers.filter(m => m.auditStatus === "COMPLETED").length,
         activeAlerts: 0, // computed after alerts are built
