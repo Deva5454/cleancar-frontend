@@ -412,7 +412,7 @@ export function SupervisorPeriodicScheduleScreen() {
                   <User className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-semibold text-gray-800">{row.customerName}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${PKG_COLORS[row.packageType] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                    {row.packageType}
+                    {(PKG_DISPLAY as any)[row.packageType] ?? row.packageType.split("_").map((w: string) => w.charAt(0)+w.slice(1).toLowerCase()).join(" ")}
                   </span>
                 </div>
                 {/* Monthly usage badges */}
@@ -452,9 +452,10 @@ export function SupervisorPeriodicScheduleScreen() {
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <Clock className="w-3 h-3 text-gray-400" />
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs font-semibold text-gray-700">
                             {formatDate(occ.scheduledDate)}
                           </span>
+                          <span className="text-xs text-gray-400">{occ.status === "scheduled" || occ.status === "rescheduled" ? "· Morning slot (5:00–9:00 AM)" : ""}</span>
                           {occ.status === "rescheduled" && (
                             <span className="text-xs text-purple-600">
                               (was {formatDate(occ.originalDate)})
