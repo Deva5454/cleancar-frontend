@@ -52,12 +52,42 @@ export function WasherCoreScreensConnected() {
     face: ValidationState; gps: ValidationState;
   }>({ face: "PENDING", gps: "PENDING" });
 
-  // â”€â”€ SEED JOBS ON MOUNT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── SEED + LOAD JOBS ─────────────────────────────────────────────────────
   useEffect(() => {
-    mockWasherDataService.clearCache();
-    const seeded = mockWasherDataService.getTodayJobs("WASHER-DEMO");
-    setJobs(seeded);
-  }, []);
+    const today = new Date().toISOString().split("T")[0];
+    const washerId = (currentUser as any)?.employeeId || "WASHER-DEMO";
+    const seedKey = `cc360_washer_demo_seeded_${washerId}_${today}`;
+    if (!localStorage.getItem(seedKey)) {
+      try {
+        const now = new Date(); const h = now.getHours(); const m = now.getMinutes();
+        const fmt = (hr: number, mn: number) => `${String(hr%24).padStart(2,"0")}:${String(mn).padStart(2,"0")}`;
+        const slots = [0,1,2,3,4].map(i => { const tot=h*60+m+i*45; return `${fmt(Math.floor(tot/60),tot%60)} - ${fmt(Math.floor((tot+30)/60),(tot+30)%60)}`; });
+        const s1 = new Date(Date.now()-15*86400000).toISOString().split("T")[0];
+        const s2 = new Date(Date.now()-7*86400000).toISOString().split("T")[0];
+        const s3 = new Date(Date.now()-10*86400000).toISOString().split("T")[0];
+        const demos = [
+          { jobId:`DEMO-${washerId}-001`, customerName:"Arjun Patel", packageType:"EXPRESS_WASH", vehicleDetails:{category:"Hatchback",color:"White",brand:"Maruti",registration:"GJ-05-AK-1234"}, location:{addressLine1:"B-204, Sunrise Residency, Adajan",area:"Adajan",city:"Surat",pinCode:"395001"}, serviceDetails:{addOns:[],specialInstructions:"Park car in original spot after wash"}, subscriptionStartDate:s3, timeSlot:slots[0], parkingInstructions:"Society parking - left side near gate" },
+          { jobId:`DEMO-${washerId}-002`, customerName:"Priya Shah", packageType:"SMART_WASH", vehicleDetails:{category:"Mid-Size Sedan",color:"Silver",brand:"Honda",registration:"GJ-05-BK-5678"}, location:{addressLine1:"A-301, Royal Heights, Vesu",area:"Vesu",city:"Surat",pinCode:"395007"}, serviceDetails:{addOns:[],specialInstructions:"Avoid high pressure on windows"}, subscriptionStartDate:s1, timeSlot:slots[1], parkingInstructions:"Covered parking slot 15" },
+          { jobId:`DEMO-${washerId}-003`, customerName:"Vikram Trivedi", packageType:"ELITE_WASH", vehicleDetails:{category:"Mid/Large SUV",color:"Black",brand:"Toyota",registration:"GJ-05-CM-9012"}, location:{addressLine1:"C-101, Prime Apartments, Citylight",area:"Citylight",city:"Surat",pinCode:"395007"}, serviceDetails:{addOns:[],specialInstructions:"Extra attention to wheels"}, subscriptionStartDate:s2, timeSlot:slots[2], parkingInstructions:"Basement parking B2, Slot 42" },
+          { jobId:`DEMO-${washerId}-004`, customerName:"Meera Joshi", packageType:"SMART_WASH", isCoverJob:true, vehicleDetails:{category:"Hatchback",color:"Red",brand:"Tata",registration:"GJ-05-DM-3456"}, location:{addressLine1:"D-402, Green Park, Piplod",area:"Piplod",city:"Surat",pinCode:"395009"}, serviceDetails:{addOns:[],specialInstructions:"Cover job - original washer on leave"}, subscriptionStartDate:s1, timeSlot:slots[3], parkingInstructions:"Main gate parking" },
+          { jobId:`DEMO-${washerId}-005`, customerName:"Ravi Desai", packageType:"EXPRESS_WASH", vehicleDetails:{category:"Compact Sedan",color:"Blue",brand:"Maruti",registration:"GJ-05-ER-7890"}, location:{addressLine1:"E-105, Shanti Nagar, Althan",area:"Althan",city:"Surat",pinCode:"395010"}, serviceDetails:{addOns:["Interior Cleaning"],specialInstructions:"Sensitive to chemical smells"}, subscriptionStartDate:s3, timeSlot:slots[4], parkingInstructions:"Visitor parking near lobby" },
+        ].map((d: any) => ({...d, washerId, scheduledDate:today, status:"Assigned", jobType:"Regular", packageName:d.packageType, customerId:`CUST-${d.jobId}`, cityId:"CITY-SURAT", city:"Surat", createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()}));
+        const existing = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs")||"[]").filter((j: any) => !(j.washerId===washerId && j.scheduledDate===today && String(j.jobId).startsWith("DEMO-")));
+        localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existing, ...demos]));
+        localStorage.setItem(seedKey, "1");
+      } catch(_) {}
+    }
+    let loaded: CustomerJob[] = [];
+    try {
+      const raw = localStorage.getItem("cleancar_CITY-SURAT_jobs");
+      if (raw) {
+        const myJobs = JSON.parse(raw).filter((j: any) => j.washerId===washerId && j.scheduledDate===today && ["Assigned","Acknowledged","In Progress"].includes(j.status));
+        loaded = myJobs.map((j: any) => ({ id:j.jobId, timeSlot:j.timeSlot||"06:00 AM", customerFirstName:j.customerName||"Customer", area:j.location?.area||"Surat", pinCode:j.location?.pinCode||"395001", city:j.city||"Surat", addressLine1:j.location?.addressLine1||"", vehicleCategory:j.vehicleDetails?.category||"Sedan", vehicleColor:j.vehicleDetails?.color||"White", vehicleBrand:j.vehicleDetails?.brand||"Maruti", vehicleRegistration:j.vehicleDetails?.registration||"", packageName:j.packageType||j.packageName||"EXPRESS_WASH", packageType:j.packageType||j.packageName||"EXPRESS_WASH", serviceFrequency:"Daily", subscriptionMonth:today.slice(0,7), subscriptionStartDate:j.subscriptionStartDate||"2026-01-01", jobType:j.jobType||"Regular", status:j.status||"Assigned", specialInstructions:j.serviceDetails?.specialInstructions||"", parkingInstructions:j.parkingInstructions||"", isCoverJob:j.isCoverJob||false, serviceDetails:j.serviceDetails||{addOns:[]}, customerId:j.customerId||"" }));
+      }
+    } catch(_) {}
+    if (loaded.length === 0) { mockWasherDataService.clearCache(); loaded = mockWasherDataService.getTodayJobs(washerId); }
+    setJobs(loaded);
+  }, [(currentUser as any)?.employeeId]);
 
   // â”€â”€ DERIVED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const activeJob      = jobs.find(j => j.id === activeJobId) ?? null;
