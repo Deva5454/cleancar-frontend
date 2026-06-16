@@ -13,7 +13,8 @@ import { SupervisorDashboard } from "./SupervisorDashboard";
 import { TeamAttendanceMonitorV2 } from "./TeamAttendanceMonitorV2";
 import { CoverDistributionScreen } from "./CoverDistributionScreen";
 import { AutoAssignCarsModal } from "./AutoAssignCarsModal";
-import { FieldAuditScreen, AuditFlowScreen, AuditResultScreen } from "./FieldAuditScreen";
+import { FieldAuditScreen, AuditResultScreen } from "./FieldAuditScreen";
+import { AuditFlowScreen } from "./AuditFlowScreen";
 import { CashDepositScreen } from "./CashDepositScreen";
 import { ClothManagementScreenV2 } from "./ClothManagementScreenV2";
 import { SupervisorMaterialManagement } from "./SupervisorMaterialManagement";
@@ -584,6 +585,8 @@ export function SupervisorAppConnected() {
   );
   const [auditFlow, setAuditFlow] = useState<{
     active: boolean;
+    washerGPS?: { lat: number; lng: number };
+    washerSelfieUrl?: string;
     washerId: string;
     washerName: string;
     checklist: any[];
@@ -615,12 +618,14 @@ export function SupervisorAppConnected() {
       j.scheduledDate === today &&
       ["Assigned", "Acknowledged", "In Progress"].includes(j.status)
     );
-    const detectedPackage = washerJob?.packageType || "SHAMPOO_WASH";
+    const detectedPackage = washerJob?.packageType || washerJob?.packageName || "SMART_WASH";
 
     setAuditFlow({
       active: true,
       washerId: washer.id,
       washerName: washer.name,
+      washerGPS: washer.gpsLocation,
+      washerSelfieUrl: washer.selfieUrl,
       checklist,
       photos: 0,
       gpsValid: gpsValidation.isValid,
@@ -650,8 +655,19 @@ export function SupervisorAppConnected() {
     toast.warning("Pre-damage logged.", { duration: 3000 });
   };
 
-  const handleSubmitAudit = () => {
+  const handleSubmitAudit = (enhancedSubmission?: any) => {
     if (!auditFlow) return;
+
+    // If new enhanced submission format received, use it directly
+    if (enhancedSubmission && enhancedSubmission.score !== undefined) {
+      const { score, result, flags, washerId, washerName } = enhancedSubmission;
+      toast.success(`Audit submitted — ${score}/100 (${result})`);
+      if (flags?.length > 0) {
+        toast.warning(`${flags.length} flag(s) recorded`);
+      }
+      setAuditFlow(null);
+      return;
+    }
 
     const score = fieldAuditService.calculateScore(auditFlow.checklist);
     const result = fieldAuditService.getAuditResult(score);
@@ -1373,7 +1389,7 @@ export function SupervisorAppConnected() {
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
             {auditFlow ? (
-              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} packageType={(auditFlow as any).packageType || "SHAMPOO_WASH"} checklist={auditFlow.checklist} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
+              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} washerGPS={(auditFlow as any).washerGPS} washerSelfieUrl={(auditFlow as any).washerSelfieUrl} packageType={(auditFlow as any).packageType || "SMART_WASH"} supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"} supervisorName={currentUser?.name || "Supervisor"} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
             ) : (
               <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />
             )}
@@ -1385,7 +1401,11 @@ export function SupervisorAppConnected() {
               <AuditFlowScreen
                 washerId={auditFlow.washerId}
                 washerName={auditFlow.washerName}
-                packageType={(auditFlow as any).packageType || "SHAMPOO_WASH"}
+                packageType={(auditFlow as any).packageType || "SMART_WASH"}
+                washerGPS={(auditFlow as any).washerGPS}
+                washerSelfieUrl={(auditFlow as any).washerSelfieUrl}
+                supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"}
+                supervisorName={currentUser?.name || "Supervisor"}
                 checklist={auditFlow.checklist}
                 gpsValid={auditFlow.gpsValid}
                 gpsDistance={auditFlow.gpsDistance}
