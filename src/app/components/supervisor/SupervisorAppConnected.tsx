@@ -189,43 +189,65 @@ export function SupervisorAppConnected() {
   };
 
   const handleMarkAttendance = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.error(`Marking attendance for ${washer.name}\n\nIn production: This would open an attendance marking modal with reason field.`);
-    }
+    const washer = team.find((w: any) => w.id === washerId);
+    openEscalationModal("mark_attendance", `Mark Attendance — ${washer?.name || washerId}`, [
+      { key: "status", label: "Attendance status", type: "select", options: ["Present", "Late", "Absent", "Half Day"] },
+      { key: "reason", label: "Reason / notes (optional)" },
+    ], (data) => {
+      if (data.status) {
+        toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " — " + data.reason : ""}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleVerifyGPS = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Verifying GPS for ${washer.name}\n\nIn production: This would show a map view with GPS verification interface.`);
+    const washer = team.find((w: any) => w.id === washerId);
+    if (!washer) return;
+    if (washer.gpsLocation) {
+      const { lat, lng } = washer.gpsLocation;
+      const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+      window.open(mapsUrl, "_blank");
+      toast.success(`Opening GPS location for ${washer.name}`);
+    } else {
+      toast.error(`No GPS location available for ${washer.name}`);
     }
   };
 
   const handleViewSelfie = (washerId: string, selfieUrl: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Viewing selfie for ${washer.name}\n\nIn production: This would show a full-screen selfie modal.`);
+    if (selfieUrl) {
+      window.open(selfieUrl, "_blank");
+    } else {
+      toast.error("No selfie available for this washer");
     }
   };
 
   const handleRequestOverride = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Requesting attendance override for ${washer.name}\n\nIn production: This would show an override request form requiring manager approval.`);
-    }
+    const washer = team.find((w: any) => w.id === washerId);
+    openEscalationModal("request_override", `Attendance Override — ${washer?.name || washerId}`, [
+      { key: "overrideType", label: "Override type", type: "select", options: ["Mark Present", "Mark Late", "Excuse Absence", "Adjust Check-in Time"] },
+      { key: "reason", label: "Reason for override (required for manager approval)" },
+    ], (data) => {
+      if (data.overrideType && data.reason) {
+        escalationService.requestAttendanceOverride(washerId, data.reason, "", currentUser?.employeeId || "SUP-001");
+        toast.success(`Override request submitted for ${washer?.name || washerId} — ${data.overrideType}. Pending manager approval.`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleSubmitIncident = (washerId: string) => {
-    const washer = team.find(w => w.id === washerId);
-
-    if (typeof window !== 'undefined' && washer) {
-      toast.info(`Submitting incident report for ${washer.name}\n\nIn production: This would show an incident report form.`);
-    }
+    const washer = team.find((w: any) => w.id === washerId);
+    openEscalationModal("incident", `Incident Report — ${washer?.name || washerId}`, [
+      { key: "type", label: "Incident type", type: "select", options: ["Equipment damage", "Customer complaint", "Safety issue", "Quality issue", "Other"] },
+      { key: "description", label: "Description of incident" },
+    ], (data) => {
+      if (data.type && data.description) {
+        escalationService.escalateVehicleDamage(washerId, data.type, "", data.description, currentUser?.employeeId || "SUP-001");
+        toast.warning(`Incident report submitted for ${washer?.name || washerId}`);
+      }
+      setEscalationModal(null);
+    });
   };
 
   const handleAddNote = (washerId: string) => {
