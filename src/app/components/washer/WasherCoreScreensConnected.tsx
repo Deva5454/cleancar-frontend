@@ -357,14 +357,14 @@ export function WasherCoreScreensConnected() {
         return (
           <WasherIncentiveTracker
             data={{
-              baseUnits: 25,
+              baseUnits: 20,
               completedUnits: completedLocal.length,
-              incentiveUnits: Math.max(0, completedLocal.length - 25),
-              todayIncentiveEarnings: Math.max(0, completedLocal.length - 25) * 25,
+              incentiveUnits: Math.max(0, completedLocal.length - 20),
+              todayIncentiveEarnings: Math.max(0, completedLocal.length - 20) * 25,
               monthlyIncentiveUnits: 0,
               monthlyIncentiveEarnings: 0,
               timeBandStatus: "ACTIVE",
-              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
+              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
               eligibilityStatus: "ELIGIBLE",
               eligibilityReason: "Meeting all criteria",
               hasAttendanceImpact: false,
@@ -374,7 +374,7 @@ export function WasherCoreScreensConnected() {
               addOnCount: 0,
               addOnEarnings: 0,
             }}
-            currentDate={new Date()}
+            currentDate={new Date().toISOString()}
             monthName={new Date().toLocaleString("en-IN", { month: "long" })}
           />
         );
@@ -415,10 +415,10 @@ export function WasherCoreScreensConnected() {
       default: // dashboard
         return (
           <WasherHomeDashboard
-            washerName={profile?.name || "Rajesh Kumar"}
+            washerName={currentUser?.employeeName || profile?.name || "Washer"}
             todayDate={new Date()}
-            dayNumber={15}
-            totalDaysInMonth={26}
+            dayNumber={new Date().getDate()}
+            totalDaysInMonth={new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()}
             dayStatus={mapDayStatus()}
             isCheckedIn={checkedIn}
             isCheckedOut={checkedOut}
