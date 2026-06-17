@@ -1,4 +1,4 @@
-// Mobile-first Washer Module Shell with Bottom Navigation
+﻿// Mobile-first Washer Module Shell with Bottom Navigation
 // Optimized for field use: large touch targets, bottom nav, full-screen flow
 import { useState } from "react";
 import { Home, CalendarDays, TrendingUp, Package, User } from "lucide-react";
@@ -15,7 +15,7 @@ export function WasherMobileShell() {
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const { stats, dayStatus, isCheckedIn } = useWasher();
 
-  const incentiveUnits = stats.completed > 25 ? stats.completed - 25 : 0;
+  const incentiveUnits = stats.completed > 20 ? stats.completed - 20 : 0;
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -30,20 +30,20 @@ export function WasherMobileShell() {
         return (
           <WasherIncentiveTracker
             data={{
-              baseUnits: 25,
+              baseUnits: 20,
               completedUnits: stats.completed,
               incentiveUnits,
               todayIncentiveEarnings: incentiveUnits * 25,
               monthlyIncentiveUnits: 0,
               monthlyIncentiveEarnings: 0,
               timeBandStatus: "ACTIVE",
-              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
+              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
               eligibilityStatus: incentiveUnits > 0 ? "ELIGIBLE" : "NOT_ELIGIBLE",
-              eligibilityReason: incentiveUnits > 0 ? "Meeting all criteria" : "Complete 25 base units first",
+              eligibilityReason: incentiveUnits > 0 ? "Meeting all criteria" : "Complete 20 base units first",
               hasAttendanceImpact: dayStatus.isLate,
               lateMarksCount: dayStatus.isLate ? 1 : 0,
             }}
-            currentDate={new Date()}
+            currentDate={new Date().toISOString()}
             monthName={new Date().toLocaleString("en-IN", { month: "long" })}
           />
         );
