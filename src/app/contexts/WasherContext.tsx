@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Washer Context - Centralized State Management
  * Provides global state and actions for the entire washer module
  * Eliminates prop drilling and ensures data consistency
@@ -482,7 +482,7 @@ export function WasherProvider({ children }: WasherProviderProps) {
       // emit is handled inside jobContext.completeJob with the amount field
     } else {
       // Job only exists in washer service — emit event directly
-      emit("JOB_COMPLETED", {
+      window.dispatchEvent(new CustomEvent("cc360:job_completed", { detail: {
         jobId:       activeJob.id,
         washerId:    washerId,
         washerName:  profile?.name || washerId,
@@ -491,7 +491,7 @@ export function WasherProvider({ children }: WasherProviderProps) {
         amount:      activeJob.amount || 0,
         cityId:      activeJob.cityId,
         completedAt: new Date().toISOString(),
-      }, "WasherContext");
+      }}));
     }
 
     // ✅ Trigger incentive calculation after job completion
