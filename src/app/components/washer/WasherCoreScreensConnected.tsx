@@ -457,25 +457,26 @@ export function WasherCoreScreensConnected() {
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
         <div className="grid grid-cols-6 h-16">
-          {([
-            { s: "dashboard", label: "Home",      svg: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
-            { s: "checkin",   label: "Check-In",  svg: <><polyline points="20 6 9 17 4 12"/></> },
-            { s: "schedule",  label: "Schedule",  svg: <><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></> },
-            { s: "active",    label: "Active",    svg: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></> },
-            { s: "incentive", label: "Earnings",  svg: <><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></> },
-            { s: "checkout",  label: "Check-Out", svg: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></> },
-          ] as {s: Screen, label: string, svg: React.ReactNode}[]).map(({ s, label, svg }) => {
+          {(["dashboard","checkin","schedule","active","incentive","checkout"] as Screen[]).map((s) => {
             const isActive = screen === s;
+            const labels: Record<Screen,string> = { dashboard:"Home", checkin:"Check-In", schedule:"Schedule", active:"Active", incentive:"Earnings", checkout:"Check-Out" };
+            const renderIcon = (sc: Screen) => {
+              const cls = "w-5 h-5";
+              if (sc === "dashboard") return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+              if (sc === "checkin")   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+              if (sc === "schedule")  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+              if (sc === "active")    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+              if (sc === "incentive") return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+              return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
+            };
             return (
               <button
                 key={s}
                 onClick={() => setScreen(s)}
-                className={`flex flex-col items-center justify-center gap-0.5 transition-colors relative ${
-                  isActive ? "text-teal-600 bg-teal-50" : "text-gray-400 hover:text-gray-600"
-                }`}
+                className={`flex flex-col items-center justify-center gap-0.5 transition-colors relative ${isActive ? "text-teal-600 bg-teal-50" : "text-gray-400 hover:text-gray-600"}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{svg}</svg>
-                <span className="text-[10px] font-medium leading-none">{label}</span>
+                {renderIcon(s)}
+                <span className="text-[10px] font-medium leading-none">{labels[s]}</span>
                 {isActive && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-teal-600 rounded-full" />}
               </button>
             );
