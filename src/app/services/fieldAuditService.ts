@@ -199,14 +199,14 @@ class FieldAuditService {
   ): { isValid: boolean; distanceMeters: number } {
     // Haversine formula (simplified)
     const R = 6371e3; // Earth radius in meters
-    const Ï†1 = (supervisorGPS.lat * Math.PI) / 180;
-    const Ï†2 = (washerGPS.lat * Math.PI) / 180;
-    const Î”Ï† = ((washerGPS.lat - supervisorGPS.lat) * Math.PI) / 180;
-    const Î”Î» = ((washerGPS.lng - supervisorGPS.lng) * Math.PI) / 180;
+    const phi1 = (supervisorGPS.lat * Math.PI) / 180;
+    const phi2 = (washerGPS.lat * Math.PI) / 180;
+    const deltaPhi = ((washerGPS.lat - supervisorGPS.lat) * Math.PI) / 180;
+    const deltaLambda = ((washerGPS.lng - supervisorGPS.lng) * Math.PI) / 180;
 
     const a =
-      Math.sin(Î”Ï† / 2) * Math.sin(Î”Ï† / 2) +
-      Math.cos(Ï†1) * Math.cos(Ï†2) * Math.sin(Î”Î» / 2) * Math.sin(Î”Î» / 2);
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
