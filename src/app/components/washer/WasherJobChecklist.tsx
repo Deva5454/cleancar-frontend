@@ -1,4 +1,4 @@
-// Job Checklist Tab - Core execution with before/after photos
+﻿// Job Checklist Tab - Core execution with before/after photos
 
 import { useState, useEffect, useRef } from "react";
 
@@ -1658,7 +1658,9 @@ export function WasherJobChecklist({ job, onChecklistChange, isInProgress }: Was
 
                     </div>
 
-                  ))}
+                  );
+
+                            })}
 
                 </CardContent>
 
