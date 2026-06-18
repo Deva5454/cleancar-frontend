@@ -1,4 +1,5 @@
-﻿/**
+﻿import React from "react";
+/**
  * Supervisor App - Complete Implementation
  * All 8 screens with centralized data and functional buttons
  * Integrated with existing design system

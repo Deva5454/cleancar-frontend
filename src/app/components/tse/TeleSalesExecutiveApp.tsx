@@ -1,4 +1,5 @@
-﻿/**
+﻿import React from "react";
+/**
  * Tele Sales Executive (TSE) - Main Application
  * Web-only interface for sales execution and lead conversion
  *

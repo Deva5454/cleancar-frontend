@@ -1,3 +1,4 @@
+﻿import React from "react";
 import * as React from "react";
 
 interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
