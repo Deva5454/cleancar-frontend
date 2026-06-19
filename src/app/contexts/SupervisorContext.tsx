@@ -429,6 +429,19 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             actionUrl: `/supervisor-app/team`,
           });
         }
+        if (m.status === "NOT_YET") {
+          realAlerts.push({
+            id: `ALERT-NOCHECKIN-${m.id}`,
+            type: "NO_CHECKIN_DELAY",
+            priority: "HIGH",
+            washerId: m.id,
+            washerName: m.name,
+            message: `${m.name} has not checked in yet`,
+            timestamp: new Date(),
+            isRead: false,
+            actionUrl: `/supervisor-app/team`,
+          });
+        }
         if (m.auditStatus === "OVERDUE" || m.auditStatus === "DUE") {
           realAlerts.push({
             id: `ALERT-AUDIT-${m.id}`,
