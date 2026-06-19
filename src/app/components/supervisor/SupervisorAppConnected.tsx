@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 /**
  * Supervisor App - Complete Implementation
  * All 8 screens with centralized data and functional buttons
@@ -84,7 +84,7 @@ export function SupervisorAppConnected() {
     assignJobToWasher,
   } = useSupervisor() as any;
 
-  // URL is source of truth â€” derived via useMemo, not useState
+  // URL is source of truth — derived via useMemo, not useState
   // SCREEN_TO_PATH and PATH_TO_SCREEN defined below
   // Offline detection for field supervisors
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -150,13 +150,13 @@ export function SupervisorAppConnected() {
   };
 
   const handleTabChange = (value: string) => {
-    // URL is source of truth â€” just navigate, useMemo derives currentScreen
+    // URL is source of truth — just navigate, useMemo derives currentScreen
     navigate(SCREEN_TO_PATH[value] ?? "/supervisor-app", { replace: true });
   };
 
   const handleViewWasherDetails = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    // Navigate to Team tab — washer cards are visible there
+    // Navigate to Team tab � washer cards are visible there
     navigate(SCREEN_TO_PATH["team"] ?? "/supervisor-app/team");
     if (washer) toast.info(`Viewing ${washer.name} on Team tab`);
   };
@@ -193,12 +193,12 @@ export function SupervisorAppConnected() {
 
   const handleMarkAttendance = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("mark_attendance", `Mark Attendance — ${washer?.name || washerId}`, [
+    openEscalationModal("mark_attendance", `Mark Attendance � ${washer?.name || washerId}`, [
       { key: "status", label: "Attendance status", type: "select", options: ["Present", "Late", "Absent", "Half Day"] },
       { key: "reason", label: "Reason / notes (optional)" },
     ], (data) => {
       if (data.status) {
-        toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " — " + data.reason : ""}`);
+        toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " � " + data.reason : ""}`);
       }
       setEscalationModal(null);
     });
@@ -227,13 +227,13 @@ export function SupervisorAppConnected() {
 
   const handleRequestOverride = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("request_override", `Attendance Override — ${washer?.name || washerId}`, [
+    openEscalationModal("request_override", `Attendance Override � ${washer?.name || washerId}`, [
       { key: "overrideType", label: "Override type", type: "select", options: ["Mark Present", "Mark Late", "Excuse Absence", "Adjust Check-in Time"] },
       { key: "reason", label: "Reason for override (required for manager approval)" },
     ], (data) => {
       if (data.overrideType && data.reason) {
-        escalationService.requestAttendanceOverride(washerId, data.reason, "", currentUser?.employeeId || "SUP-001");
-        toast.success(`Override request submitted for ${washer?.name || washerId} — ${data.overrideType}. Pending manager approval.`);
+        escalationService.requestAttendanceOverride(washerId, data.reason, "", currentUser?.employeeId || "EDB-SUP-SUR1");
+        toast.success(`Override request submitted for ${washer?.name || washerId} � ${data.overrideType}. Pending manager approval.`);
       }
       setEscalationModal(null);
     });
@@ -241,12 +241,12 @@ export function SupervisorAppConnected() {
 
   const handleSubmitIncident = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("incident", `Incident Report — ${washer?.name || washerId}`, [
+    openEscalationModal("incident", `Incident Report � ${washer?.name || washerId}`, [
       { key: "type", label: "Incident type", type: "select", options: ["Equipment damage", "Customer complaint", "Safety issue", "Quality issue", "Other"] },
       { key: "description", label: "Description of incident" },
     ], (data) => {
       if (data.type && data.description) {
-        escalationService.escalateVehicleDamage(washerId, data.type, "", data.description, currentUser?.employeeId || "SUP-001");
+        escalationService.escalateVehicleDamage(washerId, data.type, "", data.description, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.warning(`Incident report submitted for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -255,7 +255,7 @@ export function SupervisorAppConnected() {
 
   const handleAddNote = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("add_note", `Add Note — ${washer?.name || washerId}`, [
+    openEscalationModal("add_note", `Add Note � ${washer?.name || washerId}`, [
       { key: "category", label: "Category", type: "select", options: ["Performance", "Attendance", "Behaviour", "Quality", "General"] },
       { key: "note", label: "Note" },
     ], (data) => {
@@ -266,7 +266,7 @@ export function SupervisorAppConnected() {
     });
   };
 
-  // â”€â”€ Escalation modal state (replaces prompt/confirm) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Escalation modal state (replaces prompt/confirm) ──────────────────────
   const [escalationModal, setEscalationModal] = useState<{
     type: string;
     title: string;
@@ -318,7 +318,7 @@ export function SupervisorAppConnected() {
         .map(([name, cars]) => `${name}: ${cars.join(", ")}`)
         .join("\n");
 
-      toast.success(`âœ… Car Auto-Assignment Completed\n\nAbsent Washer: ${selectedAbsentWasher?.name}\nTotal Cars Reassigned: ${assignments.length}\n\nNew Assignments:\n${summaryText}\n\nIn production: This would update the database and notify assigned washers.`);
+      toast.success(`✅ Car Auto-Assignment Completed\n\nAbsent Washer: ${selectedAbsentWasher?.name}\nTotal Cars Reassigned: ${assignments.length}\n\nNew Assignments:\n${summaryText}\n\nIn production: This would update the database and notify assigned washers.`);
     }
   };
 
@@ -333,7 +333,7 @@ export function SupervisorAppConnected() {
     if (washerJobs.length > 0) {
       return washerJobs.map((j: any) => ({
         carId: j.jobId,
-        carName: `${j.packageName || "Wash"} â€” ${j.vehicleDetails?.registration || j.customerId}`,
+        carName: `${j.packageName || "Wash"} — ${j.vehicleDetails?.registration || j.customerId}`,
         location: j.serviceDetails?.area || j.cityId || "Surat",
       }));
     }
@@ -416,7 +416,7 @@ export function SupervisorAppConnected() {
               subscriptionStartDate: today,
             }))
           : mockWasherDataService.getTodayJobs(absentWasher.id, 8);
-        // Include any active washer — not just CHECKED_IN (covers GAP shift)
+        // Include any active washer � not just CHECKED_IN (covers GAP shift)
         const PINCODE_GPS: Record<string, { lat: number; lng: number }> = {
           "395001": { lat: 21.1959, lng: 72.8302 },
           "395007": { lat: 21.1384, lng: 72.7842 },
@@ -514,7 +514,7 @@ export function SupervisorAppConnected() {
 
     // Visual feedback
     if (typeof window !== 'undefined' && fromWasher && toWasher) {
-      toast.success(`âœ… Cover Reassignment Successful\n\nReassigned ${units.toFixed(1)} units\nFrom: ${fromWasher.name}\nTo: ${toWasher.name}\n\nIn production: Notifications would be sent to both washers.`);
+      toast.success(`✅ Cover Reassignment Successful\n\nReassigned ${units.toFixed(1)} units\nFrom: ${fromWasher.name}\nTo: ${toWasher.name}\n\nIn production: Notifications would be sent to both washers.`);
     }
   };
 
@@ -544,7 +544,7 @@ export function SupervisorAppConnected() {
     }
     const affected = coverPlan.absentWasher.jobs.length;
     const unassigned = coverPlan.unassignedUnits;
-    openEscalationModal("adjust_allocation", `Adjust Allocation — ${coverPlan.absentWasher.name} Absent`, [
+    openEscalationModal("adjust_allocation", `Adjust Allocation � ${coverPlan.absentWasher.name} Absent`, [
       { key: "action", label: "Action", type: "select", options: [
         "Postpone affected washes to tomorrow",
         "Redistribute to part-time washers",
@@ -561,7 +561,7 @@ export function SupervisorAppConnected() {
           const existing = JSON.parse(localStorage.getItem(key) || "[]");
           existing.push({
             id: `ALLOC-${Date.now()}`,
-            supervisorId: currentUser?.employeeId || "SUP-001",
+            supervisorId: currentUser?.employeeId || "EDB-SUP-SUR1",
             absentWasherId: coverPlan.absentWasher.id,
             absentWasherName: coverPlan.absentWasher.name,
             action: data.action,
@@ -579,10 +579,10 @@ export function SupervisorAppConnected() {
 
   // Field audit handlers
   const [auditWashers, setAuditWashers] = useState(() => 
-    fieldAuditService.getAuditWashers("SUP-001")
+    fieldAuditService.getAuditWashers("EDB-SUP-SUR1")
   );
   const [auditSummary, setAuditSummary] = useState(() => 
-    fieldAuditService.getAuditSummary("SUP-001")
+    fieldAuditService.getAuditSummary("EDB-SUP-SUR1")
   );
   const [auditFlow, setAuditFlow] = useState<{
     active: boolean;
@@ -636,7 +636,7 @@ export function SupervisorAppConnected() {
       gpsDistance: gpsValidation.distanceMeters,
       packageType: detectedPackage,
     });
-    // Stay on audit tab — AuditFlowScreen renders inline when auditFlow is set
+    // Stay on audit tab � AuditFlowScreen renders inline when auditFlow is set
     navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app/audit");
   };
 
@@ -666,7 +666,7 @@ export function SupervisorAppConnected() {
     // If new enhanced submission format received, use it directly
     if (enhancedSubmission && enhancedSubmission.score !== undefined) {
       const { score, result, flags, washerId, washerName } = enhancedSubmission;
-      toast.success(`Audit submitted — ${score}/100 (${result})`);
+      toast.success(`Audit submitted � ${score}/100 (${result})`);
       if (flags?.length > 0) {
         toast.warning(`${flags.length} flag(s) recorded`);
       }
@@ -691,23 +691,23 @@ export function SupervisorAppConnected() {
     setAuditResult(null);
     navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app");
     // Refresh audit list
-    setAuditWashers(fieldAuditService.getAuditWashers("SUP-001"));
-    setAuditSummary(fieldAuditService.getAuditSummary("SUP-001"));
+    setAuditWashers(fieldAuditService.getAuditWashers("EDB-SUP-SUR1"));
+    setAuditSummary(fieldAuditService.getAuditSummary("EDB-SUP-SUR1"));
   };
 
   // Incentive tracker
-  const [incentiveDashboard] = useState(() =>
-    supervisorIncentiveService.getIncentiveDashboard("SUP-001")
+  const [incentiveDashboard, setIncentiveDashboard] = useState(() =>
+    supervisorIncentiveService.getIncentiveDashboard("EDB-SUP-SUR1")
   );
 
   // BTL Lead handlers
-  const [leadMetrics] = useState(() => {
-    const metrics = btlLeadService.getSupervisorMetrics("SUP-001");
+  const [leadMetrics, setLeadMetrics] = useState(() => {
+    const metrics = btlLeadService.getSupervisorMetrics("EDB-SUP-SUR1");
     return metrics;
   });
   const [selectedPipeline, setSelectedPipeline] = useState<{ lead: any; pipeline: any[] } | null>(null);
   const [btlLeads, setBtlLeads] = useState(() => {
-    const leads = btlLeadService.getSupervisorLeadsWithTracking("SUP-001");
+    const leads = btlLeadService.getSupervisorLeadsWithTracking("EDB-SUP-SUR1");
     return leads;
   });
 
@@ -726,11 +726,11 @@ export function SupervisorAppConnected() {
       location,
       interestLevel,
       gpsLocation,
-      "SUP-001",
+      "EDB-SUP-SUR1",
       "Supervisor 1"
     );
     // Refresh leads list
-    setBtlLeads(btlLeadService.getSupervisorLeadsWithTracking("SUP-001"));
+    setBtlLeads(btlLeadService.getSupervisorLeadsWithTracking("EDB-SUP-SUR1"));
   };
 
   const handleViewPipeline = (leadId: string) => {
@@ -747,18 +747,18 @@ export function SupervisorAppConnected() {
 
   // Lead notifications
   const [leadNotifications, setLeadNotifications] = useState(() =>
-    leadNotificationService.getNotifications("SUP-001")
+    leadNotificationService.getNotifications("EDB-SUP-SUR1")
   );
   const [unreadLeadNotificationsCount, setUnreadLeadNotificationsCount] = useState(() =>
-    leadNotificationService.getUnreadCount("SUP-001")
+    leadNotificationService.getUnreadCount("EDB-SUP-SUR1")
   );
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Subscribe to real-time lead notifications
   useEffect(() => {
-    const unsubscribe = leadNotificationService.subscribe("SUP-001", (notification) => {
-      setLeadNotifications(leadNotificationService.getNotifications("SUP-001"));
-      setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("SUP-001"));
+    const unsubscribe = leadNotificationService.subscribe("EDB-SUP-SUR1", (notification) => {
+      setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
+      setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("EDB-SUP-SUR1"));
     });
 
     return () => unsubscribe();
@@ -766,20 +766,20 @@ export function SupervisorAppConnected() {
 
   const handleNotificationClick = (notificationId: string) => {
     leadNotificationService.markAsRead(notificationId);
-    setLeadNotifications(leadNotificationService.getNotifications("SUP-001"));
-    setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("SUP-001"));
+    setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
+    setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("EDB-SUP-SUR1"));
   };
 
   const handleMarkAllNotificationsRead = () => {
-    leadNotificationService.markAllAsRead("SUP-001");
-    setLeadNotifications(leadNotificationService.getNotifications("SUP-001"));
+    leadNotificationService.markAllAsRead("EDB-SUP-SUR1");
+    setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
     setUnreadLeadNotificationsCount(0);
   };
 
   // Escalation handlers
-  const [escalationIssues] = useState(() => escalationService.getIssues("SUP-001"));
-  const [escalationSummary] = useState(() =>
-    escalationService.getEscalationSummary("SUP-001")
+  const [escalationIssues, setEscalationIssues] = useState(() => escalationService.getIssues("EDB-SUP-SUR1"));
+  const [escalationSummary, setEscalationSummary] = useState(() =>
+    escalationService.getEscalationSummary("EDB-SUP-SUR1")
   );
 
   const handleManualAttendanceOverride = () => {
@@ -790,7 +790,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.reason) {
-        escalationService.requestAttendanceOverride(washer.id, data.reason, "", currentUser?.employeeId || "SUP-001");
+        escalationService.requestAttendanceOverride(washer.id, data.reason, "", currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success(`Attendance override submitted for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -799,11 +799,11 @@ export function SupervisorAppConnected() {
 
   const handleForceEarlyCheckout = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
-    openEscalationModal("force_checkout", `Force Early Checkout â€” ${washer?.name || washerId}`, [
+    openEscalationModal("force_checkout", `Force Early Checkout — ${washer?.name || washerId}`, [
       { key: "reason", label: "Reason for early checkout" },
     ], (data) => {
       if (data.reason) {
-        escalationService.forceEarlyCheckOut(washerId, currentUser?.employeeId || "SUP-001");
+        escalationService.forceEarlyCheckOut(washerId, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success(`Early checkout processed for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -811,7 +811,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleReassignCoverFromEscalation = () => {
-    // Navigate to cover tab — escalationService.navigateToCoverReassignment() removed (method does not exist)
+    // Navigate to cover tab � escalationService.navigateToCoverReassignment() removed (method does not exist)
     if (location.pathname === "/supervisor-app/cover") {
       navigate("/supervisor-app/dashboard", { replace: true });
       setTimeout(() => navigate("/supervisor-app/cover"), 50);
@@ -822,11 +822,11 @@ export function SupervisorAppConnected() {
 
   const handlePauseWasherSchedule = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
-    openEscalationModal("pause_schedule", `Pause Schedule â€” ${washer?.name || washerId}`, [
+    openEscalationModal("pause_schedule", `Pause Schedule — ${washer?.name || washerId}`, [
       { key: "reason", label: "Reason for pausing schedule" },
     ], (data) => {
       if (data.reason) {
-        escalationService.pauseWasherSchedule(washerId, data.reason, currentUser?.employeeId || "SUP-001");
+        escalationService.pauseWasherSchedule(washerId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success(`Schedule paused for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -841,7 +841,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.vehicleDetails && data.notes) {
-        escalationService.escalateVehicleDamage(washer.id, data.vehicleDetails, "", data.notes, currentUser?.employeeId || "SUP-001");
+        escalationService.escalateVehicleDamage(washer.id, data.vehicleDetails, "", data.notes, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.warning(`Vehicle damage escalation submitted for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -849,11 +849,11 @@ export function SupervisorAppConnected() {
   };
 
   const handleSOSAlert = () => {
-    openEscalationModal("sos", "ðŸ”´ SOS Safety Alert", [
+    openEscalationModal("sos", "🔴 SOS Safety Alert", [
       { key: "situation", label: "Describe the emergency situation" },
     ], (data) => {
       if (data.situation) {
-        escalationService.triggerSOSAlert(currentUser?.employeeId || "SUP-001", { lat: 21.1702, lng: 72.8311 }, data.situation);
+        escalationService.triggerSOSAlert(currentUser?.employeeId || "EDB-SUP-SUR1", { lat: 21.1702, lng: 72.8311 }, data.situation);
         toast.error(`SOS Alert triggered. All managers notified.`);
       }
       setEscalationModal(null);
@@ -866,7 +866,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason / supporting details" },
     ], (data) => {
       if (data.caseType && data.reason) {
-        escalationService.requestIncentiveOverride(data.caseType, data.reason, currentUser?.employeeId || "SUP-001");
+        escalationService.requestIncentiveOverride(data.caseType, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success("Incentive override request submitted to Finance");
       }
       setEscalationModal(null);
@@ -882,7 +882,7 @@ export function SupervisorAppConnected() {
       const fromW = team.find(w => w.name === data.fromWasherName);
       const toW   = team.find(w => w.name === data.toWasherName);
       if (fromW && toW && data.reason) {
-        escalationService.reassignCar("JOB", fromW.id, toW.id, data.reason, currentUser?.employeeId || "SUP-001");
+        escalationService.reassignCar("JOB", fromW.id, toW.id, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success(`Car reassigned from ${fromW.name} to ${toW.name}`);
       }
       setEscalationModal(null);
@@ -897,7 +897,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.batchId && data.reason) {
-        escalationService.invalidateBatch(washer.id, data.batchId, data.reason, currentUser?.employeeId || "SUP-001");
+        escalationService.invalidateBatch(washer.id, data.batchId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.warning(`Batch ${data.batchId} invalidated for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -909,7 +909,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Escalation reason" },
     ], (data) => {
       if (data.reason) {
-        escalationService.escalateToOpsManager(issueId, data.reason, currentUser?.employeeId || "SUP-001");
+        escalationService.escalateToOpsManager(issueId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.info("Escalated to Operations Manager");
       }
       setEscalationModal(null);
@@ -917,7 +917,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleMarkIssueInProgress = (issueId: string) => {
-    escalationService.markInProgress(issueId, "SUP-001");
+    escalationService.markInProgress(issueId, "EDB-SUP-SUR1");
   };
 
   const handleResolveEscalationIssue = (issueId: string) => {
@@ -925,7 +925,7 @@ export function SupervisorAppConnected() {
       { key: "resolution", label: "Resolution notes" },
     ], (data) => {
       if (data.resolution) {
-        escalationService.resolveIssue(issueId, data.resolution, currentUser?.employeeId || "SUP-001");
+        escalationService.resolveIssue(issueId, data.resolution, currentUser?.employeeId || "EDB-SUP-SUR1");
         toast.success("Issue resolved");
       }
       setEscalationModal(null);
@@ -933,8 +933,8 @@ export function SupervisorAppConnected() {
   };
 
   // Alert system handlers
-  const [systemAlerts] = useState(() => alertService.getAlerts("SUP-001"));
-  const [alertSummary] = useState(() => alertService.getAlertSummary("SUP-001"));
+  const [systemAlerts, setSystemAlerts] = useState(() => alertService.getAlerts("EDB-SUP-SUR1"));
+  const [alertSummary, setAlertSummary] = useState(() => alertService.getAlertSummary("EDB-SUP-SUR1"));
 
   const handleReassignFromAlert = (washerId?: string) => {
     // If already on cover tab, navigate away then back to force re-render
@@ -967,7 +967,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Escalation reason" },
     ], (data) => {
       if (data.reason) {
-        alertService.escalateAlert(alertId, currentUser?.employeeId || "SUP-001", data.reason);
+        alertService.escalateAlert(alertId, currentUser?.employeeId || "EDB-SUP-SUR1", data.reason);
         toast.info("Alert escalated to Ops Manager");
       }
       setEscalationModal(null);
@@ -976,21 +976,21 @@ export function SupervisorAppConnected() {
 
   const handleMarkPresentFromAlert = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
-    alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "SUP-001");
-    alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "SUP-001");
+    alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
+    alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
     toast.success(`${washer?.name || washerId} marked as PRESENT`);
   };
 
   const handleMarkAbsentFromAlert = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
     const washerName = washer?.name || washerId;
-    openEscalationModal("mark_absent_alert", `Mark Absent — ${washerName}`, [
+    openEscalationModal("mark_absent_alert", `Mark Absent � ${washerName}`, [
       { key: "reason", label: "Reason for absence", type: "select", options: ["Not reachable", "Personal emergency", "Sick leave", "No show", "Other"] },
     ], (data) => {
       if (data.reason) {
-        alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "SUP-001");
-        alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "SUP-001");
-        toast.success(`${washerName} marked ABSENT — ${data.reason}. Cover redistribution initiated.`);
+        alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
+        alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
+        toast.success(`${washerName} marked ABSENT � ${data.reason}. Cover redistribution initiated.`);
       }
       setEscalationModal(null);
     });
@@ -1000,25 +1000,25 @@ export function SupervisorAppConnected() {
     openEscalationModal("resolve_alert", "Resolve Alert", [
       { key: "notes", label: "Resolution notes (optional)" },
     ], (data) => {
-      alertService.resolveAlert(alertId, currentUser?.employeeId || "SUP-001", data.notes || undefined);
+      alertService.resolveAlert(alertId, currentUser?.employeeId || "EDB-SUP-SUR1", data.notes || undefined);
       toast.success("Alert resolved");
       setEscalationModal(null);
     });
   };
 
   // Hierarchy visibility handlers
-  const [performanceData] = useState(() =>
-    hierarchyVisibilityService.getSupervisorPerformance("SUP-001")
+  const [performanceData, setPerformanceData] = useState(() =>
+    hierarchyVisibilityService.getSupervisorPerformance("EDB-SUP-SUR1")
   );
-  const [dataVisibilityMap] = useState(() =>
+  const [dataVisibilityMap, setDataVisibilityMap] = useState(() =>
     hierarchyVisibilityService.getDataVisibilityMap()
   );
-  const [hierarchyViews] = useState(() => hierarchyVisibilityService.getHierarchyViews());
-  const [kpiComparison] = useState(() =>
-    hierarchyVisibilityService.getKPIComparison("SUP-001")
+  const [hierarchyViews, setHierarchyViews] = useState(() => hierarchyVisibilityService.getHierarchyViews());
+  const [kpiComparison, setKpiComparison] = useState(() =>
+    hierarchyVisibilityService.getKPIComparison("EDB-SUP-SUR1")
   );
-  const [escalationVisibility] = useState(() =>
-    hierarchyVisibilityService.getEscalationVisibility("SUP-001")
+  const [escalationVisibility, setEscalationVisibility] = useState(() =>
+    hierarchyVisibilityService.getEscalationVisibility("EDB-SUP-SUR1")
   );
 
   // Audit trail handlers
@@ -1047,25 +1047,47 @@ export function SupervisorAppConnected() {
   };
 
   // Daily flow handlers
-  const [dailyFlowData] = useState(() => dailyFlowService.getDailyFlow("SUP-001"));
-  const [dailyFlowSummary] = useState(() => dailyFlowService.getDailyFlowSummary("SUP-001"));
+  const [dailyFlowData, setDailyFlowData] = useState(() => dailyFlowService.getDailyFlow("EDB-SUP-SUR1"));
+  const [dailyFlowSummary, setDailyFlowSummary] = useState(() => dailyFlowService.getDailyFlowSummary("EDB-SUP-SUR1"));
 
   // KPI dashboard handlers
-  const [kpiDashboardData] = useState(() => kpiDashboardService.getKPIDashboard("SUP-001"));
+  const [kpiDashboardData, setKpiDashboardData] = useState(() => kpiDashboardService.getKPIDashboard("EDB-SUP-SUR1"));
+
+  useEffect(() => {
+    const sid = currentUser?.employeeId;
+    if (!sid) return;
+    setIncentiveDashboard(supervisorIncentiveService.getIncentiveDashboard(sid));
+    setLeadMetrics(btlLeadService.getSupervisorMetrics(sid));
+    setBtlLeads(btlLeadService.getSupervisorLeadsWithTracking(sid));
+    setEscalationIssues(escalationService.getIssues(sid));
+    setEscalationSummary(escalationService.getEscalationSummary(sid));
+    setSystemAlerts(alertService.getAlerts(sid));
+    setAlertSummary(alertService.getAlertSummary(sid));
+    setPerformanceData(hierarchyVisibilityService.getSupervisorPerformance(sid));
+    setDataVisibilityMap(hierarchyVisibilityService.getDataVisibilityMap());
+    setHierarchyViews(hierarchyVisibilityService.getHierarchyViews());
+    setKpiComparison(hierarchyVisibilityService.getKPIComparison(sid));
+    setEscalationVisibility(hierarchyVisibilityService.getEscalationVisibility(sid));
+    setDailyFlowData(dailyFlowService.getDailyFlow(sid));
+    setDailyFlowSummary(dailyFlowService.getDailyFlowSummary(sid));
+    setKpiDashboardData(kpiDashboardService.getKPIDashboard(sid));
+    setAuditWashers(fieldAuditService.getAuditWashers(sid));
+    setAuditSummary(fieldAuditService.getAuditSummary(sid));
+  }, [currentUser?.employeeId]);
 
   // Cloth management handlers
   const clothInventory = clothManagementService.getInventorySummary(clothBatches, 15);
 
   const handleDispatchToHO = (clothCount: number, transportMode: string, courierDetails?: string) => {
-    clothManagementService.dispatchToHO(clothCount, transportMode, "SUP-001", courierDetails);
+    clothManagementService.dispatchToHO(clothCount, transportMode, "EDB-SUP-SUR1", courierDetails);
   };
 
   const handleReportLossDamage = (washerId: string, clothCount: number, reason: string, photoUrl?: string) => {
-    clothManagementService.reportLossDamage(washerId, clothCount, reason, photoUrl, "SUP-001");
+    clothManagementService.reportLossDamage(washerId, clothCount, reason, photoUrl, "EDB-SUP-SUR1");
   };
 
   const handleRequestStock = (batchesNeeded: number, urgency: "NORMAL" | "URGENT") => {
-    clothManagementService.requestStock(batchesNeeded, urgency, "SUP-001");
+    clothManagementService.requestStock(batchesNeeded, urgency, "EDB-SUP-SUR1");
   };
 
   if (isLoading) {
@@ -1074,7 +1096,7 @@ export function SupervisorAppConnected() {
       {/* Offline indicator for field supervisors */}
       {!isOnline && (
         <div className="bg-amber-500 text-white text-center text-xs py-1.5 px-3 font-medium">
-          âš  You are offline â€” changes will sync when connection is restored
+          ⚠ You are offline — changes will sync when connection is restored
         </div>
       )}
         <p className="text-gray-600">Loading supervisor data...</p>
@@ -1087,7 +1109,7 @@ export function SupervisorAppConnected() {
       {/* DEV ONLY: Debug display showing logged-in user */}
       {import.meta.env.DEV && currentUser.employeeId && (
         <div className="fixed top-0 right-0 z-50 m-2 px-3 py-1 bg-purple-600 text-white text-xs rounded-full shadow-lg">
-          ðŸ‘¤ {currentUser.name} ({currentUser.employeeId})
+          👤 {currentUser.name} ({currentUser.employeeId})
         </div>
       )}
 
@@ -1098,7 +1120,7 @@ export function SupervisorAppConnected() {
             <div>
               <h1 className="text-lg font-bold text-gray-900">Supervisor App</h1>
               <p className="text-xs text-gray-600">
-                Shift {currentShift} â€¢ {team.length} washers
+                Shift {currentShift} • {team.length} washers
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1285,7 +1307,7 @@ export function SupervisorAppConnected() {
               onCashDeposit={() => setShowCashDeposit(true)}
             />
 
-            {/* Unassigned Jobs â€” quick assign panel */}
+            {/* Unassigned Jobs — quick assign panel */}
             {(() => {
               const today = new Date().toISOString().split("T")[0];
               const unassigned = (jobs || []).filter((j: any) =>
@@ -1296,7 +1318,7 @@ export function SupervisorAppConnected() {
                 <div className="mt-4 px-1">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-gray-800">
-                      âš ï¸ {unassigned.length} Unassigned Job{unassigned.length > 1 ? "s" : ""} Today
+                      ⚠️ {unassigned.length} Unassigned Job{unassigned.length > 1 ? "s" : ""} Today
                     </h3>
                   </div>
                   <div className="space-y-2">
@@ -1307,12 +1329,12 @@ export function SupervisorAppConnected() {
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-semibold text-gray-900">{j.packageName}</p>
                               {j.isComplimentary && (
-                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">ðŸï¸ COMP 2W</span>
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">🏍️ COMP 2W</span>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500">{j.customerName || j.customerId} Â· {j.timeSlot} Â· {j.vehicleDetails?.registration || ""}</p>
+                            <p className="text-xs text-gray-500">{j.customerName || j.customerId} · {j.timeSlot} · {j.vehicleDetails?.registration || ""}</p>
                             {j.isComplimentary && (
-                              <p className="text-xs text-purple-600 font-medium">Free 2W wash Â· Linked 4W: {j.vehicle4WReg || "see offer"} Â· Cost â†’ Marketing Expense</p>
+                              <p className="text-xs text-purple-600 font-medium">Free 2W wash · Linked 4W: {j.vehicle4WReg || "see offer"} · Cost → Marketing Expense</p>
                             )}
                             <p className="text-xs text-gray-400">{j.serviceDetails?.area || j.cityId || "Surat"}</p>
                           </div>
@@ -1327,7 +1349,7 @@ export function SupervisorAppConnected() {
                             >
                               <option value="">Select washer...</option>
                               {(() => {
-                                // Rank washers: (1) pincode match â†’ (2) idle (no active jobs) â†’ (3) fewest active jobs
+                                // Rank washers: (1) pincode match → (2) idle (no active jobs) → (3) fewest active jobs
                                 const activeWashers = team.filter((w: any) => w.status === "CHECKED_IN" || w.status === "LATE");
                                 const jobPinCode = (j.pinCode || j.serviceDetails?.area || "").toLowerCase();
                                 const ranked = [...activeWashers].sort((a: any, b: any) => {
@@ -1345,7 +1367,7 @@ export function SupervisorAppConnected() {
                                   const pinMatch = jobPinCode && (w.pinCode||w.area||"").toLowerCase().includes(jobPinCode.slice(0,4));
                                   return (
                                     <option key={w.id} value={w.id}>
-                                      {pinMatch ? "ðŸ“ " : ""}{w.name} ({activeCount} active{activeCount === 0 ? " â€” idle" : ""})
+                                      {pinMatch ? "📍 " : ""}{w.name} ({activeCount} active{activeCount === 0 ? " — idle" : ""})
                                     </option>
                                   );
                                 });
@@ -1369,7 +1391,7 @@ export function SupervisorAppConnected() {
                             <button
                               onClick={() => { setAssigningJobId(null); setAssignWasherId(""); }}
                               className="px-2 py-1.5 border border-gray-300 text-xs rounded-lg"
-                            >âœ•</button>
+                            >✕</button>
                           </div>
                         ) : (
                           <button
@@ -1563,7 +1585,7 @@ export function SupervisorAppConnected() {
         </Tabs>
       </div>
 
-      {/* Escalation Action Modal â€” replaces all prompt()/confirm() */}
+      {/* Escalation Action Modal — replaces all prompt()/confirm() */}
       {escalationModal && (
         <div style={{position:"fixed",inset:0,zIndex:10001,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
           <div style={{background:"white",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"440px",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
@@ -1649,7 +1671,7 @@ export function SupervisorAppConnected() {
       {showCashDeposit && (
         <div style={{position:"fixed",inset:0,zIndex:9999,background:"white",overflowY:"auto"}}>
           <CashDepositScreen
-            supervisorId={currentUser?.employeeId || "SUP-001"}
+            supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"}
             supervisorName={currentUser?.name || "Supervisor"}
             cityId="CITY-SURAT"
             onBack={() => setShowCashDeposit(false)}
