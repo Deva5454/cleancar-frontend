@@ -1519,7 +1519,7 @@ export function SupervisorAppConnected() {
           {/* MODULE 7: Alert Center */}
           <TabsContent value="alerts" className="mt-0">
             <AlertCenterScreen
-              alerts={systemAlerts}
+              alerts={alerts}
               summary={alertSummary}
               onCallWasher={handleCallWasher}
               onReassign={handleReassignFromAlert}
