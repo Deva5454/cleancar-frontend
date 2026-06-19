@@ -198,6 +198,25 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason / notes (optional)" },
     ], (data) => {
       if (data.status) {
+        try {
+          const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+          const today = new Date().toISOString().split("T")[0];
+          const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
+          filtered.push({
+            attendanceId: `ATT-${washerId}-${today}-MANUAL`,
+            employeeId: washerId,
+            cityId: "CITY-SURAT",
+            date: today,
+            status: data.status,
+            checkInTime: new Date().toTimeString().slice(0, 8),
+            lateMinutes: data.status === "Late" ? 15 : 0,
+            manualOverride: true,
+            overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+            overrideReason: data.reason || "",
+          });
+          localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+          refreshData();
+        } catch (_) {}
         toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " — " + data.reason : ""}`);
       }
       setEscalationModal(null);
@@ -988,9 +1007,25 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason for absence", type: "select", options: ["Not reachable", "Personal emergency", "Sick leave", "No show", "Other"] },
     ], (data) => {
       if (data.reason) {
+        try {
+          const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+          const today = new Date().toISOString().split("T")[0];
+          const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
+          filtered.push({
+            attendanceId: `ATT-${washerId}-${today}-MANUAL`,
+            employeeId: washerId,
+            cityId: "CITY-SURAT",
+            date: today,
+            status: "Absent",
+            manualOverride: true,
+            overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+            overrideReason: data.reason,
+          });
+          localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+          refreshData();
+        } catch (_) {}
         alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
-        alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
-        toast.success(`${washerName} marked ABSENT — ${data.reason}. Cover redistribution initiated.`);
+        toast.success(`${washerName} marked ABSENT — ${data.reason}`);
       }
       setEscalationModal(null);
     });
