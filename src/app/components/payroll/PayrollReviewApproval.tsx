@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿﻿﻿﻿﻿﻿import { useNavigate } from "react-router-dom";
 /**
  * Payroll Review & Approval - Enhanced with Finance Integration
  *
@@ -38,6 +38,9 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { ConfirmationModal } from "../shared/ConfirmationModal";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { usePayroll } from "../../contexts/PayrollContext";
+import { useRole } from "../../contexts/RoleContext";
+import { getStatusDisplay } from "../../utils/payrollWorkflow";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -186,7 +189,18 @@ export function PayrollReviewApproval() {
     employerESIC: 0,
     employerLWF: 0,
   });
-  const [status, setStatus] = useState<PayrollRunStatus>("draft");
+  const { payrollRuns, getPayrollForMonth, sendToReview, approvePayroll } = usePayroll();
+  const { currentUser } = useRole();
+  const currentMonthKey = "2026-04";
+  const monthRuns = getPayrollForMonth ? getPayrollForMonth(currentMonthKey) : [];
+  const activeRun = monthRuns && monthRuns.length > 0 ? monthRuns[0] : null;
+  // status is now derived from the real PayrollContext run when one exists for this month,
+  // falling back to local draft state only if no real run has been created yet.
+  const [localStatus, setLocalStatus] = useState<PayrollRunStatus>("draft");
+  const status: PayrollRunStatus = activeRun
+    ? (activeRun.status === "under_review" ? "hr_approved" : activeRun.status === "approved" ? "finance_approved" : activeRun.status === "disbursed" ? "paid" : "draft")
+    : localStatus;
+  const setStatus = setLocalStatus; // kept for any remaining local-only display state
   const [isLoading, setIsLoading] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<"hr" | "finance" | null>(null);
@@ -204,9 +218,12 @@ export function PayrollReviewApproval() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // In production: await payrollEngine.hrApprove({ payrollRunId })
-
-      setStatus("hr_approved");
+      if (activeRun && currentUser?.employeeId) {
+        const ok = sendToReview(activeRun.payrollId, currentUser.employeeId);
+        if (!ok) { toast.error("HR approval failed - check role permissions for this status"); return; }
+      } else {
+        setStatus("hr_approved"); // no real run yet (demo/no-data state) - local display only
+      }
       toast.success("Payroll approved by HR");
     } catch (error) {
       toast.error("HR approval failed");
@@ -245,7 +262,15 @@ export function PayrollReviewApproval() {
       //
       // Total Debit: ₹3,910,000 = Total Credit: ₹3,910,000
 
-      setStatus("finance_approved");
+      if (activeRun && currentUser?.employeeId) {
+        const ok = approvePayroll(activeRun.payrollId, currentUser.employeeId);
+        if (!ok) { toast.error("Finance approval failed - check role permissions for this status"); return; }
+        // approvePayroll() internally calls transitionPayroll(), which fires the real
+        // cc360_payroll_approved event that FinanceContext listens to and uses to
+        // create the actual ledger payable - no separate manual step needed here.
+      } else {
+        setStatus("finance_approved"); // no real run yet (demo/no-data state) - local display only
+      }
       toast.success("Finance approved. Aggregated ledger entries created.");
     } catch (error) {
       toast.error("Finance approval failed");
