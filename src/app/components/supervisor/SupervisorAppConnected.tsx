@@ -362,6 +362,8 @@ export function SupervisorAppConnected() {
 
   // Real washer capacity from jobs context
   const getAvailableWashers = () => {
+    const absentMember = team.find((w: any) => w.id === selectedAbsentWasher?.id);
+    const absentGPS = absentMember?.gpsLocation;
     return team
       .filter(w => w.status === "CHECKED_IN" || w.status === "LATE")
       .map(w => {
@@ -371,12 +373,22 @@ export function SupervisorAppConnected() {
           j.scheduledDate === today &&
           ["Assigned", "Acknowledged", "In Progress"].includes(j.status)
         ).length;
+        let distanceKm = 0;
+        if (absentGPS && (w as any).gpsLocation) {
+          const wGPS = (w as any).gpsLocation;
+          distanceKm = Math.round(
+            Math.sqrt(
+              Math.pow((wGPS.lat - absentGPS.lat) * 111, 2) +
+              Math.pow((wGPS.lng - absentGPS.lng) * 111, 2)
+            ) * 10
+          ) / 10;
+        }
         return {
           id: w.id,
           name: w.name,
           currentCars: activeCount,
           maxCapacity: 5,
-          distanceKm: 0,
+          distanceKm,
         };
       });
   };
