@@ -408,6 +408,21 @@ export function SupervisorAppConnected() {
       return;
     }
 
+    // Try loading a previously confirmed cover plan for today before auto-generating a new one
+    if (team && team.length > 0 && !coverPlan && scenario !== "cover") {
+      try {
+        const saved = localStorage.getItem("SUPERVISOR_COVER_PLAN");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const todayStr = new Date().toISOString().split("T")[0];
+          const savedDate = (parsed.generatedAt || "").split("T")[0];
+          if (savedDate === todayStr) {
+            setCoverPlan({ ...parsed, generatedAt: new Date(parsed.generatedAt) });
+            return;
+          }
+        }
+      } catch (_) {}
+    }
     // Default behavior: auto-generate from team data using real absent washer
     if (team && team.length > 0 && !coverPlan && scenario !== "cover") {
       // Priority: LEAVE > ABSENT > first washer with most jobs
@@ -987,8 +1002,24 @@ export function SupervisorAppConnected() {
 
   const handleMarkPresentFromAlert = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
+    try {
+      const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+      const today = new Date().toISOString().split("T")[0];
+      const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
+      filtered.push({
+        attendanceId: `ATT-${washerId}-${today}-MANUAL`,
+        employeeId: washerId,
+        cityId: "CITY-SURAT",
+        date: today,
+        status: "Present",
+        checkInTime: new Date().toTimeString().slice(0, 8),
+        manualOverride: true,
+        overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+      });
+      localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+      refreshData();
+    } catch (_) {}
     alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
-    alertService.markAlertActioned(`ALERT-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
     toast.success(`${washer?.name || washerId} marked as PRESENT`);
   };
 
