@@ -1,4 +1,4 @@
-/**
+﻿﻿/**
  * Washer Data Service - Centralized Data Management
  * Single source of truth for all washer module data
  * NO hardcoded data in components - all through this service
@@ -70,6 +70,7 @@ export interface JobExecution {
   clothBatch?: string;
   photos: JobPhoto[];
   status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  beforeAfterPhotosSentAt?: Date; // tracks whether the standalone before/after WA was already sent
 }
 
 export interface JobStep {
@@ -318,6 +319,12 @@ class WasherDataService {
         step.photoUrl = photo.url;
       }
     }
+  }
+
+  markBeforeAfterPhotosSent(jobId: string): void {
+    const execution = this.getJobExecution(jobId);
+    if (!execution) return;
+    execution.beforeAfterPhotosSentAt = new Date();
   }
 
   markConsumableUsed(jobId: string, consumableId: string): void {

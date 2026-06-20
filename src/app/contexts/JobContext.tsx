@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
  * JobContext - SINGLE SOURCE OF TRUTH for all job/work order data
  * Used across: Operations, Washer App, Supervisor Dashboard, Finance
  */
@@ -1091,17 +1091,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
                   planLabel: job.packageName || "Wash",
                 });
               }
-              // Fix 6: Before/After photos, only if at least one was actually captured
-              if (photoData?.beforePhotoUrl || photoData?.afterPhotoUrl) {
-                ws.sendBeforeAfterPhotos({
-                  customerPhone: cust.phone,
-                  customerName: cust.firstName || "Customer",
-                  planLabel: job.packageName || "Wash",
-                  washerName: job.washerName || "your washer",
-                  beforePhotoUrl: photoData.beforePhotoUrl,
-                  afterPhotoUrl: photoData.afterPhotoUrl,
-                });
-              }
+              // Fix 6b: Before/After WA now sent live from WasherContext.addPhoto() the
+              // moment both photos are submitted, independent of job completion timing.
+              // (Removed the old completion-time send here to avoid sending it twice.)
             });
           }
         } catch {}

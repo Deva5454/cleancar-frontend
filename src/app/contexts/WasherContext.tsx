@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * Washer Context - Centralized State Management
  * Provides global state and actions for the entire washer module
  * Eliminates prop drilling and ensures data consistency
@@ -14,6 +14,7 @@ import { useEvents } from "./EventSystem";
 import { useJobs } from "./JobContext";
 import { logger } from "../services/logger";
 import { washerDataService } from "../services/washerDataService";
+import { DataService } from "../services/DataService";
 import { incentiveEngineService } from "../services/incentiveEngineService";
 import { weekOffCoverService } from "../services/weekOffCoverService";
 import { WasherAttendanceService } from "../services/washerAttendanceService";
@@ -457,6 +458,33 @@ export function WasherProvider({ children }: WasherProviderProps) {
     });
     const updatedExecution = washerDataService.getJobExecution(activeJob.id);
     setJobExecution(updatedExecution);
+
+    // Fix 6b: send the standalone Before/After WA the moment BOTH photos exist,
+    // independent of job completion timing — fires live as soon as the washer
+    // has submitted both pics, not when the whole job is later marked complete.
+    if (updatedExecution && !updatedExecution.beforeAfterPhotosSentAt) {
+      const beforePhoto = updatedExecution.photos?.filter(p => p.type === "BEFORE").slice(-1)[0];
+      const afterPhoto  = updatedExecution.photos?.filter(p => p.type === "AFTER").slice(-1)[0];
+      if (beforePhoto && afterPhoto) {
+        try {
+          const customers = DataService.get<any>("CUSTOMERS");
+          const cust = customers?.find((c: any) => c.customerId === activeJob.customerId);
+          if (cust?.phone) {
+            import("../services/whatsappService").then(ws => {
+              ws.sendBeforeAfterPhotos({
+                customerPhone: cust.phone,
+                customerName: cust.firstName || "Customer",
+                planLabel: (activeJob as any).packageName || "Wash",
+                washerName: profile?.name || washerId,
+                beforePhotoUrl: beforePhoto.url,
+                afterPhotoUrl: afterPhoto.url,
+              });
+            });
+          }
+        } catch {}
+        washerDataService.markBeforeAfterPhotosSent?.(activeJob.id);
+      }
+    }
   };
 
   const markConsumableUsed = (consumableId: string) => {
