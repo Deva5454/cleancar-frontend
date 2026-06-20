@@ -623,14 +623,6 @@ export function SupervisorAppConnected() {
     const washer = auditWashers.find(w => w.id === washerId);
     if (!washer) return;
 
-    const checklist = fieldAuditService.getAuditChecklist("SHAMPOO_WASH");
-    
-    // Simulate GPS validation
-    const gpsValidation = fieldAuditService.validateGPS(
-      { lat: 21.1702, lng: 72.8311 },
-      washer.currentLocation || { lat: 21.1702, lng: 72.8311 }
-    );
-
     // Determine package type from the washer's current job
     const today = new Date().toISOString().split("T")[0];
     const washerJob = (jobs || []).find((j: any) =>
@@ -649,10 +641,10 @@ export function SupervisorAppConnected() {
       washerName: washer.name,
       washerGPS: teamMember?.gpsLocation || washer.currentLocation || null,
       washerSelfieUrl: teamMember?.selfieUrl || washer.selfieUrl || null,
-      checklist,
+      checklist: [],
       photos: 0,
-      gpsValid: gpsValidation.isValid,
-      gpsDistance: gpsValidation.distanceMeters,
+      gpsValid: true,
+      gpsDistance: 0,
       packageType: detectedPackage,
     });
     // Stay on audit tab — AuditFlowScreen renders inline when auditFlow is set
@@ -1463,33 +1455,9 @@ export function SupervisorAppConnected() {
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
             {auditFlow ? (
-              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} washerGPS={(auditFlow as any).washerGPS} washerSelfieUrl={(auditFlow as any).washerSelfieUrl} packageType={(auditFlow as any).packageType || "SMART_WASH"} supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"} supervisorName={currentUser?.name || "Supervisor"} gpsValid={auditFlow.gpsValid} gpsDistance={auditFlow.gpsDistance} photosTaken={auditFlow.photos} onToggleChecklistItem={handleToggleChecklistItem} onTakePhoto={handleTakePhoto} onReportPreDamage={handleReportPreDamage} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
+              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} washerGPS={(auditFlow as any).washerGPS} washerSelfieUrl={(auditFlow as any).washerSelfieUrl} packageType={(auditFlow as any).packageType || "SMART_WASH"} supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"} supervisorName={currentUser?.name || "Supervisor"} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
             ) : (
               <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />
-            )}
-          </TabsContent>
-
-          {/* Audit Flow Screen (Modal-like) */}
-          <TabsContent value="audit-flow" className="mt-0">
-            {auditFlow && (
-              <AuditFlowScreen
-                washerId={auditFlow.washerId}
-                washerName={auditFlow.washerName}
-                packageType={(auditFlow as any).packageType || "SMART_WASH"}
-                washerGPS={(auditFlow as any).washerGPS}
-                washerSelfieUrl={(auditFlow as any).washerSelfieUrl}
-                supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"}
-                supervisorName={currentUser?.name || "Supervisor"}
-                checklist={auditFlow.checklist}
-                gpsValid={auditFlow.gpsValid}
-                gpsDistance={auditFlow.gpsDistance}
-                photosTaken={auditFlow.photos}
-                onToggleChecklistItem={handleToggleChecklistItem}
-                onTakePhoto={handleTakePhoto}
-                onReportPreDamage={handleReportPreDamage}
-                onSubmit={handleSubmitAudit}
-                onCancel={() => navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app")}
-              />
             )}
           </TabsContent>
 
