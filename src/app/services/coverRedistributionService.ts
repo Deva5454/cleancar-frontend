@@ -1,9 +1,10 @@
-/**
+﻿﻿/**
  * Cover Redistribution Service
  * Handles auto-assignment logic for absent washer job redistribution
  */
 
 import type { CustomerJob } from "./mockWasherDataService";
+import { escalationService } from "./escalationService";
 
 export interface AbsentWasher {
   id: string;
@@ -255,9 +256,14 @@ class CoverRedistributionService {
   // ========== ESCALATION ==========
 
   escalateToOpsManager(plan: CoverAssignmentPlan, reason: string): void {
-    // In production: POST /api/supervisor/escalate
-    console.log("Escalated to Ops Manager:", reason);
-    console.log("Plan details:", plan);
+    // Delegates to the shared escalationService so all Ops Manager notifications
+    // go through one code path, regardless of whether they originate from
+    // an Issues-tab escalation or a Cover-tab escalation.
+    escalationService.escalateToOpsManager(
+      `COVER-${plan.absentWasher.id}-${Date.now()}`,
+      reason,
+      plan.absentWasher.id
+    );
   }
 
   contactCustomers(unassignedJobs: CustomerJob[]): void {
