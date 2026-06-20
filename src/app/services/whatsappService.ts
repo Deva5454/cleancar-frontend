@@ -1,4 +1,4 @@
-/**
+﻿/**
  * whatsappService.ts
  * ─────────────────────────────────────────────────────────────────────────────
  * Outbound WhatsApp API dispatcher.
@@ -265,6 +265,46 @@ export async function sendRatingRequest(params: {
   await sendWhatsApp(params.customerPhone, message);
 }
 
+/**
+ * Fix 6: Before/After photos sent to customer on job completion.
+ *
+ * IMPORTANT — interim implementation note:
+ * Photos are currently captured and stored as local base64 data URLs
+ * (washerDataService.JobPhoto.url) — there is no cloud upload pipeline yet.
+ * A real WhatsApp Business "media" template requires either a public HTTPS
+ * image URL or a pre-uploaded Meta media ID, neither of which a base64
+ * string satisfies. Until cloud storage (S3/Cloudinary/similar) is wired up:
+ *   - With an Interakt API key configured: this call will currently FAIL
+ *     to attach the photo (Interakt also requires a public URL), so it
+ *     degrades to a text-only message describing that photos were taken.
+ *   - Without an API key (current default state): falls back to a wa.me
+ *     tab with text only — same degraded text-only behaviour.
+ * Replace `beforePhotoUrl`/`afterPhotoUrl` with real uploaded URLs once
+ * the upload pipeline exists, and this will start sending real images
+ * with no other code changes needed here.
+ */
+export async function sendBeforeAfterPhotos(params: {
+  customerPhone: string;
+  customerName: string;
+  planLabel: string;
+  washerName: string;
+  beforePhotoUrl?: string;
+  afterPhotoUrl?: string;
+}): Promise<WAResult> {
+  const hasRealUrls =
+    !!params.beforePhotoUrl && !params.beforePhotoUrl.startsWith("data:") &&
+    !!params.afterPhotoUrl && !params.afterPhotoUrl.startsWith("data:");
+
+  const message =
+    `Your wash is done — here's the before and after! ` +
+    `${params.planLabel}. Washed by: ${params.washerName}. ` +
+    (hasRealUrls
+      ? `Before: ${params.beforePhotoUrl} After: ${params.afterPhotoUrl} `
+      : `(Photos were taken during your wash — ask your washer or supervisor to share them if you'd like to see them now.) `) +
+    `Loving the results? Reply with your rating (1-5) or book your next wash!`;
+
+  return sendWhatsApp(params.customerPhone, message, "before_after_photos");
+}
 /**
  * Fix 5b: Weekly rating for monthly subscription (sent every Sunday at 11 AM)
  */

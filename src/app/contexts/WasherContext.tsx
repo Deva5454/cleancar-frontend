@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * Washer Context - Centralized State Management
  * Provides global state and actions for the entire washer module
  * Eliminates prop drilling and ensures data consistency
@@ -475,9 +475,17 @@ export function WasherProvider({ children }: WasherProviderProps) {
     // ✅ Bridge: update the canonical JobContext record
     const jobContextJob = jobContext.getJobById(activeJob.id);
     if (jobContextJob) {
+      // Fix 6: pull the most recently captured BEFORE/AFTER photos for this job
+      // so completeJob() can pass them through to the customer WhatsApp message.
+      const execution = washerDataService.getJobExecution(activeJob.id);
+      const beforePhoto = execution?.photos?.filter(p => p.type === "BEFORE").slice(-1)[0];
+      const afterPhoto  = execution?.photos?.filter(p => p.type === "AFTER").slice(-1)[0];
       jobContext.completeJob(activeJob.id, {
         qualityScore:   activeJob.qualityScore   || 85,
         complianceScore:activeJob.complianceScore || 90,
+      }, {
+        beforePhotoUrl: beforePhoto?.url,
+        afterPhotoUrl:  afterPhoto?.url,
       });
       // emit is handled inside jobContext.completeJob with the amount field
     } else {

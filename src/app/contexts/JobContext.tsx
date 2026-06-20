@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿﻿﻿/**
  * JobContext - SINGLE SOURCE OF TRUTH for all job/work order data
  * Used across: Operations, Washer App, Supervisor Dashboard, Finance
  */
@@ -11,7 +11,7 @@ import { useSync } from "../hooks/useSync";
 import { recordFirstWashDate } from "../services/firstWashReminderService";
 import { getBundleBySubscriptionId, recordBundleVisit, recordBundleFirstWash } from "../services/multiMonthBundleService";
 import { markOfferCompleted } from "../services/complimentary2WService";
-import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow } from "../services/whatsappService";
+import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow, sendBeforeAfterPhotos } from "../services/whatsappService";
 
 // Types
 export interface Job {
@@ -113,7 +113,7 @@ interface JobContextType {
   // Job lifecycle
   acknowledgeJob: (jobId: string) => void;
   startJob: (jobId: string) => void;
-  completeJob: (jobId: string, verificationData?: { qualityScore: number; complianceScore: number }) => void;
+  completeJob: (jobId: string, verificationData?: { qualityScore: number; complianceScore: number }, photoData?: { beforePhotoUrl?: string; afterPhotoUrl?: string }) => void;
   markJobAsVerified: (jobId: string, verificationStatus: "verified" | "flagged" | "failed") => void;
   markJobAsFailed: (jobId: string, reason: string, reschedule: boolean) => void;
 
@@ -906,7 +906,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
   const completeJob = (
     jobId: string,
-    verificationData?: { qualityScore: number; complianceScore: number }
+    verificationData?: { qualityScore: number; complianceScore: number },
+    photoData?: { beforePhotoUrl?: string; afterPhotoUrl?: string }
   ) => {
     const job = allJobs.find(j => j.jobId === jobId);
     updateJob(jobId, {
@@ -1088,6 +1089,17 @@ export function JobProvider({ children }: { children: ReactNode }) {
                   customerName: cust.firstName || "Customer",
                   jobId: job.jobId,
                   planLabel: job.packageName || "Wash",
+                });
+              }
+              // Fix 6: Before/After photos, only if at least one was actually captured
+              if (photoData?.beforePhotoUrl || photoData?.afterPhotoUrl) {
+                ws.sendBeforeAfterPhotos({
+                  customerPhone: cust.phone,
+                  customerName: cust.firstName || "Customer",
+                  planLabel: job.packageName || "Wash",
+                  washerName: job.washerName || "your washer",
+                  beforePhotoUrl: photoData.beforePhotoUrl,
+                  afterPhotoUrl: photoData.afterPhotoUrl,
                 });
               }
             });
