@@ -1,4 +1,4 @@
-import React from "react";
+ï»¿import React from "react";
 /**
  * Supervisor App - Complete Implementation
  * All 8 screens with centralized data and functional buttons
@@ -155,7 +155,7 @@ export function SupervisorAppConnected() {
 
   const handleViewWasherDetails = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    // Navigate to Team tab — washer cards are visible there
+    // Navigate to Team tab - washer cards are visible there
     navigate(SCREEN_TO_PATH["team"] ?? "/supervisor-app/team");
     if (washer) toast.info(`Viewing ${washer.name} on Team tab`);
   };
@@ -192,7 +192,7 @@ export function SupervisorAppConnected() {
 
   const handleMarkAttendance = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("mark_attendance", `Mark Attendance — ${washer?.name || washerId}`, [
+    openEscalationModal("mark_attendance", `Mark Attendance - ${washer?.name || washerId}`, [
       { key: "status", label: "Attendance status", type: "select", options: ["Present", "Late", "Absent", "Half Day"] },
       { key: "reason", label: "Reason / notes (optional)" },
     ], (data) => {
@@ -216,7 +216,7 @@ export function SupervisorAppConnected() {
           localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
           refreshData();
         } catch (_) {}
-        toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " — " + data.reason : ""}`);
+        toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " - " + data.reason : ""}`);
       }
       setEscalationModal(null);
     });
@@ -245,13 +245,13 @@ export function SupervisorAppConnected() {
 
   const handleRequestOverride = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("request_override", `Attendance Override — ${washer?.name || washerId}`, [
+    openEscalationModal("request_override", `Attendance Override - ${washer?.name || washerId}`, [
       { key: "overrideType", label: "Override type", type: "select", options: ["Mark Present", "Mark Late", "Excuse Absence", "Adjust Check-in Time"] },
       { key: "reason", label: "Reason for override (required for manager approval)" },
     ], (data) => {
       if (data.overrideType && data.reason) {
         escalationService.requestAttendanceOverride(washerId, data.reason, "", currentUser?.employeeId || "EDB-SUP-SUR1");
-        toast.success(`Override request submitted for ${washer?.name || washerId} — ${data.overrideType}. Pending manager approval.`);
+        toast.success(`Override request submitted for ${washer?.name || washerId} - ${data.overrideType}. Pending manager approval.`);
       }
       setEscalationModal(null);
     });
@@ -259,7 +259,7 @@ export function SupervisorAppConnected() {
 
   const handleSubmitIncident = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("incident", `Incident Report — ${washer?.name || washerId}`, [
+    openEscalationModal("incident", `Incident Report - ${washer?.name || washerId}`, [
       { key: "type", label: "Incident type", type: "select", options: ["Equipment damage", "Customer complaint", "Safety issue", "Quality issue", "Other"] },
       { key: "description", label: "Description of incident" },
     ], (data) => {
@@ -273,7 +273,7 @@ export function SupervisorAppConnected() {
 
   const handleAddNote = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
-    openEscalationModal("add_note", `Add Note — ${washer?.name || washerId}`, [
+    openEscalationModal("add_note", `Add Note - ${washer?.name || washerId}`, [
       { key: "category", label: "Category", type: "select", options: ["Performance", "Attendance", "Behaviour", "Quality", "General"] },
       { key: "note", label: "Note" },
     ], (data) => {
@@ -449,7 +449,7 @@ export function SupervisorAppConnected() {
               subscriptionStartDate: today,
             }))
           : mockWasherDataService.getTodayJobs(absentWasher.id, 8);
-        // Include any active washer — not just CHECKED_IN (covers GAP shift)
+        // Include any active washer - not just CHECKED_IN (covers GAP shift)
         const PINCODE_GPS: Record<string, { lat: number; lng: number }> = {
           "395001": { lat: 21.1959, lng: 72.8302 },
           "395007": { lat: 21.1384, lng: 72.7842 },
@@ -577,7 +577,7 @@ export function SupervisorAppConnected() {
     }
     const affected = coverPlan.absentWasher.jobs.length;
     const unassigned = coverPlan.unassignedUnits;
-    openEscalationModal("adjust_allocation", `Adjust Allocation — ${coverPlan.absentWasher.name} Absent`, [
+    openEscalationModal("adjust_allocation", `Adjust Allocation - ${coverPlan.absentWasher.name} Absent`, [
       { key: "action", label: "Action", type: "select", options: [
         "Postpone affected washes to tomorrow",
         "Redistribute to part-time washers",
@@ -661,7 +661,7 @@ export function SupervisorAppConnected() {
       gpsDistance: 0,
       packageType: detectedPackage,
     });
-    // Stay on audit tab — AuditFlowScreen renders inline when auditFlow is set
+    // Stay on audit tab - AuditFlowScreen renders inline when auditFlow is set
     navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app/audit");
   };
 
@@ -691,7 +691,7 @@ export function SupervisorAppConnected() {
     // If new enhanced submission format received, use it directly
     if (enhancedSubmission && enhancedSubmission.score !== undefined) {
       const { score, result, flags, washerId, washerName } = enhancedSubmission;
-      toast.success(`Audit submitted — ${score}/100 (${result})`);
+      toast.success(`Audit submitted - ${score}/100 (${result})`);
       if (flags?.length > 0) {
         toast.warning(`${flags.length} flag(s) recorded`);
       }
@@ -836,7 +836,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleReassignCoverFromEscalation = () => {
-    // Navigate to cover tab — escalationService.navigateToCoverReassignment() removed (method does not exist)
+    // Navigate to cover tab - escalationService.navigateToCoverReassignment() removed (method does not exist)
     if (location.pathname === "/supervisor-app/cover") {
       navigate("/supervisor-app/dashboard", { replace: true });
       setTimeout(() => navigate("/supervisor-app/cover"), 50);
@@ -1026,7 +1026,7 @@ export function SupervisorAppConnected() {
   const handleMarkAbsentFromAlert = (washerId: string) => {
     const washer = team.find((w: any) => w.id === washerId);
     const washerName = washer?.name || washerId;
-    openEscalationModal("mark_absent_alert", `Mark Absent — ${washerName}`, [
+    openEscalationModal("mark_absent_alert", `Mark Absent - ${washerName}`, [
       { key: "reason", label: "Reason for absence", type: "select", options: ["Not reachable", "Personal emergency", "Sick leave", "No show", "Other"] },
     ], (data) => {
       if (data.reason) {
@@ -1048,7 +1048,7 @@ export function SupervisorAppConnected() {
           refreshData();
         } catch (_) {}
         alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
-        toast.success(`${washerName} marked ABSENT — ${data.reason}`);
+        toast.success(`${washerName} marked ABSENT - ${data.reason}`);
       }
       setEscalationModal(null);
     });
