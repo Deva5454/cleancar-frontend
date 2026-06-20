@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 /**
  * Supervisor App - Complete Implementation
  * All 8 screens with centralized data and functional buttons
@@ -1388,7 +1388,7 @@ export function SupervisorAppConnected() {
                             </div>
                             <p className="text-xs text-gray-500">{j.customerName || j.customerId} - {j.timeSlot} - {j.vehicleDetails?.registration || ""}</p>
                             {j.isComplimentary && (
-                              <p className="text-xs text-purple-600 font-medium">Free 2W wash - Linked 4W: {j.vehicle4WReg || "see offer"} - Cost -> Marketing Expense</p>
+                              <p className="text-xs text-purple-600 font-medium">Free 2W wash - Linked 4W: {j.vehicle4WReg || "see offer"} - Cost {"->"} Marketing Expense</p>
                             )}
                             <p className="text-xs text-gray-400">{j.serviceDetails?.area || j.cityId || "Surat"}</p>
                           </div>
