@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * JobContext - SINGLE SOURCE OF TRUTH for all job/work order data
  * Used across: Operations, Washer App, Supervisor Dashboard, Finance
  */
@@ -155,6 +155,80 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [allJobs, setAllJobs] = useState<Job[]>(() => {
     const stored = DataService.get<Job>("JOBS");
     logger.debug("JobContext loaded", { count: stored.length });
+
+    // TEST DATA SEEDER for washer-jobs screen QA (idempotent - safe on every load)
+    // Adds 10 jobs covering every status, using real seeded washer/supervisor IDs from
+    // seedAllData.ts, so the data stays in sync with the rest of the app.
+    const hasTestJobs = stored.some(j => j.jobId && j.jobId.startsWith("TESTJOB-"));
+    if (!hasTestJobs) {
+      const today = new Date().toISOString().split("T")[0];
+      const WASHERS = [
+        { id: "EDB-CW-SUR1A", name: "Mahesh Bharwad" },
+        { id: "EDB-CW-SUR1B", name: "Ramesh Koli" },
+        { id: "EDB-CW-SUR1C", name: "Sunil Thakor" },
+      ];
+      const CUSTOMERS = [
+        { id: "TESTCUST-001", firstName: "Vikram", lastName: "Singh",  phone: "9876543210", area: "Adajan", addr: "12 Sunrise Society, Adajan" },
+        { id: "TESTCUST-002", firstName: "Kavita", lastName: "Rao",    phone: "9876543211", area: "Adajan", addr: "45 Green Park, Adajan" },
+        { id: "TESTCUST-003", firstName: "Suresh", lastName: "Iyer",   phone: "9876543212", area: "Adajan", addr: "78 Silver Heights, Adajan" },
+        { id: "TESTCUST-004", firstName: "Meera",  lastName: "Desai",  phone: "9876543213", area: "Adajan", addr: "23 Lotus Apartments, Adajan" },
+        { id: "TESTCUST-005", firstName: "Deepak", lastName: "Nair",   phone: "9876543214", area: "Adajan", addr: "56 Royal Enclave, Adajan" },
+        { id: "TESTCUST-006", firstName: "Anjali", lastName: "Patel",  phone: "9876543215", area: "Adajan", addr: "89 Palm Residency, Adajan" },
+        { id: "TESTCUST-007", firstName: "Rohit",  lastName: "Sharma", phone: "9876543216", area: "Adajan", addr: "34 Maple Towers, Adajan" },
+        { id: "TESTCUST-008", firstName: "Pooja",  lastName: "Joshi",  phone: "9876543217", area: "Adajan", addr: "67 Orchid Villa, Adajan" },
+      ];
+      const PACKAGES = [
+        { name: "Express Wash", type: "EXPRESS_WASH" },
+        { name: "Smart Wash",   type: "SMART_WASH" },
+        { name: "Elite Wash",   type: "ELITE_WASH" },
+      ];
+      const VEHICLES = [
+        { category: "Hatchback", color: "White",  brand: "Maruti",  registration: "GJ05AB1234" },
+        { category: "Sedan",     color: "Silver", brand: "Honda",   registration: "GJ05CD5678" },
+        { category: "SUV",       color: "Black",  brand: "Hyundai", registration: "GJ05EF9012" },
+        { category: "Hatchback", color: "Red",    brand: "Tata",    registration: "GJ05GH3456" },
+        { category: "Sedan",     color: "Blue",   brand: "Maruti",  registration: "GJ05IJ7890" },
+      ];
+      const SLOTS = ["07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00", "16:00 - 17:00", "17:00 - 18:00"];
+      const buildJob = (o: any): Job => {
+        const cust = o.customer || CUSTOMERS[0];
+        const veh = o.vehicle || VEHICLES[0];
+        const pkg = o.pkg || PACKAGES[0];
+        const washer = o.washer || WASHERS[0];
+        return {
+          jobId: o.jobId, customerId: cust.id, subscriptionId: o.subscriptionId,
+          washerId: o.unassigned ? undefined : washer.id,
+          scheduledDate: o.scheduledDate || today, timeSlot: o.timeSlot || SLOTS[0],
+          status: o.status, jobType: o.jobType || "Regular",
+          packageName: pkg.name, packageType: pkg.type, frequency: o.frequency,
+          offerId: o.offerId, isComplimentary: o.isComplimentary || false,
+          vehicleDetails: { category: veh.category, color: veh.color, brand: veh.brand, registration: veh.registration },
+          location: { addressLine1: cust.addr, area: cust.area, city: "Surat", pinCode: "395001" },
+          serviceDetails: { addOns: o.addOns || [], specialInstructions: o.specialInstructions || "" },
+          verificationStatus: o.verificationStatus, qualityScore: o.qualityScore, complianceScore: o.complianceScore,
+          failureReason: o.failureReason, rescheduleRequested: o.rescheduleRequested,
+          cityId: "CITY-SURAT", city: "Surat",
+          washerName: o.unassigned ? undefined : washer.name,
+          customerName: `${cust.firstName} ${cust.lastName}`, customerPhone: cust.phone,
+          area: cust.area, pinCode: "395001", vehicleType: veh.category, vehicleReg: veh.registration, units: 1,
+        } as Job;
+      };
+      const testJobs: Job[] = [
+        buildJob({ jobId: "TESTJOB-001", status: "Unassigned", jobType: "Add-on", customer: CUSTOMERS[0], vehicle: VEHICLES[0], pkg: PACKAGES[0], timeSlot: SLOTS[2], unassigned: true, specialInstructions: "Customer requested urgent slot." }),
+        buildJob({ jobId: "TESTJOB-002", status: "Assigned", customer: CUSTOMERS[1], vehicle: VEHICLES[1], pkg: PACKAGES[1], washer: WASHERS[0], timeSlot: SLOTS[0] }),
+        buildJob({ jobId: "TESTJOB-003", status: "Assigned", customer: CUSTOMERS[2], vehicle: VEHICLES[2], pkg: PACKAGES[2], washer: WASHERS[0], timeSlot: SLOTS[1] }),
+        buildJob({ jobId: "TESTJOB-004", status: "Acknowledged", customer: CUSTOMERS[3], vehicle: VEHICLES[3], pkg: PACKAGES[0], washer: WASHERS[1], timeSlot: SLOTS[3] }),
+        buildJob({ jobId: "TESTJOB-005", status: "In Progress", customer: CUSTOMERS[4], vehicle: VEHICLES[4], pkg: PACKAGES[1], washer: WASHERS[1], timeSlot: SLOTS[4], addOns: ["Interior Vacuum"] }),
+        buildJob({ jobId: "TESTJOB-006", status: "In Progress", customer: CUSTOMERS[5], vehicle: VEHICLES[0], pkg: PACKAGES[2], washer: WASHERS[2], timeSlot: SLOTS[0], addOns: ["Dashboard Polish", "Tyre Shine"], specialInstructions: "Gate code 4521. Park in visitor slot 3." }),
+        buildJob({ jobId: "TESTJOB-007", status: "Completed", customer: CUSTOMERS[6], vehicle: VEHICLES[1], pkg: PACKAGES[0], washer: WASHERS[0], timeSlot: SLOTS[0], verificationStatus: "pending" }),
+        buildJob({ jobId: "TESTJOB-008", status: "Verified", customer: CUSTOMERS[7], vehicle: VEHICLES[2], pkg: PACKAGES[1], washer: WASHERS[0], timeSlot: SLOTS[1], verificationStatus: "verified", qualityScore: 92, complianceScore: 95 }),
+        buildJob({ jobId: "TESTJOB-009", status: "Assigned", jobType: "Add-on", customer: CUSTOMERS[0], vehicle: { category: "2-Wheeler", color: "Black", brand: "Honda Activa", registration: "GJ05KL1111" }, pkg: PACKAGES[0], washer: WASHERS[1], timeSlot: SLOTS[2], isComplimentary: true, offerId: "TESTOFFER-001", specialInstructions: "Complimentary 2W linked to TESTJOB-002." }),
+        buildJob({ jobId: "TESTJOB-010", status: "Failed", customer: CUSTOMERS[3], vehicle: VEHICLES[3], pkg: PACKAGES[0], washer: WASHERS[2], timeSlot: SLOTS[3], failureReason: "Car not accessible - gate locked.", rescheduleRequested: true }),
+      ];
+      logger.debug("JobContext: seeded test jobs for washer-jobs QA", { count: testJobs.length });
+      return [...stored, ...testJobs];
+    }
+
     return stored;
   });
 
