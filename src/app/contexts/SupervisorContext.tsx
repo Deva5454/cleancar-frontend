@@ -12,6 +12,9 @@ import { useEmployeeData } from "../hooks/useEmployeeData";
 import { useEvents, useEventListener } from "./EventSystem";
 import { useJobs } from "./JobContext";
 import { supervisorDataService } from "../services/supervisorDataService";
+
+// Daily unit target per washer — single source of truth for this number across the module
+export const UNITS_TARGET_PER_WASHER = 20;
 import type {
   WasherTeamMember,
   WasherStatus,
@@ -307,7 +310,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
               })()
             : undefined,
           unitsCompleted: completedJobs.length,
-          unitsTarget: 20, // Realistic daily target: 20 cars/washer
+          unitsTarget: UNITS_TARGET_PER_WASHER, // Realistic daily target
           // Compute audit status from localStorage audit records
           lastAuditDate: (() => {
             try {
@@ -393,7 +396,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
         completedJobs: (() => { try { return getCompletedByCity(supervisorCityId).filter((j: any) => j.completedAt?.startsWith(new Date().toISOString().split("T")[0])).length; } catch { return 0; } })(),
         pendingJobs: (() => { try { return getUnassignedByCity(supervisorCityId).filter((j: any) => j.scheduledDate === new Date().toISOString().split("T")[0]).length; } catch { return 0; } })(),
         totalUnitsCompleted: teamMembers.reduce((sum, m) => sum + m.unitsCompleted, 0),
-        totalUnitsTarget: Math.max(1, teamMembers.length * 20), // 20 cars/washer/day (realistic)
+        totalUnitsTarget: Math.max(1, teamMembers.length * UNITS_TARGET_PER_WASHER),
         auditsPending: teamMembers.filter(m => m.auditStatus === "DUE" || m.auditStatus === "OVERDUE").length,
         auditsCompleted: teamMembers.filter(m => m.auditStatus === "COMPLETED").length,
         activeAlerts: 0, // computed after alerts are built
@@ -478,7 +481,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             priority: "HIGH",
             washerId: m.id,
             washerName: m.name,
-            message: `${m.name} has ${m.unitsCompleted} units completed (target: 20)`,
+            message: `${m.name} has ${m.unitsCompleted} units completed (target: ${UNITS_TARGET_PER_WASHER})`,
             timestamp: new Date(),
             isRead: false,
             actionUrl: `/supervisor-app/team`,

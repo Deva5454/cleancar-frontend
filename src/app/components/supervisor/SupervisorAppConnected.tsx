@@ -139,6 +139,8 @@ export function SupervisorAppConnected() {
     if (alert.actionUrl) {
       const screen = alert.actionUrl.split("/").pop() || "dashboard";
       navigate(SCREEN_TO_PATH[screen] ?? "/supervisor-app");
+    } else {
+      navigate(SCREEN_TO_PATH["alerts"] ?? "/supervisor-app/alerts");
     }
   };
 
@@ -962,6 +964,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleViewDetailsFromAlert = (alert?: any) => {
+    if (alert?.id) markAlertRead(alert.id);
     if (alert?.actionUrl) {
       const screen = alert.actionUrl.split("/").pop() || "dashboard";
       navigate(SCREEN_TO_PATH[screen] ?? "/supervisor-app");
