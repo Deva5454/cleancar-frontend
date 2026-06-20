@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * JobContext - SINGLE SOURCE OF TRUTH for all job/work order data
  * Used across: Operations, Washer App, Supervisor Dashboard, Finance
  */
@@ -226,6 +226,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
         buildJob({ jobId: "TESTJOB-010", status: "Failed", customer: CUSTOMERS[3], vehicle: VEHICLES[3], pkg: PACKAGES[0], washer: WASHERS[2], timeSlot: SLOTS[3], failureReason: "Car not accessible - gate locked.", rescheduleRequested: true }),
       ];
       logger.debug("JobContext: seeded test jobs for washer-jobs QA", { count: testJobs.length });
+      try { localStorage.setItem("cc360_qa_test_jobs_cache", JSON.stringify(testJobs)); } catch (e) {}
       return [...stored, ...testJobs];
     }
 
@@ -233,6 +234,31 @@ export function JobProvider({ children }: { children: ReactNode }) {
   });
 
   const _dbJobsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // QA test-job re-asserter: runs after mount (and after the catch-up seeder's own
+  // timer, which fires synchronously inside a setTimeout below) to guarantee the
+  // TESTJOB- entries used by washer-jobs QA always survive the rolling 50-job cap.
+  // Without this, the catch-up seeder can silently evict the test jobs because it
+  // adds 50+ of its own jobs and the next save only keeps the most recent 50.
+  useEffect(() => {
+    const reassertTimer = setTimeout(() => {
+      try {
+        const stored: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
+        const hasTestJobs = stored.some((j: any) => j.jobId && j.jobId.startsWith("TESTJOB-"));
+        if (hasTestJobs) return;
+        const testJobsRaw = localStorage.getItem("cc360_qa_test_jobs_cache");
+        if (!testJobsRaw) return;
+        const testJobs = JSON.parse(testJobsRaw);
+        const withoutOldTest = stored.filter((j: any) => !j.jobId || !j.jobId.startsWith("TESTJOB-"));
+        const merged = [...withoutOldTest, ...testJobs];
+        localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify(merged));
+        setAllJobs(merged);
+        logger.debug("JobContext: re-asserted QA test jobs after catch-up seeder", { count: testJobs.length });
+      } catch (e) {
+        console.warn("[QA Test Jobs] Re-assert failed:", e);
+      }
+    }, 2000); // after the catch-up seeder's own internal timer has had time to finish
+    return () => clearTimeout(reassertTimer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const { emit } = useEvents();
 
   // Persist to storage (local cache - instant)
