@@ -478,7 +478,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             priority: "HIGH",
             washerId: m.id,
             washerName: m.name,
-            message: `${m.name} has ${m.unitsCompleted} units completed (target: 25)`,
+            message: `${m.name} has ${m.unitsCompleted} units completed (target: 20)`,
             timestamp: new Date(),
             isRead: false,
             actionUrl: `/supervisor-app/team`,

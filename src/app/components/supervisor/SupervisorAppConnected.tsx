@@ -17,13 +17,10 @@ import { AutoAssignCarsModal } from "./AutoAssignCarsModal";
 import { FieldAuditScreen, AuditResultScreen } from "./FieldAuditScreen";
 import { AuditFlowScreen } from "./AuditFlowScreen";
 import { CashDepositScreen } from "./CashDepositScreen";
-import { ClothManagementScreenV2 } from "./ClothManagementScreenV2";
 import { SupervisorMaterialManagement } from "./SupervisorMaterialManagement";
 import { BTLLeadScreen, LeadPipelineView } from "./BTLLeadScreen";
-import { BTLLeadScreenSimple } from "./BTLLeadScreenSimple";
 import { IncentiveTrackerScreen } from "./IncentiveTrackerScreen";
 import { EscalationScreen } from "./EscalationScreen"; // full version
-import { EscalationScreenSimple } from "./EscalationScreenSimple";
 import { AlertCenterScreen, StickyAlertBanner } from "./AlertCenterScreen";
 import { HierarchyVisibilityScreen } from "./HierarchyVisibilityScreen";
 import { AuditTrailScreen } from "./AuditTrailScreen";
