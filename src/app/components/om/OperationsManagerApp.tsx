@@ -186,10 +186,8 @@ import { TATNotificationBell, TATSummaryBanner } from "../shared/TATNotification
 import { tatTrackingService } from "../../services/tatTrackingService";
 
 
-import { TATNotificationBell, TATSummaryBanner } from "../shared/TATNotificationBell";
 
 
-import { tatTrackingService } from "../../services/tatTrackingService";
 
 
 
