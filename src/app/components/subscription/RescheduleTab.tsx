@@ -38,7 +38,10 @@ function getJobsForVehicleAndPhone(phone: string, vehicleReg: string): UpcomingJ
     const all = [...localJobs, ...dsJobs].filter((j: any) => {
       const reg = (j.vehicleDetails?.registration || j.vehicleReg || "").replace(/\s/g,"").toUpperCase();
       const p = (j.customerPhone || "").replace(/\D/g,"").slice(-10);
-      return reg === cleanReg && (p === cleanPhone || !p) && (j.scheduledDate || "") >= today && !["Completed","Cancelled"].includes(j.status);
+      const regMatch = reg === cleanReg;
+      const phoneMatch = p === cleanPhone;
+      // Match by reg+phone, or phone alone if reg not provided, or reg alone if phone matches
+      return (regMatch || phoneMatch) && (regMatch || phoneMatch) && (j.scheduledDate || "") >= today && !["Completed","Cancelled"].includes(j.status);
     });
     const seen = new Set<string>();
     return all.filter(j => { const id = j.jobId||j.id; if(seen.has(id)) return false; seen.add(id); return true; })
