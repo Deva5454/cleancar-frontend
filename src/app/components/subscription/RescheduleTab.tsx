@@ -51,7 +51,6 @@ function formatDate(d: string) { return new Date(d+"T00:00:00").toLocaleDateStri
 function getMinDate() { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; }
 
 export function RescheduleTab() {
-  useState(() => { seedDemoData(); });
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -67,6 +66,8 @@ export function RescheduleTab() {
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState<{date:string;slot:string;job:UpcomingJob}|null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
+
+  useEffect(() => { seedDemoData(); }, []);
 
   useEffect(() => {
     if (otpTimer > 0) {
