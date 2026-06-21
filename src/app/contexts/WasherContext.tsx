@@ -303,7 +303,8 @@ export function WasherProvider({ children }: WasherProviderProps) {
     if (activeJob) return;   // Still have an active job
 
     const profile = washerDataService.getWasherProfile(washerId);
-    if (!WASHER_SHIFT_DEFAULTS[profile.employmentType].autoLogoutEnabled) return;
+    if (!profile) return;
+    if (!WASHER_SHIFT_DEFAULTS[profile.employmentType]?.autoLogoutEnabled) return;
 
     // Job just completed and we had a pending post-shift lock
     setIsAppLocked(true);
