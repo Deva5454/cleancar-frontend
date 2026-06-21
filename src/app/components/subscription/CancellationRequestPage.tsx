@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * CancellationRequestPage.tsx  — /cancel-service
  *
  * Flow:
@@ -15,7 +15,39 @@
  * Policy: 24/9 Carwashing Pvt. Ltd. — Cancellation Policy effective 1 June 2026
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+// === OTP demo credentials (same as Reschedule tab, for consistent testing) ===
+const DEMO_PHONE  = "9000000001";
+const DEMO_OTP    = "123456";
+const DEMO_VEHICLE = "GJ05AK0001";
+
+function generateOTP() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+function sendOTPViaWhatsApp(phone, otp) { console.log("[OTP] " + otp + " -> " + phone); window.dispatchEvent(new CustomEvent("cc360:otp_sent", { detail: { phone, otp } })); }
+
+function seedCancellationDemoData() {
+  try {
+    var key = "cleancar_web_invoices";
+    var existing = JSON.parse(localStorage.getItem(key) || "[]");
+    if (existing.some(function(inv) { return inv.invoiceNumber === "INV-DEMO-CANCEL-001"; })) return;
+    var demoInvoice = {
+      invoiceNumber: "INV-DEMO-CANCEL-001",
+      subscriptionId: "SUB-DEMO-CANCEL-001",
+      customerId: "CUST-DEMO-CANCEL-001",
+      customerName: "Demo Customer",
+      customerPhone: DEMO_PHONE,
+      vehicleReg: DEMO_VEHICLE,
+      vehicleCategory: "hatchback",
+      items: [{ name: "Smart Wash — Monthly Subscription (Hatchback)", qty: 1, rate: 1599, amount: 1599 }],
+      subtotal: 1599,
+      grandTotal: 1886.82,
+      paymentMethod: "UPI",
+      createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+      status: "PAID",
+    };
+    localStorage.setItem(key, JSON.stringify([demoInvoice].concat(existing)));
+  } catch (e) {}
+}
 import { loadConfig, type PlanPageConfig } from "./CustomerPlanPage";
 import { sendCancellationReceived } from "../../services/whatsappService";
 import { getBundleBySubscriptionId, calculateCancellationRefund as calcBundleRefund, cancelBundle } from "../../services/multiMonthBundleService";
@@ -139,6 +171,51 @@ export function CancellationRequestPage({ embedded = false }: { embedded?: boole
   const [custMobile, setCustMobile] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
   const [subIdHint, setSubIdHint]   = useState(""); // optional
+  // Step 1 — OTP verification gate (must verify mobile via WhatsApp OTP before lookup unlocks)
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpGen, setOtpGen] = useState("");
+  const [otpErr, setOtpErr] = useState("");
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const otpTimerRef = useRef(null);
+
+  useEffect(function() { seedCancellationDemoData(); }, []);
+
+  useEffect(function() {
+    if (otpTimer <= 0) { if (otpTimerRef.current) clearInterval(otpTimerRef.current); return; }
+    otpTimerRef.current = setInterval(function() { setOtpTimer(function(t) { return t - 1; }); }, 1000);
+    return function() { if (otpTimerRef.current) clearInterval(otpTimerRef.current); };
+  }, [otpTimer]);
+
+  const mobileValid = custMobile.replace(/\D/g, "").length === 10;
+
+  function handleSendOtp() {
+    if (!mobileValid) { setOtpErr("Enter a valid 10-digit mobile number first."); return; }
+    setOtpErr(""); setSendingOtp(true);
+    var clean = custMobile.replace(/\D/g, "").slice(-10);
+    var g = generateOTP(); setOtpGen(g); sendOTPViaWhatsApp(clean, g);
+    setTimeout(function() { setSendingOtp(false); setOtpSent(true); setOtpTimer(120); }, 700);
+  }
+
+  function handleVerifyOtp() {
+    if (otp.length !== 6) { setOtpErr("Enter the 6-digit OTP."); return; }
+    if (otp !== otpGen && otp !== DEMO_OTP) { setOtpErr("Incorrect OTP. Please try again."); return; }
+    setOtpErr(""); setOtpVerified(true);
+  }
+
+  function handleResendOtp() {
+    var clean = custMobile.replace(/\D/g, "").slice(-10);
+    var g = generateOTP(); setOtpGen(g); setOtp(""); setOtpErr("");
+    sendOTPViaWhatsApp(clean, g); setOtpTimer(120);
+  }
+
+  function handleMobileChange(v) {
+    var clean = v.replace(/\D/g, "").slice(0, 10);
+    setCustMobile(clean);
+    if (otpVerified || otpSent) { setOtpVerified(false); setOtpSent(false); setOtp(""); setOtpErr(""); setOtpGen(""); setOtpTimer(0); }
+  }
   const [isLooking, setIsLooking]   = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [found, setFound] = useState<FoundSubscription | null>(null);
@@ -179,7 +256,7 @@ export function CancellationRequestPage({ embedded = false }: { embedded?: boole
     } catch {}
   };
 
-  const step1Ok = custMobile.length >= 10 && vehicleReg.trim().length >= 4;
+  const step1Ok = otpVerified && custMobile.length >= 10 && vehicleReg.trim().length >= 4;
   const step2Ok = reason && (reason !== "Other (please specify)" || otherReason.trim());
 
   // If this subscription has a multi-month bundle, use the bundle's visit-based
@@ -717,19 +794,26 @@ export function CancellationRequestPage({ embedded = false }: { embedded?: boole
         {/* ═══ STEP 1: FIND SUBSCRIPTION ════════════════════════════════════ */}
         {step === 1 && (
           <div>
+            <div style={{ background: "#1e1b4b", borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 12, color: "#a5b4fc", fontFamily: "monospace" }}>
+              <div style={{ fontWeight: 700, color: "#c7d2fe", marginBottom: 6 }}>TEST CREDENTIALS</div>
+              <div>Mobile: <strong style={{ color: "#fde68a" }}>{DEMO_PHONE}</strong></div>
+              <div>OTP: <strong style={{ color: "#fde68a" }}>{DEMO_OTP}</strong></div>
+              <div>Vehicle: <strong style={{ color: "#fde68a" }}>{DEMO_VEHICLE}</strong></div>
+              <div style={{ marginTop: 4, color: "#818cf8", fontSize: 11 }}>Use these to test the full cancellation flow</div>
+            </div>
             <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Find your subscription</h2>
             <p style={{ fontSize: 14, color: "#4A5568", marginBottom: 24 }}>Enter your registered mobile number and vehicle registration. The system will find your subscription automatically.</p>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
               <div>
                 <label style={S.label}>Mobile Number *</label>
-                <input value={custMobile} onChange={e => setCustMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="98765 43210" style={S.input} maxLength={10} />
+                <input value={custMobile} onChange={e => handleMobileChange(e.target.value)}
+                  placeholder="98765 43210" style={S.input} maxLength={10} disabled={otpVerified} />
               </div>
               <div>
                 <label style={S.label}>Vehicle Registration *</label>
                 <input value={vehicleReg} onChange={e => setVehicleReg(e.target.value.toUpperCase())}
-                  placeholder="GJ05MJ2345" style={S.input} />
+                  placeholder="GJ05MJ2345" style={S.input} disabled={!otpVerified} />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...S.label, fontWeight: 400, color: "#9CA3AF" }}>
@@ -739,6 +823,56 @@ export function CancellationRequestPage({ embedded = false }: { embedded?: boole
                   placeholder="SUB-... or INV-... (leave blank to auto-detect)" style={S.input} />
               </div>
             </div>
+
+            {!otpVerified && (
+              <div style={{ background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
+                {!otpSent ? (
+                  <>
+                    <div style={{ fontSize: 13, color: "#4A5568", marginBottom: 10 }}>
+                      📲 For your security, we will verify your mobile number via WhatsApp OTP before looking up your subscription.
+                    </div>
+                    {otpErr && <div style={{ color: "#DC2626", fontSize: 12, marginBottom: 8 }}>{otpErr}</div>}
+                    <button onClick={handleSendOtp} disabled={!mobileValid || sendingOtp}
+                      style={S.btn(mobileValid && !sendingOtp, "#2196F3")}>
+                      {sendingOtp ? "Sending OTP…" : "📲 Send OTP on WhatsApp"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 13, color: "#166534", marginBottom: 10, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 12px" }}>
+                      ✅ OTP sent to WhatsApp: +91 {custMobile}
+                    </div>
+                    <label style={S.label}>Enter 6-digit OTP</label>
+                    <input value={otp} onChange={e => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 6)); setOtpErr(""); }}
+                      onKeyDown={e => e.key === "Enter" && handleVerifyOtp()}
+                      placeholder="• • • • • •" maxLength={6}
+                      style={{ ...S.input, fontSize: 22, fontWeight: 700, letterSpacing: 10, textAlign: "center", maxWidth: 220 }} />
+                    {otpErr && <div style={{ color: "#DC2626", fontSize: 12, marginTop: 6 }}>{otpErr}</div>}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 12, color: "#64748B" }}>
+                      <span>{otpTimer > 0 ? "Expires in " + otpTimer + "s" : "OTP expired"}</span>
+                      {otpTimer === 0 && (
+                        <button onClick={handleResendOtp} style={{ color: "#2196F3", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                          Resend OTP
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                      <button onClick={handleVerifyOtp} disabled={otp.length !== 6} style={S.btn(otp.length === 6, "#2196F3")}>
+                        Verify OTP →
+                      </button>
+                      <button onClick={() => { setOtpSent(false); setOtp(""); setOtpErr(""); }} style={S.back}>
+                        ← Change Number
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {otpVerified && (
+              <div style={{ background: "#E8F5E9", border: "1.5px solid #A5D6A7", borderRadius: 10, padding: "10px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1B5E20", fontWeight: 600 }}>
+                ✅ Mobile number verified via WhatsApp OTP
+              </div>
+            )}
 
             {lookupError && (
               <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: "#DC2626" }}>
