@@ -164,25 +164,26 @@ export function WasherCoreScreensConnected() {
 
     // Fix: start GPS tracking on check-in
     const currentJob = activeJobId ? jobs.find(j => j.id === activeJobId) : null;
-    if (activeJobId && currentEmployee?.id) {
-      import("../../services/washerLocationService").then(({ startTracking }) => {
-        startTracking(currentEmployee.id, activeJobId);
+    const washerEmployeeId = (currentUser as any)?.employeeId || “”;
+    if (activeJobId && washerEmployeeId) {
+      import(“../../services/washerLocationService”).then(({ startTracking }) => {
+        startTracking(washerEmployeeId, activeJobId);
       });
     }
 
-    // Fix 3: Send WA to customer â€” washer arrived
+    // Fix 3: Send WA to customer — washer arrived
     if (currentJob) {
-      import("../../services/whatsappService").then(ws => {
-        import("../../services/washerLocationService").then(({ getTrackingUrl }) => {
-          const trackingUrl = getTrackingUrl(activeJobId || "");
+      import(“../../services/whatsappService”).then(ws => {
+        import(“../../services/washerLocationService”).then(({ getTrackingUrl }) => {
+          const trackingUrl = getTrackingUrl(activeJobId || “”);
           ws.sendWasherArrived({
-            customerPhone: currentJob.customerPhone || currentJob.customer?.phone || "",
-            customerName: currentJob.customerName || "Customer",
-            washerName: currentEmployee ? `${currentEmployee.firstName || ""} ${currentEmployee.lastName || ""}`.trim() : "Your Washer",
-            supervisorName: currentJob.supervisorName || "",
-            supervisorPhone: currentJob.supervisorPhone || "",
+            customerPhone: currentJob.customerPhone || currentJob.customer?.phone || “”,
+            customerName: currentJob.customerName || “Customer”,
+            washerName: currentUser?.employeeName || profile?.name || “Your Washer”,
+            supervisorName: currentJob.supervisorName || “”,
+            supervisorPhone: currentJob.supervisorPhone || “”,
             trackingUrl,
-            planLabel: currentJob.packageName || "Wash",
+            planLabel: currentJob.packageName || “Wash”,
           });
         });
       });
