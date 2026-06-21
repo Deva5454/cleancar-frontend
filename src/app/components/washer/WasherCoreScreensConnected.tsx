@@ -487,3 +487,5 @@ export function WasherCoreScreensConnected() {
   );
 }
 
+
+export default WasherCoreScreensConnected;
