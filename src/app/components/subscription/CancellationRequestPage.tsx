@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿﻿﻿/**
  * CancellationRequestPage.tsx  — /cancel-service
  *
  * Flow:
@@ -18,7 +18,7 @@
 import { useState, useEffect } from "react";
 import { loadConfig, type PlanPageConfig } from "./CustomerPlanPage";
 import { sendCancellationReceived } from "../../services/whatsappService";
-import { getBundleBySubscriptionId, calculateCancellationRefund as calcBundleRefund } from "../../services/multiMonthBundleService";
+import { getBundleBySubscriptionId, calculateCancellationRefund as calcBundleRefund, cancelBundle } from "../../services/multiMonthBundleService";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FoundSubscription {
@@ -485,6 +485,174 @@ export function CancellationRequestPage() {
     setIsSubmitting(false);
     setStep(4);
   };
+  // -- Bundle Accept ---------------------------------------------------------
+  const handleAcceptBundle = () => {
+    if (!found || !bundleRecord || !bundleRefund) return;
+    setIsSubmitting(true);
+    const id = `CANC-${Date.now()}`;
+    setRefId(id);
+
+    const result = cancelBundle(bundleRecord.bundleId);
+
+    const req = {
+      id,
+      type: "cancellation_request",
+      status: "Pending TSM Review",
+      submittedAt: new Date().toISOString(),
+      customerName: found.customerName,
+      customerId: found.customerId,
+      customerMobile: custMobile,
+      vehicleReg: found.vehicleReg,
+      subscriptionId: found.subscriptionId,
+      invoiceNumber: found.invoiceNumber,
+      packageName: found.packageName + ` (Bundle)`,
+      startDate: found.startDate,
+      totalDays: found.totalDays,
+      cityId: found.cityId,
+      totalAmount: bundleRefund.totalPaid,
+      daysElapsed: 0,
+      percentElapsed: bundleRefund.pctConsumed,
+      prorata: bundleRefund.revenueForVisitsUsed,
+      cancellationFee: bundleRefund.cancellationFee,
+      gatewayFee: bundleRefund.gatewayCharges,
+      refundAmount: bundleRefund.netRefund,
+      refundZone: bundleRefund.refundEligible ? "partial" : "none",
+      paymentMethod: found.paymentMethod,
+      reason,
+      otherReason: reason === "Other (please specify)" ? otherReason : "",
+      customerConsent: true,
+      assignedTo: "TSM",
+      action: "Process Refund",
+      isBundle: true,
+      bundleId: bundleRecord.bundleId,
+    };
+
+    try {
+      const key = "cleancar_tsm_refunds";
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      existing.unshift(req);
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch (_) {}
+
+    try {
+      const key = "cleancar_cancellation_requests";
+      const existing = JSON.parse(localStorage.getItem(key) || "[]");
+      existing.unshift(req);
+      localStorage.setItem(key, JSON.stringify(existing));
+    } catch (_) {}
+
+    try {
+      const cceTicket = {
+        id: `TKT-${Date.now()}`,
+        ticketId: `TKT-${Date.now()}`,
+        customerId: found.customerId,
+        customerName: found.customerName,
+        customerPhone: custMobile,
+        vehicle: found.vehicleCategory,
+        vehicleNumber: found.vehicleReg,
+        complaintType: "Cancellation Request — Customer Accepted (Bundle)",
+        complaintTypeId: "CANCELLATION",
+        description: `Customer accepted bundle cancellation terms. Refund of ${INR(bundleRefund.netRefund)} to be processed by TSM. Ref: ${id}`,
+        channel: "web",
+        priority: "Low",
+        status: "open",
+        cceId: "CCE-AUTO",
+        cceName: "System",
+        createdAt: new Date().toISOString(),
+        loggedAt: new Date().toISOString(),
+        cancellationRef: id,
+        assignedTo: "TSM",
+      };
+      const complaints = JSON.parse(localStorage.getItem("cleancar_complaints") || "[]");
+      complaints.unshift(cceTicket);
+      localStorage.setItem("cleancar_complaints", JSON.stringify(complaints));
+    } catch (_) {}
+
+    try {
+      sendCancellationReceived({
+        customerPhone: custMobile,
+        customerName: found.customerName,
+        refId: id,
+        refundAmount: bundleRefund.netRefund,
+        refundZone: bundleRefund.refundEligible ? "partial" : "none",
+        packageName: found.packageName,
+      });
+    } catch (_) {}
+
+    setOutcome("accepted");
+    setIsSubmitting(false);
+    setStep(4);
+  };
+
+  // -- Bundle Decline --------------------------------------------------------
+  const handleDeclineBundle = () => {
+    if (!found || !bundleRecord || !bundleRefund) return;
+    setIsSubmitting(true);
+    const id = `CANC-${Date.now()}`;
+    setRefId(id);
+
+    try {
+      const cceTicket = {
+        id: `TKT-CANC-${Date.now()}`,
+        ticketId: `TKT-CANC-${Date.now()}`,
+        customerId: found.customerId,
+        customerName: found.customerName,
+        customerPhone: custMobile,
+        vehicle: found.vehicleCategory,
+        vehicleNumber: found.vehicleReg,
+        complaintType: "Cancellation — Customer Declined Refund Terms (Bundle)",
+        complaintTypeId: "CANCELLATION_DISPUTE",
+        description: `Customer declined the computed bundle refund of ${INR(bundleRefund.netRefund)} for subscription ${found.subscriptionId}. Reason: ${reason}${otherReason ? " — " + otherReason : ""}. Please call customer to discuss and resolve. Cancellation Ref: ${id}.`,
+        channel: "web",
+        priority: "High",
+        status: "open",
+        cceId: "CCE-AUTO",
+        cceName: "Unassigned — Needs CCE",
+        createdAt: new Date().toISOString(),
+        loggedAt: new Date().toISOString(),
+        cancellationRef: id,
+        assignedTo: "CCE",
+        slaHours: 4,
+        escalated: true,
+      };
+      const complaints = JSON.parse(localStorage.getItem("cleancar_complaints") || "[]");
+      complaints.unshift(cceTicket);
+      localStorage.setItem("cleancar_complaints", JSON.stringify(complaints));
+    } catch (_) {}
+
+    try {
+      const req = {
+        id,
+        type: "cancellation_dispute",
+        status: "Escalated to CCE",
+        submittedAt: new Date().toISOString(),
+        customerName: found.customerName,
+        customerId: found.customerId,
+        customerMobile: custMobile,
+        vehicleReg: found.vehicleReg,
+        subscriptionId: found.subscriptionId,
+        invoiceNumber: found.invoiceNumber,
+        packageName: found.packageName + ` (Bundle)`,
+        totalAmount: bundleRefund.totalPaid,
+        refundAmount: bundleRefund.netRefund,
+        refundZone: bundleRefund.refundEligible ? "partial" : "none",
+        reason,
+        otherReason: reason === "Other (please specify)" ? otherReason : "",
+        customerConsent: false,
+        assignedTo: "CCE",
+        action: "Call Customer — Dispute Resolution",
+        isBundle: true,
+        bundleId: bundleRecord.bundleId,
+      };
+      const existing = JSON.parse(localStorage.getItem("cleancar_cancellation_requests") || "[]");
+      existing.unshift(req);
+      localStorage.setItem("cleancar_cancellation_requests", JSON.stringify(existing));
+    } catch (_) {}
+
+    setOutcome("declined");
+    setIsSubmitting(false);
+    setStep(4);
+  };
 
   // ─── Styles ───────────────────────────────────────────────────────────────
   const S = {
@@ -651,6 +819,146 @@ export function CancellationRequestPage() {
           </div>
         )}
 
+        {/* === STEP 3 (BUNDLE): REFUND BREAKDOWN + ACCEPT / DECLINE ======== */}
+        {step === 3 && found && bundleRecord && bundleRefund && (
+          <div>
+            <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Your Bundle Refund Calculation</h2>
+            <p style={{ fontSize: 14, color: "#4A5568", marginBottom: 20 }}>
+              Multi-month bundle refunds are calculated on visits used, not days elapsed, as per 24/9 Carwashing Pvt. Ltd. Cancellation Policy.
+            </p>
+
+            <div style={S.card}>
+              <div style={{ padding: "12px 18px", background: "#F8FBFF", borderBottom: "1px solid #E3EEF7", fontWeight: 700, fontSize: 14, color: "#374151" }}>
+                Bundle Details
+              </div>
+              <div style={{ padding: "14px 18px" }}>
+                {[
+                  ["Customer", found.customerName],
+                  ["Package", found.packageName],
+                  ["Vehicle", found.vehicleReg],
+                  ["Bundle Duration", `${bundleRecord.bundleMonths} months`],
+                  ["Total Visits", `${bundleRecord.totalVisits}`],
+                  ["Visits Used", `${bundleRefund.visitsUsed} of ${bundleRefund.totalVisits} (${Math.round(bundleRefund.pctConsumed)}%)`],
+                  ["Reason", reason + (otherReason ? " - " + otherReason : "")],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid #F3F4F6" }}>
+                    <span style={{ color: "#4A5568" }}>{k}</span>
+                    <span style={{ fontWeight: 600, maxWidth: "55%", textAlign: "right" }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ border: `2px solid ${!bundleRefund.refundEligible ? "#FCA5A5" : "#93C5FD"}`, borderRadius: 14, overflow: "hidden", marginBottom: 20 }}>
+              <div style={{ background: !bundleRefund.refundEligible ? "#FEF2F2" : "#EFF6FF", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, fontSize: 15 }}>
+                  {!bundleRefund.refundEligible ? "No Refund Zone" : "Partial Refund Applicable"}
+                </span>
+                <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, color: !bundleRefund.refundEligible ? "#DC2626" : "#1565C0" }}>
+                  {!bundleRefund.refundEligible ? "Rs 0" : INR(bundleRefund.netRefund)}
+                </span>
+              </div>
+
+              <div style={{ padding: "16px 20px" }}>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#6B7280", marginBottom: 4 }}>
+                    <span>0 visits used</span>
+                    <span style={{ color: "#F59E0B", fontWeight: 600 }}>50% = {Math.round(bundleRefund.totalVisits * 0.5)} visits (No Refund Zone starts)</span>
+                    <span>{bundleRefund.totalVisits} visits</span>
+                  </div>
+                  <div style={{ height: 10, background: "#E5E7EB", borderRadius: 5, position: "relative", overflow: "visible" }}>
+                    <div style={{ height: "100%", width: `${Math.min(100, bundleRefund.pctConsumed)}%`, background: !bundleRefund.refundEligible ? "#EF4444" : "#3B82F6", borderRadius: 5, transition: "width 0.4s" }} />
+                    <div style={{ position: "absolute", left: "50%", top: -3, width: 3, height: 16, background: "#F59E0B", borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                    You have used <strong>{Math.round(bundleRefund.pctConsumed)}% ({bundleRefund.visitsUsed} of {bundleRefund.totalVisits} visits)</strong> of your bundle.
+                  </div>
+                </div>
+
+                {bundleRefund.refundEligible ? (
+                  <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "14px 16px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Refund Computation
+                    </div>
+                    {[
+                      { label: "Total Amount Paid", val: INR(bundleRefund.totalPaid) },
+                      { label: `Value of ${bundleRefund.visitsUsed} Visits Used`, val: `- ${INR(bundleRefund.revenueForVisitsUsed)}` },
+                      { label: "Cancellation Fee (10%)", val: `- ${INR(bundleRefund.cancellationFee)}` },
+                      { label: "Payment Gateway Charges (2%)", val: `- ${INR(bundleRefund.gatewayCharges)}` },
+                    ].map(row => (
+                      <div key={row.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderBottom: "1px solid #E5E7EB", color: "#DC2626" }}>
+                        <span>{row.label}</span>
+                        <span style={{ fontWeight: 600 }}>{row.val}</span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, marginTop: 4, fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17 }}>
+                      <span>Net Refund to You</span>
+                      <span style={{ color: "#1565C0" }}>{INR(bundleRefund.netRefund)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#DC2626", background: "#FEF2F2", borderRadius: 8, padding: "10px 14px" }}>
+                    {bundleRefund.message}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              <label style={{ display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", fontSize: 13 }}>
+                <input type="checkbox" checked={consentPolicy} onChange={e => setConsentPolicy(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer", accentColor: "#546E7A", flexShrink: 0 }} />
+                <span>I have read and understood the <button onClick={() => setShowPolicyModal(true)}
+                  style={{ background: "none", border: "none", color: "#2196F3", fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 13, textDecoration: "underline" }}>
+                  Cancellation Policy
+                </button> and accept the terms.</span>
+              </label>
+              <label style={{ display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", fontSize: 13 }}>
+                <input type="checkbox" checked={consentCalc} onChange={e => setConsentCalc(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: 1, cursor: "pointer", accentColor: "#546E7A", flexShrink: 0 }} />
+                <span>I confirm the above calculation is correct and agree to proceed accordingly.</span>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button onClick={() => setStep(2)} style={S.back}>Back</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 20 }}>
+              <div style={{ border: "2px solid #E3EEF7", borderRadius: 14, padding: "20px", textAlign: "center", background: "#F8FBFF" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Accept & Proceed</div>
+                <div style={{ fontSize: 12, color: "#4A5568", marginBottom: 14, lineHeight: 1.5 }}>
+                  {!bundleRefund.refundEligible
+                    ? "Accept the no-refund outcome. You keep your remaining visits until the bundle end date, but billing stops."
+                    : `Accept the refund of ${INR(bundleRefund.netRefund)} and proceed with cancellation.`}
+                  <br />Sent to <strong>TSM</strong> for refund processing.
+                </div>
+                <button
+                  onClick={handleAcceptBundle}
+                  disabled={!consentPolicy || !consentCalc || isSubmitting}
+                  style={{ ...S.btn(consentPolicy && consentCalc && !isSubmitting, "#00C853"), width: "100%", padding: "12px" }}>
+                  {isSubmitting ? "Submitting..." : "Accept"}
+                </button>
+                {(!consentPolicy || !consentCalc) && (
+                  <p style={{ fontSize: 11, color: "#F59E0B", marginTop: 6 }}>Please accept both checkboxes above first.</p>
+                )}
+              </div>
+
+              <div style={{ border: "2px solid #FECACA", borderRadius: 14, padding: "20px", textAlign: "center", background: "#FFF5F5" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Decline & Discuss</div>
+                <div style={{ fontSize: 12, color: "#4A5568", marginBottom: 14, lineHeight: 1.5 }}>
+                  Not satisfied with the calculation? A <strong>Customer Care Executive</strong> will call you within 4 hours to discuss and resolve.
+                </div>
+                <button
+                  onClick={handleDeclineBundle}
+                  disabled={isSubmitting}
+                  style={{ ...S.btn(!isSubmitting, "#EF4444"), width: "100%", padding: "12px" }}>
+                  {isSubmitting ? "Submitting..." : "Decline - Escalate to CCE"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* ═══ STEP 3: REFUND BREAKDOWN + ACCEPT / DECLINE ═════════════════ */}
         {step === 3 && found && calc && (
           <div>
