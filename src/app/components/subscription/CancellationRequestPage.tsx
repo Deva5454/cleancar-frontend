@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CancellationRequestPage.tsx  — /cancel-service
  *
  * Flow:
@@ -245,19 +245,8 @@ export function CancellationRequestPage() {
       const subs: any[] = JSON.parse(localStorage.getItem("cleancar_subscriptions") || "[]");
       const customers: any[] = JSON.parse(localStorage.getItem("cc360_customers") || "[]");
       const revenues: any[] = JSON.parse(localStorage.getItem("FINANCE_REVENUES") || "[]");
-      // Also mark subscription as Cancelled in cleancar_subscriptions for churn tracking
-      try {
-        const allSubs: any[] = JSON.parse(localStorage.getItem("cleancar_subscriptions") || "[]");
-        const updatedSubs = allSubs.map((sub: any) => {
-          const matchById = sub.id === formData.subscriptionId;
-          const matchByCustomer = sub.customerId === formData.customerId;
-          if (matchById || matchByCustomer) {
-            return { ...sub, status: "Cancelled", cancelledDate: new Date().toISOString().split("T")[0] };
-          }
-          return sub;
-        });
-        localStorage.setItem("cleancar_subscriptions", JSON.stringify(updatedSubs));
-      } catch {}
+      // NOTE: subscription is correctly marked Cancelled later, in handleAccept() once the
+      // customer has actually seen and agreed to the refund terms - not here during lookup.
 
       // Find customer by mobile
       const customer = customers.find((c: any) => {
