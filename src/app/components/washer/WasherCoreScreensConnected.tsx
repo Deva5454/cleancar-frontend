@@ -17,7 +17,6 @@ import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
 import { WasherCheckOut } from "./WasherCheckOut";
 import { DaySummaryScreen } from "./DaySummaryScreen";
 import { mockWasherDataService, computePeriodicFlagsB } from "../../services/mockWasherDataService";
-import { mockWasherDataService, computePeriodicFlagsB } from "../../services/mockWasherDataService";
 import type { CustomerJob } from "../../services/mockWasherDataService";
 type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "checkout";
 

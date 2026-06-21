@@ -257,8 +257,9 @@ export function WasherProvider({ children }: WasherProviderProps) {
     if (!shouldActivate || !washerId) return;
 
     const profile = washerDataService.getWasherProfile(washerId);
+    if (!profile) return;
     const shiftConfig = WASHER_SHIFT_DEFAULTS[profile.employmentType];
-    if (!shiftConfig.autoLogoutEnabled) return; // FT washers: no auto-logout
+    if (!shiftConfig?.autoLogoutEnabled) return; // FT washers: no auto-logout
 
     const shift = washerDataService.getWasherShift(washerId);
     const [endH, endM] = shift.endTime.split(":").map(Number);
@@ -589,10 +590,29 @@ export function useWasher() {
   const context = useContext(WasherContext);
   if (!context) {
     return {
-      washerId: "", washerName: "", assignedJobs: [], completedToday: 0,
-      checkIn: () => {}, checkOut: () => {}, startJob: () => {}, completeJob: () => {},
-      currentJob: null, isCheckedIn: false, shiftStart: null,
-    } as any; // safe fallback
+      profile: null,
+      dayStatus: { date: new Date(), isCheckedIn: false, isCheckedOut: false, status: "NOT_STARTED" as const, isWeekOff: false, isLate: false },
+      isCheckedIn: false,
+      isCheckedOut: false,
+      checkInTime: null,
+      checkOutTime: null,
+      jobs: [],
+      activeJob: null,
+      jobExecution: null,
+      stats: { jobsToday: 0, completed: 0, inProgress: 0, remaining: 0, totalEarnings: 0, unitsCompleted: 0 },
+      checkIn: async () => ({ success: false as const, message: "Not in washer context" }),
+      checkOut: async () => ({ success: false as const, message: "Not in washer context" }),
+      startJob: () => {},
+      completeStep: () => {},
+      addPhoto: () => {},
+      markConsumableUsed: () => {},
+      completeJob: () => {},
+      refreshData: () => {},
+      isLoading: false,
+      error: null,
+      isAppLocked: false,
+      lockReason: null,
+    } satisfies WasherContextType;
   }
   return context;
 }
