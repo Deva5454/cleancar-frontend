@@ -1,8 +1,10 @@
-// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { CorporateB2BPortal } from "./components/crm/CorporateB2BPortal";
+import { MultiVehicleManager } from "./components/customer/MultiVehicleManager";
 import { RootLayoutWrapper } from "./components/layouts/RootLayoutWrapper";
 
 // Loading fallback for lazy-loaded routes
@@ -187,7 +189,7 @@ const WeekOffCoverDemo = lazy(() => import("./components/washer/WeekOffCoverDemo
 import { SystemIntegrationDemo } from "./components/washer/SystemIntegrationDemo";
 const WasherCoreScreensDemo = lazy(() => import("./components/washer/WasherCoreScreensDemo"));
 const WasherCoreScreensConnected = lazy(() => import("./components/washer/WasherCoreScreensConnected"));
-const SupervisorAppConnected = lazy(() => import("./components/supervisor/SupervisorAppConnected"));
+import { SupervisorAppConnected } from "./components/supervisor/SupervisorAppConnected";
 import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
 const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
 const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
@@ -201,14 +203,16 @@ import TestBTLService from "./test-btl-service";
 import { SubscriptionApp } from "./components/subscription/SubscriptionApp";
 const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen"));
 const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage"));
+// Direct import for /buy public page - avoids lazy/Suspense issues
+import { CustomerPlanPage as CustomerPlanPageDirect } from "./components/subscription/CustomerPlanPage";
 const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 // import { AdminPlanManagement } from "./components/subscription/AdminPlanManagement"; // NOW LAZY
 import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionDiagnostics";
 const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard"));
 import { WasherAttendanceHistory } from "./components/washer/WasherAttendanceHistory";
 import { OperationsRouter } from "./components/operations/OperationsRouter";
-const OperationsDataCapture = lazy(() => import("./components/operations/OperationsDataCapture"));
 import { OperationsLayout } from "./components/operations/OperationsLayout";
+import { DataCapture } from "./components/operations/DataCapture";
 const ClientPortal = lazy(() => import("./components/client/ClientPortal"));
 const WorkingHoursSetup = lazy(() => import("./components/workforce/WorkingHoursSetup"));
 import { WorkingHoursTest } from "./components/workforce/WorkingHoursTest";
@@ -248,9 +252,8 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
 import { AppProvider } from "./contexts/AppProvider";
+import { AppProviderSimple } from "./contexts/AppProviderSimple";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
-import { MultiVehicleManager } from "./components/customer/MultiVehicleManager";
-import { CorporateB2BPortal } from "./components/crm/CorporateB2BPortal";
 
 export const router = createBrowserRouter([
   {
@@ -269,7 +272,7 @@ export const router = createBrowserRouter([
   // Public routes
   {
     path: "/buy",
-    element: <ErrorBoundary><AppProvider><CustomerPlanPage /></AppProvider></ErrorBoundary>,
+    element: <ErrorBoundary><AppProviderSimple><CustomerPlanPageDirect /></AppProviderSimple></ErrorBoundary>,
   },
   {
     path: "/book",
@@ -331,7 +334,7 @@ export const router = createBrowserRouter([
         element: <OperationsLayout />,
         children: [
           { index: true, element: <OperationsRouter /> },
-          { path: "data-capture", element: <OperationsDataCapture /> },
+          { path: "data-capture", element: <DataCapture /> },
         ]
       },
       { path: "complaints", element: <ComplaintManagement /> },
@@ -561,6 +564,12 @@ export const router = createBrowserRouter([
           { path: "visibility", element: <SupervisorAppConnected /> },
           { path: "audit-trail", element: <SupervisorAppConnected /> },
           { path: "kpi-dashboard", element: <SupervisorAppConnected /> },
+          { path: "btl-assignments", element: <SupervisorAppConnected /> },
+          { path: "schedule", element: <SupervisorAppConnected /> },
+          { path: "audit-flow", element: <SupervisorAppConnected /> },
+          { path: "audit-result", element: <SupervisorAppConnected /> },
+          { path: "btl-leads", element: <SupervisorAppConnected /> },
+          { path: "*", element: <SupervisorAppConnected /> },
         ]
       },
 
@@ -594,7 +603,7 @@ export const router = createBrowserRouter([
       // Subscription Management System (Production) - Dynamic plan system
       { path: "subscription-app", element: <SubscriptionApp /> },
       { path: "plans", element: <PlanSelectionScreen /> },
-      { path: "buy",   element: <CustomerPlanPage /> },
+
       { path: "admin/plans", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
@@ -626,3 +635,10 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+
+
+
+
+
+
