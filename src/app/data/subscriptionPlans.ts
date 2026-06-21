@@ -693,3 +693,14 @@ export const PLAN_TIER_COLORS: Record<string, { bg: string; text: string; border
   ELITE:        { bg: "#FFF7ED", text: "#C2410C", border: "#FED7AA" },
   ELITE_2W:     { bg: "#F5F3FF", text: "#5B21B6", border: "#DDD6FE" },
 };
+
+// UI constants re-exported via subscriptionPlans.constants.ts
+export const SERVICE_FREQUENCIES = ["Daily", "Alternate Day", "Twice a Week", "Weekly"] as const;
+export const MIN_BASE_PRICE = 0;
+export const MAX_BASE_PRICE = 10000;
+export const MIN_DISCOUNT_PERCENT = 0;
+export const MAX_DISCOUNT_PERCENT = 50;
+export const MIN_MARGIN_PERCENT = 0;
+export const MAX_MARGIN_PERCENT = 100;
+export const BEST_VALUE_BADGE = "Best Value";
+export const PLANS_PER_ROW = 3;
