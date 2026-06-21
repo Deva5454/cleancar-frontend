@@ -719,8 +719,8 @@ export function CustomerPlanPage() {
 
       {/* Mode tabs */}
       <div style={{background:"white",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
-        <button onClick={() => setPageMode("buy")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:pageMode==="buy"?"3px solid #312e81":"3px solid transparent",color:pageMode==="buy"?"#312e81":"#64748b",background:"none"}}>Subscribe / Buy</button>
-        <button onClick={() => setPageMode("reschedule")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:pageMode==="reschedule"?"3px solid #312e81":"3px solid transparent",color:pageMode==="reschedule"?"#312e81":"#64748b",background:"none"}}>Reschedule Wash</button>
+        <button onClick={() => setPageMode("buy")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:(pageMode==="buy"?"3px solid #312e81":"3px solid transparent"),color:(pageMode==="buy"?"#312e81":"#64748b"),background:"none"}}>Subscribe / Buy</button>
+        <button onClick={() => setPageMode("reschedule")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:(pageMode==="reschedule"?"3px solid #312e81":"3px solid transparent"),color:(pageMode==="reschedule"?"#312e81":"#64748b"),background:"none"}}>Reschedule Wash</button>
       </div>
       {pageMode === "reschedule" && <div style={{minHeight:"80vh",background:"#f0f4ff"}}><RescheduleTab /></div>}
       {pageMode === "buy" && (<>
