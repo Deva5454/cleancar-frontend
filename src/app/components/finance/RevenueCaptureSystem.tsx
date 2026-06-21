@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -33,7 +33,7 @@ import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 
 const COLORS = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899"];
 
-// ── Pincode → Area map ────────────────────────────────────────────────────────
+// â”€â”€ Pincode â†’ Area map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PIN_AREA: Record<string,string> = {
   "395001":"Adajan","395002":"Varachha","395003":"Katargam",
   "395005":"Althan","395006":"Dumas","395007":"Vesu",
@@ -59,7 +59,7 @@ const MONTHS = [
   { value:"2026-01", label:"January 2026" },
 ];
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
+// â”€â”€ KPI Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function KPICard({ title, value, change, trend, icon: Icon }: any) {
   const isPositive = change >= 0;
   return (
@@ -88,7 +88,7 @@ function KPICard({ title, value, change, trend, icon: Icon }: any) {
   );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function RevenueCaptureSystem() {
   const { currentRole } = useRole();
   const { getRevenueByCity } = useFinance();
@@ -97,7 +97,7 @@ export function RevenueCaptureSystem() {
   const { cityCustomers } = useCustomers();
   const allEmps = employeeDatabaseService.getAll();
 
-  // ── Filters ────────────────────────────────────────────────────────────────
+  // â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [selectedMonth,    setSelectedMonth]    = useState("2026-04");
   const [prevMonth,        setPrevMonth]        = useState("2026-03");
   const [filterCityId,     setFilterCityId]     = useState(city);
@@ -106,7 +106,7 @@ export function RevenueCaptureSystem() {
   const [filterType,       setFilterType]       = useState("All");
   const [chartToggle,      setChartToggle]      = useState("Total");
 
-  // ── Derived data ───────────────────────────────────────────────────────────
+  // â”€â”€ Derived data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const allRevenues = getRevenueByCity(filterCityId);
 
   // Fix 7: On mount, ensure revenue records have corresponding Output GST accounting entries
@@ -132,7 +132,7 @@ export function RevenueCaptureSystem() {
         existingNums.push(invNum);
         const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: r.amount });
         if (lines.length > 0 && accountingEntryService.createJournal) {
-          accountingEntryService.createJournal({ date: r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0], narration: `Revenue — Invoice ${invNum}`, lines, city: city || "Surat", cityId, createdBy: "System" }, city || "Surat");
+          accountingEntryService.createJournal({ date: r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0], narration: `Revenue â€” Invoice ${invNum}`, lines, city: city || "Surat", cityId, createdBy: "System" }, city || "Surat");
         }
       } catch(e) { console.warn("[RevCapture] GST post error", e); }
     });
@@ -179,7 +179,7 @@ export function RevenueCaptureSystem() {
     [allEmps, filterCityId]
   );
 
-  // ── KPI Metrics ────────────────────────────────────────────────────────────
+  // â”€â”€ KPI Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const metrics = useMemo(() => {
     const totalRevenue      = (revenues || []).reduce((s,r) => s + r.amount, 0);
     const prevTotalRevenue  = (prevRevenues || []).reduce((s,r) => s + r.amount, 0);
@@ -214,7 +214,7 @@ export function RevenueCaptureSystem() {
     };
   }, [revenues, prevRevenues]);
 
-  // ── Revenue Trend by day ───────────────────────────────────────────────────
+  // â”€â”€ Revenue Trend by day â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const revenueTrendData = useMemo(() => {
     const daily: Record<string,{total:number;subscription:number;onetime:number}> = {};
     revenues.forEach(r => {
@@ -234,7 +234,7 @@ export function RevenueCaptureSystem() {
       }));
   }, [revenues]);
 
-  // ── Revenue Split by type ─────────────────────────────────────────────────
+  // â”€â”€ Revenue Split by type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const revenueSplitData = useMemo(() => {
     const typeMap: Record<string,number> = {};
     revenues.forEach(r => { typeMap[r.type] = (typeMap[r.type]||0) + r.amount; });
@@ -243,7 +243,7 @@ export function RevenueCaptureSystem() {
     })).filter(x => x.value > 0);
   }, [revenues]);
 
-  // ── Monthly comparison ─────────────────────────────────────────────────────
+  // â”€â”€ Monthly comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const monthCompareData = useMemo(() => {
     const curr = (revenues || []).reduce((s,r) => s+r.amount, 0);
     const prev = (prevRevenues || []).reduce((s,r) => s+r.amount, 0);
@@ -253,7 +253,7 @@ export function RevenueCaptureSystem() {
     ];
   }, [revenues, prevRevenues, selectedMonth, prevMonth]);
 
-  // ── Location performance by pincode ───────────────────────────────────────
+  // â”€â”€ Location performance by pincode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const locationData = useMemo(() => {
     const byPin: Record<string,{revenue:number;count:number}> = {};
     revenues.forEach(r => {
@@ -265,7 +265,7 @@ export function RevenueCaptureSystem() {
     });
     return Object.entries(byPin)
       .map(([pin,d]) => ({
-        location: pin === "Unknown" ? pin : `${pin} — ${PIN_AREA[pin]||pin}`,
+        location: pin === "Unknown" ? pin : `${pin} â€” ${PIN_AREA[pin]||pin}`,
         pinCode: pin,
         revenue: d.revenue,
         orders: d.count,
@@ -275,7 +275,7 @@ export function RevenueCaptureSystem() {
       .slice(0,8);
   }, [revenues, allJobs]);
 
-  // ── Washer performance ─────────────────────────────────────────────────────
+  // â”€â”€ Washer performance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const washerData = useMemo(() => {
     const byWasher: Record<string,{name:string;revenue:number;jobs:number}> = {};
     allJobs
@@ -306,7 +306,7 @@ export function RevenueCaptureSystem() {
       .slice(0,8);
   }, [allJobs, filterCityId, selectedMonth, filterWasherId, allEmps]);
 
-  // ── Export CSV ─────────────────────────────────────────────────────────────
+  // â”€â”€ Export CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleExport = () => {
     if (revenues.length === 0) { toast.error("No data to export"); return; }
     const rows = [
@@ -360,7 +360,7 @@ export function RevenueCaptureSystem() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Revenue Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Live data from Supabase · {revenues.length} records · {cityInfo.displayName}
+            Live data from Supabase Â· {revenues.length} records Â· {cityInfo.displayName}
           </p>
         </div>
         <Button variant="outline" onClick={handleExport} className="flex items-center gap-2">
@@ -400,13 +400,13 @@ export function RevenueCaptureSystem() {
               </SelectContent>
             </Select>
 
-            {/* Pincode — city-aware */}
+            {/* Pincode â€” city-aware */}
             <Select value={filterPincode} onValueChange={setFilterPincode}>
               <SelectTrigger className="w-44"><SelectValue placeholder="PIN Code" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All PIN Codes</SelectItem>
                 {cityPins.map(pin => (
-                  <SelectItem key={pin} value={pin}>{pin} — {PIN_AREA[pin]||pin}</SelectItem>
+                  <SelectItem key={pin} value={pin}>{pin} â€” {PIN_AREA[pin]||pin}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -438,21 +438,21 @@ export function RevenueCaptureSystem() {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard title="Total Revenue"       value={`₹${metrics.totalRevenue.toLocaleString("en-IN")}`}   change={metrics.revGrowth}  trend={MONTHS.find(m=>m.value===prevMonth)?.label||prevMonth} icon={DollarSign} />
-        <KPICard title="Subscription Revenue" value={`₹${metrics.subRevenue.toLocaleString("en-IN")}`}    change={metrics.subGrowth}  trend="prev month" icon={RefreshCcw} />
-        <KPICard title="Avg Ticket Size"     value={`₹${Math.round(metrics.avgTicket).toLocaleString("en-IN")}`} change={metrics.ticketGrowth} trend="prev month" icon={Percent} />
+        <KPICard title="Total Revenue"       value={`â‚¹${metrics.totalRevenue.toLocaleString("en-IN")}`}   change={metrics.revGrowth}  trend={MONTHS.find(m=>m.value===prevMonth)?.label||prevMonth} icon={DollarSign} />
+        <KPICard title="Subscription Revenue" value={`â‚¹${metrics.subRevenue.toLocaleString("en-IN")}`}    change={metrics.subGrowth}  trend="prev month" icon={RefreshCcw} />
+        <KPICard title="Avg Ticket Size"     value={`â‚¹${Math.round(metrics.avgTicket).toLocaleString("en-IN")}`} change={metrics.ticketGrowth} trend="prev month" icon={Percent} />
         <KPICard title="Active Customers"    value={metrics.uniqueCusts.toString()}                        change={metrics.custGrowth} trend="prev month" icon={UserPlus} />
         <KPICard title="New Customers"       value={metrics.newCusts.toString()}                           change={0}  trend="prev month" icon={TrendingUp} />
         <KPICard title="Retained Customers"  value={metrics.retainedCusts.toString()}                      change={metrics.retentionRate > 80 ? 5 : -3} trend="prev month" icon={TrendingUp} />
         <KPICard title="Retention Rate"      value={`${(metrics?.retentionRate ?? 0).toFixed(1)}%`}                change={metrics.retentionRate > 80 ? 2.1 : -1.5} trend="prev month" icon={Percent} />
-        <KPICard title="One-Time Revenue"    value={`₹${metrics.onetimeRevenue.toLocaleString("en-IN")}`} change={0}  trend="prev month" icon={DollarSign} />
+        <KPICard title="One-Time Revenue"    value={`â‚¹${metrics.onetimeRevenue.toLocaleString("en-IN")}`} change={0}  trend="prev month" icon={DollarSign} />
       </div>
 
       {/* REVENUE TREND CHART */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle>Revenue Trend — {MONTHS.find(m=>m.value===selectedMonth)?.label}</CardTitle>
+            <CardTitle>Revenue Trend â€” {MONTHS.find(m=>m.value===selectedMonth)?.label}</CardTitle>
             <div className="flex gap-2">
               {["Total","Subscription","One-time"].map(t => (
                 <Button key={t} size="sm"
@@ -475,8 +475,8 @@ export function RevenueCaptureSystem() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize:11 }} />
                 <YAxis tick={{ fontSize:11 }} width={60}
-                  tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <RechartsTooltip formatter={(v:any) => `₹${Number(v).toLocaleString("en-IN")}`} />
+                  tickFormatter={v => `â‚¹${(v/1000).toFixed(0)}K`} />
+                <RechartsTooltip formatter={(v:any) => `â‚¹${Number(v).toLocaleString("en-IN")}`} />
                 <Legend />
                 {chartToggle==="Total"        && <Line type="monotone" dataKey="total"        stroke="#3b82f6" strokeWidth={2} name="Total Revenue" dot={false} />}
                 {chartToggle==="Subscription" && <Line type="monotone" dataKey="subscription" stroke="#10b981" strokeWidth={2} name="Subscription"  dot={false} />}
@@ -503,7 +503,7 @@ export function RevenueCaptureSystem() {
                     label={({name,percent}) => `${name}: ${(percent*100).toFixed(1)}%`}>
                     {revenueSplitData.map(e => <Cell key={e.id} fill={e.color} />)}
                   </Pie>
-                  <RechartsTooltip formatter={(v:any) => `₹${Number(v).toLocaleString("en-IN")}`} />
+                  <RechartsTooltip formatter={(v:any) => `â‚¹${Number(v).toLocaleString("en-IN")}`} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -519,8 +519,8 @@ export function RevenueCaptureSystem() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tick={{ fontSize:11 }} />
                 <YAxis tick={{ fontSize:11 }} width={60}
-                  tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <RechartsTooltip formatter={(v:any) => `₹${Number(v).toLocaleString("en-IN")}`} />
+                  tickFormatter={v => `â‚¹${(v/1000).toFixed(0)}K`} />
+                <RechartsTooltip formatter={(v:any) => `â‚¹${Number(v).toLocaleString("en-IN")}`} />
                 <Bar dataKey="revenue" fill="#3b82f6" name="Revenue"
                    />
               </BarChart>
@@ -537,7 +537,7 @@ export function RevenueCaptureSystem() {
         <CardContent>
           {locationData.length === 0 ? (
             <p className="text-gray-400 text-sm py-4 text-center">
-              No location data — revenue records need job references to map to pincodes
+              No location data â€” revenue records need job references to map to pincodes
             </p>
           ) : (
             <Table>
@@ -553,9 +553,9 @@ export function RevenueCaptureSystem() {
                 {locationData.map((row,i) => (
                   <TableRow key={i} className="hover:bg-gray-50">
                     <TableCell className="font-medium">{row.location}</TableCell>
-                    <TableCell className="text-right">₹{row.revenue.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">â‚¹{row.revenue.toLocaleString("en-IN")}</TableCell>
                     <TableCell className="text-right">{row.orders}</TableCell>
-                    <TableCell className="text-right">₹{row.avgTicket.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">â‚¹{row.avgTicket.toLocaleString("en-IN")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -597,7 +597,7 @@ export function RevenueCaptureSystem() {
               <div key={item.label} className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">{item.label}</span>
                 <div className="text-right">
-                  <span className={`font-bold ${item.color}`}>₹{item.amount.toLocaleString("en-IN")}</span>
+                  <span className={`font-bold ${item.color}`}>â‚¹{item.amount.toLocaleString("en-IN")}</span>
                   <span className="text-xs text-gray-400 ml-2">
                     {metrics.totalRevenue > 0
                       ? `${((item.amount/metrics.totalRevenue)*100).toFixed(1)}%`
@@ -608,7 +608,7 @@ export function RevenueCaptureSystem() {
             ))}
             <div className="border-t pt-2 flex justify-between font-bold">
               <span>Total</span>
-              <span>₹{metrics.totalRevenue.toLocaleString("en-IN")}</span>
+              <span>â‚¹{metrics.totalRevenue.toLocaleString("en-IN")}</span>
             </div>
           </CardContent>
         </Card>
@@ -618,7 +618,7 @@ export function RevenueCaptureSystem() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle>Washer Performance — {MONTHS.find(m=>m.value===selectedMonth)?.label}</CardTitle>
+            <CardTitle>Washer Performance â€” {MONTHS.find(m=>m.value===selectedMonth)?.label}</CardTitle>
             <Select value={filterWasherId} onValueChange={setFilterWasherId}>
               <SelectTrigger className="w-48"><SelectValue placeholder="All Washers" /></SelectTrigger>
               <SelectContent>
@@ -653,10 +653,10 @@ export function RevenueCaptureSystem() {
                       <Badge className="bg-blue-100 text-blue-700">{row.jobs}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold text-green-700">
-                      ₹{row.revenue.toLocaleString("en-IN")}
+                      â‚¹{row.revenue.toLocaleString("en-IN")}
                     </TableCell>
                     <TableCell className="text-right text-gray-600">
-                      ₹{row.avgTicket.toLocaleString("en-IN")}
+                      â‚¹{row.avgTicket.toLocaleString("en-IN")}
                     </TableCell>
                   </TableRow>
                 ))}
