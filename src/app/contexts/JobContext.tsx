@@ -1266,7 +1266,7 @@ export function useJobs() {
   if (!context) {
     // PREVIEW FALLBACK: Safe no-op defaults for Figma Make iframe and dev HMR
     { // Always return safe fallback in all environments
-      const noop = () => { throw new Error("JobContext not available in preview"); };
+      const noop = () => {};
       return {
         allJobs: [], unassignedJobs: [], assignedJobs: [], completedJobs: [],
         createJob: noop, updateJob: () => {}, deleteJob: () => {},
@@ -1284,4 +1284,5 @@ export function useJobs() {
   }
   return context;
 }
+
 

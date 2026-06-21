@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CustomerContext - SINGLE SOURCE OF TRUTH for all customer data
  * Used across: CRM, Subscription, Jobs, Finance
  *
@@ -281,14 +281,15 @@ export function useCustomers() {
   if (!context) {
     // PREVIEW FALLBACK: Safe no-op defaults for Figma Make iframe and dev HMR
     { // Always return safe fallback in all environments
-      const noop = () => { throw new Error("CustomerContext not available in preview"); };
+      const noop = () => {};
       return {
         customers: [], cityCustomers: [], addCustomer: noop, updateCustomer: () => {}, deleteCustomer: () => {},
         getCustomerById: () => undefined, getCustomersByStatus: () => [],
         leads: [], cityLeads: [], addLead: noop, updateLead: () => {}, deleteLead: () => {}, appendLeadActivity: () => {},
       } as CustomerContextType;
     }
-    console.warn("[useCustomers] Called outside CustomerProvider — returning fallback"); return {} as any; // safe fallback
+    console.warn("[useCustomers] Called outside CustomerProvider â€” returning fallback"); return {} as any; // safe fallback
   }
   return context;
 }
+
