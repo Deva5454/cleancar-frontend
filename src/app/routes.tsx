@@ -1,4 +1,4 @@
-﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+﻿﻿﻿﻿﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
@@ -195,6 +195,7 @@ import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
 const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
 const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
 const TeleSalesManagerApp = lazy(() => import("./components/tsm/TeleSalesManagerApp"));
+const TSMCancellationQueue = lazy(() => import("./components/tsm/TSMCancellationQueue"));
 const SalesHeadApp = lazy(() => import("./components/sh/SalesHeadApp"));
 const SalesManagerApp = lazy(() => import("./components/sm/SalesManagerApp"));
 const TeleSalesExecutiveApp = lazy(() => import("./components/tse/TeleSalesExecutiveApp"));
@@ -205,6 +206,7 @@ import { SubscriptionApp } from "./components/subscription/SubscriptionApp";
 const PlanSelectionScreen = lazy(() => import("./components/subscription/PlanSelectionScreen"));
 const CustomerPlanPage = lazy(() => import("./components/subscription/CustomerPlanPage"));
 import { CustomerPlanPage as CustomerPlanPageDirect } from "./components/subscription/CustomerPlanPage";
+import { CancellationRequestPage } from "./components/subscription/CancellationRequestPage";
 import { AppProviderSimple } from "./contexts/AppProviderSimple";
 const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
 // import { AdminPlanManagement } from "./components/subscription/AdminPlanManagement"; // NOW LAZY
@@ -272,6 +274,10 @@ export const router = createBrowserRouter([
   {
     path: "/buy",
     element: <ErrorBoundary><AppProviderSimple><CustomerPlanPageDirect /></AppProviderSimple></ErrorBoundary>,
+  },
+  {
+    path: "/cancel-service",
+    element: <ErrorBoundary><AppProviderSimple><CancellationRequestPage /></AppProviderSimple></ErrorBoundary>,
   },
   {
     path: "/book",
@@ -586,6 +592,7 @@ export const router = createBrowserRouter([
 
       // Tele Sales Manager App (Production) - Pipeline control tower
       { path: "tsm-app", element: <TeleSalesManagerApp /> },
+      { path: "tsm-cancellations", element: <TSMCancellationQueue /> },
       { path: "sh-app", element: <SalesHeadApp /> },
       { path: "sm-app-alliance", element: <SalesManagerApp /> },
 
