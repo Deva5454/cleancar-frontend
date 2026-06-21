@@ -1,5 +1,5 @@
 ﻿/**
- * WASHER CORE SCREENS â€” CONNECTED
+ * WASHER CORE SCREENS â€" CONNECTED
  * Self-contained flow: Dashboard â†’ Check-In â†’ Schedule â†’ Active Wash â†’ Check-Out â†’ Day Summary
  * All state managed locally. Syncs to WasherContext but does NOT depend on it for flow control.
  */
@@ -23,19 +23,19 @@ type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "c
 export function WasherCoreScreensConnected() {
   const navigate = useNavigate();
 
-  // Context â€” used for profile/stats display only
+  // Context â€" used for profile/stats display only
   const { profile, stats, refreshData } = useWasher();
   const { completedJobs } = useWasherJobs();
   const { currentUser } = useRole();
 
-  // â”€â”€ LOCAL FLOW STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ LOCAL FLOW STATE â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const [screen, setScreen]           = useState<Screen>("dashboard");
   const [checkedIn, setCheckedIn]     = useState(false);
   const [checkedOut, setCheckedOut]   = useState(false);
   const [checkInTime, setCheckInTime] = useState<Date | null>(null);
   const [showDaySummary, setShowDaySummary] = useState(false);
 
-  // Jobs â€” seeded from mock service, mutations tracked here
+  // Jobs â€" seeded from mock service, mutations tracked here
   const [jobs, setJobs] = useState<CustomerJob[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
@@ -88,12 +88,12 @@ export function WasherCoreScreensConnected() {
     setJobs(loaded);
   }, [(currentUser as any)?.employeeId]);
 
-  // â”€â”€ DERIVED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ DERIVED â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const activeJob      = jobs.find(j => j.id === activeJobId) ?? null;
   const completedLocal = jobs.filter(j => j.status === "Completed");
   const pendingLocal   = jobs.filter(j => j.status === "Assigned" || j.status === "Acknowledged");
 
-  // â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ HELPERS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const updateJobStatus = (jobId: string, status: CustomerJob["status"]) => {
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status } : j));
     mockWasherDataService.updateJobStatus(jobId, status);
@@ -108,9 +108,9 @@ export function WasherCoreScreensConnected() {
     } catch (_) {}
   };
 
-  // â”€â”€ HANDLERS: CHECK-IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ HANDLERS: CHECK-IN â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const handleStartCheckInCamera = () => {
-    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-In Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3Eâœ“ Captured%3C/text%3E%3C/svg%3E");
+    setCheckInPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-In Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3E%E2%9C%93 Captured%3C/text%3E%3C/svg%3E");
     setTimeout(() => setCheckInValidations({ face: "SUCCESS", numberPlate: "SUCCESS", gps: "SUCCESS" }), 600);
   };
   const handleRetakeCheckIn = () => {
@@ -164,26 +164,26 @@ export function WasherCoreScreensConnected() {
 
     // Fix: start GPS tracking on check-in
     const currentJob = activeJobId ? jobs.find(j => j.id === activeJobId) : null;
-    const washerEmployeeId = (currentUser as any)?.employeeId || “”;
+    const washerEmployeeId = (currentUser as any)?.employeeId || "";
     if (activeJobId && washerEmployeeId) {
-      import(“../../services/washerLocationService”).then(({ startTracking }) => {
+      import("../../services/washerLocationService").then(({ startTracking }) => {
         startTracking(washerEmployeeId, activeJobId);
       });
     }
 
     // Fix 3: Send WA to customer — washer arrived
     if (currentJob) {
-      import(“../../services/whatsappService”).then(ws => {
-        import(“../../services/washerLocationService”).then(({ getTrackingUrl }) => {
-          const trackingUrl = getTrackingUrl(activeJobId || “”);
+      import("../../services/whatsappService").then(ws => {
+        import("../../services/washerLocationService").then(({ getTrackingUrl }) => {
+          const trackingUrl = getTrackingUrl(activeJobId || "");
           ws.sendWasherArrived({
-            customerPhone: currentJob.customerPhone || currentJob.customer?.phone || “”,
-            customerName: currentJob.customerName || “Customer”,
-            washerName: currentUser?.employeeName || profile?.name || “Your Washer”,
-            supervisorName: currentJob.supervisorName || “”,
-            supervisorPhone: currentJob.supervisorPhone || “”,
+            customerPhone: currentJob.customerPhone || currentJob.customer?.phone || "",
+            customerName: currentJob.customerName || "Customer",
+            washerName: currentUser?.employeeName || profile?.name || "Your Washer",
+            supervisorName: currentJob.supervisorName || "",
+            supervisorPhone: currentJob.supervisorPhone || "",
             trackingUrl,
-            planLabel: currentJob.packageName || “Wash”,
+            planLabel: currentJob.packageName || "Wash",
           });
         });
       });
@@ -198,7 +198,7 @@ export function WasherCoreScreensConnected() {
     refreshData();
   };
 
-  // â”€â”€ HANDLERS: SCHEDULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ HANDLERS: SCHEDULE â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const handleStartJob = (jobId: string) => {
     updateJobStatus(jobId, "In Progress");
     setActiveJobId(jobId);
@@ -212,7 +212,7 @@ export function WasherCoreScreensConnected() {
     }
   };
 
-  // â”€â”€ HANDLERS: ACTIVE WASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ HANDLERS: ACTIVE WASH â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const handleCompleteJob = () => {
     if (activeJobId) updateJobStatus(activeJobId, "Completed");
     setActiveJobId(null);
@@ -220,9 +220,9 @@ export function WasherCoreScreensConnected() {
     refreshData();
   };
 
-  // â”€â”€ HANDLERS: CHECK-OUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ HANDLERS: CHECK-OUT â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const handleStartCheckOutCamera = () => {
-    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-Out Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3Eâœ“ Captured%3C/text%3E%3C/svg%3E");
+    setCheckOutPhoto("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' style='background:%23d1fae5'%3E%3Ctext x='50%25' y='45%25' dominant-baseline='middle' text-anchor='middle' font-size='18' fill='%23065f46'%3ECheck-Out Photo%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%23059669'%3E%E2%9C%93 Captured%3C/text%3E%3C/svg%3E");
     setTimeout(() => setCheckOutValidations({ face: "SUCCESS", gps: "SUCCESS" }), 600);
   };
   const handleRetakeCheckOut = () => {
@@ -234,7 +234,7 @@ export function WasherCoreScreensConnected() {
     setShowDaySummary(true);
   };
 
-  // â”€â”€ MAP JOBS TO CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ MAP JOBS TO CARDS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const mapJobsToCards = (): JobCard[] =>
     jobs.map((job, index) => ({
       id: job.id,
@@ -260,7 +260,7 @@ export function WasherCoreScreensConnected() {
     if (checkedIn)  return "WORKING";
     return "NOT_CHECKED_IN";
   };
-  // â”€â”€ DAY SUMMARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ DAY SUMMARY â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   if (showDaySummary) {
     return (
       <DaySummaryScreen
@@ -286,7 +286,7 @@ export function WasherCoreScreensConnected() {
     );
   }
 
-  // â”€â”€ SCREEN CONTENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ SCREEN CONTENT â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const renderScreen = () => {
     switch (screen) {
 
@@ -440,7 +440,7 @@ export function WasherCoreScreensConnected() {
     }
   };
 
-  // â”€â”€ BOTTOM NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ BOTTOM NAV â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 
 
