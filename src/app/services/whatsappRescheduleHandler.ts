@@ -1,6 +1,6 @@
-/**
+﻿/**
  * whatsappRescheduleHandler.ts
- * ─────────────────────────────────────────────────────────────────────────────
+ * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  * Handles incoming WhatsApp replies from customers requesting reschedule.
  *
  * In production: Interakt/Wati webhook calls POST /api/whatsapp/webhook
@@ -10,16 +10,16 @@
  *   the intent (RESCHEDULE / CANCEL) and creates a reschedule record.
  *
  * Trigger words recognised (case-insensitive):
- *   RESCHEDULE, CHANGE, POSTPONE, SHIFT, DELAY — intent: reschedule
- *   CANCEL, STOP, NO                           — intent: cancel
+ *   RESCHEDULE, CHANGE, POSTPONE, SHIFT, DELAY â€” intent: reschedule
+ *   CANCEL, STOP, NO                           â€” intent: cancel
  *
  * Reschedule flow:
  *   1. Customer replies "RESCHEDULE" to booking confirmation WA
  *   2. System finds their active upcoming job
  *   3. Creates a RescheduleRequest record in DataService
- *   4. Notifies Supervisor + TSM: "Customer requested reschedule — action needed"
+ *   4. Notifies Supervisor + TSM: "Customer requested reschedule â€” action needed"
  *   5. Customer receives: "Got it! Our team will contact you within 1 hr to confirm your new slot"
- *   6. Supervisor assigns new slot → marks reschedule as resolved
+ *   6. Supervisor assigns new slot â†’ marks reschedule as resolved
  *
  * IVR reschedule: same RescheduleRequest record created via the IVR API.
  * Parameters already set by Admin in the IVR system.
@@ -75,7 +75,7 @@ export function processIncomingMessage(
     return {
       intent: "reschedule",
       replyText:
-        "Got it! ✅ Your reschedule request has been received.\n" +
+        "Got it! âœ… Your reschedule request has been received.\n" +
         "Our team will contact you within 1 hour to confirm your new slot.\n" +
         "If urgent, call: 91-XXXXXXXXXX",
     };
@@ -130,7 +130,7 @@ function createRescheduleRequest(phone: string, source: RescheduleRequest["sourc
   ).length;
 
   if (recentCount >= MAX_RESCHEDULES_PER_BOOKING) {
-    // Notify but don't create — customer hit limit
+    // Notify but don't create â€” customer hit limit
     window.dispatchEvent(new CustomEvent("cc360:reschedule_limit_reached", {
       detail: { phone, limit: MAX_RESCHEDULES_PER_BOOKING }
     }));
@@ -192,7 +192,22 @@ export const rescheduleService = {
       rescheduleCount: totalReschedules,
     };
     writeRequests(reqs);
-    window.dispatchEvent(new CustomEvent("cc360:reschedule_resolved", { detail: { id, newDate, newSlot } }));
+
+    // GAP FIX 2: Update actual Job record so washer sees new slot
+    const jobId = reqs[idx].jobId;
+    if (jobId) {
+      try {
+        const allJobs = DataService.get<any>("JOBS") || [];
+        DataService.setAll("JOBS", allJobs.map((j: any) => j.jobId === jobId ? { ...j, scheduledDate: newDate, timeSlot: newSlot, status: "Assigned", updatedAt: new Date().toISOString() } : j));
+        const localKey = "cleancar_CITY-SURAT_jobs";
+        const localJobs = JSON.parse(localStorage.getItem(localKey) || "[]");
+        localStorage.setItem(localKey, JSON.stringify(localJobs.map((j: any) => j.jobId === jobId ? { ...j, scheduledDate: newDate, timeSlot: newSlot, status: "Assigned", updatedAt: new Date().toISOString() } : j)));
+      } catch (_) {}
+    }
+    window.dispatchEvent(new CustomEvent("cc360:job_rescheduled", { detail: { jobId, newDate, newSlot, customerName: reqs[idx].customerName } }));
+    window.dispatchEvent(new CustomEvent("cc360:reschedule_resolved", { detail: { id, newDate, newSlot, jobId } }));
+    railwaySync.reschedule({ ...reqs[idx], resolved: true });
+    if (jobId) railwaySync.job({ jobId, scheduledDate: newDate, timeSlot: newSlot, status: "Assigned" }, "PATCH", jobId);
 
     // WA: Reschedule confirmed to customer
     const req = reqs[idx];
@@ -211,6 +226,25 @@ export const rescheduleService = {
 
   getPendingCount(): number {
     return readRequests().filter(r => r.status === "PENDING").length;
+  },
+
+  // GAP FIX 1: Called by WhatsApp AI agent webhook when conversation is resolved
+  resolveByPhone(customerPhone: string, newDate: string, newSlot: string, agentId: string, jobId?: string, notes?: string): boolean {
+    const reqs = readRequests();
+    const pending = reqs
+      .filter(r => r.customerPhone.replace(/\D/g, "").slice(-10) === customerPhone.replace(/\D/g, "").slice(-10) && r.status === "PENDING")
+      .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+    if (pending.length === 0) {
+      const customers = DataService.get<any>("CUSTOMERS") || [];
+      const customer = customers.find((c: any) => (c.phone || "").replace(/\D/g, "").slice(-10) === customerPhone.replace(/\D/g, "").slice(-10));
+      const newReq: RescheduleRequest = { id: genId(), customerId: customer?.customerId || "UNKNOWN", customerName: customer ? `${customer.firstName || ""} ${customer.lastName || ""}`.trim() : "Unknown", customerPhone, jobId, source: "APP", requestedAt: new Date().toISOString(), status: "PENDING", notes };
+      reqs.push(newReq);
+      writeRequests(reqs);
+      rescheduleService.resolveRequest(newReq.id, agentId, newDate, newSlot);
+      return true;
+    }
+    rescheduleService.resolveRequest(pending[0].id, agentId, newDate, newSlot);
+    return true;
   },
 };
 
@@ -254,4 +288,5 @@ export function checkPackExpiries(): void {
     });
   } catch {}
 }
+
 

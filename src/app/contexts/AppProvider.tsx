@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 import { checkFirstWashReminders } from "../services/firstWashReminderService";
 import { periodicNotificationService } from "../services/periodicNotificationService";
+import { slaEscalationService } from "../services/slaEscalationService";
+import { wsService } from "../services/websocketService";
 import { checkPackExpiries } from "../services/whatsappRescheduleHandler";
 import { checkSubscriptionRatings, checkWasherAcknowledgements } from "../services/tatTrackingService";
 
@@ -94,8 +96,14 @@ interface AppProviderProps {
 // Periodic notification scheduler - runs daily checks
 function PeriodicScheduler() {
   useEffect(() => {
+    slaEscalationService.start();
+    wsService.connect("CITY-SURAT");
+    return () => { slaEscalationService.stop(); wsService.disconnect(); };
+  }, []);
+
+  useEffect(() => {
     const runChecks = () => {
-      // Set global background mode flag — prevents WA calls from opening browser tabs
+      // Set global background mode flag â€” prevents WA calls from opening browser tabs
       (window as any).__cc360_background_run = true;
       try { checkFirstWashReminders(); } catch {}
       try { checkPackExpiries(); } catch {}
@@ -239,3 +247,4 @@ export type { Job } from "./JobContext";
 export type { InventoryItem, StockTransaction } from "./InventoryContext";
 export type { MRRData, Payable, Revenue, LedgerEntry } from "./FinanceContext";
 export type { SystemEvent, SystemEventType } from "./EventSystem";
+
