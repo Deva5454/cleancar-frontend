@@ -127,6 +127,7 @@ import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
 import { TSMAlertSystem } from "./TSMAlertSystem";
 import { TSMLeadPoolAssignment } from "./TSMLeadPoolAssignment";
 import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
+import { TSMReschedulePanel } from "./TSMReschedulePanel";
 import { UpsellTasksPanel, TSMSettingsPanel } from "./TSMUpsellAndSettings";
 import { rescheduleService } from "../../services/whatsappRescheduleHandler";
 
@@ -1541,3 +1542,4 @@ export function TeleSalesManagerApp() {
 }
 
 export default TeleSalesManagerApp;
+

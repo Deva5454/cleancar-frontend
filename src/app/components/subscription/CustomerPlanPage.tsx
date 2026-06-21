@@ -1,4 +1,4 @@
-// CustomerPlanPage.tsx — Premium Redesign v2
+﻿// CustomerPlanPage.tsx â€” Premium Redesign v2
 // Classy, colorful, interactive checkout with glassmorphism, gradients & animations
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -13,9 +13,10 @@ import { sendWhatsApp, sendBookingPending, sendTeamAlert } from "../../services/
 import { PlanInfoModal, InfoBtn } from "./PlanInfoModal";
 import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
+import { RescheduleTab } from "./RescheduleTab";
 import { createBundle } from "../../services/multiMonthBundleService";
 
-// ─── CONFIG TYPES ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ CONFIG TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export interface PlanPageConfig {
   brand: { name: string; tagline: string; phone: string; whatsappNumber: string };
   hero: { badge: string; headline: string; headlineAccent: string; subheadline: string };
@@ -41,13 +42,13 @@ export interface AddonConfig { id: string; name: string; price: number; unit: st
 
 export const DEFAULT_CONFIG: PlanPageConfig = {
   brand: { name: "24/9 Carwashing", tagline: "Daily car wash at your doorstep", phone: "+91 82387 05601", whatsappNumber: "918238705601" },
-  hero: { badge: "🚗 Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash — photos after every wash on WhatsApp." },
-  trustItems: ["📸 Before & after photos every wash","🏠 We come to you","📞 Easy cancellation process"],
-  trustStrip: ["🔒 Razorpay secured","📸 Before & after photos","📞 Easy cancellation process","🏠 Home, office, society"],
+  hero: { badge: "ðŸš— Surat's #1 Daily Car Wash", headline: "Your car, clean", headlineAccent: "every single day.", subheadline: "Professional doorstep car wash â€” photos after every wash on WhatsApp." },
+  trustItems: ["ðŸ“¸ Before & after photos every wash","ðŸ  We come to you","ðŸ“ž Easy cancellation process"],
+  trustStrip: ["ðŸ”’ Razorpay secured","ðŸ“¸ Before & after photos","ðŸ“ž Easy cancellation process","ðŸ  Home, office, society"],
   vehicleCategories: [
-    { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "🚗" },
-    { id: "suv", label: "SUV / Sedan / MUV", icon: "🚙" },
-    { id: "luxury", label: "Luxury / Large SUV", icon: "🏎️" },
+    { id: "hatchback", label: "Hatchback / Compact Sedan", icon: "ðŸš—" },
+    { id: "suv", label: "SUV / Sedan / MUV", icon: "ðŸš™" },
+    { id: "luxury", label: "Luxury / Large SUV", icon: "ðŸŽï¸" },
   ],
   carModelMap: {
     swift:"hatchback",baleno:"hatchback",i20:"hatchback",tiago:"hatchback",dzire:"hatchback",alto:"hatchback",wagon:"hatchback",figo:"hatchback",polo:"hatchback",jazz:"hatchback",amaze:"hatchback",tigor:"hatchback",
@@ -62,32 +63,32 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {code:"395002",label:"Rander / Jahangirpura"},{code:"394510",label:"Althan / Dumas Road"},
   ],
   monthlyPlans: [
-    { id:"water", name:"Express Wash", icon:"⚡", tagline:"Clean every morning before you wake up",
+    { id:"water", name:"Express Wash", icon:"âš¡", tagline:"Clean every morning before you wake up",
       popular:false, features:[{text:"Exterior rinse & wipe",included:true},{text:"Tyre & rim wipe",included:true},{text:"Wiper fluid top-up",included:true},{text:"Before & after photo",included:true},{text:"Shampoo wash",included:false},{text:"Interior clean",included:false}],
       prices:{hatchback:1249,suv:1499,luxury:1999} },
-    { id:"shampoo", name:"Smart Wash", icon:"✨", tagline:"Full shampoo wash, showroom fresh daily",
+    { id:"shampoo", name:"Smart Wash", icon:"âœ¨", tagline:"Full shampoo wash, showroom fresh daily",
       popular:true, features:[{text:"Full shampoo exterior",included:true},{text:"Tyre & rim scrub",included:true},{text:"Wiper fluid top-up",included:true},{text:"Before & after photo",included:true},{text:"Interior wipe-down",included:true},{text:"Wax polish",included:false}],
       prices:{hatchback:1599,suv:1999,luxury:2699} },
-    { id:"wax", name:"Elite Wash", icon:"👑", tagline:"Premium daily care — showroom feel every day",
+    { id:"wax", name:"Elite Wash", icon:"ðŸ‘‘", tagline:"Premium daily care â€” showroom feel every day",
       popular:false, features:[{text:"Full shampoo wash",included:true},{text:"Hand wax polish",included:true},{text:"Interior deep wipe",included:true},{text:"Before & after photo",included:true},{text:"Priority time slot",included:true},{text:"Monthly tyre dressing",included:true}],
       prices:{hatchback:1999,suv:2499,luxury:3499} },
   ],
   packs: [
-    { id:"onetime", name:"One-Time", icon:"1️⃣", description:"Single visit. No expiry. Pay & book on the day.", prices:{waterWash:{hatchback:199,suv:299,luxury:399},shampoo:{hatchback:299,suv:349,luxury:499},shampooWax:{hatchback:399,suv:499,luxury:699}}, discount:"Standard rate", validityDays:null },
-    { id:"pack2",   name:"Pack of 2", icon:"🔁", description:"2 visits · 8% off single price · Valid 20 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
-    { id:"pack4",   name:"Pack of 4", icon:"📅", description:"4 visits · 15% off single price · Valid 30 days · Mix wash types · 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
-    { id:"urgent",  name:"Urgent Wash", icon:"⚡", description:"Shampoo+Wax · Washer arrives in 1 hour · Same day only · No reschedule · Amount forfeited if car unavailable", prices:{shampooWax:{hatchback:499,suv:599,luxury:799}}, discount:"Rs 100 premium", validityDays:0, isUrgent:true },
+    { id:"onetime", name:"One-Time", icon:"1ï¸âƒ£", description:"Single visit. No expiry. Pay & book on the day.", prices:{waterWash:{hatchback:199,suv:299,luxury:399},shampoo:{hatchback:299,suv:349,luxury:499},shampooWax:{hatchback:399,suv:499,luxury:699}}, discount:"Standard rate", validityDays:null },
+    { id:"pack2",   name:"Pack of 2", icon:"ðŸ”", description:"2 visits Â· 8% off single price Â· Valid 20 days Â· Mix wash types Â· 1 car only", prices:{waterWash:{hatchback:370,suv:550,luxury:730},shampoo:{hatchback:550,suv:640,luxury:920},shampooWax:{hatchback:730,suv:920,luxury:1290}}, discount:"8% off", validityDays:20 },
+    { id:"pack4",   name:"Pack of 4", icon:"ðŸ“…", description:"4 visits Â· 15% off single price Â· Valid 30 days Â· Mix wash types Â· 1 car only", prices:{waterWash:{hatchback:680,suv:1020,luxury:1360},shampoo:{hatchback:1020,suv:1180,luxury:1700},shampooWax:{hatchback:1360,suv:1700,luxury:2380}}, discount:"15% off", validityDays:30 },
+    { id:"urgent",  name:"Urgent Wash", icon:"âš¡", description:"Shampoo+Wax Â· Washer arrives in 1 hour Â· Same day only Â· No reschedule Â· Amount forfeited if car unavailable", prices:{shampooWax:{hatchback:499,suv:599,luxury:799}}, discount:"Rs 100 premium", validityDays:0, isUrgent:true },
   ],
   commitments: [
     {id:"monthly",  term:"Month to Month",discountLabel:"No lock-in", perk:"Cancel with 7 days' notice per policy."},
-    {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"₹225 saving on Hatchback Shampoo."},
+    {id:"3month",   term:"3 Months",      discountLabel:"5% off",     perk:"â‚¹225 saving on Hatchback Shampoo."},
     {id:"6month",   term:"6 Months",      discountLabel:"8% off",     perk:"Renewal + free vacuum monthly.", highlight:"great"},
     {id:"9month",   term:"9 Months",      discountLabel:"10% off",    perk:"Renewal + vacuum + priority slots.", highlight:"great"},
     {id:"12month",  term:"12 Months",     discountLabel:"12% off",    perk:"Vacuum + tyre dressing + priority.", highlight:"best"},
   ],
   comboBundles: [
-    {id:"andar-se-sundar", name:"Andar Se Sundar 🌟", addonIds:["vacuum","dashboard"], prices:{hatchback:299,suv:399,luxury:549}, savings:{hatchback:49,suv:49,luxury:49}},
-    {id:"showroom-shine",  name:"Showroom Shine Pack ✨", addonIds:["waxpolish","vacuum","dashboard"], prices:{hatchback:849,suv:1099,luxury:1399}, savings:{hatchback:198,suv:248,luxury:348}},
+    {id:"andar-se-sundar", name:"Andar Se Sundar ðŸŒŸ", addonIds:["vacuum","dashboard"], prices:{hatchback:299,suv:399,luxury:549}, savings:{hatchback:49,suv:49,luxury:49}},
+    {id:"showroom-shine",  name:"Showroom Shine Pack âœ¨", addonIds:["waxpolish","vacuum","dashboard"], prices:{hatchback:849,suv:1099,luxury:1399}, savings:{hatchback:198,suv:248,luxury:348}},
   ],
   addons: [
     {id:"vacuum",    name:"Interior Deep Vacuum",     price:199,unit:"per visit",prices:{hatchback:199,suv:249,luxury:349},description:"Seats, mats, footwells & boot area cleaned"},
@@ -95,10 +96,10 @@ export const DEFAULT_CONFIG: PlanPageConfig = {
     {id:"tyre",      name:"Tyre Dressing (all 4)",    price:99, unit:"per visit",prices:{hatchback:99,suv:149,luxury:199},description:"Shine & protect all 4 tyres & mudguards"},
     {id:"waxpolish", name:"Full Hand Wax Polish",     price:199,unit:"per visit",prices:{hatchback:199,suv:249,luxury:399},description:"Panel-by-panel wax. Outer body only."},
     {id:"underbody", name:"Underbody Wash",           price:199,unit:"per visit",prices:{hatchback:199,suv:249,luxury:349},description:"Removes mud, grime & road salt"},
-    {id:"enginebay", name:"Engine Bay Wipe-Down",     price:99, unit:"per visit",prices:{hatchback:99,suv:149,luxury:199},description:"Dry blow — removes dust safely"},
+    {id:"enginebay", name:"Engine Bay Wipe-Down",     price:99, unit:"per visit",prices:{hatchback:99,suv:149,luxury:199},description:"Dry blow â€” removes dust safely"},
     {id:"fragrance", name:"Car Fragrance",            price:49, unit:"per visit",prices:{hatchback:49,suv:49,luxury:49},  description:"Fresh interior fragrance spray"},
   ],
-  timeSlots: ["Early morning (5am – 7am)","Morning (7am – 9am)","Late morning (9am – 11am)","Afternoon (11am – 1pm)","Evening (5pm – 7pm)"],
+  timeSlots: ["Early morning (5am â€“ 7am)","Morning (7am â€“ 9am)","Late morning (9am â€“ 11am)","Afternoon (11am â€“ 1pm)","Evening (5pm â€“ 7pm)"],
   postPaymentSteps: ["Receipt on WhatsApp immediately","Confirmation call within 1 working day","Service starts within 2 working days","Before & after photos after every wash"],
   tatWindowHours: 3,
 };
@@ -108,9 +109,9 @@ export function loadConfig(): PlanPageConfig {
   return DEFAULT_CONFIG;
 }
 
-const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
+const inr = (n: number) => "â‚¹" + n.toLocaleString("en-IN");
 
-// ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
+// â”€â”€â”€ GLOBAL STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
 
@@ -212,7 +213,7 @@ const GLOBAL_CSS = `
   }
 `;
 
-// ─── CONFETTI ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ CONFETTI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Confetti() {
   const colours = ["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6","#06b6d4","#f97316"];
   const pieces = Array.from({length:60},(_,i) => ({
@@ -228,7 +229,7 @@ function Confetti() {
   );
 }
 
-// ─── STEP BAR ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ STEP BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const STEPS = ["Your Car","Area","Plan","Add-ons","Details","Review"];
 function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
   return (
@@ -245,7 +246,7 @@ function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
                 color:(done||active)?"white":"#94a3b8",
                 boxShadow:active?"0 4px 12px rgba(99,102,241,0.4)":done?"0 4px 12px rgba(16,185,129,0.35)":"none",
               }}>
-                {done?"✓":n}
+                {done?"âœ“":n}
               </div>
               <span style={{fontSize:12,fontWeight:active?700:500,whiteSpace:"nowrap",color:active?"#4f46e5":done?"#059669":"#94a3b8"}}>{label}</span>
             </button>
@@ -259,7 +260,7 @@ function StepBar({step, goTo}: {step:number; goTo:(n:number)=>void}) {
   );
 }
 
-// ─── LIVE COST PANEL ─────────────────────────────────────────────────────────
+// â”€â”€â”€ LIVE COST PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selectedPack,planPrice,packPrice,addons,addonTotal,total,commitment,commitments,cfg,vehicleCat,basePrice,couponDiscount=0,referralDiscount=0,promoDiscount=0,couponCode,referralCode,commitMonths=1,addonFreqMonth=4,addonGrandTotal=0}: any) {
   const planObj = cfg.monthlyPlans.find((p:any)=>p.id===selectedPlan);
   const packObj = cfg.packs.find((p:any)=>p.id===selectedPack);
@@ -270,7 +271,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
     : selectedPack==="urgent" ? "Urgent Wash"
     : selectedPack==="onetime" ? "One-Time Wash"
     : (packObj?.name || selectedPack || "Pack");
-  const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"🚗";
+  const catIcon = vehicleCategories.find((c:any)=>c.id===activeCat)?.icon||"ðŸš—";
   const catLabel = vehicleCategories.find((c:any)=>c.id===activeCat)?.label;
   const commitObj = commitments.find((c:any)=>c.id===commitment);
   const discountPct = commitment==="3month"?5:commitment==="6month"?8:commitment==="9month"?10:commitment==="12month"?12:0;
@@ -295,7 +296,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
         </div>
         {discountAmt>0 && (
           <div style={{marginTop:8,display:"inline-flex",alignItems:"center",gap:6,background:"rgba(16,185,129,0.2)",border:"1px solid rgba(16,185,129,0.3)",borderRadius:20,padding:"4px 10px"}}>
-            <span style={{color:"#6ee7b7",fontSize:12,fontWeight:600}}>🎉 Saving {inr(discountAmt)} with {commitObj?.term}</span>
+            <span style={{color:"#6ee7b7",fontSize:12,fontWeight:600}}>ðŸŽ‰ Saving {inr(discountAmt)} with {commitObj?.term}</span>
           </div>
         )}
         {finalTotal>0 && (
@@ -306,7 +307,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
       <div style={{background:"rgba(255,255,255,0.97)",backdropFilter:"blur(20px)",padding:"18px 22px"}}>
         {!hasContent && step<3 && (
           <div style={{textAlign:"center",padding:"28px 0"}}>
-            <div style={{fontSize:48,marginBottom:12}}>🛒</div>
+            <div style={{fontSize:48,marginBottom:12}}>ðŸ›’</div>
             <div style={{color:"#94a3b8",fontSize:13}}>Your selections appear here</div>
           </div>
         )}
@@ -326,8 +327,8 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontSize:11,color:"#64748b"}}>{commitMonths>1?`${commitMonths}-Month Subscription`:"Monthly Plan"}</div>
-                <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{planMode==="monthly"?planObj?.icon:"📦"} {planDisplayName}</div>
-                {planMode==="monthly" && <div style={{fontSize:11,color:"#7c3aed"}}>₹{inr(planPrice)}/mo × {commitMonths} mo{commitMonths>1?` = ${inr(planPrice*commitMonths)}`:""}</div>}
+                <div style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{planMode==="monthly"?planObj?.icon:"ðŸ“¦"} {planDisplayName}</div>
+                {planMode==="monthly" && <div style={{fontSize:11,color:"#7c3aed"}}>â‚¹{inr(planPrice)}/mo Ã— {commitMonths} mo{commitMonths>1?` = ${inr(planPrice*commitMonths)}`:""}</div>}
               </div>
               <div style={{fontSize:16,fontWeight:800,color:"#4f46e5"}}>{inr(planMode==="monthly"?planPrice*commitMonths:planPrice)}</div>
             </div>
@@ -356,12 +357,12 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
         {addons.length>0 && (
           <div style={{marginBottom:10}}>
             <div style={{fontSize:11,color:"#94a3b8",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>
-              {planMode==="monthly"&&commitMonths>1?`Add-ons (${addonFreqMonth}×/mo × ${commitMonths} mo)`:"Add-ons"}
+              {planMode==="monthly"&&commitMonths>1?`Add-ons (${addonFreqMonth}Ã—/mo Ã— ${commitMonths} mo)`:"Add-ons"}
             </div>
             {addons.map((id:string)=>{
               const a=cfg.addons.find((x:any)=>x.id===id);
               const p=a?.prices?.[vehicleCat]??a?.price??0;
-              // For monthly: multiply by visits/month × total months
+              // For monthly: multiply by visits/month Ã— total months
               // For pack (one-time/pack2/pack4): just 1 visit price
               const totalP = planMode==="monthly" ? p*addonFreqMonth*commitMonths : p;
               return (
@@ -377,19 +378,19 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
 
         {couponDiscount>0 && (
           <div style={{padding:"8px 12px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:12,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"#065f46",fontWeight:600}}>🎟 Coupon {couponCode}</span>
+            <span style={{fontSize:12,color:"#065f46",fontWeight:600}}>ðŸŽŸ Coupon {couponCode}</span>
             <span style={{fontSize:13,fontWeight:800,color:"#10b981"}}>-{inr(couponDiscount)}</span>
           </div>
         )}
         {referralDiscount>0 && (
           <div style={{padding:"8px 12px",background:"linear-gradient(135deg,#eff6ff,#dbeafe)",borderRadius:12,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"#1e40af",fontWeight:600}}>🔗 Referral {referralCode}</span>
+            <span style={{fontSize:12,color:"#1e40af",fontWeight:600}}>ðŸ”— Referral {referralCode}</span>
             <span style={{fontSize:13,fontWeight:800,color:"#3b82f6"}}>-{inr(referralDiscount)}</span>
           </div>
         )}
         {promoDiscount>0 && (
           <div style={{padding:"8px 12px",background:"linear-gradient(135deg,#fffbeb,#fef3c7)",borderRadius:12,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"#92400e",fontWeight:600}}>🔥 Promo offer</span>
+            <span style={{fontSize:12,color:"#92400e",fontWeight:600}}>ðŸ”¥ Promo offer</span>
             <span style={{fontSize:13,fontWeight:800,color:"#d97706"}}>-{inr(promoDiscount)}</span>
           </div>
         )}
@@ -399,7 +400,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
             {discountAmt>0 && (
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                 <span style={{fontSize:12,color:"#059669"}}>Commitment discount</span>
-                <span style={{fontSize:12,color:"#059669",fontWeight:700}}>−{inr(discountAmt)}</span>
+                <span style={{fontSize:12,color:"#059669",fontWeight:700}}>âˆ’{inr(discountAmt)}</span>
               </div>
             )}
             {/* Subtotal = base plan + addons before discounts */}
@@ -421,7 +422,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
 
       {/* Trust footer */}
       <div style={{background:"#f8fafc",padding:"12px 22px",borderTop:"1px solid #f1f5f9"}}>
-        {["🔒 Razorpay secured payment","📸 Before & after photos"].map(t=>(
+        {["ðŸ”’ Razorpay secured payment","ðŸ“¸ Before & after photos"].map(t=>(
           <div key={t} style={{fontSize:11,color:"#94a3b8",marginBottom:3,display:"flex",alignItems:"center",gap:4}}>{t}</div>
         ))}
       </div>
@@ -429,7 +430,7 @@ function CostPanel({step,activeCat,vehicleCategories,selectedPlan,planMode,selec
   );
 }
 
-// ─── SECTION HEADING ─────────────────────────────────────────────────────────
+// â”€â”€â”€ SECTION HEADING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SectionHead({n,total,title,sub}: {n:number;total:number;title:string;sub:string}) {
   return (
     <div style={{marginBottom:28}}>
@@ -443,9 +444,10 @@ function SectionHead({n,total,title,sub}: {n:number;total:number;title:string;su
   );
 }
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function CustomerPlanPage() {
   const [cfg, setCfg] = useState<PlanPageConfig>(loadConfig);
+  const [pageMode, setPageMode] = useState<"buy" | "reschedule">("buy");
   const [step, setStep] = useState(1);
   const [carModel, setCarModel] = useState("");
   const [detectedCat, setDetectedCat] = useState<string|null>(null);
@@ -462,7 +464,7 @@ export function CustomerPlanPage() {
   const [addonFreqMonth, setAddonFreqMonth] = useState<number>(4); // visits/month for add-ons
 
   const [bundleFreq, setBundleFreq] = useState<Record<string,string>>({});
-  // ⓘ Plan info modal state
+  // â“˜ Plan info modal state
   const [infoModal, setInfoModal] = useState<{planId?:string;packId?:string;addonName?:string}|null>(null);
   const _washRef = useRef<string>("shampoo");
   const [, _forceWashRender] = useState(0);
@@ -491,14 +493,14 @@ export function CustomerPlanPage() {
           phone: custMobile,
           address:{line1:"",area:pincodeLabel||pincode,city:"Surat",pinCode:pincode},
           vehicleDetails:{category:activeCat||"hatchback",brand:carModel||"",color:"",registrationNumber:""},
-          leadSource:"Website — Buy Page",
+          leadSource:"Website â€” Buy Page",
           status:"New" as const,
           stage:"new" as const,
           assignedTo:undefined,
           cityId:city||"CITY-SURAT",
           temperature:"warm" as const,
           planOfInterest:selectedPlan||selectedPack||"",
-          notes:"Checkout abandon capture — customer reached payment step",
+          notes:"Checkout abandon capture â€” customer reached payment step",
         });
         setAbandonLeadCaptured(true);
       }catch(_){}
@@ -542,13 +544,13 @@ export function CustomerPlanPage() {
   const addonTotal=useMemo(()=>{ const ind=addons.reduce((s,id)=>{ const inB=(cfg as any).comboBundles?.some((b:any)=>b.addonIds.includes(id)&&b.addonIds.every((bid:string)=>addons.includes(bid))); if(inB)return s; const f=addonFreq[id]?parseInt(addonFreq[id]):1; return s+getAddonPrice(id)*(isNaN(f)?1:f); },0); const bt=((cfg as any).comboBundles||[]).reduce((s:number,b:any)=>{ const aS=b.addonIds.every((id:string)=>addons.includes(id)); if(!aS)return s; const bp=b.prices?.[vehicleCat]??b.prices?.hatchback??0; const f=bundleFreq[b.id]?parseInt(bundleFreq[b.id]):1; return s+bp*(isNaN(f)?1:f); },0); return ind+bt; },[addons,addonFreq,bundleFreq,cfg.addons,selectedPlan,activeCat]);
   // Commitment duration only applies to monthly subscriptions, not visit packs
   const commitMonths = planMode==="monthly" ? (commitment==="3month"?3:commitment==="6month"?6:commitment==="12month"?12:1) : 1;
-  // Monthly billing: total is planPrice × months (before discount)
-  // Add-ons per visit × 4 washes/month × months = monthly addon cost × months
+  // Monthly billing: total is planPrice Ã— months (before discount)
+  // Add-ons per visit Ã— 4 washes/month Ã— months = monthly addon cost Ã— months
   const basePrice = planMode==="monthly" ? planPrice*commitMonths : packPrice;
   // Add-ons: user chooses visits/month; default 4 washes/month for monthly plans
   // Add-on billing:
-  // Monthly plan: addon price/visit × visits/month × total months
-  // Pack (one-time / pack2 / pack4): addon price × 1 (per visit, no month multiplier)
+  // Monthly plan: addon price/visit Ã— visits/month Ã— total months
+  // Pack (one-time / pack2 / pack4): addon price Ã— 1 (per visit, no month multiplier)
   const addonVisitsPerMonth = planMode==="monthly" ? (addonFreqMonth || 4) : 1;
   const addonGrandTotal = planMode==="monthly"
     ? addonTotal * addonVisitsPerMonth * commitMonths
@@ -578,7 +580,7 @@ export function CustomerPlanPage() {
   const nextWorkingDay=(from:Date):Date=>{ const d=new Date(from); d.setDate(d.getDate()+1); while(isHoliday(d))d.setDate(d.getDate()+1); return d; };
   const nowCutoffInfo=()=>{ const tatHrs=cfg?.tatWindowHours??3; const n=new Date(),h=n.getHours(),m=n.getMinutes(),t=h*60+m,cutoffMin=(h*60+m)+(tatHrs*60); if(isHoliday(n)||t>=18*60+30)return{nextOnly:true,nwdMinHour:5,tatHrs}; return{nextOnly:false,nwdMinHour:Math.ceil(h+(tatHrs)),tatHrs}; };
   const minOneTimeDate=useMemo(()=>{ const{nextOnly}=nowCutoffInfo(); return nextOnly?nextWorkingDay(new Date()).toISOString().slice(0,10):new Date().toISOString().slice(0,10); },[PUBLIC_HOLIDAYS]);
-  // G11: One-time wash max 10-day validity — customer cannot book more than 10 days ahead
+  // G11: One-time wash max 10-day validity â€” customer cannot book more than 10 days ahead
   const maxOneTimeDate=useMemo(()=>{ const d=new Date(); d.setDate(d.getDate()+10); return d.toISOString().slice(0,10); },[]);
   const getOneTimeSlots=(ds:string):string[]=>{
     // Slots 5AM-9PM, 1-hr each. 3-hr TAT same-day. Filters slots where all washers booked.
@@ -606,7 +608,7 @@ export function CustomerPlanPage() {
     setCouponResult(result.valid ? {...result, code:couponInput.trim().toUpperCase()} : result);
   };
 
-  // SLIDE 8: Speed checkout — lookup returning customer by mobile number
+  // SLIDE 8: Speed checkout â€” lookup returning customer by mobile number
   const handleMobileLookup = useCallback((mobile: string) => {
     if (mobile.length !== 10) return;
     const existing = customers.find((c: any) => c.phone === mobile);
@@ -633,31 +635,31 @@ export function CustomerPlanPage() {
     setReferralResult(result.valid ? {...result, code:referralInput.trim().toUpperCase()} : result);
   };
   
-  // ─── GST VERIFICATION — Full API flow with demo mode ──────────────────
+  // â”€â”€â”€ GST VERIFICATION â€” Full API flow with demo mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // HOW IT WORKS:
-  //   Step 1: Format check (instant, offline) — regex validates 15-char GSTIN structure
-  //   Step 2: Live API call to GST portal via provider — returns legal name, status, state
+  //   Step 1: Format check (instant, offline) â€” regex validates 15-char GSTIN structure
+  //   Step 2: Live API call to GST portal via provider â€” returns legal name, status, state
   //
   // TO GO LIVE: change GST_DEMO_MODE to false and paste your API key
   //
   // API OPTIONS:
-  //   A. gstincheck.co.in  — GET https://sheet.gstincheck.co.in/check/API_KEY/GSTIN
-  //   B. Cashfree           — POST https://payout-gamma.cashfree.com/payout/v1/validation/gstin
-  //   C. Eko (Bharat)       — GET https://staging.eko.in:25004/ekoapi/v1/tools/gst_number_info
-  // ────────────────────────────────────────────────────────────────────────
-  const GST_DEMO_MODE = true;         // ← false when API key is ready
-  const GST_API_KEY = "YOUR_KEY";     // ← paste gstincheck.co.in key here
+  //   A. gstincheck.co.in  â€” GET https://sheet.gstincheck.co.in/check/API_KEY/GSTIN
+  //   B. Cashfree           â€” POST https://payout-gamma.cashfree.com/payout/v1/validation/gstin
+  //   C. Eko (Bharat)       â€” GET https://staging.eko.in:25004/ekoapi/v1/tools/gst_number_info
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const GST_DEMO_MODE = true;         // â† false when API key is ready
+  const GST_API_KEY = "YOUR_KEY";     // â† paste gstincheck.co.in key here
 
   const validateGST = async (gst: string) => {
     const clean = gst.toUpperCase().replace(/[^A-Z0-9]/g, "");
     setCustGST(clean);
 
-    // Step 1 — Format validation (offline, instant)
+    // Step 1 â€” Format validation (offline, instant)
     if (!clean) { setGstStatus("idle"); setGstDetails(null); return; }
     const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
     if (!gstRegex.test(clean)) { setGstStatus("invalid"); setGstDetails(null); return; }
 
-    // Step 2 — Live API verification
+    // Step 2 â€” Live API verification
     setGstStatus("checking");
 
     const STATE_NAMES: Record<string,string> = {
@@ -668,7 +670,7 @@ export function CustomerPlanPage() {
     const stateCode = clean.substring(0, 2);
 
     if (GST_DEMO_MODE) {
-      // ── DEMO MODE ── simulates real API call with 1.2s delay ──────────
+      // â”€â”€ DEMO MODE â”€â”€ simulates real API call with 1.2s delay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // This mirrors the EXACT response shape from gstincheck.co.in
       // When you go live, the same setGstDetails / setCustCompany logic runs
       await new Promise(r => setTimeout(r, 1200));
@@ -709,9 +711,9 @@ export function CustomerPlanPage() {
       return;
     }
 
-    // ── LIVE MODE (GST_DEMO_MODE = false) ─────────────────────────────────
+    // â”€â”€ LIVE MODE (GST_DEMO_MODE = false) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
-      // Option A: gstincheck.co.in (recommended — simplest)
+      // Option A: gstincheck.co.in (recommended â€” simplest)
       const res = await fetch(`https://sheet.gstincheck.co.in/check/${GST_API_KEY}/${clean}`);
       const json = await res.json();
       // Response: { flag: bool, data: { lgnm, tradeNam, sts, stj, ctj, rgdt, dty } }
@@ -729,7 +731,7 @@ export function CustomerPlanPage() {
         setGstStatus("invalid"); setGstDetails(null);
       }
     } catch {
-      // Network error — fall back to format-only validation
+      // Network error â€” fall back to format-only validation
       setGstStatus("valid");
       setGstDetails({ tradeName: custCompany||"", legalName: custCompany||"", state: STATE_NAMES[stateCode]||"", status: "Format valid (not verified)" });
     }
@@ -740,11 +742,11 @@ export function CustomerPlanPage() {
     try {
       const now=new Date();
       const invNum=`INV-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${Date.now().toString().slice(-6)}`;
-      const nameParts=custName.trim().split(" "),firstName=nameParts[0]||custName,lastName=nameParts.slice(1).join(" ")||"—";
+      const nameParts=custName.trim().split(" "),firstName=nameParts[0]||custName,lastName=nameParts.slice(1).join(" ")||"â€”";
       const existing=customers.find((c:any)=>c.phone===custMobile||(custEmail&&c.email===custEmail));
       let customerId:string;
       if(existing){customerId=existing.customerId;}
-      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website — Buy Page",status:"Active",tags:["web-signup"],gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTCustomer:!!(custGST&&gstStatus==="valid")} as any); customerId=nc.customerId;}
+      else{const nc=addCustomer({firstName,lastName,email:custEmail||"",phone:custMobile,address:{line1:custAddress,area:cfg.serviceablePincodes.find(p=>p.code===pincode)?.label||pincode,city:"Surat",pinCode:pincode},vehicleDetails:activeCat?{category:activeCat,brand:carModel.split(" ")[0]||carModel,color:"",registrationNumber:custReg.toUpperCase()}:undefined,leadSource:"Website â€” Buy Page",status:"Active",tags:["web-signup"],gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTCustomer:!!(custGST&&gstStatus==="valid")} as any); customerId=nc.customerId;}
       const isPack = planMode === "pack" && selectedPack !== "onetime";
       const isOneTime = planMode === "pack" && selectedPack === "onetime";
       const planObj=cfg.monthlyPlans.find(p=>p.id===selectedPlan),packObj=cfg.packs.find(p=>p.id===selectedPack);
@@ -753,10 +755,10 @@ export function CustomerPlanPage() {
       firstWashDate.setDate(firstWashDate.getDate()+2); // 2 working day TAT
       const renewalDate=new Date(firstWashDate);
       renewalDate.setMonth(renewalDate.getMonth()+1);
-      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack")+(bundleMonths>0?` × ${bundleMonths} months`:""),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice:effectiveBase||basePrice,discount:bundleMonths>0?bundleDiscountInfo?.savings||0:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate — today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",bundleMonths:bundleMonths>0?bundleMonths:undefined,bundleId:undefined,isBundlePriority:bundleMonths>0||undefined,bundleDiscountPct:bundleMonths>0?bundleDiscountInfo?.discount:undefined,
-      // C7: Store payment instrument for refund processing — pre-filled as Razorpay placeholder.
+      const sub=createSubscription({customerId,packageType:selectedPlan==="wax"?"ELITE_WASH":selectedPlan==="shampoo"?"SMART_WASH":"EXPRESS_WASH",packageName:planMode==="monthly"?(planObj?.name||selectedPlan||"Plan"):(packObj?.name||selectedPack||"Pack")+(bundleMonths>0?` Ã— ${bundleMonths} months`:""),frequency:isOneTime?"One-Time":selectedPack==="pack2"?"Pack of 2":selectedPack==="pack4"?"Pack of 4":"One-time",status:"Active",startDate:firstWashDate.toISOString().split("T")[0],renewalDate:renewalDate.toISOString().split("T")[0],pricing:{basePrice:effectiveBase||basePrice,discount:bundleMonths>0?bundleDiscountInfo?.savings||0:discountAmt,finalPrice:finalTotal,currency:"INR"},serviceDetails:{vehicleType:activeCat||"hatchback",addOns:addons,preferredTimeSlot:isOneTime?`${oneTimeDate} ${oneTimeHour}`:(selectedPack==="pack2"||selectedPack==="pack4")?(packStartOption==="immediate"?"Immediate â€” today":oneTimeDate&&oneTimeHour?`${oneTimeDate} ${oneTimeHour}`:prefTime):prefTime},billingCycle:"Monthly",paymentStatus:"Paid",bundleMonths:bundleMonths>0?bundleMonths:undefined,bundleId:undefined,isBundlePriority:bundleMonths>0||undefined,bundleDiscountPct:bundleMonths>0?bundleDiscountInfo?.discount:undefined,
+      // C7: Store payment instrument for refund processing â€” pre-filled as Razorpay placeholder.
       // When Razorpay goes live, replace with actual instrument from payment response
-      // (e.g. "HDFC Credit Card ending 4242" or "UPI — customer@upi").
+      // (e.g. "HDFC Credit Card ending 4242" or "UPI â€” customer@upi").
       paymentInstrumentHint: "Razorpay (UPI/Card/Net Banking)",
       ...(isPack?{
         visitsTotal: selectedPack==="pack2"?2:4,
@@ -780,8 +782,8 @@ export function CustomerPlanPage() {
         term: commitment==="3month"?3:commitment==="6month"?6:commitment==="12month"?12:1,
         source: "DIGITAL",
         activationDate: new Date().toISOString().slice(0,10),
-      }).catch(()=>{/* non-blocking — localStorage is primary */});
-      // 7️⃣ Fire auto-job-creation events — JobContext listens for these
+      }).catch(()=>{/* non-blocking â€” localStorage is primary */});
+      // 7ï¸âƒ£ Fire auto-job-creation events â€” JobContext listens for these
       try {
         if(planMode === "monthly") {
           window.dispatchEvent(new CustomEvent("cc360:subscription_created", { detail: {
@@ -829,27 +831,27 @@ export function CustomerPlanPage() {
         }
       } catch(_) {/* non-blocking */}
       recordRevenue({customerId,subscriptionId:sub.subscriptionId,type:planMode==="monthly"?"Subscription":"One-Time",amount:finalTotal,receivedDate:now.toISOString().split("T")[0],paymentMethod:"UPI",invoiceNumber:invNum,status:"Received",cityId:city||"CITY-SURAT"});
-      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTInvoice:!!(custGST&&gstStatus==="valid"),items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} — Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
+      const invoice={invoiceNumber:invNum,invoiceDate:now.toLocaleDateString("en-IN",{day:"2-digit",month:"long",year:"numeric"}),customerName:custName,customerPhone:custMobile,customerEmail:custEmail,vehicleReg:custReg,address:custAddress,pincode,gstNumber:custGST||undefined,companyName:custCompany||undefined,isGSTInvoice:!!(custGST&&gstStatus==="valid"),items:[...(planMode==="monthly"?[{name:`${planObj?.name||selectedPlan} â€” Monthly Subscription (${catLabel})`,qty:1,rate:planPrice,amount:planPrice}]:[{name:`${packObj?.name||selectedPack} Pack`,qty:1,rate:packPrice,amount:packPrice}]),...addons.map(id=>{const a=cfg.addons.find(x=>x.id===id);return{name:a?.name||id,qty:1,rate:a?.price||0,amount:a?.price||0};})],subtotal:finalTotal,cgst:parseFloat((finalTotal*0.09).toFixed(2)),sgst:parseFloat((finalTotal*0.09).toFixed(2)),grandTotal:parseFloat((finalTotal*1.18).toFixed(2)),paymentMethod:"Razorpay (UPI/Card/NetBanking)",subscriptionId:sub.subscriptionId,customerId,notifyPref,commitment:planMode==="monthly"?(cfg.commitments.find(c=>c.id===commitment)?.term||commitment):"N/A"};
       setGeneratedInvoice(invoice);
       try{const st=JSON.parse(localStorage.getItem("cleancar_web_invoices")||"[]");st.unshift({...invoice,createdAt:now.toISOString(),status:"PAID"});localStorage.setItem("cleancar_web_invoices",JSON.stringify(st.slice(0,500)));}catch(_){}
-      // REVISED: Step 1 of 2-stage WA — pending message sent immediately after payment.
+      // REVISED: Step 1 of 2-stage WA â€” pending message sent immediately after payment.
       // Full confirmation (with washer + slot) sent separately via tatTrackingService.markAssigned().
       if(notifyPref==="whatsapp"||notifyPref==="both"){
         sendBookingPending(custMobile, firstName, invoice?.items?.[0]?.name||"Car Wash");
-        // Team alert to TSM/Admin — new subscription notification (OM excluded per journey doc)
+        // Team alert to TSM/Admin â€” new subscription notification (OM excluded per journey doc)
         try {
-          const teamAlertMsg = `🔔 *New Subscription — 24/9 Carwashing*\n\nCustomer: *${custName}*\nMobile: ${custMobile}\nVehicle: ${carModel} (${catLabel})\nPlan: *${invoice?.items?.[0]?.name||"Subscription"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")} (incl. GST)\nArea: ${pincodeLabel}\nInvoice: ${invNum}\n\n⏳ Action required: Assign washer within 2 working days.`;
+          const teamAlertMsg = `ðŸ”” *New Subscription â€” 24/9 Carwashing*\n\nCustomer: *${custName}*\nMobile: ${custMobile}\nVehicle: ${carModel} (${catLabel})\nPlan: *${invoice?.items?.[0]?.name||"Subscription"}*\nAmount: â‚¹${finalTotal.toLocaleString("en-IN")} (incl. GST)\nArea: ${pincodeLabel}\nInvoice: ${invNum}\n\nâ³ Action required: Assign washer within 2 working days.`;
           sendTeamAlert(cfg.brand.whatsappNumber, teamAlertMsg).catch(()=>{});
         } catch {}
         const gst2 = parseFloat((finalTotal*0.09).toFixed(2));
-        const invoiceMsg = `🧾 *Invoice — 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`🏢 *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: ₹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: ₹${gst2.toLocaleString("en-IN")}\nSGST 9%: ₹${gst2.toLocaleString("en-IN")}\n*Total Paid: ₹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"✅ B2B GST Invoice — eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
+        const invoiceMsg = `ðŸ§¾ *Invoice â€” 24/9 Carwashing*\n\nInvoice: *${invNum}*\nDate: ${now.toLocaleDateString("en-IN")}\n${custGST&&gstStatus==="valid"?`ðŸ¢ *${custCompany||gstDetails?.legalName||""}*\nGSTIN: *${custGST}*\n`:""}\nService: *${invoice?.items?.[0]?.name||"Car Wash"}*\nAmount: â‚¹${finalTotal.toLocaleString("en-IN")}\nCGST 9%: â‚¹${gst2.toLocaleString("en-IN")}\nSGST 9%: â‚¹${gst2.toLocaleString("en-IN")}\n*Total Paid: â‚¹${(finalTotal+gst2*2).toLocaleString("en-IN")}*\n${custGST&&gstStatus==="valid"?"âœ… B2B GST Invoice â€” eligible for input tax credit\n":""}\nQueries: *080 48 79 45 45*`;
         sendWhatsApp(custMobile, invoiceMsg).catch(()=>{})
-          .catch(()=>{/* non-blocking — wa.me fallback handled inside */});
+          .catch(()=>{/* non-blocking â€” wa.me fallback handled inside */});
         try { (window as any)._pendingWAInvoice = `https://wa.me/${cfg.brand.whatsappNumber}?text=${encodeURIComponent(invoiceMsg)}`; } catch(_){}
       }
       // Redeem coupon/referral
       if(couponResult?.valid && couponResult.code) planSyncService.redeemCoupon(couponResult.code);
-      // G5 FIX: Do NOT fully convert referral at checkout — credit fires on first completed wash.
+      // G5 FIX: Do NOT fully convert referral at checkout â€” credit fires on first completed wash.
       // JobContext.completeJob() looks for status "converted_pending_wash" and calls convertReferral() then.
       if(referralResult?.valid && referralResult.code) {
         try {
@@ -863,7 +865,7 @@ export function CustomerPlanPage() {
         } catch(_) {/* non-blocking */}
       }
       planSyncService.assignReferralCodeToCustomer(customerId, custName);
-      // 8️⃣ Create MultiMonthBundle record if customer bought a multi-month pack
+      // 8ï¸âƒ£ Create MultiMonthBundle record if customer bought a multi-month pack
       // This wires the purchase into multiMonthBundleService (window tracking,
       // soft cap enforcement, deferred revenue, visit reminders, cancellation refund).
       // Without this call the bundle system is completely disconnected from the purchase.
@@ -879,7 +881,7 @@ export function CustomerPlanPage() {
             paymentDate:      now.toISOString().split("T")[0],
           });
         } catch(e) {
-          console.error("[BuyPage] createBundle failed — subscription created but bundle record missing:", e);
+          console.error("[BuyPage] createBundle failed â€” subscription created but bundle record missing:", e);
         }
       }
       setIsProcessing(false);
@@ -889,7 +891,7 @@ export function CustomerPlanPage() {
     } catch(err){setIsProcessing(false);alert("Something went wrong. Please try again.");}
   };
 
-  // ── SUCCESS ──────────────────────────────────────────────────────────────
+  // â”€â”€ SUCCESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (step===7) {
     const inv = generatedInvoice;
     const custFirstName = inv?.customerName?.split(" ")[0] || "there";
@@ -902,7 +904,7 @@ export function CustomerPlanPage() {
     const commitLabel = commitment === "3month" ? "3-Month" : commitment === "6month" ? "6-Month" : commitment === "12month" ? "12-Month" : "";
     const grandTotalRounded = Math.round(inv?.grandTotal ?? 0);
 
-    // ── Contextual headline & subtitle
+    // â”€â”€ Contextual headline & subtitle
     const headline = isMonthly
       ? `${commitLabel ? commitLabel + " " : ""}Subscription Confirmed!`
       : isPack ? `Pack of ${packVisits} Activated!`
@@ -910,36 +912,36 @@ export function CustomerPlanPage() {
 
     const subheadline = isMonthly
       ? `Your ${planLine} starts within 2 working days`
-      : isPack ? `Valid for ${packValidity} days · ${packVisits} visits to use`
+      : isPack ? `Valid for ${packValidity} days Â· ${packVisits} visits to use`
       : `Scheduled for ${oneTimeDate} at ${oneTimeHour}`;
 
-    const heroEmoji = isMonthly ? "🚗" : isPack ? "📦" : "🪣";
+    const heroEmoji = isMonthly ? "ðŸš—" : isPack ? "ðŸ“¦" : "ðŸª£";
     const heroBg = isMonthly ? "linear-gradient(135deg,#1e40af,#6366f1)"
       : isPack ? "linear-gradient(135deg,#059669,#10b981)"
       : "linear-gradient(135deg,#d97706,#f59e0b)";
 
-    // ── Contextual next steps
+    // â”€â”€ Contextual next steps
     const nextSteps: {icon:string;title:string;detail:string;color:string}[] =
       isMonthly ? [
-        {icon:"📲",title:"Receipt on WhatsApp",detail:"Invoice sent immediately to your number",color:"#25d366"},
-        {icon:"📞",title:"Confirmation call",detail:"Our team calls within 1 working day to confirm your time slot",color:"#6366f1"},
-        {icon:"🚗",title:"Service begins",detail:`Your washer starts within 2 working days at your preferred time: ${prefTime}`,color:"#f59e0b"},
-        {icon:"📸",title:"Before & after photos",detail:"WhatsApp photo after every wash. Ask for a re-wash within 24h if unsatisfied.",color:"#06b6d4"},
-        {icon:"🔄",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel with 7 days' notice per policy.`,color:"#8b5cf6"},
+        {icon:"ðŸ“²",title:"Receipt on WhatsApp",detail:"Invoice sent immediately to your number",color:"#25d366"},
+        {icon:"ðŸ“ž",title:"Confirmation call",detail:"Our team calls within 1 working day to confirm your time slot",color:"#6366f1"},
+        {icon:"ðŸš—",title:"Service begins",detail:`Your washer starts within 2 working days at your preferred time: ${prefTime}`,color:"#f59e0b"},
+        {icon:"ðŸ“¸",title:"Before & after photos",detail:"WhatsApp photo after every wash. Ask for a re-wash within 24h if unsatisfied.",color:"#06b6d4"},
+        {icon:"ðŸ”„",title:"Auto-renewal",detail:`Renews ${commitLabel ? "after " + commitLabel.toLowerCase().replace("-","").trim() : "monthly"}. Cancel with 7 days' notice per policy.`,color:"#8b5cf6"},
       ] : isPack ? [
-        {icon:"📲",title:"Pack receipt on WhatsApp",detail:"Invoice and pack details sent immediately",color:"#25d366"},
-        {icon:"✅",title:`Pack of ${packVisits} is active`,detail:`Valid for ${packValidity} days from today. No rollover after expiry.`,color:"#10b981"},
-        {icon:"📅",title:"Book each visit",detail:"WhatsApp us at least 2 hours before your preferred time. One visit per day.",color:"#6366f1"},
-        {icon:"📸",title:"Photos after every visit",detail:"Before & after photos on WhatsApp when done",color:"#06b6d4"},
-        {icon:"⚠️",title:"Pack rules",detail:"One vehicle only. Mix wash types freely. Pack cannot be split or shared.",color:"#f59e0b"},
+        {icon:"ðŸ“²",title:"Pack receipt on WhatsApp",detail:"Invoice and pack details sent immediately",color:"#25d366"},
+        {icon:"âœ…",title:`Pack of ${packVisits} is active`,detail:`Valid for ${packValidity} days from today. No rollover after expiry.`,color:"#10b981"},
+        {icon:"ðŸ“…",title:"Book each visit",detail:"WhatsApp us at least 2 hours before your preferred time. One visit per day.",color:"#6366f1"},
+        {icon:"ðŸ“¸",title:"Photos after every visit",detail:"Before & after photos on WhatsApp when done",color:"#06b6d4"},
+        {icon:"âš ï¸",title:"Pack rules",detail:"One vehicle only. Mix wash types freely. Pack cannot be split or shared.",color:"#f59e0b"},
       ] : [
-        {icon:"📲",title:"Booking confirmed on WhatsApp",detail:"Full details sent immediately to your number",color:"#25d366"},
-        {icon:"🚗",title:"Washer arrives",detail:`We'll be at your address on ${oneTimeDate} at ${oneTimeHour}`,color:"#6366f1"},
-        {icon:"📸",title:"Before & after photos",detail:"Photos sent on WhatsApp when the wash is complete",color:"#06b6d4"},
-        {icon:"🔄",title:"Free re-wash guarantee",detail:"Not satisfied? We redo it within 24 hours at no extra charge",color:"#10b981"},
+        {icon:"ðŸ“²",title:"Booking confirmed on WhatsApp",detail:"Full details sent immediately to your number",color:"#25d366"},
+        {icon:"ðŸš—",title:"Washer arrives",detail:`We'll be at your address on ${oneTimeDate} at ${oneTimeHour}`,color:"#6366f1"},
+        {icon:"ðŸ“¸",title:"Before & after photos",detail:"Photos sent on WhatsApp when the wash is complete",color:"#06b6d4"},
+        {icon:"ðŸ”„",title:"Free re-wash guarantee",detail:"Not satisfied? We redo it within 24 hours at no extra charge",color:"#10b981"},
       ];
 
-    // ── WhatsApp message (contextual)
+    // â”€â”€ WhatsApp message (contextual)
     const waServiceLine = isMonthly
       ? "\u23F0 Service starts within *2 working days* at your preferred time."
       : isPack
@@ -967,7 +969,7 @@ export function CustomerPlanPage() {
         <div style={{position:"absolute",inset:0,opacity:0.04,backgroundImage:"radial-gradient(circle,#fff 1px,transparent 1px)",backgroundSize:"28px 28px"}} />
 
         <div style={{maxWidth:560,width:"100%",borderRadius:24,overflow:"hidden",boxShadow:"0 40px 80px rgba(0,0,0,0.4)"}}>
-          {/* Hero band — colour changes per plan type */}
+          {/* Hero band â€” colour changes per plan type */}
           <div style={{background:heroBg,padding:"28px 24px",textAlign:"center"}}>
             <div style={{width:68,height:68,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,margin:"0 auto 12px",border:"2px solid rgba(255,255,255,0.3)"}}>{heroEmoji}</div>
             <h1 style={{fontSize:22,fontWeight:800,color:"white",margin:"0 0 6px",fontFamily:"'Playfair Display',serif"}}>{headline}</h1>
@@ -976,7 +978,7 @@ export function CustomerPlanPage() {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
               {[
                 {label:"Invoice",value:inv?.invoiceNumber},
-                {label:"Amount paid",value:`₹${grandTotalRounded.toLocaleString("en-IN")} incl. GST`},
+                {label:"Amount paid",value:`â‚¹${grandTotalRounded.toLocaleString("en-IN")} incl. GST`},
                 {label:"Vehicle",value:inv?.vehicleReg||catLabel},
                 {label:isMonthly?(commitLabel?"Commitment":"Plan"):isPack?"Valid":"Date",value:isMonthly?(commitLabel||"Month-to-Month"):isPack?`${packValidity} days`:oneTimeDate},
               ].map(({label,value})=>(
@@ -1005,7 +1007,7 @@ export function CustomerPlanPage() {
             <div style={{display:"flex",gap:10,marginTop:16,flexWrap:"wrap"}}>
               <a href={`https://wa.me/${cfg.brand.whatsappNumber}?text=${waMsg}`} target="_blank" rel="noreferrer"
                 style={{flex:1,padding:"12px 16px",background:"linear-gradient(135deg,#25d366,#128c7e)",color:"white",borderRadius:50,fontWeight:700,fontSize:13,textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 6px 16px rgba(37,211,102,0.3)"}}>
-                📲 WhatsApp Receipt
+                ðŸ“² WhatsApp Receipt
               </a>
               <button onClick={()=>{setStep(1);setCarModel("");setDetectedCat(null);setSelectedPlan(null);setSelectedPack(null);setAddons([]);setGeneratedInvoice(null);setCouponResult(null);setReferralResult(null);}}
                 style={{flex:1,padding:"12px 16px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",borderRadius:50,fontWeight:700,fontSize:13,border:"none",cursor:"pointer",boxShadow:"0 6px 16px rgba(99,102,241,0.3)"}}>
@@ -1020,7 +1022,7 @@ export function CustomerPlanPage() {
       </div>
     );
   }
-  // ── PAGE BACKGROUND ───────────────────────────────────────────────────────
+  // â”€â”€ PAGE BACKGROUND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div ref={scrollRef} className="cpp-root" style={{minHeight:"100vh",background:"linear-gradient(160deg,#f0f4ff 0%,#faf5ff 35%,#f0fdff 70%,#fefce8 100%)"}}>
       <style>{GLOBAL_CSS}</style>
@@ -1028,7 +1030,7 @@ export function CustomerPlanPage() {
       {/* Top bar */}
       <div style={{background:"linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)",padding:"14px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 4px 20px rgba(30,27,75,0.3)"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🚗</div>
+          <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#6366f1,#f59e0b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>ðŸš—</div>
           <div>
             <div style={{fontSize:16,fontWeight:800,color:"white",fontFamily:"'Playfair Display',serif"}}>24/9 Carwashing</div>
             <div style={{fontSize:10,color:"rgba(199,210,254,0.6)",letterSpacing:0.5}}>SECURE CHECKOUT</div>
@@ -1036,13 +1038,20 @@ export function CustomerPlanPage() {
         </div>
         <div style={{display:"flex",gap:20,alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"rgba(255,255,255,0.1)",borderRadius:20,border:"1px solid rgba(255,255,255,0.15)"}}>
-            <span style={{fontSize:12}}>🔒</span>
+            <span style={{fontSize:12}}>ðŸ”’</span>
             <span style={{fontSize:11,color:"rgba(199,210,254,0.8)",fontWeight:600}}>Razorpay Secured</span>
           </div>
           <a href={`tel:${cfg.brand.phone}`} style={{fontSize:13,color:"#a5b4fc",textDecoration:"none",fontWeight:700}}>{cfg.brand.phone}</a>
         </div>
       </div>
 
+      {/* Mode tabs */}
+      <div style={{background:"white",borderBottom:"1px solid #e2e8f0",display:"flex",justifyContent:"center"}}>
+        <button onClick={() => setPageMode("buy")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:pageMode==="buy"?"3px solid #312e81":"3px solid transparent",color:pageMode==="buy"?"#312e81":"#64748b",background:"none"}}>🛒 Subscribe / Buy</button>
+        <button onClick={() => setPageMode("reschedule")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:pageMode==="reschedule"?"3px solid #312e81":"3px solid transparent",color:pageMode==="reschedule"?"#312e81":"#64748b",background:"none"}}>🔄 Reschedule Wash</button>
+      </div>
+      {pageMode === "reschedule" && <div style={{minHeight:"80vh",background:"#f0f4ff"}}><RescheduleTab /></div>}
+      {pageMode === "buy" && (<>
       {/* Step bar */}
       <div style={{background:"rgba(255,255,255,0.85)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(148,163,184,0.15)",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 20px rgba(0,0,0,0.06)"}}>
         <div style={{maxWidth:1100,margin:"0 auto"}}>
@@ -1056,7 +1065,7 @@ export function CustomerPlanPage() {
         {/* Step content */}
         <div className="cpp-step-in" key={step}>
 
-          {/* ── STEP 1 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===1 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={1} total={6} title="Tell us about your car" sub="We'll detect your vehicle type automatically from the model name." />
@@ -1065,9 +1074,9 @@ export function CustomerPlanPage() {
               <div style={{marginBottom:24}}>
                 <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Car model or brand name</label>
                 <div style={{position:"relative"}}>
-                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>🚗</span>
+                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>ðŸš—</span>
                   <input className="cpp-input" value={carModel} onChange={e=>setCarModel(e.target.value)}
-                    placeholder="Swift, Creta, Fortuner, Innova…"
+                    placeholder="Swift, Creta, Fortuner, Innovaâ€¦"
                     style={{paddingLeft:48,border:`2px solid ${detectedCat?"#6366f1":"rgba(148,163,184,0.3)"}`,boxShadow:detectedCat?"0 0 0 4px rgba(99,102,241,0.1)":undefined}} />
                 </div>
                 {detectedCat && (
@@ -1077,7 +1086,7 @@ export function CustomerPlanPage() {
                       <div style={{fontSize:14,fontWeight:700,color:"#4338ca"}}>Detected: {cfg.vehicleCategories.find(c=>c.id===detectedCat)?.label}</div>
                       <div style={{fontSize:12,color:"#6366f1"}}>Tap below to change if incorrect</div>
                     </div>
-                    <div style={{marginLeft:"auto",fontSize:20}}>✅</div>
+                    <div style={{marginLeft:"auto",fontSize:20}}>âœ…</div>
                   </div>
                 )}
               </div>
@@ -1109,13 +1118,13 @@ export function CustomerPlanPage() {
 
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="cpp-btn-primary" onClick={()=>goTo(2)} disabled={!step1Ok}>
-                  Continue → {step1Ok&&<span style={{marginLeft:4}}>✓</span>}
+                  Continue â†’ {step1Ok&&<span style={{marginLeft:4}}>âœ“</span>}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 2 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===2 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={2} total={6} title="Check your area" sub="Enter your 6-digit pincode to confirm we serve your location." />
@@ -1123,16 +1132,16 @@ export function CustomerPlanPage() {
               <div style={{marginBottom:28}}>
                 <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Your Pincode</label>
                 <div style={{position:"relative",maxWidth:300}}>
-                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>📍</span>
+                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>ðŸ“</span>
                   <input className="cpp-input" value={pincode} onChange={e=>setPincode(e.target.value.replace(/\D/g,"").slice(0,6))}
                     placeholder="6-digit pincode"
                     style={{paddingLeft:48,fontSize:22,fontWeight:800,letterSpacing:6,border:`2px solid ${pincodeStatus==="ok"?"#10b981":pincodeStatus==="waitlist"?"#ef4444":"rgba(148,163,184,0.3)"}`,boxShadow:pincodeStatus==="ok"?"0 0 0 4px rgba(16,185,129,0.1)":pincodeStatus==="waitlist"?"0 0 0 4px rgba(239,68,68,0.1)":undefined}} />
                 </div>
                 {pincodeStatus==="ok" && (
                   <div style={{marginTop:14,padding:"14px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>✅</div>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#059669)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>âœ…</div>
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:"#065f46"}}>Great news — we serve your area!</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"#065f46"}}>Great news â€” we serve your area!</div>
                       <div style={{fontSize:12,color:"#059669",marginTop:2}}>{cfg.serviceablePincodes.find(p=>p.code===pincode)?.label}</div>
                     </div>
                   </div>
@@ -1140,14 +1149,14 @@ export function CustomerPlanPage() {
                 {pincodeStatus==="waitlist" && (
                   <div>
                     <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:14}}>
-                      <div style={{fontSize:28,flexShrink:0}}>⏳</div>
+                      <div style={{fontSize:28,flexShrink:0}}>â³</div>
                       <div>
                         <div style={{fontSize:15,fontWeight:700,color:"#9a3412"}}>Monthly subscription not available here yet</div>
                         <div style={{fontSize:12,color:"#c2410c",marginTop:4}}>{"We're expanding soon! You'll be notified when monthly plans reach your area."}</div>
                       </div>
                     </div>
                     <div style={{marginTop:10,padding:"10px 14px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:10,border:"1px solid #86efac"}}>
-                      <div style={{fontSize:13,fontWeight:700,color:"#065f46"}}>{"✅ One-time wash IS available at your location!"}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:"#065f46"}}>{"âœ… One-time wash IS available at your location!"}</div>
                       <div style={{fontSize:12,color:"#059669",marginTop:2}}>{"We provide one-time washes all across Surat. Continue to choose a visit pack."}</div>
                     </div>
                   </div>
@@ -1162,7 +1171,7 @@ export function CustomerPlanPage() {
                     return (
                       <button key={p.code} onClick={()=>setPincode(p.code)}
                         style={{padding:"8px 14px",borderRadius:50,border:`2px solid ${sel?"#6366f1":"rgba(148,163,184,0.3)"}`,background:sel?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"rgba(255,255,255,0.8)",color:sel?"#4338ca":"#475569",fontSize:12,fontWeight:sel?700:500,cursor:"pointer",fontFamily:"'Sora',sans-serif",transition:"all 0.2s",boxShadow:sel?"0 4px 12px rgba(99,102,241,0.2)":undefined}}>
-                        {sel?"📍 ":""}{p.label}
+                        {sel?"ðŸ“ ":""}{p.label}
                       </button>
                     );
                   })}
@@ -1170,21 +1179,21 @@ export function CustomerPlanPage() {
               </div>
 
               <div style={{display:"flex",justifyContent:"space-between"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(1)}>← Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(3)} disabled={!step2OkForPlanning}>Continue → Plan</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(1)}>â† Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(3)} disabled={!step2OkForPlanning}>Continue â†’ Plan</button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 3 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===3 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
-              <SectionHead n={3} total={6} title="Choose your plan" sub={pincodeStatus==="waitlist"?"Your area gets one-time visit washes now — monthly subscription launching soon!":"Monthly subscription for daily washes, or a visit pack."} />
+              <SectionHead n={3} total={6} title="Choose your plan" sub={pincodeStatus==="waitlist"?"Your area gets one-time visit washes now â€” monthly subscription launching soon!":"Monthly subscription for daily washes, or a visit pack."} />
 
               {pincodeStatus==="waitlist" && (
                 <div style={{marginBottom:16,padding:"12px 16px",background:"linear-gradient(135deg,#fff7ed,#ffedd5)",border:"2px solid #fed7aa",borderRadius:14}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"#9a3412"}}>📍 Monthly subscription not available in your pincode yet</div>
-                  <div style={{fontSize:12,color:"#c2410c",marginTop:4}}>We only serve selected pincodes for monthly plans. One-time visit packs are available all across Surat — select Visit Packs below.</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#9a3412"}}>ðŸ“ Monthly subscription not available in your pincode yet</div>
+                  <div style={{fontSize:12,color:"#c2410c",marginTop:4}}>We only serve selected pincodes for monthly plans. One-time visit packs are available all across Surat â€” select Visit Packs below.</div>
                 </div>
               )}
               {/* Mode toggle */}
@@ -1192,7 +1201,7 @@ export function CustomerPlanPage() {
                 {(["monthly","pack"] as const).map(m=>(
                   <button key={m} onClick={()=>setPlanMode(m)}
                     style={{padding:"10px 28px",borderRadius:50,border:"none",background:planMode===m?"linear-gradient(135deg,#6366f1,#8b5cf6)":"none",color:planMode===m?"white":"#64748b",fontWeight:planMode===m?700:500,fontSize:14,cursor:"pointer",fontFamily:"'Sora',sans-serif",boxShadow:planMode===m?"0 4px 14px rgba(99,102,241,0.35)":undefined,transition:"all 0.25s"}}>
-                    {m==="monthly"?"🔄 Monthly Subscription":"📦 Visit Packs"}
+                    {m==="monthly"?"ðŸ”„ Monthly Subscription":"ðŸ“¦ Visit Packs"}
                   </button>
                 ))}
               </div>
@@ -1211,7 +1220,7 @@ export function CustomerPlanPage() {
                         <div key={plan.id} className={`cpp-card ${sel?"selected":""}`}
                           onClick={()=>setSelectedPlan(plan.id)}
                           style={sel?{}:{background:`linear-gradient(160deg,${bg},white)`}}>
-                          {plan.popular && <div style={{position:"absolute",top:-1,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ac},#f59e0b)`,color:"white",fontSize:10,fontWeight:800,padding:"4px 14px",borderRadius:"0 0 10px 10px",letterSpacing:0.5,whiteSpace:"nowrap"}}>⭐ MOST POPULAR</div>}
+                          {plan.popular && <div style={{position:"absolute",top:-1,left:"50%",transform:"translateX(-50%)",background:`linear-gradient(135deg,${ac},#f59e0b)`,color:"white",fontSize:10,fontWeight:800,padding:"4px 14px",borderRadius:"0 0 10px 10px",letterSpacing:0.5,whiteSpace:"nowrap"}}>â­ MOST POPULAR</div>}
                           <div style={{textAlign:"center",paddingTop:plan.popular?12:0}}>
                             <div style={{fontSize:36,marginBottom:8,filter:`drop-shadow(0 4px 8px ${ac}40)`}}>{plan.icon}</div>
                             <div style={{fontSize:16,fontWeight:800,color:"#0f172a",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
@@ -1219,12 +1228,12 @@ export function CustomerPlanPage() {
                               <button onClick={(e)=>{e.stopPropagation();setInfoModal({planId:plan.id});}} style={{background:"none",border:"none",color:ac,fontSize:11,cursor:"pointer",padding:"0 2px",fontWeight:700,fontFamily:"inherit",textDecoration:"underline"}}>Show more</button>
                             </div>
                             <div style={{fontSize:26,fontWeight:800,color:sel?"#4f46e5":ac,marginBottom:2,fontFamily:"'Playfair Display',serif"}}>{inr(price)}</div>
-                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>₹{pw}/wash · 30 washes/month</div>
+                            <div style={{fontSize:11,color:"#94a3b8",marginBottom:14}}>â‚¹{pw}/wash Â· 30 washes/month</div>
                             <div style={{borderTop:`1px dashed ${br}`,paddingTop:10}}>
                               {plan.features.slice(0,3).map((f,fi)=>(
                                 <div key={fi} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                                   <div style={{width:16,height:16,borderRadius:"50%",background:f.included?`linear-gradient(135deg,${ac},${ac}99)`:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                                    <span style={{fontSize:9,color:f.included?"white":"#cbd5e1",fontWeight:800}}>{f.included?"✓":"×"}</span>
+                                    <span style={{fontSize:9,color:f.included?"white":"#cbd5e1",fontWeight:800}}>{f.included?"âœ“":"Ã—"}</span>
                                   </div>
                                   <span style={{fontSize:11,color:f.included?"#374151":"#94a3b8",textAlign:"left"}}>{f.text}</span>
                                 </div>
@@ -1261,7 +1270,7 @@ export function CustomerPlanPage() {
                                 </span>
                               </div>
                             </div>
-                            {isBest && <div style={{marginTop:6,fontSize:10,fontWeight:800,color:"#d97706",letterSpacing:0.5}}>🏆 BEST VALUE</div>}
+                            {isBest && <div style={{marginTop:6,fontSize:10,fontWeight:800,color:"#d97706",letterSpacing:0.5}}>ðŸ† BEST VALUE</div>}
                           </div>
                         );
                       })}
@@ -1292,17 +1301,17 @@ export function CustomerPlanPage() {
                             {dp>0&&<div style={{fontSize:22,fontWeight:800,color:colors[i],fontFamily:"'Playfair Display',serif",margin:"6px 0"}}>{inr(dp)}</div>}
                             {dp>0&&pack.id!=="onetime"&&(
                               <div style={{fontSize:11,fontWeight:600,marginBottom:4,opacity:0.85,color:colors[i]}}>
-                                {_washRef.current==="waterWash"?"💧 Water Wash":_washRef.current==="shampooWax"?"✨ Shampoo+Wax":"🧴 Shampoo"}
+                                {_washRef.current==="waterWash"?"ðŸ’§ Water Wash":_washRef.current==="shampooWax"?"âœ¨ Shampoo+Wax":"ðŸ§´ Shampoo"}
                               </div>
                             )}
                             {(pack as any).discount&&<span className="cpp-badge" style={{background:"rgba(16,185,129,0.12)",color:"#059669"}}>{(pack as any).discount}</span>}
                             {pack.id==="onetime"&&activeCat&&(
                               <div style={{marginTop:10,borderTop:"1px dashed #e2e8f0",paddingTop:8}}>
                                 <div style={{fontSize:10,color:"#94a3b8",marginBottom:4,textTransform:"uppercase",letterSpacing:0.5}}>For your {vehicleCat==="suv"?"SUV / Sedan / MUV":vehicleCat==="luxury"?"Luxury / Large SUV":"Hatchback / Compact Sedan"}</div>
-                                {[["waterWash","💧 Water Wash"],["shampoo","🧴 Shampoo"],["shampooWax","✨ Shampoo+Wax"]].map(([wt,wlbl])=>{
+                                {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","âœ¨ Shampoo+Wax"]].map(([wt,wlbl])=>{
                                   const np=(pack as any).prices;const wObj=np?.[wt];const p=wObj?.[vehicleCat]??wObj?.hatchback??0;
                                   const isSel=_washRef.current===wt;
-                                  return p>0?(<div key={wt} onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt as string);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",borderRadius:6,background:isSel?"rgba(99,102,241,0.1)":"transparent",cursor:"pointer"}}><span style={{fontSize:11,color:isSel?"#4f46e5":"#64748b",fontWeight:isSel?700:400}}>{isSel?"✓ ":""}{wlbl}</span><span style={{fontSize:12,fontWeight:800,color:isSel?"#4f46e5":"#0f172a"}}>{inr(p)}</span></div>):null;
+                                  return p>0?(<div key={wt} onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt as string);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 6px",borderRadius:6,background:isSel?"rgba(99,102,241,0.1)":"transparent",cursor:"pointer"}}><span style={{fontSize:11,color:isSel?"#4f46e5":"#64748b",fontWeight:isSel?700:400}}>{isSel?"âœ“ ":""}{wlbl}</span><span style={{fontSize:12,fontWeight:800,color:isSel?"#4f46e5":"#0f172a"}}>{inr(p)}</span></div>):null;
                                 })}
                               </div>
                             )}
@@ -1317,9 +1326,9 @@ export function CustomerPlanPage() {
                                   For your {vehicleCat==="suv"?"SUV / Sedan / MUV":vehicleCat==="luxury"?"Luxury / Large SUV":"Hatchback / Compact Sedan"}:
                                 </div>
                                 {[
-                                  {wt:"waterWash", label:"💧 Water Wash",    icon:"💧"},
-                                  {wt:"shampoo",   label:"🧴 Shampoo",        icon:"🧴"},
-                                  {wt:"shampooWax",label:"✨ Shampoo + Wax",  icon:"✨"},
+                                  {wt:"waterWash", label:"ðŸ’§ Water Wash",    icon:"ðŸ’§"},
+                                  {wt:"shampoo",   label:"ðŸ§´ Shampoo",        icon:"ðŸ§´"},
+                                  {wt:"shampooWax",label:"âœ¨ Shampoo + Wax",  icon:"âœ¨"},
                                 ].map(({wt,label})=>{
                                   const pr=(pack as any).prices?.[wt];
                                   const p=vehicleCat==="suv"?pr?.suv:vehicleCat==="luxury"?pr?.luxury:pr?.hatchback;
@@ -1331,7 +1340,7 @@ export function CustomerPlanPage() {
                                       onClick={(e)=>{e.stopPropagation();setSelectedWashType(wt);}}
                                       style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 8px",marginBottom:3,borderRadius:6,cursor:"pointer",background:isSel?"rgba(99,102,241,0.1)":"rgba(0,0,0,0.03)",border:isSel?"1.5px solid #6366f1":"1.5px solid transparent",transition:"all 0.15s"}}>
                                       <span style={{fontSize:11,fontWeight:isSel?700:500,color:isSel?"#4338ca":"#374151"}}>
-                                        {isSel&&<span style={{marginRight:4}}>✓</span>}{label}
+                                        {isSel&&<span style={{marginRight:4}}>âœ“</span>}{label}
                                       </span>
                                       <div style={{textAlign:"right"}}>
                                         <div style={{fontSize:13,fontWeight:800,color:isSel?"#4338ca":colors[i]}}>{inr(p)}</div>
@@ -1348,7 +1357,7 @@ export function CustomerPlanPage() {
                                   const days=pack.id==="pack2"?20:30;
                                   return pv?(
                                     <div style={{marginTop:6,padding:"5px 8px",background:"rgba(16,185,129,0.08)",borderRadius:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                      <span style={{fontSize:10,color:"#065f46",fontWeight:600}}>{inr(Math.round(pv/n))}/visit · {pack.id==="pack2"?"2 visits":"4 visits"}</span>
+                                      <span style={{fontSize:10,color:"#065f46",fontWeight:600}}>{inr(Math.round(pv/n))}/visit Â· {pack.id==="pack2"?"2 visits":"4 visits"}</span>
                                       <span style={{fontSize:10,color:"#94a3b8"}}>Valid {days}d</span>
                                     </div>
                                   ):null;
@@ -1363,13 +1372,13 @@ export function CustomerPlanPage() {
                   </div>
                   {/* Pack T&C note */}
                   <div style={{marginTop:10,padding:"10px 14px",background:"rgba(248,250,252,0.9)",border:"1px solid #e2e8f0",borderRadius:10,fontSize:11,color:"#64748b",lineHeight:1.6}}>
-                    <strong style={{color:"#374151"}}>Pack terms:</strong> Packs expire after validity period. No rollover. Visits can be mixed — e.g. one Water Wash + one Shampoo Wash. One visit per day. Pack is for <strong>one vehicle only</strong> and cannot be split.
+                    <strong style={{color:"#374151"}}>Pack terms:</strong> Packs expire after validity period. No rollover. Visits can be mixed â€” e.g. one Water Wash + one Shampoo Wash. One visit per day. Pack is for <strong>one vehicle only</strong> and cannot be split.
                   </div>
                   {selectedPack&&(
                     <div style={{padding:"16px 20px",background:"linear-gradient(135deg,#f5f3ff,#ede9fe)",borderRadius:16,marginBottom:24,border:"2px solid #ddd6fe"}}>
                       <div style={{fontSize:13,fontWeight:700,color:"#4338ca",marginBottom:10}}>Select wash type for this pack</div>
                       <div style={{display:"flex",gap:10}}>
-                        {[["waterWash","💧 Water Wash"],["shampoo","🧴 Shampoo"],["shampooWax","✨ Shampoo + Wax"]].map(([id,lbl])=>(
+                        {[["waterWash","ðŸ’§ Water Wash"],["shampoo","ðŸ§´ Shampoo"],["shampooWax","âœ¨ Shampoo + Wax"]].map(([id,lbl])=>(
                           <button key={id} onClick={()=>setSelectedWashType(id as string)}
                             style={{flex:1,padding:"10px 8px",borderRadius:10,border:`2px solid ${_washRef.current===id?"#6366f1":"rgba(148,163,184,0.3)"}`,background:_washRef.current===id?"white":"transparent",color:"#0f172a",fontWeight:_washRef.current===id?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",boxShadow:_washRef.current===id?"0 4px 12px rgba(99,102,241,0.2)":undefined,transition:"all 0.2s"}}>
                             {lbl}
@@ -1381,10 +1390,10 @@ export function CustomerPlanPage() {
                 </>
               )}
 
-              {/* ── Multi-Month Bundle Selector (Pack of 2 / Pack of 4 only) ── */}
+              {/* â”€â”€ Multi-Month Bundle Selector (Pack of 2 / Pack of 4 only) â”€â”€ */}
               {planMode==="pack" && (selectedPack==="pack2"||selectedPack==="pack4") && (
                 <div style={{marginTop:20,padding:"18px 20px",borderRadius:16,border:"2px solid rgba(99,102,241,0.25)",background:"linear-gradient(135deg,#f0f4ff,#faf5ff)"}}>
-                  <div style={{fontSize:13,fontWeight:800,color:"#4338ca",marginBottom:4}}>📅 Want to buy multiple months upfront?</div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#4338ca",marginBottom:4}}>ðŸ“… Want to buy multiple months upfront?</div>
                   <div style={{fontSize:12,color:"#6366f1",marginBottom:14}}>Lock in a discounted rate and get priority 1-hour scheduling for every wash.</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
                     {([0,3,6,9,12] as const).map(m=>{
@@ -1410,7 +1419,7 @@ export function CustomerPlanPage() {
                             <>
                               <div style={{fontSize:13,fontWeight:700,color:sel?"#4338ca":"#374151"}}>{m} Months</div>
                               <div style={{fontSize:12,fontWeight:800,color:"#10b981"}}>{disc}% off</div>
-                              <div style={{fontSize:10,color:"#64748b"}}>₹{discP}/mo</div>
+                              <div style={{fontSize:10,color:"#64748b"}}>â‚¹{discP}/mo</div>
                             </>
                           )}
                         </div>
@@ -1420,10 +1429,10 @@ export function CustomerPlanPage() {
                   {bundleMonths>0 && bundleDiscountInfo && (
                     <div style={{padding:"10px 14px",borderRadius:10,background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)"}}>
                       <div style={{fontSize:12,fontWeight:700,color:"#059669"}}>
-                        🎉 You save ₹{bundleDiscountInfo.savings.toLocaleString("en-IN")} by paying {bundleMonths} months upfront
+                        ðŸŽ‰ You save â‚¹{bundleDiscountInfo.savings.toLocaleString("en-IN")} by paying {bundleMonths} months upfront
                       </div>
                       <div style={{fontSize:11,color:"#064e3b",marginTop:4}}>
-                        Total: ₹{bundleDiscountInfo.totalPrice.toLocaleString("en-IN")} · {(selectedPack==="pack2"?2:4)*bundleMonths} total visits · Priority 1-hour scheduling · Soft cap: {(selectedPack==="pack2"?2:4)*2} visits/month max
+                        Total: â‚¹{bundleDiscountInfo.totalPrice.toLocaleString("en-IN")} Â· {(selectedPack==="pack2"?2:4)*bundleMonths} total visits Â· Priority 1-hour scheduling Â· Soft cap: {(selectedPack==="pack2"?2:4)*2} visits/month max
                       </div>
                     </div>
                   )}
@@ -1431,30 +1440,30 @@ export function CustomerPlanPage() {
               )}
 
               <div style={{display:"flex",justifyContent:"space-between"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(2)}>← Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(4)} disabled={!step3Ok}>Continue → Add-ons</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(2)}>â† Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(4)} disabled={!step3Ok}>Continue â†’ Add-ons</button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 4 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===4 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={4} total={6} title="Enhance your wash" sub="Optional add-ons. For monthly plans, choose how many visits per month." />
               {planMode==="monthly" && addons.length>0 && (
                 <div style={{marginBottom:20,padding:"14px 18px",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",border:"2px solid #c7d2fe",borderRadius:14}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"#4338ca",marginBottom:10}}>📅 How many visits per month should add-ons apply?</div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#4338ca",marginBottom:10}}>ðŸ“… How many visits per month should add-ons apply?</div>
                   <div style={{fontSize:12,color:"#6366f1",marginBottom:12}}>Your plan includes 30 washes/month. Add-ons are billed per visit based on your selection below.</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {[1,2,4,8,15,30].map(v=>(
                       <button key={v} onClick={()=>setAddonFreqMonth(v)}
                         style={{padding:"8px 16px",borderRadius:50,border:`2px solid ${addonFreqMonth===v?"#6366f1":"rgba(148,163,184,0.3)"}`,background:addonFreqMonth===v?"linear-gradient(135deg,#6366f1,#8b5cf6)":"white",color:addonFreqMonth===v?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif",transition:"all 0.2s"}}>
-                        {v}×/mo
+                        {v}Ã—/mo
                       </button>
                     ))}
                   </div>
                   <div style={{marginTop:10,fontSize:12,color:"#4338ca"}}>
-                    Add-ons billed: <strong>{addonFreqMonth} visit{addonFreqMonth>1?"s":""}/month × {commitMonths} month{commitMonths>1?"s":""} = {addonFreqMonth*commitMonths} total visits</strong>
+                    Add-ons billed: <strong>{addonFreqMonth} visit{addonFreqMonth>1?"s":""}/month Ã— {commitMonths} month{commitMonths>1?"s":""} = {addonFreqMonth*commitMonths} total visits</strong>
                   </div>
                 </div>
               )}
@@ -1464,8 +1473,8 @@ export function CustomerPlanPage() {
               {(cfg as any).comboBundles && (
                 <div style={{marginBottom:28}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <span style={{fontSize:16}}>🔥</span>
-                    <span style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>Bundle Deals — Save More</span>
+                    <span style={{fontSize:16}}>ðŸ”¥</span>
+                    <span style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>Bundle Deals â€” Save More</span>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                     {((cfg as any).comboBundles||[]).map((b:any)=>{
@@ -1487,7 +1496,7 @@ export function CustomerPlanPage() {
                             </div>
                           </div>
                           <div style={{marginTop:10,fontSize:12,color:allSel?"#4338ca":"#64748b",fontWeight:allSel?700:400}}>
-                            {allSel?"✅ Bundle applied — tap to remove":"Tap to add both together"}
+                            {allSel?"âœ… Bundle applied â€” tap to remove":"Tap to add both together"}
                           </div>
                         </div>
                       );
@@ -1511,7 +1520,7 @@ export function CustomerPlanPage() {
                         style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:`2px solid ${sel?ac:"rgba(148,163,184,0.25)"}`,borderRadius:14,cursor:"pointer",background:sel?`linear-gradient(135deg,${ac}10,${ac}06)`:"rgba(255,255,255,0.9)",transition:"all 0.2s",boxShadow:sel?`0 4px 16px ${ac}25`:"0 1px 4px rgba(0,0,0,0.04)"}}>
                         {/* Custom checkbox */}
                         <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${sel?ac:"rgba(148,163,184,0.4)"}`,background:sel?`linear-gradient(135deg,${ac},${ac}cc)`:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s",boxShadow:sel?`0 2px 8px ${ac}40`:undefined}}>
-                          {sel&&<span style={{color:"white",fontSize:13,fontWeight:800}}>✓</span>}
+                          {sel&&<span style={{color:"white",fontSize:13,fontWeight:800}}>âœ“</span>}
                         </div>
                         <div style={{flex:1}}>
                           <div style={{fontSize:14,fontWeight:700,color:"#0f172a",display:"flex",alignItems:"center",gap:4}}>
@@ -1531,25 +1540,25 @@ export function CustomerPlanPage() {
               {addons.length===0&&<div style={{textAlign:"center",padding:"16px",color:"#94a3b8",fontSize:13,marginTop:12}}>No add-ons selected. You can skip this step.</div>}
 
               <div style={{display:"flex",justifyContent:"space-between",marginTop:28}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(3)}>← Back</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(3)}>â† Back</button>
                 <button className="cpp-btn-primary" onClick={()=>goTo(5)}>
-                  Continue → Details {addons.length>0&&`(+${addons.length} add-on${addons.length>1?"s":""})`}
+                  Continue â†’ Details {addons.length>0&&`(+${addons.length} add-on${addons.length>1?"s":""})`}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 5 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===5 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={5} total={6} title="Your details" sub="We'll confirm your booking and send updates to these contacts." />
 
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
                 {[
-                  {label:"Full name *",value:custName,onChange:setCustName,placeholder:"Rajesh Patel",icon:"👤"},
-                  {label:"Mobile number *",value:custMobile,onChange:setCustMobile,onBlur:()=>handleMobileLookup(custMobile),placeholder:"10-digit number",type:"tel",icon:"📱"},
-                  {label:"Email address",value:custEmail,onChange:setCustEmail,placeholder:"Optional",type:"email",icon:"✉️"},
-                  {label:"Vehicle registration",value:custReg,onChange:setCustReg,placeholder:"GJ05AB1234",icon:"🔢"},
+                  {label:"Full name *",value:custName,onChange:setCustName,placeholder:"Rajesh Patel",icon:"ðŸ‘¤"},
+                  {label:"Mobile number *",value:custMobile,onChange:setCustMobile,onBlur:()=>handleMobileLookup(custMobile),placeholder:"10-digit number",type:"tel",icon:"ðŸ“±"},
+                  {label:"Email address",value:custEmail,onChange:setCustEmail,placeholder:"Optional",type:"email",icon:"âœ‰ï¸"},
+                  {label:"Vehicle registration",value:custReg,onChange:setCustReg,placeholder:"GJ05AB1234",icon:"ðŸ”¢"},
                 ].map(({label,value,onChange,placeholder,type,icon})=>(
                   <div key={label}>
                     <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>{label}</label>
@@ -1564,17 +1573,17 @@ export function CustomerPlanPage() {
               <div style={{marginBottom:16}}>
                 <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>Full address *</label>
                 <div style={{position:"relative"}}>
-                  <span style={{position:"absolute",left:14,top:14,fontSize:15}}>🏠</span>
-                  <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmark…" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
+                  <span style={{position:"absolute",left:14,top:14,fontSize:15}}>ðŸ </span>
+                  <textarea className="cpp-input" value={custAddress} onChange={e=>setCustAddress(e.target.value)} placeholder="Building name, street, landmarkâ€¦" rows={2} style={{paddingLeft:42,resize:"vertical",paddingTop:14}} />
                 </div>
               </div>
 
-              {/* ── GST / Business Invoice Section ── */}
+              {/* â”€â”€ GST / Business Invoice Section â”€â”€ */}
               <div style={{marginBottom:16,padding:16,borderRadius:14,border:"2px dashed rgba(99,102,241,0.25)",background:"rgba(248,250,252,0.9)"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                  <span style={{fontSize:18}}>🏢</span>
+                  <span style={{fontSize:18}}>ðŸ¢</span>
                   <span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>GST Invoice</span>
-                  <span style={{fontSize:11,color:"#94a3b8",fontWeight:400}}>Optional — for businesses claiming input tax credit</span>
+                  <span style={{fontSize:11,color:"#94a3b8",fontWeight:400}}>Optional â€” for businesses claiming input tax credit</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
                   <div>
@@ -1584,9 +1593,9 @@ export function CustomerPlanPage() {
                   <div>
                     <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>
                       GSTIN
-                      {gstStatus==="checking" && <span style={{color:"#f59e0b",marginLeft:6,fontWeight:400}}>⏳ Verifying...</span>}
-                      {gstStatus==="valid"    && <span style={{color:"#10b981",marginLeft:6,fontWeight:400}}>✅ Verified</span>}
-                      {gstStatus==="invalid"  && <span style={{color:"#ef4444",marginLeft:6,fontWeight:400}}>❌ Not found</span>}
+                      {gstStatus==="checking" && <span style={{color:"#f59e0b",marginLeft:6,fontWeight:400}}>â³ Verifying...</span>}
+                      {gstStatus==="valid"    && <span style={{color:"#10b981",marginLeft:6,fontWeight:400}}>âœ… Verified</span>}
+                      {gstStatus==="invalid"  && <span style={{color:"#ef4444",marginLeft:6,fontWeight:400}}>âŒ Not found</span>}
                     </label>
                     <input
                       className="cpp-input"
@@ -1604,25 +1613,25 @@ export function CustomerPlanPage() {
                 </div>
                 {gstStatus==="checking" && (
                   <div style={{padding:8,borderRadius:8,background:"#fffbeb",border:"1px solid #fde68a",fontSize:12,color:"#92400e"}}>
-                    ⏳ Checking GSTIN with GST portal... (Demo mode active — simulates 1.2s API call)
+                    â³ Checking GSTIN with GST portal... (Demo mode active â€” simulates 1.2s API call)
                   </div>
                 )}
                 {gstStatus==="valid" && gstDetails && (
                   <div style={{padding:10,borderRadius:10,background:"#f0fdf4",border:"1px solid #bbf7d0",fontSize:12}}>
-                    <div style={{fontWeight:700,marginBottom:4,color:"#065f46"}}>🏢 {gstDetails.legalName || gstDetails.tradeName || custCompany}</div>
+                    <div style={{fontWeight:700,marginBottom:4,color:"#065f46"}}>ðŸ¢ {gstDetails.legalName || gstDetails.tradeName || custCompany}</div>
                     <div style={{display:"flex",gap:16,flexWrap:"wrap",color:"#374151"}}>
                       <span><strong>State:</strong> {gstDetails.state}</span>
                       <span><strong>Status:</strong> <span style={{color:"#10b981",fontWeight:700}}>{gstDetails.status}</span></span>
                     </div>
                     <div style={{marginTop:8,padding:6,background:"#dcfce7",borderRadius:6,color:"#059669",fontSize:11,fontWeight:600}}>
-                      ✓ B2B GST invoice generated · CGST 9% + SGST 9% · Input tax credit eligible
+                      âœ“ B2B GST invoice generated Â· CGST 9% + SGST 9% Â· Input tax credit eligible
                     </div>
-                    {GST_DEMO_MODE && <div style={{marginTop:4,fontSize:10,color:"#94a3b8"}}>⚠️ Demo mode — set GST_DEMO_MODE=false + add API key to go live</div>}
+                    {GST_DEMO_MODE && <div style={{marginTop:4,fontSize:10,color:"#94a3b8"}}>âš ï¸ Demo mode â€” set GST_DEMO_MODE=false + add API key to go live</div>}
                   </div>
                 )}
                 {gstStatus==="invalid" && (
                   <div style={{padding:8,borderRadius:8,background:"#fef2f2",border:"1px solid #fecaca",fontSize:12,color:"#dc2626"}}>
-                    ❌ GSTIN not found or inactive. Please check and re-enter. Format: 24AAAPL1234C1Z5 (15 characters)
+                    âŒ GSTIN not found or inactive. Please check and re-enter. Format: 24AAAPL1234C1Z5 (15 characters)
                   </div>
                 )}
               </div>
@@ -1631,7 +1640,7 @@ export function CustomerPlanPage() {
                 <div>
                   <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:8}}>Parking</label>
                   <div style={{display:"flex",gap:8}}>
-                    {[["dedicated","🅿️ Dedicated"],["random","🔀 Shared"]].map(([val,lbl])=>(
+                    {[["dedicated","ðŸ…¿ï¸ Dedicated"],["random","ðŸ”€ Shared"]].map(([val,lbl])=>(
                       <button key={val} onClick={()=>setParking(val as any)}
                         style={{flex:1,padding:"10px 8px",borderRadius:10,border:`2px solid ${parking===val?"#6366f1":"rgba(148,163,184,0.3)"}`,background:parking===val?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"white",color:"#0f172a",fontWeight:parking===val?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",transition:"all 0.2s"}}>
                         {lbl}
@@ -1642,7 +1651,7 @@ export function CustomerPlanPage() {
                 <div>
                   <label style={{display:"block",fontSize:12,fontWeight:700,color:"#374151",marginBottom:8}}>Updates via</label>
                   <div style={{display:"flex",gap:6}}>
-                    {[["whatsapp","📲 WA"],["email","📧 Email"],["both","Both"]].map(([val,lbl])=>(
+                    {[["whatsapp","ðŸ“² WA"],["email","ðŸ“§ Email"],["both","Both"]].map(([val,lbl])=>(
                       <button key={val} onClick={()=>setNotifyPref(val as any)}
                         style={{flex:1,padding:"10px 6px",borderRadius:10,border:`2px solid ${notifyPref===val?"#6366f1":"rgba(148,163,184,0.3)"}`,background:notifyPref===val?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"white",color:"#0f172a",fontWeight:notifyPref===val?700:500,fontSize:11,cursor:"pointer",fontFamily:"'Sora',sans-serif",transition:"all 0.2s"}}>
                         {lbl}
@@ -1656,11 +1665,11 @@ export function CustomerPlanPage() {
                 const isPack2or4=selectedPack==="pack2"||selectedPack==="pack4";
                 if(isPack2or4) return (
                   <div style={{marginBottom:20,padding:"16px 18px",background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",border:"2px solid #86efac",borderRadius:14}}>
-                    <div style={{fontSize:13,fontWeight:700,color:"#15803d",marginBottom:12}}>📦 When do you want your first wash?</div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#15803d",marginBottom:12}}>ðŸ“¦ When do you want your first wash?</div>
                     <div style={{display:"flex",gap:10,marginBottom:10}}>{(["immediate","schedule"] as const).map(opt=>(
                       <button key={opt} onClick={()=>{setPackStartOption(opt);if(opt==="immediate"){setOneTimeDate(new Date().toISOString().slice(0,10));setOneTimeHour("");}}}
                         style={{flex:1,padding:"12px 16px",borderRadius:12,border:`2px solid ${packStartOption===opt?"#16a34a":"rgba(148,163,184,0.3)"}`,background:packStartOption===opt?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:packStartOption===opt?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all 0.2s"}}>
-                        {opt==="immediate"?"⚡ Book Now (Today)":"📅 Schedule for Later"}
+                        {opt==="immediate"?"âš¡ Book Now (Today)":"ðŸ“… Schedule for Later"}
                       </button>
                     ))}</div>
                     {packStartOption==="immediate"&&(
@@ -1672,13 +1681,13 @@ export function CustomerPlanPage() {
                           {getOneTimeSlots(new Date().toISOString().slice(0,10)).slice(0,8).map(s=>(
                             <button key={s} onClick={()=>setOneTimeHour(s)}
                               style={{padding:"10px 12px",borderRadius:10,border:`2px solid ${oneTimeHour===s?"#16a34a":"rgba(148,163,184,0.3)"}`,background:oneTimeHour===s?"linear-gradient(135deg,#16a34a,#15803d)":"white",color:oneTimeHour===s?"white":"#374151",fontWeight:oneTimeHour===s?700:500,fontSize:12,cursor:"pointer",transition:"all 0.2s"}}>
-                              {oneTimeHour===s?"✓ ":""}{s}
+                              {oneTimeHour===s?"âœ“ ":""}{s}
                             </button>
                           ))}
                         </div>
                         {getOneTimeSlots(new Date().toISOString().slice(0,10)).length===0&&(
                           <div style={{padding:"10px 12px",background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:8,fontSize:12,color:"#92400e"}}>
-                            ⚠️ No same-day slots available — please choose Schedule for Later.
+                            âš ï¸ No same-day slots available â€” please choose Schedule for Later.
                           </div>
                         )}
                       </div>
@@ -1698,9 +1707,9 @@ export function CustomerPlanPage() {
                 );
                 if(isOneTime) return (
                   <div style={{marginBottom:16}}>
-                    {/* G10: Book Now (Today) option for one-time — mirrors pack2/pack4 flow */}
+                    {/* G10: Book Now (Today) option for one-time â€” mirrors pack2/pack4 flow */}
                     <div style={{display:"flex",gap:8,marginBottom:12}}>
-                      {([{v:"today",label:"📅 Book Now (Today)",sub:"Immediate scheduling"},{v:"schedule",label:"🗓️ Schedule Later",sub:"Pick a date up to 10 days ahead"}] as const).map(opt=>(
+                      {([{v:"today",label:"ðŸ“… Book Now (Today)",sub:"Immediate scheduling"},{v:"schedule",label:"ðŸ—“ï¸ Schedule Later",sub:"Pick a date up to 10 days ahead"}] as const).map(opt=>(
                         <div key={opt.v} onClick={()=>{ if(opt.v==="today"){handleOneTimeDateChange(new Date().toISOString().slice(0,10));} }}
                           style={{flex:1,padding:"10px 12px",border:`2px solid ${(opt.v==="today"&&oneTimeDate===new Date().toISOString().slice(0,10))||opt.v==="schedule"&&oneTimeDate!==new Date().toISOString().slice(0,10)?"#6366f1":"#e5e7eb"}`,borderRadius:12,cursor:"pointer",background:(opt.v==="today"&&oneTimeDate===new Date().toISOString().slice(0,10))||(opt.v==="schedule"&&oneTimeDate!==new Date().toISOString().slice(0,10))?"rgba(99,102,241,0.08)":"white"}}>
                           <div style={{fontWeight:700,fontSize:13,color:"#374151"}}>{opt.label}</div>
@@ -1727,7 +1736,7 @@ export function CustomerPlanPage() {
                       {cfg.timeSlots.map(slot=>(
                         <button key={slot} onClick={()=>setPrefTime(slot)}
                           style={{padding:"11px 14px",borderRadius:10,border:`2px solid ${prefTime===slot?"#6366f1":"rgba(148,163,184,0.3)"}`,background:prefTime===slot?"linear-gradient(135deg,#eff6ff,#f5f3ff)":"rgba(255,255,255,0.9)",color:"#0f172a",fontWeight:prefTime===slot?700:500,fontSize:12,cursor:"pointer",fontFamily:"'Sora',sans-serif",textAlign:"left",transition:"all 0.2s",boxShadow:prefTime===slot?"0 4px 12px rgba(99,102,241,0.2)":undefined}}>
-                          {prefTime===slot?"✓ ":""}{slot}
+                          {prefTime===slot?"âœ“ ":""}{slot}
                         </button>
                       ))}
                     </div>
@@ -1738,7 +1747,7 @@ export function CustomerPlanPage() {
 
               {/* Coupon / Referral codes */}
               <div style={{marginBottom:20}}>
-                <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:12}}>🎟️ Have a coupon or referral code?</div>
+                <div style={{fontSize:14,fontWeight:700,color:"#0f172a",marginBottom:12}}>ðŸŽŸï¸ Have a coupon or referral code?</div>
                 
                 {/* Active auto-promotions banner */}
                 {activePromos.length>0&&(
@@ -1748,9 +1757,9 @@ export function CustomerPlanPage() {
                         <span style={{fontSize:18}}>{p.badge}</span>
                         <div>
                           <div style={{fontWeight:700,color:"#92400e"}}>{p.name}</div>
-                          <div style={{fontSize:12,color:"#d97706"}}>{p.type==="percent"?`${p.value}% off applied automatically`:p.type==="flat"?`₹${p.value} off applied automatically`:"Offer applied"} — {p.description}</div>
+                          <div style={{fontSize:12,color:"#d97706"}}>{p.type==="percent"?`${p.value}% off applied automatically`:p.type==="flat"?`â‚¹${p.value} off applied automatically`:"Offer applied"} â€” {p.description}</div>
                         </div>
-                        <div style={{marginLeft:"auto",fontWeight:800,color:"#d97706",fontSize:15}}>-₹{p.type==="percent"?Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100):p.value}</div>
+                        <div style={{marginLeft:"auto",fontWeight:800,color:"#d97706",fontSize:15}}>-â‚¹{p.type==="percent"?Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100):p.value}</div>
                       </div>
                     ))}
                   </div>
@@ -1759,47 +1768,47 @@ export function CustomerPlanPage() {
                 {/* Coupon code */}
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <div style={{position:"relative",flex:1}}>
-                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>🎟️</span>
+                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>ðŸŽŸï¸</span>
                     <input className="cpp-input" value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} placeholder="Coupon code (e.g. SAVE20)" style={{paddingLeft:36,fontFamily:"monospace",fontWeight:700,letterSpacing:2,border:`2px solid ${couponResult?.valid?"#10b981":couponResult?.error?"#ef4444":"rgba(148,163,184,0.3)"}`}} />
                   </div>
                   <button onClick={handleApplyCoupon} disabled={!couponInput.trim()} style={{padding:"12px 20px",background:couponResult?.valid?"#10b981":"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",border:"none",borderRadius:12,fontWeight:700,fontSize:13,cursor:couponInput.trim()?"pointer":"not-allowed",fontFamily:"'Sora',sans-serif",opacity:couponInput.trim()?1:0.6}}>Apply</button>
                 </div>
                 {couponResult&&(
                   <div style={{padding:"8px 12px",background:couponResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${couponResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                    <span>{couponResult.valid?"✅":"❌"}</span>
+                    <span>{couponResult.valid?"âœ…":"âŒ"}</span>
                     <span style={{color:couponResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
-                      {couponResult.valid?`Coupon applied — ₹${couponResult.discount} off your order`:couponResult.error}
+                      {couponResult.valid?`Coupon applied â€” â‚¹${couponResult.discount} off your order`:couponResult.error}
                     </span>
-                    {couponResult.valid&&<button onClick={()=>{setCouponResult(null);setCouponInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>✕</button>}
+                    {couponResult.valid&&<button onClick={()=>{setCouponResult(null);setCouponInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>âœ•</button>}
                   </div>
                 )}
 
                 {/* Referral code */}
                 <div style={{display:"flex",gap:8,marginBottom:8}}>
                   <div style={{position:"relative",flex:1}}>
-                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>🔗</span>
+                    <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:14}}>ðŸ”—</span>
                     <input className="cpp-input" value={referralInput} onChange={e=>setReferralInput(e.target.value.toUpperCase())} placeholder="Friend's referral code (e.g. RAHUL1234)" style={{paddingLeft:36,fontFamily:"monospace",fontWeight:700,letterSpacing:1,border:`2px solid ${referralResult?.valid?"#10b981":referralResult?.error?"#ef4444":"rgba(148,163,184,0.3)"}`}} />
                   </div>
                   <button onClick={handleApplyReferral} disabled={!referralInput.trim()} style={{padding:"12px 20px",background:referralResult?.valid?"#10b981":"linear-gradient(135deg,#f59e0b,#d97706)",color:"white",border:"none",borderRadius:12,fontWeight:700,fontSize:13,cursor:referralInput.trim()?"pointer":"not-allowed",fontFamily:"'Sora',sans-serif",opacity:referralInput.trim()?1:0.6}}>Apply</button>
                 </div>
                 {referralResult&&(
                   <div style={{padding:"8px 12px",background:referralResult.valid?"#f0fdf4":"#fef2f2",border:`1px solid ${referralResult.valid?"#86efac":"#fca5a5"}`,borderRadius:8,fontSize:13,display:"flex",alignItems:"center",gap:8}}>
-                    <span>{referralResult.valid?"🎁":"❌"}</span>
+                    <span>{referralResult.valid?"ðŸŽ":"âŒ"}</span>
                     <span style={{color:referralResult.valid?"#065f46":"#991b1b",fontWeight:600}}>
-                      {referralResult.valid?`Referral applied — ₹${referralResult.discount} off! You and your friend both benefit 🎉`:referralResult.error}
+                      {referralResult.valid?`Referral applied â€” â‚¹${referralResult.discount} off! You and your friend both benefit ðŸŽ‰`:referralResult.error}
                     </span>
-                    {referralResult.valid&&<button onClick={()=>{setReferralResult(null);setReferralInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>✕</button>}
+                    {referralResult.valid&&<button onClick={()=>{setReferralResult(null);setReferralInput("");}} style={{marginLeft:"auto",background:"none",border:"none",color:"#94a3b8",cursor:"pointer",fontSize:14}}>âœ•</button>}
                   </div>
                 )}
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(4)}>← Back</button>
-                <button className="cpp-btn-primary" onClick={()=>goTo(6)} disabled={!step5Ok}>Continue → Review</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(4)}>â† Back</button>
+                <button className="cpp-btn-primary" onClick={()=>goTo(6)} disabled={!step5Ok}>Continue â†’ Review</button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 6 ────────────────────────────────────────────────────── */}
+          {/* â”€â”€ STEP 6 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {step===6 && (
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={6} total={6} title="Review & Pay" sub="Confirm your order details and complete the payment." />
@@ -1807,13 +1816,13 @@ export function CustomerPlanPage() {
               {/* Order card */}
               <div style={{borderRadius:18,overflow:"hidden",marginBottom:24,boxShadow:"0 4px 20px rgba(0,0,0,0.08)"}}>
                 {[
-                  {icon:"🚗",label:"Vehicle",value:`${cfg.vehicleCategories.find(c=>c.id===activeCat)?.icon} ${catLabel}`,bg:"#eff6ff"},
-                  {icon:"📍",label:"Area",value:`${cfg.serviceablePincodes.find(p=>p.code===pincode)?.label} — ${pincode}`,bg:"#f0fdf4"},
-                  {icon:"📋",label:"Plan",value:selectedPlan?`${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.icon} ${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.name} — ${inr(planPrice)}/mo${commitMonths>1?" × "+commitMonths+"mo = "+inr(planPrice*commitMonths):""}`:`${cfg.packs.find(p=>p.id===selectedPack)?.name} — ${inr(packPrice)}`,bg:"#f5f3ff"},
-                  ...(addons.length>0?[{icon:"✨",label:"Add-ons",value:addons.map(id=>cfg.addons.find(a=>a.id===id)?.name).join(", "),bg:"#fffbeb"}]:[]),
-                  {icon:"👤",label:"Name",value:custName,bg:"#f8fafc"},
-                  {icon:"📱",label:"Mobile",value:custMobile,bg:"#f8fafc"},
-                  {icon:"⏰",label:"Time",value:isOneTime?`${oneTimeDate} at ${oneTimeHour}`:prefTime,bg:"#f8fafc"},
+                  {icon:"ðŸš—",label:"Vehicle",value:`${cfg.vehicleCategories.find(c=>c.id===activeCat)?.icon} ${catLabel}`,bg:"#eff6ff"},
+                  {icon:"ðŸ“",label:"Area",value:`${cfg.serviceablePincodes.find(p=>p.code===pincode)?.label} â€” ${pincode}`,bg:"#f0fdf4"},
+                  {icon:"ðŸ“‹",label:"Plan",value:selectedPlan?`${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.icon} ${cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.name} â€” ${inr(planPrice)}/mo${commitMonths>1?" Ã— "+commitMonths+"mo = "+inr(planPrice*commitMonths):""}`:`${cfg.packs.find(p=>p.id===selectedPack)?.name} â€” ${inr(packPrice)}`,bg:"#f5f3ff"},
+                  ...(addons.length>0?[{icon:"âœ¨",label:"Add-ons",value:addons.map(id=>cfg.addons.find(a=>a.id===id)?.name).join(", "),bg:"#fffbeb"}]:[]),
+                  {icon:"ðŸ‘¤",label:"Name",value:custName,bg:"#f8fafc"},
+                  {icon:"ðŸ“±",label:"Mobile",value:custMobile,bg:"#f8fafc"},
+                  {icon:"â°",label:"Time",value:isOneTime?`${oneTimeDate} at ${oneTimeHour}`:prefTime,bg:"#f8fafc"},
                 ].map((row,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",background:row.bg,borderBottom:"1px solid rgba(148,163,184,0.1)"}}>
                     <span style={{fontSize:18,flexShrink:0}}>{row.icon}</span>
@@ -1845,7 +1854,7 @@ export function CustomerPlanPage() {
                     onClick={()=>setter(!val)}
                     style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:val?`linear-gradient(135deg,${ac}10,${ac}06)`:"rgba(248,250,252,0.8)",borderRadius:12,marginBottom:8,border:`2px solid ${val?ac+"60":"rgba(148,163,184,0.2)"}`,cursor:"pointer",transition:"all 0.2s"}}>
                     <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${val?ac:"rgba(148,163,184,0.4)"}`,background:val?`linear-gradient(135deg,${ac},${ac}cc)`:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s"}}>
-                      {val&&<span style={{color:"white",fontSize:12,fontWeight:800}}>✓</span>}
+                      {val&&<span style={{color:"white",fontSize:12,fontWeight:800}}>âœ“</span>}
                     </div>
                     <span style={{fontSize:13,color:"#374151"}} onClick={e=>e.stopPropagation()}>
                       {pre}{" "}
@@ -1859,15 +1868,15 @@ export function CustomerPlanPage() {
               </div>
 
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <button className="cpp-btn-ghost" onClick={()=>goTo(5)}>← Back</button>
+                <button className="cpp-btn-ghost" onClick={()=>goTo(5)}>â† Back</button>
                 <button
                   onClick={handleSubmit}
                   disabled={!step6Ok||isProcessing}
                   style={{padding:"16px 44px",borderRadius:50,border:"none",cursor:(!step6Ok||isProcessing)?"not-allowed":"pointer",fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:16,background:(!step6Ok||isProcessing)?"#cbd5e1":"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",boxShadow:(!step6Ok||isProcessing)?"none":"0 8px 24px rgba(99,102,241,0.45)",transition:"all 0.2s",display:"flex",alignItems:"center",gap:10}}>
                   {isProcessing?(
-                    <><div style={{width:18,height:18,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"white",borderRadius:"50%",animation:"spin 0.7s linear infinite"}} /> Processing…</>
+                    <><div style={{width:18,height:18,border:"2px solid rgba(255,255,255,0.35)",borderTopColor:"white",borderRadius:"50%",animation:"spin 0.7s linear infinite"}} /> Processingâ€¦</>
                   ):(
-                    <>🔒 Pay {inr(Math.round(finalTotal*1.18))} Securely</>
+                    <>ðŸ”’ Pay {inr(Math.round(finalTotal*1.18))} Securely</>
                   )}
                 </button>
               </div>
@@ -1887,29 +1896,29 @@ export function CustomerPlanPage() {
         <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.7)",backdropFilter:"blur(6px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setShowTnC(null)}>
           <div className="cpp-modal-enter" style={{background:"white",borderRadius:24,padding:32,maxWidth:500,width:"100%",maxHeight:"75vh",overflow:"auto",boxShadow:"0 40px 80px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
             <h3 style={{marginTop:0,color:"#0f172a",fontFamily:"'Playfair Display',serif",fontSize:22}}>
-              {showTnC==="terms"?"📋 Terms & Conditions":showTnC==="refund"?"💰 Refund Policy":"❌ Cancellation Policy"}
+              {showTnC==="terms"?"ðŸ“‹ Terms & Conditions":showTnC==="refund"?"ðŸ’° Refund Policy":"âŒ Cancellation Policy"}
             </h3>
             <p style={{color:"#64748b",fontSize:14,lineHeight:1.7}}>
               {showTnC==="terms"&&<>
-                By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are available Monday to Saturday. Sunday is a company-wide rest day — no washes are scheduled on Sundays. Individual washer week-off days rotate across Mon–Sat; your service continues uninterrupted as the system automatically redistributes jobs to a cover washer on your washer's day off.
+                By subscribing to 24/9 Carwashing services, you agree to our service standards, usage policies, and payment terms. Services are available Monday to Saturday. Sunday is a company-wide rest day â€” no washes are scheduled on Sundays. Individual washer week-off days rotate across Monâ€“Sat; your service continues uninterrupted as the system automatically redistributes jobs to a cover washer on your washer's day off.
                 <br/><br/>
                 <strong>Service Communications:</strong> Upon subscription you will receive: (a) an immediate booking acknowledgement via WhatsApp after payment; (b) a full booking confirmation with washer details once a washer is assigned; (c) a WhatsApp notification 48 hours before each scheduled service. If you do not confirm or reschedule within 24 hours of the advance notice, the service is automatically confirmed and will proceed as scheduled.
                 <br/><br/>
-                <strong>Cancellation Channel:</strong> You may cancel your subscription via WhatsApp, email, or our online form at 249carwashing.genxa.in/cancel-service — a reference number is generated immediately upon submission.
+                <strong>Cancellation Channel:</strong> You may cancel your subscription via WhatsApp, email, or our online form at 249carwashing.genxa.in/cancel-service â€” a reference number is generated immediately upon submission.
                 <br/><br/>
                 <strong>Multi-Month Pack Bundles:</strong> When you purchase a Pack of 2 or Pack of 4 across multiple months, your visits are managed as a total pool across all windows. Each 30-day window begins from your <em>first wash date</em> (not the payment date). Visits unused at the end of each window are forfeited and do not carry forward to the next window.
               </>}
               {showTnC==="refund"&&<>
                 Refunds are processed within 7 working days for cancelled subscriptions. Pro-rated refunds apply based on services already rendered. No refunds after 30 days from purchase. Add-ons are non-refundable once the visit has occurred.
                 <br/><br/>
-                <strong>Multi-Month Pack Bundle Refunds:</strong> Refund eligibility is based on visits consumed, not time elapsed. If you have used fewer than 50% of your total bundle visits, you are eligible for a refund on unused visits less a 10% cancellation fee and up to 2% gateway charges. If 50% or more visits have been used, no refund is applicable — however you retain your remaining visits until the bundle end date. Advance use of visits (using more in one window) counts toward the 50% threshold.
+                <strong>Multi-Month Pack Bundle Refunds:</strong> Refund eligibility is based on visits consumed, not time elapsed. If you have used fewer than 50% of your total bundle visits, you are eligible for a refund on unused visits less a 10% cancellation fee and up to 2% gateway charges. If 50% or more visits have been used, no refund is applicable â€” however you retain your remaining visits until the bundle end date. Advance use of visits (using more in one window) counts toward the 50% threshold.
               </>}
               {showTnC==="cancel"&&<>
-                You may cancel your subscription with 7 days' written notice via WhatsApp, email, or our online cancellation form at <strong>249carwashing.genxa.in/cancel-service</strong> — a reference number is generated immediately. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 9, 12 months) may have different terms as specified at the time of purchase.
+                You may cancel your subscription with 7 days' written notice via WhatsApp, email, or our online cancellation form at <strong>249carwashing.genxa.in/cancel-service</strong> â€” a reference number is generated immediately. No cancellation fee applies to month-to-month plans. Lock-in plans (3, 6, 9, 12 months) may have different terms as specified at the time of purchase.
                 <br/><br/>
-                <strong>One-Time Wash:</strong> Full refund if cancelled more than 2 hours before the scheduled slot. No refund within 2 hours of the scheduled slot time. Note: after 3 reschedules the booking is locked and you must call us to make changes. Rescheduling and cancellation cutoffs are separate — a locked reschedule does not prevent cancellation.
+                <strong>One-Time Wash:</strong> Full refund if cancelled more than 2 hours before the scheduled slot. No refund within 2 hours of the scheduled slot time. Note: after 3 reschedules the booking is locked and you must call us to make changes. Rescheduling and cancellation cutoffs are separate â€” a locked reschedule does not prevent cancellation.
                 <br/><br/>
-                <strong>Multi-Month Pack Bundle Cancellations:</strong> Cancellations are processed based on the percentage of visits consumed across your total bundle. Under 50% consumed → partial refund (visits used charged at per-visit rate + 10% fee). Over 50% consumed → no refund, but remaining visits stay active until your bundle end date. Priority scheduling (1-hour TAT) applies to all bundle visits throughout the validity period. Unused visits within an expired 30-day window are forfeited — they cannot be used in future windows.
+                <strong>Multi-Month Pack Bundle Cancellations:</strong> Cancellations are processed based on the percentage of visits consumed across your total bundle. Under 50% consumed â†’ partial refund (visits used charged at per-visit rate + 10% fee). Over 50% consumed â†’ no refund, but remaining visits stay active until your bundle end date. Priority scheduling (1-hour TAT) applies to all bundle visits throughout the validity period. Unused visits within an expired 30-day window are forfeited â€” they cannot be used in future windows.
               </>}
             </p>
             <button onClick={()=>setShowTnC(null)} className="cpp-btn-primary" style={{marginTop:8}}>Got it, close</button>
@@ -1917,7 +1926,7 @@ export function CustomerPlanPage() {
         </div>
       )}
 
-      {/* ⓘ Plan Info Modal — triggered from plan/pack/addon ⓘ buttons */}
+      {/* â“˜ Plan Info Modal â€” triggered from plan/pack/addon â“˜ buttons */}
       {infoModal && (
         <PlanInfoModal
           planId={infoModal.planId ?? null}
@@ -1938,6 +1947,7 @@ export function CustomerPlanPage() {
 }
 
 export default CustomerPlanPage;
+
 
 
 
