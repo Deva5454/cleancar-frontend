@@ -1,5 +1,4 @@
-﻿import React from "react";
-import * as React from "react";
+﻿import * as React from "react";
 
 interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   value?: number;
@@ -29,3 +28,4 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
 Progress.displayName = "Progress";
 
 export { Progress };
+

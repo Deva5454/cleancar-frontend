@@ -1,5 +1,4 @@
-﻿import React from "react";
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
@@ -176,3 +175,4 @@ export {
   CommandShortcut,
   CommandSeparator,
 };
+

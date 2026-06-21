@@ -1,5 +1,4 @@
-﻿import React from "react";
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
@@ -62,3 +61,4 @@ function Slider({
 }
 
 export { Slider };
+
