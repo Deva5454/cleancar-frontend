@@ -14,6 +14,7 @@ import { PlanInfoModal, InfoBtn } from "./PlanInfoModal";
 import { getAvailableHours } from "../../services/slotAvailabilityService";
 import { planSyncService } from "../../services/planSyncService";
 import { RescheduleTab } from "./RescheduleTab";
+import { CancellationRequestPage } from "./CancellationRequestPage";
 import { createBundle } from "../../services/multiMonthBundleService";
 
 // ─── CONFIG TYPES ─────────────────────────────────────────────────────────────
@@ -447,7 +448,7 @@ function SectionHead({n,total,title,sub}: {n:number;total:number;title:string;su
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export function CustomerPlanPage() {
   const [cfg, setCfg] = useState<PlanPageConfig>(loadConfig);
-  const [pageMode, setPageMode] = useState<"buy" | "reschedule">("buy");
+  const [pageMode, setPageMode] = useState<"buy" | "reschedule" | "cancel">("buy");
   const [step, setStep] = useState(1);
   const [carModel, setCarModel] = useState("");
   const [detectedCat, setDetectedCat] = useState<string|null>(null);
@@ -1051,6 +1052,7 @@ export function CustomerPlanPage() {
         <button onClick={() => setPageMode("reschedule")} style={{padding:"14px 32px",fontWeight:700,fontSize:14,border:"none",cursor:"pointer",borderBottom:pageMode==="reschedule"?"3px solid #312e81":"3px solid transparent",color:pageMode==="reschedule"?"#312e81":"#64748b",background:"none"}}>?? Reschedule Wash</button>
       </div>
       {pageMode === "reschedule" && <div style={{minHeight:"80vh",background:"#f0f4ff"}}><RescheduleTab /></div>}
+      {pageMode === "cancel" && <div style={{minHeight:"80vh",background:"#F8FBFF"}}><CancellationRequestPage embedded /></div>}
       {pageMode === "buy" && (<>
       {/* Step bar */}
       <div style={{background:"rgba(255,255,255,0.85)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(148,163,184,0.15)",position:"sticky",top:0,zIndex:100,boxShadow:"0 4px 20px rgba(0,0,0,0.06)"}}>

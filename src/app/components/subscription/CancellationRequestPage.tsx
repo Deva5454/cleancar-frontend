@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿/**
  * CancellationRequestPage.tsx  — /cancel-service
  *
  * Flow:
@@ -128,7 +128,7 @@ function computeRefund(total: number, totalDays: number, startDate: string, opts
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function CancellationRequestPage() {
+export function CancellationRequestPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [cfg] = useState<PlanPageConfig>(loadConfig);
 
   // Step management
@@ -669,20 +669,24 @@ export function CancellationRequestPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div style={S.page}>
-      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      {!embedded && (
+        <>
+          <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-      {/* NAV */}
-      <nav style={{ background: "#fff", borderBottom: "1px solid #E3EEF7", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/buy" style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "#2196F3", textDecoration: "none" }}>🚿 {cfg.brand.name}</a>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "#6B7280" }}>📞 {cfg.brand.phone}</span>
-          <a href={`https://wa.me/${cfg.brand.whatsappNumber}`} target="_blank" rel="noreferrer"
-            style={{ background: "#25D366", color: "#fff", padding: "7px 14px", borderRadius: 50, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>💬 WhatsApp</a>
-        </div>
-      </nav>
+          {/* NAV */}
+          <nav style={{ background: "#fff", borderBottom: "1px solid #E3EEF7", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <a href="/buy" style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "#2196F3", textDecoration: "none" }}>🚿 {cfg.brand.name}</a>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <span style={{ fontSize: 13, color: "#6B7280" }}>📞 {cfg.brand.phone}</span>
+              <a href={`https://wa.me/${cfg.brand.whatsappNumber}`} target="_blank" rel="noreferrer"
+                style={{ background: "#25D366", color: "#fff", padding: "7px 14px", borderRadius: 50, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>💬 WhatsApp</a>
+            </div>
+          </nav>
+        </>
+      )}
 
       {/* HEADER */}
-      <div style={{ background: "linear-gradient(135deg,#37474F,#546E7A)", padding: "36px 28px", textAlign: "center" }}>
+      <div style={{ background: "linear-gradient(135deg,#37474F,#546E7A)", padding: embedded ? "28px 28px" : "36px 28px", textAlign: "center", borderRadius: embedded ? 16 : 0 }}>
         <h1 style={{ fontFamily: "'Syne',sans-serif", fontSize: "clamp(20px,4vw,32px)", fontWeight: 800, color: "#fff", marginBottom: 8 }}>
           Request Service Cancellation
         </h1>
@@ -1287,11 +1291,13 @@ export function CancellationRequestPage() {
       </div>
 
       {/* Footer */}
-      <div style={{ background: "#37474F", padding: "12px 28px", display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap" }}>
-        {["📧 support@249carwashing.com", "📞 080 4879 4545", "Mon–Sat · 10am–7pm"].map((t, i) => (
-          <span key={i} style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>{t}</span>
-        ))}
-      </div>
+      {!embedded && (
+        <div style={{ background: "#37474F", padding: "12px 28px", display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap" }}>
+          {["📧 support@249carwashing.com", "📞 080 4879 4545", "Mon–Sat · 10am–7pm"].map((t, i) => (
+            <span key={i} style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>{t}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
