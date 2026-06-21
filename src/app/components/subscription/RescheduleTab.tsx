@@ -6,6 +6,25 @@ type Step = "phone" | "otp" | "vehicle" | "jobs" | "slot" | "done";
 interface UpcomingJob { jobId: string; scheduledDate: string; timeSlot: string; packageName: string; vehicleReg: string; status: string; subscriptionId?: string; }
 const SLOTS = ["05:00 - 05:30","05:30 - 06:00","06:00 - 06:30","06:30 - 07:00","07:00 - 07:30","07:30 - 08:00","08:00 - 08:30","08:30 - 09:00"];
 
+const DEMO_PHONE = "9000000001";
+const DEMO_OTP = "123456";
+const DEMO_VEHICLE = "GJ05AK0001";
+
+function seedDemoData() {
+  try {
+    const tomorrow = new Date(Date.now()+86400000).toISOString().split("T")[0];
+    const dayAfter = new Date(Date.now()+2*86400000).toISOString().split("T")[0];
+    const key = "cleancar_CITY-SURAT_jobs";
+    const existing = JSON.parse(localStorage.getItem(key)||"[]");
+    if(existing.some((j: any)=>j.jobId==="DEMO-RSC-001")) return;
+    const demos = [
+      {jobId:"DEMO-RSC-001",customerName:"Demo Customer",customerPhone:"9000000001",washerId:"WASHER-DEMO",scheduledDate:tomorrow,timeSlot:"06:00 - 06:30",packageName:"Smart Wash",packageType:"SMART_WASH",vehicleDetails:{category:"Hatchback",color:"White",brand:"Maruti",registration:"GJ05AK0001"},vehicleReg:"GJ05AK0001",location:{addressLine1:"B-204, Demo Residency",area:"Adajan",city:"Surat",pinCode:"395001"},status:"Assigned",jobType:"Regular",subscriptionId:"SUB-DEMO-001",customerId:"CUST-DEMO-001",cityId:"CITY-SURAT",city:"Surat",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},
+      {jobId:"DEMO-RSC-002",customerName:"Demo Customer",customerPhone:"9000000001",washerId:"WASHER-DEMO",scheduledDate:dayAfter,timeSlot:"07:00 - 07:30",packageName:"Express Wash",packageType:"EXPRESS_WASH",vehicleDetails:{category:"Hatchback",color:"White",brand:"Maruti",registration:"GJ05AK0001"},vehicleReg:"GJ05AK0001",location:{addressLine1:"B-204, Demo Residency",area:"Adajan",city:"Surat",pinCode:"395001"},status:"Assigned",jobType:"Regular",subscriptionId:"SUB-DEMO-001",customerId:"CUST-DEMO-001",cityId:"CITY-SURAT",city:"Surat",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},
+    ];
+    localStorage.setItem(key, JSON.stringify([...existing,...demos]));
+  } catch(_){}
+}
+
 function generateOTP() { return Math.floor(100000 + Math.random() * 900000).toString(); }
 function sendOTPViaWhatsApp(phone: string, otp: string) { console.log(`[OTP] ${otp} -> ${phone}`); window.dispatchEvent(new CustomEvent("cc360:otp_sent", { detail: { phone, otp } })); }
 
@@ -32,6 +51,7 @@ function formatDate(d: string) { return new Date(d+"T00:00:00").toLocaleDateStri
 function getMinDate() { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; }
 
 export function RescheduleTab() {
+  useState(() => { seedDemoData(); });
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -65,8 +85,9 @@ export function RescheduleTab() {
 
   function handleVerifyOTP() {
     if(otp.length!==6){setOtpErr("Enter the 6-digit OTP.");return;}
-    if(otp!==otpGen){setOtpErr("Incorrect OTP. Try again.");return;}
-    if(otpTimer===0){setOtpErr("OTP expired. Request a new one.");return;}
+    const isDemoPhone = phone.replace(/\D/g,"").slice(-10)===DEMO_PHONE;
+    if(otp!==otpGen && !(isDemoPhone && otp===DEMO_OTP)){setOtpErr("Incorrect OTP. Try again.");return;}
+    if(otpTimer===0 && !isDemoPhone){setOtpErr("OTP expired. Request a new one.");return;}
     setOtpErr(""); setStep("vehicle");
   }
 
@@ -105,6 +126,13 @@ export function RescheduleTab() {
 
   return (
     <div style={S.wrap}>
+      <div style={{background:"#1e1b4b",borderRadius:12,padding:"12px 16px",marginBottom:16,fontSize:12,color:"#a5b4fc",fontFamily:"monospace"}}>
+        <div style={{fontWeight:700,color:"#c7d2fe",marginBottom:6}}>TEST CREDENTIALS</div>
+        <div>Mobile: <strong style={{color:"#fde68a"}}>{DEMO_PHONE}</strong></div>
+        <div>OTP: <strong style={{color:"#fde68a"}}>{DEMO_OTP}</strong></div>
+        <div>Vehicle: <strong style={{color:"#fde68a"}}>{DEMO_VEHICLE}</strong></div>
+        <div style={{marginTop:4,color:"#818cf8",fontSize:11}}>Use these to test the full reschedule flow</div>
+      </div>
       {step==="phone" && (
         <div style={S.card}>
           <div style={S.title}>Reschedule Your Wash</div>
@@ -223,3 +251,4 @@ export function RescheduleTab() {
 }
 
 export default RescheduleTab;
+

@@ -116,7 +116,7 @@ const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
 
   .cpp-root * { box-sizing: border-box; }
-  .cpp-root { font-family: 'Sora', sans-serif; }
+  .cpp-root { font-family: 'Sora', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
 
   .cpp-input {
     width: 100%; padding: 14px 16px; border-radius: 12px; font-size: 15px;
@@ -1948,6 +1948,7 @@ export function CustomerPlanPage() {
 }
 
 export default CustomerPlanPage;
+
 
 
 
