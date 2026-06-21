@@ -55,7 +55,7 @@ export function WasherCoreScreensConnected() {
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
     const washerId = (currentUser as any)?.employeeId || "WASHER-DEMO";
-    const seedKey = `cc360_washer_demo_seeded_${washerId}_${today}`;
+    const seedKey = `cc360_washer_demo_seeded_v2_${washerId}_${today}`;
     if (!localStorage.getItem(seedKey)) {
       try {
         const now = new Date(); const h = now.getHours(); const m = now.getMinutes();
@@ -489,6 +489,7 @@ export function WasherCoreScreensConnected() {
 
 
 export default WasherCoreScreensConnected;
+
 
 
 
