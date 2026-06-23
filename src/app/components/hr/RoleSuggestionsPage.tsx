@@ -25,7 +25,7 @@ import { BackButton } from "../ui/back-button";
 // In production, this would aggregate real attendance, jobs, ratings data
 function calculateEmployeeMetrics(employeeId: string): EmployeeMetrics {
   // This is mock data - replace with real aggregation from attendance, jobs, ratings
-  const idx = employeeId.split(""").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const idx = employeeId.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const mockMetrics: EmployeeMetrics = {
     employeeId,
     jobsCompleted: Math.floor((idx * 137 + 42) % 300),
