@@ -1,6 +1,6 @@
 // Supervisor Module - Updated to align with Car Washer Module data
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -57,11 +57,15 @@ import {
   Wrench,
   TrendingUp,
   Eye,
+  LogOut,
+  CheckSquare,
 } from "lucide-react";
 import { BackButton } from "../ui/back-button";
 import { toast } from "sonner";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
+import { DataService } from "../../services/DataService";
 
 interface Job {
   id: string;
@@ -115,7 +119,89 @@ interface StockReplenishmentRequest {
 
 export function SupervisorModuleUpdated() {
   const { city } = useCity();
+  const { currentUser } = useRole();
+  const navigate = useNavigate();
   const cityWashers = employeeDatabaseService.getAll().filter(e => e.role==="Car Washer" && e.city===city);
+
+  // ── Exit Verification State ──────────────────────────────────────────────
+  const safeName = (v: any): string => {
+    if (!v) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "object") return v?.name ?? v?.fullName ?? "";
+    return String(v);
+  };
+
+  const loadExits = () => {
+    try {
+      const stored = DataService.get<any>("EXIT_SETTLEMENTS");
+      const records = stored.length > 0 ? stored : (() => {
+        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        return raw ? JSON.parse(raw) : [];
+      })();
+      return records.map((r: any) => ({
+        ...r,
+        supervisorVerifiedBy: safeName(r.supervisorVerifiedBy),
+        hrVerifiedBy: safeName(r.hrVerifiedBy),
+        materials: Array.isArray(r.materials) ? r.materials.map((m: any) => ({
+          ...m, verifiedBy: safeName(m.verifiedBy),
+        })) : r.materials,
+      }));
+    } catch { return []; }
+  };
+
+  const [exitRecords, setExitRecords] = useState<any[]>(loadExits);
+
+  const pendingExitVerifications = exitRecords.filter(
+    e => e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated"
+  );
+
+  const persistExits = (records: any[]) => {
+    try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
+    try {
+      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
+    } catch {}
+  };
+
+  const handleVerifyMaterial = (exitId: string, materialId: string, condition: string) => {
+    const comments = condition !== "Good" ? prompt(`Comments for "${condition}":`) ?? "" : "";
+    const updated = exitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e,
+        materials: e.materials.map((m: any) =>
+          m.id !== materialId ? m : {
+            ...m, condition, comments,
+            verifiedBy: currentUser?.name ?? "Supervisor",
+            verifiedOn: new Date().toISOString().split("T")[0],
+          }
+        ),
+      }
+    );
+    setExitRecords(updated);
+    persistExits(updated);
+    toast.success(`Material marked as: ${condition}`);
+  };
+
+  const handleCompleteSupervisorVerification = (exitId: string) => {
+    const exit = exitRecords.find(e => e.id === exitId);
+    if (!exit) return;
+    const pending = exit.materials.filter((m: any) => m.condition === "Pending");
+    if (pending.length > 0) {
+      toast.error(`Please verify all ${pending.length} pending items first.`);
+      return;
+    }
+    const updated = exitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e,
+        status: "Supervisor Verified",
+        supervisorVerifiedBy: currentUser?.name ?? "Supervisor",
+        supervisorVerifiedOn: new Date().toISOString().split("T")[0],
+      }
+    );
+    setExitRecords(updated);
+    persistExits(updated);
+    toast.success(`✅ Material verification complete for ${exit.employeeName}. HR notified.`);
+  };
 
   // State management
   const [selectedTab, setSelectedTab] = useState("jobs");
@@ -545,6 +631,31 @@ export function SupervisorModuleUpdated() {
           </Card>
         )}
 
+        {pendingExitVerifications.length > 0 && (
+          <Card className="bg-red-50 border-red-300">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <LogOut className="w-5 h-5 text-red-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900">
+                    {pendingExitVerifications.length} Exit{pendingExitVerifications.length > 1 ? "s" : ""} Pending Your Material Verification
+                  </p>
+                  <p className="text-sm text-red-700">
+                    {pendingExitVerifications.map((e: any) => e.employeeName).join(", ")}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => setSelectedTab("exit-verify")}
+                >
+                  Verify Now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {stockRequests.filter((r) => r.status === "Pending" && r.urgency === "High").length >
           0 && (
           <Card className="bg-amber-50 border-amber-200">
@@ -667,6 +778,14 @@ export function SupervisorModuleUpdated() {
             Stock Requests ({stockRequests.filter((r) => r.status === "Pending").length})
           </TabsTrigger>
           <TabsTrigger value="leaves">Leave Approvals ({pendingLeaves.length})</TabsTrigger>
+          <TabsTrigger value="exit-verify" className="relative">
+            Exit Verifications
+            {pendingExitVerifications.length > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">
+                {pendingExitVerifications.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Today's Jobs Tab */}
@@ -1151,6 +1270,153 @@ export function SupervisorModuleUpdated() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Exit Verifications Tab */}
+        <TabsContent value="exit-verify" className="space-y-4">
+          {pendingExitVerifications.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <CheckSquare className="w-12 h-12 text-green-400 mx-auto mb-4" />
+                <p className="font-medium text-gray-700">No pending exit verifications</p>
+                <p className="text-sm text-gray-400 mt-1">All material returns are up to date</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => navigate("/hr/exit-settlement?city=surat")}
+                >
+                  View Full Exit Settlement Page
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Pending Material Verifications</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Verify all items returned by each employee before marking complete
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/hr/exit-settlement?city=surat")}
+                >
+                  <Eye className="w-4 h-4 mr-1.5" /> Full Settlement Page
+                </Button>
+              </div>
+
+              {pendingExitVerifications.map((exit: any) => (
+                <Card key={exit.id} className="border-orange-200">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center">
+                          <LogOut className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">{exit.employeeName}</CardTitle>
+                          <p className="text-xs text-gray-500">
+                            {exit.empCode} · {exit.designation} · Last day: {exit.lastWorkingDate}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-orange-100 text-orange-800 border-orange-200">
+                        Pending Verification
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <div className="bg-gray-50 rounded p-2 text-center">
+                        <p className="text-xs text-gray-400">Reason</p>
+                        <p className="text-xs font-medium text-gray-700 truncate">{exit.reasonForLeaving}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded p-2 text-center">
+                        <p className="text-xs text-gray-400">Notice Period</p>
+                        <p className="text-xs font-medium text-gray-700">{exit.noticePeriod} days</p>
+                      </div>
+                      <div className="bg-gray-50 rounded p-2 text-center">
+                        <p className="text-xs text-gray-400">Pending Items</p>
+                        <p className="text-xs font-medium text-red-600">
+                          {exit.materials.filter((m: any) => m.condition === "Pending").length} / {exit.materials.length}
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Material Checklist</p>
+                    {exit.materials.map((mat: any) => (
+                      <div
+                        key={mat.id}
+                        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm
+                          ${mat.condition === "Good" ? "bg-green-50 border-green-200"
+                          : mat.condition === "Pending" ? "bg-gray-50 border-gray-200"
+                          : mat.condition === "Missing" ? "bg-red-50 border-red-200"
+                          : "bg-yellow-50 border-yellow-200"}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {mat.condition === "Good" ? (
+                            <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                          ) : mat.condition === "Pending" ? (
+                            <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                          ) : mat.condition === "Missing" ? (
+                            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
+                          )}
+                          <div>
+                            <span className={mat.condition !== "Pending" && mat.condition !== "Good" ? "font-medium" : ""}>
+                              {mat.name}
+                            </span>
+                            {mat.comments && (
+                              <p className="text-xs text-gray-500">{mat.comments}</p>
+                            )}
+                            {mat.verifiedBy && (
+                              <p className="text-xs text-gray-400">by {mat.verifiedBy} on {mat.verifiedOn}</p>
+                            )}
+                          </div>
+                        </div>
+                        {mat.condition === "Pending" && (
+                          <div className="flex gap-1 shrink-0">
+                            {["Good", "Minor Damage", "Major Damage", "Missing"].map(cond => (
+                              <button
+                                key={cond}
+                                onClick={() => handleVerifyMaterial(exit.id, mat.id, cond)}
+                                className={`text-xs rounded px-2 py-1 border font-medium transition-colors
+                                  ${cond === "Good" ? "bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
+                                  : cond === "Minor Damage" ? "bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100"
+                                  : cond === "Major Damage" ? "bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100"
+                                  : "bg-red-50 text-red-700 border-red-300 hover:bg-red-100"}`}
+                              >
+                                {cond === "Minor Damage" ? "Minor" : cond === "Major Damage" ? "Major" : cond}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Complete button */}
+                    <div className="pt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-400">
+                        {exit.materials.filter((m: any) => m.condition !== "Pending").length} of {exit.materials.length} items verified
+                      </p>
+                      <Button
+                        size="sm"
+                        disabled={exit.materials.some((m: any) => m.condition === "Pending")}
+                        className="bg-green-600 hover:bg-green-700 disabled:opacity-40"
+                        onClick={() => handleCompleteSupervisorVerification(exit.id)}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1.5" />
+                        Complete Verification
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          )}
         </TabsContent>
       </Tabs>
 
