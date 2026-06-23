@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
+﻿﻿﻿﻿// Router Configuration - FIXED: Removed bad imports (Updated: 2026-03-26)
 import React, { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { GlobalFiltersProvider } from "./components/navigation/GlobalFilterBar";
@@ -368,7 +368,7 @@ export const router = createBrowserRouter([
       { path: "hr/leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/enhanced-leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/professional-leave", element: <ErrorBoundary><ProfessionalLeaveManagement /></ErrorBoundary> },
-      { path: "hr/leave-policy-engine", element: <LeavePolicyEngine /> },
+      { path: "hr/leave-policy-engine", element: <ErrorBoundary><LeavePolicyEngine /></ErrorBoundary> },
       { path: "hr/onboarding", element: <EmployeeOnboarding /> },
       { path: "hr/exit-settlement", element: <ExitFFSettlement /> },
       { path: "hr/lifecycle-management", element: <EmployeeLifecycleManagement /> },
