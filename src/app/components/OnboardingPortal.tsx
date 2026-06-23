@@ -46,6 +46,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { statutoryFormsService } from "../services/statutoryFormsService";
+import { employeeDatabaseService } from "../services/employeeDatabaseService";
 import { logger } from "../services/logger";
 
 interface WorkExperience {
@@ -163,7 +165,37 @@ function OnboardingPortal() {
     { number: 3, title: "Work Experience", icon: Briefcase },
     { number: 4, title: "Education", icon: GraduationCap },
     { number: 5, title: "Declaration", icon: CheckCircle },
+    { number: 6, title: "PF Form 11", icon: FileText },
+    { number: 7, title: "ESIC Form 1", icon: FileText },
   ];
+
+  // Statutory forms state
+  const [pfData, setPfData] = useState({
+    fullName: "", fatherName: "", dob: "", gender: "", maritalStatus: "",
+    mobile: "", aadhaar: "", pan: "", bankAccount: "", ifsc: "", bankName: "",
+    uan: "", isFirstJob: true, previousEmployer: "", previousPFAccount: "",
+    nominees: [{ name: "", relationship: "", dob: "", share: 100 }],
+    declaration: false,
+  });
+  const [esicData, setEsicData] = useState({
+    permanentAddress: "", city: "", state: "", pincode: "",
+    dispensaryName: "", dispensaryCity: "",
+    familyMembers: [] as Array<{ name: string; relationship: string; dob: string; aadhaar: string }>,
+    declaration: false,
+  });
+
+  // Derive gross from personal details for ESIC eligibility
+  const derivedGross = useMemo(() => {
+    try {
+      const allEmps = employeeDatabaseService.getAll();
+      const match = allEmps.find((e: any) =>
+        e.id === empId || e.tempId === empId ||
+        e.mobile === personalDetails.personalMobile
+      );
+      return match?.monthlyGross || match?.salaryComponents?.monthlyGross || 0;
+    } catch { return 0; }
+  }, [empId, personalDetails.personalMobile]);
+  const isESICEligible = derivedGross === 0 || derivedGross < 21000;
 
   // Work Experience Functions
   const addWorkExperience = () => {
@@ -339,10 +371,9 @@ function OnboardingPortal() {
       declaration,
     });
 
-    toast.success("Onboarding submitted successfully!");
-
-    // Show password creation screen (Step 6)
-    setCurrentStep(6); // Step 6 = Set Password (Step 7 = Success)
+    toast.success("Personal details saved! Now please fill your PF declaration form.");
+    // Step 6 = PF Form 11, Step 7 = ESIC Form 1, Step 8 = Password, Step 9 = Success
+    setCurrentStep(6);
   };
 
   const validatePassword = (pwd: string): string[] => {
@@ -375,7 +406,7 @@ function OnboardingPortal() {
       if (result.success) {
         setPasswordSet(true);
         toast.success("Password created successfully! You can now log in.");
-        setTimeout(() => setCurrentStep(7), 1500); // Go to final success screen
+        setTimeout(() => setCurrentStep(9), 1500); // Go to final success screen
       } else {
         // If tempPin check fails (empId mismatch), still allow set for new employees
         // In production this would be validated server-side
@@ -394,7 +425,7 @@ function OnboardingPortal() {
           });
           setPasswordSet(true);
           toast.success("Password created! You can now log in.");
-          setTimeout(() => setCurrentStep(7), 1500);
+          setTimeout(() => setCurrentStep(9), 1500);
         } else {
           toast.error(result.error || "Could not set password. Please contact HR.");
         }
@@ -406,8 +437,8 @@ function OnboardingPortal() {
     }
   };
 
-  // Password Creation Screen (Step 6)
-  if (currentStep === 6) {
+  // Password Creation Screen (Step 8)
+  if (currentStep === 8) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-teal-50 to-blue-50 flex items-center justify-center p-6">
         <Card className="max-w-md w-full shadow-xl border-0">
@@ -541,8 +572,8 @@ function OnboardingPortal() {
     );
   }
 
-  // Success Screen (Step 7)
-  if (currentStep === 7) {
+  // Success Screen (Step 9)
+  if (currentStep === 9) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-teal-50 to-blue-50 flex items-center justify-center p-6">
         <Card className="max-w-lg w-full">
@@ -2057,6 +2088,173 @@ function OnboardingPortal() {
               </div>
             )}
 
+            {/* Step 6: PF Form 11 */}
+            {currentStep === 6 && (
+              <div className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 font-medium">PF Form 11 — Employee Provident Fund Declaration</p>
+                  <p className="text-xs text-blue-600 mt-1">Fill your details carefully. These are submitted to EPFO.</p>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div><Label>Full Name (as per Aadhaar) *</Label>
+                    <Input value={pfData.fullName || personalDetails.fullName}
+                      onChange={e => setPfData({...pfData, fullName: e.target.value})}
+                      placeholder="Full legal name" /></div>
+                  <div><Label>Father / Husband Name *</Label>
+                    <Input value={pfData.fatherName}
+                      onChange={e => setPfData({...pfData, fatherName: e.target.value})}
+                      placeholder="Father or husband name" /></div>
+                  <div><Label>Date of Birth *</Label>
+                    <Input type="date" value={pfData.dob}
+                      onChange={e => setPfData({...pfData, dob: e.target.value})} /></div>
+                  <div><Label>Gender *</Label>
+                    <select className="w-full border rounded px-3 py-2 text-sm" value={pfData.gender}
+                      onChange={e => setPfData({...pfData, gender: e.target.value})}>
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select></div>
+                  <div><Label>Mobile *</Label>
+                    <Input value={pfData.mobile || personalDetails.personalMobile}
+                      onChange={e => setPfData({...pfData, mobile: e.target.value})} /></div>
+                  <div><Label>Aadhaar Number *</Label>
+                    <Input value={pfData.aadhaar || identityDocuments.aadhaarNumber}
+                      onChange={e => setPfData({...pfData, aadhaar: e.target.value})} maxLength={12} /></div>
+                  <div><Label>PAN Number *</Label>
+                    <Input value={pfData.pan || identityDocuments.panNumber}
+                      onChange={e => setPfData({...pfData, pan: e.target.value.toUpperCase()})} /></div>
+                  <div><Label>Bank Account Number *</Label>
+                    <Input value={pfData.bankAccount || identityDocuments.bankAccountNumber}
+                      onChange={e => setPfData({...pfData, bankAccount: e.target.value})} /></div>
+                  <div><Label>IFSC Code *</Label>
+                    <Input value={pfData.ifsc || identityDocuments.ifscCode}
+                      onChange={e => setPfData({...pfData, ifsc: e.target.value.toUpperCase()})} /></div>
+                  <div><Label>Bank Name *</Label>
+                    <Input value={pfData.bankName || identityDocuments.bankName}
+                      onChange={e => setPfData({...pfData, bankName: e.target.value})} /></div>
+                  <div><Label>UAN (if existing PF member)</Label>
+                    <Input value={pfData.uan}
+                      onChange={e => setPfData({...pfData, uan: e.target.value})}
+                      placeholder="Leave blank if first job" /></div>
+                  <div className="md:col-span-2 flex items-center gap-3 p-3 bg-gray-50 rounded">
+                    <input type="checkbox" id="firstJob" checked={pfData.isFirstJob}
+                      onChange={e => setPfData({...pfData, isFirstJob: e.target.checked})} />
+                    <label htmlFor="firstJob" className="text-sm">This is my first job — I have no previous PF account</label>
+                  </div>
+                </div>
+                {!pfData.isFirstJob && (
+                  <div className="grid md:grid-cols-2 gap-4 border-t pt-4">
+                    <p className="md:col-span-2 text-sm font-medium text-gray-700">Previous Employer Details</p>
+                    <div><Label>Previous Employer Name</Label>
+                      <Input value={pfData.previousEmployer}
+                        onChange={e => setPfData({...pfData, previousEmployer: e.target.value})} /></div>
+                    <div><Label>Previous PF Account Number</Label>
+                      <Input value={pfData.previousPFAccount}
+                        onChange={e => setPfData({...pfData, previousPFAccount: e.target.value})} /></div>
+                  </div>
+                )}
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Nominee Details (shares must total 100%)</p>
+                  {pfData.nominees.map((n: any, i: number) => (
+                    <div key={i} className="grid grid-cols-4 gap-2 mb-2">
+                      <Input placeholder="Nominee name" value={n.name}
+                        onChange={e => { const ns=[...pfData.nominees]; ns[i]={...ns[i],name:e.target.value}; setPfData({...pfData,nominees:ns}); }} />
+                      <Input placeholder="Relationship" value={n.relationship}
+                        onChange={e => { const ns=[...pfData.nominees]; ns[i]={...ns[i],relationship:e.target.value}; setPfData({...pfData,nominees:ns}); }} />
+                      <Input type="date" value={n.dob}
+                        onChange={e => { const ns=[...pfData.nominees]; ns[i]={...ns[i],dob:e.target.value}; setPfData({...pfData,nominees:ns}); }} />
+                      <Input type="number" placeholder="Share %" value={n.share}
+                        onChange={e => { const ns=[...pfData.nominees]; ns[i]={...ns[i],share:Number(e.target.value)}; setPfData({...pfData,nominees:ns}); }} />
+                    </div>
+                  ))}
+                  <Button size="sm" variant="outline" onClick={() => setPfData({...pfData, nominees:[...pfData.nominees,{name:"",relationship:"",dob:"",share:0}]})}>
+                    + Add Nominee
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-1">Total share: {pfData.nominees.reduce((s:number,n:any)=>s+Number(n.share||0),0)}% (must equal 100%)</p>
+                </div>
+                <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded">
+                  <input type="checkbox" id="pfDecl" checked={pfData.declaration}
+                    onChange={e => setPfData({...pfData, declaration: e.target.checked})} />
+                  <label htmlFor="pfDecl" className="text-sm text-gray-700">
+                    I declare that the information provided above is true and correct. I understand that providing false information is a punishable offence under the EPF Act 1952.
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Step 7: ESIC Form 1 */}
+            {currentStep === 7 && (
+              <div className="space-y-6">
+                {!isESICEligible ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                    <p className="font-medium text-gray-800">ESIC — Not Applicable</p>
+                    <p className="text-sm text-gray-600 mt-1">Your gross salary is ≥ ₹21,000. ESIC registration is not required.</p>
+                    <p className="text-sm text-gray-500 mt-2">Click the button below to continue to account setup.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm text-green-800 font-medium">ESIC Form 1 — Employee State Insurance Declaration</p>
+                      <p className="text-xs text-green-600 mt-1">Your gross salary qualifies you for ESIC coverage.</p>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2"><Label>Permanent Address *</Label>
+                        <Input value={esicData.permanentAddress}
+                          onChange={e => setEsicData({...esicData, permanentAddress: e.target.value})}
+                          placeholder="House/Flat, Street, Area" /></div>
+                      <div><Label>City *</Label>
+                        <Input value={esicData.city}
+                          onChange={e => setEsicData({...esicData, city: e.target.value})} /></div>
+                      <div><Label>State *</Label>
+                        <Input value={esicData.state}
+                          onChange={e => setEsicData({...esicData, state: e.target.value})} /></div>
+                      <div><Label>Pincode *</Label>
+                        <Input value={esicData.pincode}
+                          onChange={e => setEsicData({...esicData, pincode: e.target.value})} maxLength={6} /></div>
+                    </div>
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Preferred ESIC Dispensary</p>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div><Label>Dispensary Name</Label>
+                          <Input value={esicData.dispensaryName}
+                            onChange={e => setEsicData({...esicData, dispensaryName: e.target.value})} /></div>
+                        <div><Label>Dispensary City</Label>
+                          <Input value={esicData.dispensaryCity}
+                            onChange={e => setEsicData({...esicData, dispensaryCity: e.target.value})} /></div>
+                      </div>
+                    </div>
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-3">Family Members (for ESIC coverage)</p>
+                      {esicData.familyMembers.map((m: any, i: number) => (
+                        <div key={i} className="grid grid-cols-4 gap-2 mb-2">
+                          <Input placeholder="Name" value={m.name}
+                            onChange={e => { const ms=[...esicData.familyMembers]; ms[i]={...ms[i],name:e.target.value}; setEsicData({...esicData,familyMembers:ms}); }} />
+                          <Input placeholder="Relationship" value={m.relationship}
+                            onChange={e => { const ms=[...esicData.familyMembers]; ms[i]={...ms[i],relationship:e.target.value}; setEsicData({...esicData,familyMembers:ms}); }} />
+                          <Input type="date" value={m.dob}
+                            onChange={e => { const ms=[...esicData.familyMembers]; ms[i]={...ms[i],dob:e.target.value}; setEsicData({...esicData,familyMembers:ms}); }} />
+                          <Input placeholder="Aadhaar" value={m.aadhaar}
+                            onChange={e => { const ms=[...esicData.familyMembers]; ms[i]={...ms[i],aadhaar:e.target.value}; setEsicData({...esicData,familyMembers:ms}); }} />
+                        </div>
+                      ))}
+                      <Button size="sm" variant="outline" onClick={() => setEsicData({...esicData, familyMembers:[...esicData.familyMembers,{name:"",relationship:"",dob:"",aadhaar:""}]})}>
+                        + Add Family Member
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded">
+                      <input type="checkbox" id="esicDecl" checked={esicData.declaration}
+                        onChange={e => setEsicData({...esicData, declaration: e.target.checked})} />
+                      <label htmlFor="esicDecl" className="text-sm text-gray-700">
+                        I declare that the family members listed above are dependent on me and the information provided is true and correct under the ESI Act 1948.
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Navigation Buttons */}
             <div className="flex items-center justify-between pt-6 border-t">
               {currentStep > 1 && (
@@ -2065,7 +2263,7 @@ function OnboardingPortal() {
                   Previous Step
                 </Button>
               )}
-              {currentStep < 5 ? (
+              {currentStep < 7 ? (
                 <Button
                   onClick={nextStep}
                   className="ml-auto bg-teal-600 hover:bg-teal-700"
@@ -2073,13 +2271,63 @@ function OnboardingPortal() {
                   Next Step
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
-              ) : (
+              ) : currentStep === 5 ? (
                 <Button
                   onClick={submitOnboarding}
                   className="ml-auto bg-green-600 hover:bg-green-700"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Submit Onboarding
+                  Continue to Statutory Forms
+                </Button>
+              ) : currentStep === 6 ? (
+                <Button
+                  onClick={() => {
+                    if (!pfData.declaration) { toast.error("Please accept the PF declaration to continue"); return; }
+                    const totalShare = pfData.nominees.reduce((s: number, n: any) => s + (Number(n.share) || 0), 0);
+                    if (totalShare !== 100) { toast.error("Nominee shares must total 100%. Current: " + totalShare + "%"); return; }
+                    statutoryFormsService.submit({
+                      id: "PF-" + (empId || "EMP") + "-" + Date.now(),
+                      employeeId: empId || "",
+                      employeeName: pfData.fullName || personalDetails.fullName,
+                      formType: "PF Form 11",
+                      formData: pfData,
+                      submittedOn: new Date().toISOString(),
+                      status: "Pending Verification",
+                    });
+                    toast.success("PF Form 11 submitted! Now please fill ESIC Form 1.");
+                    setCurrentStep(7);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="ml-auto bg-teal-600 hover:bg-teal-700"
+                >
+                  Submit PF Form & Continue
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    if (!isESICEligible) {
+                      toast.success("ESIC not applicable (gross ≥ ₹21,000). Proceeding to account setup.");
+                      setCurrentStep(8); window.scrollTo({ top: 0, behavior: "smooth" }); return;
+                    }
+                    if (!esicData.declaration) { toast.error("Please accept the ESIC declaration to continue"); return; }
+                    statutoryFormsService.submit({
+                      id: "ESIC-" + (empId || "EMP") + "-" + Date.now(),
+                      employeeId: empId || "",
+                      employeeName: personalDetails.fullName,
+                      formType: "ESIC Form 1",
+                      formData: esicData,
+                      submittedOn: new Date().toISOString(),
+                      status: "Pending Verification",
+                    });
+                    toast.success("ESIC Form 1 submitted! Now set your password.");
+                    setCurrentStep(8);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="ml-auto bg-teal-600 hover:bg-teal-700"
+                >
+                  Submit ESIC Form & Continue
+                  <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               )}
             </div>
