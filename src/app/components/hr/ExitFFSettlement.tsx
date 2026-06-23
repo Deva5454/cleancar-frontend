@@ -1,5 +1,6 @@
 // Exit & Full & Final Settlement Module
 import { DataService } from "../../services/DataService";
+import { exitWorkflowService } from "../../services/exitWorkflowService";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -216,14 +217,32 @@ export function ExitFFSettlement() {
     const paymentMode = prompt("Enter payment mode (Bank Transfer/Cheque/Cash):");
     const paymentRef = prompt("Enter payment reference number:");
     if (!paymentMode || !paymentRef) return;
+    const exit = exitRecords.find(e => e.id === exitId);
     updateExit(exitId, {
       status: "Disbursed",
       disbursedOn: new Date().toISOString().split('T')[0],
       paymentMode,
       paymentReference: paymentRef,
     });
-    toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nStatus: Disbursed`);
+    // Lock employee in exitWorkflowService if a matching workflow exists
+    if (exit?.employeeId) {
+      const wf = exitWorkflowService.getByEmployee(exit.employeeId);
+      if (wf && wf.currentStage !== "Exited") {
+        exitWorkflowService.moveToNextStage(wf.exitWorkflowId, currentUser, "F&F disbursed");
+      }
+    }
+    toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nEmployee status locked as Exited.`);
   };
+
+  // Role-aware access banner
+  const getRoleBanner = () => {
+    if (isSuperAdmin) return { text: "Super Admin — can approve F&F and all actions", color: "bg-purple-50 border-purple-200 text-purple-800" };
+    if (isAccounts)   return { text: "Accounts — schedule disbursements and mark payments", color: "bg-blue-50 border-blue-200 text-blue-800" };
+    if (isHR)         return { text: "HR — verify exits and calculate F&F settlements", color: "bg-green-50 border-green-200 text-green-800" };
+    if (isSupervisor) return { text: "Supervisor — verify material returns for your team", color: "bg-orange-50 border-orange-200 text-orange-800" };
+    return null;
+  };
+  const banner = getRoleBanner();
 
   const getStatusColor = (status: ExitRecord['status']) => {
     switch (status) {
@@ -255,6 +274,13 @@ export function ExitFFSettlement() {
         </div>
         <BackButton />
       </div>
+
+      {/* Role access banner */}
+      {banner && (
+        <div className={`border rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2 ${banner.color}`}>
+          <span>👤</span> {banner.text}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

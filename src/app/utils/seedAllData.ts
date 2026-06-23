@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V11";
+const SEED_FLAG = "ALL_DATA_SEEDED_V12";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1181,6 +1181,21 @@ export function seedAllData(): void {
       localStorage.setItem(exitKey, JSON.stringify(EXIT_SEED));
       localStorage.setItem("cleancar_exit_settlements", JSON.stringify(EXIT_SEED));
       console.log("[Seed] Seeded", EXIT_SEED.length, "exit settlement records");
+    }
+
+    // ── 17c. EXIT WORKFLOWS ──────────────────────────────────────────────────
+    const wfKey = "cleancar_exit_workflows";
+    if (!localStorage.getItem(wfKey)) {
+      const now = new Date().toISOString();
+      const WF_SEED: any[] = [
+        { exitWorkflowId:"EXIT-001", employeeId:"EDB-W-SUR1", employeeName:"Ravi Kumar",    roleId:"Car Washer",   cityId:"CITY-SURAT", exitReason:"Personal reasons",   resignationType:"Voluntary",    initiatedDate:"2026-04-01", initiatedBy:"Kavita Shah", noticePeriodDays:30, lastWorkingDate:"2026-04-30", currentStage:"Initiated",      stageHistory:[{stage:"Initiated",completedAt:"2026-04-01T10:00:00.000Z",completedBy:"Kavita Shah",notes:"Personal reasons"}], clearanceItems:[{item:"ID Card",status:"Pending"},{item:"Laptop",status:"Not Applicable"},{item:"Mobile Device",status:"Not Applicable"},{item:"Access Cards",status:"Pending"},{item:"Uniforms",status:"Pending"},{item:"Equipment",status:"Pending"},{item:"Documents",status:"Pending"}], isLocked:true, createdAt:"2026-04-01T10:00:00.000Z", updatedAt:"2026-04-01T10:00:00.000Z" },
+        { exitWorkflowId:"EXIT-002", employeeId:"EDB-W-SUR2", employeeName:"Suresh Nair",   roleId:"Car Washer",   cityId:"CITY-SURAT", exitReason:"Better opportunity", resignationType:"Voluntary",    initiatedDate:"2026-03-20", initiatedBy:"Kavita Shah", noticePeriodDays:30, lastWorkingDate:"2026-04-19", currentStage:"Notice Period",  stageHistory:[{stage:"Initiated",completedAt:"2026-03-20T09:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Notice Period",completedAt:"2026-03-21T09:00:00.000Z",completedBy:"Kavita Shah"}], clearanceItems:[{item:"ID Card",status:"Pending"},{item:"Laptop",status:"Not Applicable"},{item:"Mobile Device",status:"Not Applicable"},{item:"Access Cards",status:"Pending"},{item:"Uniforms",status:"Pending"},{item:"Equipment",status:"Pending"},{item:"Documents",status:"Pending"}], isLocked:true, createdAt:"2026-03-20T09:00:00.000Z", updatedAt:"2026-03-21T09:00:00.000Z" },
+        { exitWorkflowId:"EXIT-003", employeeId:"EDB-W-SUR3", employeeName:"Manish Thakur", roleId:"Senior Washer",cityId:"CITY-SURAT", exitReason:"Relocation",         resignationType:"Voluntary",    initiatedDate:"2026-03-15", initiatedBy:"Kavita Shah", noticePeriodDays:30, lastWorkingDate:"2026-04-14", currentStage:"Clearance",      stageHistory:[{stage:"Initiated",completedAt:"2026-03-15T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Notice Period",completedAt:"2026-03-16T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Clearance",completedAt:"2026-04-14T10:00:00.000Z",completedBy:"Kavita Shah"}], clearanceItems:[{item:"ID Card",status:"Returned",returnedDate:"2026-04-15"},{item:"Laptop",status:"Not Applicable"},{item:"Mobile Device",status:"Not Applicable"},{item:"Access Cards",status:"Returned",returnedDate:"2026-04-15"},{item:"Uniforms",status:"Pending"},{item:"Equipment",status:"Pending"},{item:"Documents",status:"Pending"}], isLocked:true, createdAt:"2026-03-15T10:00:00.000Z", updatedAt:"2026-04-15T10:00:00.000Z" },
+        { exitWorkflowId:"EXIT-007", employeeId:"EDB-W-SUR7", employeeName:"Vijay Patil",   roleId:"Car Washer",   cityId:"CITY-SURAT", exitReason:"Joined competitor",  resignationType:"Voluntary",    initiatedDate:"2026-02-01", initiatedBy:"Kavita Shah", noticePeriodDays:28, lastWorkingDate:"2026-03-01", currentStage:"Exited",         stageHistory:[{stage:"Initiated",completedAt:"2026-02-01T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Notice Period",completedAt:"2026-02-02T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Clearance",completedAt:"2026-03-01T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"F&F Settlement",completedAt:"2026-03-10T10:00:00.000Z",completedBy:"Kavita Shah"},{stage:"Exited",completedAt:"2026-03-20T10:00:00.000Z",completedBy:"Accounts Team",notes:"F&F disbursed"}], clearanceItems:[{item:"ID Card",status:"Returned",returnedDate:"2026-03-01"},{item:"Laptop",status:"Not Applicable"},{item:"Mobile Device",status:"Not Applicable"},{item:"Access Cards",status:"Returned",returnedDate:"2026-03-01"},{item:"Uniforms",status:"Returned",returnedDate:"2026-03-01"},{item:"Equipment",status:"Returned",returnedDate:"2026-03-01"},{item:"Documents",status:"Returned",returnedDate:"2026-03-01"}], isLocked:true, completedAt:"2026-03-20T10:00:00.000Z", createdAt:"2026-02-01T10:00:00.000Z", updatedAt:"2026-03-20T10:00:00.000Z" },
+      ];
+      localStorage.setItem(wfKey, JSON.stringify(WF_SEED));
+      localStorage.setItem("cleancar_CITY-SURAT_exit_workflows", JSON.stringify(WF_SEED));
+      console.log("[Seed] Seeded", WF_SEED.length, "exit workflow records");
     }
 
     // ── 18. ACCOUNTING LEDGERS ───────────────────────────────────────────────
