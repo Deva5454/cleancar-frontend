@@ -3,6 +3,8 @@
  * Config-driven architecture - HR configures components, system calculates
  */
 
+import { DEFAULT_SALARY_CONFIGURATION } from "./salaryConfiguration";
+
 // ==================== COMPONENT TYPES ====================
 
 export type ComponentType = "percentage" | "fixed" | "manual" | "rule_based";
