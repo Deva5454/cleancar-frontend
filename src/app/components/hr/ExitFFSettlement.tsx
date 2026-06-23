@@ -134,7 +134,7 @@ export function ExitFFSettlement() {
     updateExit(exitId, {
       materials: exit.materials.map(mat =>
         mat.id === materialId
-          ? { ...mat, condition, comments, verifiedBy: currentUser, verifiedOn: new Date().toISOString().split('T')[0] }
+          ? { ...mat, condition, comments, verifiedBy: currentUser?.name ?? currentUser, verifiedOn: new Date().toISOString().split('T')[0] }
           : mat
       ),
     });
@@ -152,7 +152,7 @@ export function ExitFFSettlement() {
     }
     updateExit(exitId, {
       status: "Supervisor Verified",
-      supervisorVerifiedBy: currentUser,
+      supervisorVerifiedBy: currentUser?.name ?? String(currentUser),
       supervisorVerifiedOn: new Date().toISOString().split('T')[0],
     });
     toast.success(`✅ Material return verification completed!\n\nAll items verified successfully.\nStatus updated to: Supervisor Verified\n\nNext: Awaiting HR verification`);
@@ -162,7 +162,7 @@ export function ExitFFSettlement() {
   const handleHRVerification = (exitId: string) => {
     updateExit(exitId, {
       status: "HR Verified",
-      hrVerifiedBy: currentUser,
+      hrVerifiedBy: currentUser?.name ?? String(currentUser),
       hrVerifiedOn: new Date().toISOString().split('T')[0],
     });
     toast.success(`✅ HR verification completed!\n\nStatus: HR Verified\n\nNext: Calculate F&F settlement`);
@@ -193,7 +193,7 @@ export function ExitFFSettlement() {
   const handleSuperAdminApproval = (exitId: string) => {
     updateExit(exitId, {
       status: "Super Admin Approved",
-      superAdminApprovedBy: currentUser,
+      superAdminApprovedBy: currentUser?.name ?? String(currentUser),
       superAdminApprovedOn: new Date().toISOString().split('T')[0],
     });
     toast.success(`✅ F&F Settlement approved by Super Admin!\n\nStatus: Super Admin Approved\n\nNext: Sent to Accounts for disbursement`);
@@ -208,7 +208,7 @@ export function ExitFFSettlement() {
     updateExit(exitId, {
       status: "Disbursement Scheduled",
       disbursementDate: disbursementDate.toISOString().split('T')[0],
-      accountsProcessedBy: currentUser,
+      accountsProcessedBy: currentUser?.name ?? String(currentUser),
     });
     toast.success(`✅ Disbursement scheduled!\n\nDate: ${disbursementDate.toISOString().split('T')[0]}\n\n📧 Employee will receive notification 1 day before disbursement.`);
   };
@@ -228,7 +228,7 @@ export function ExitFFSettlement() {
     if (exit?.employeeId) {
       const wf = exitWorkflowService.getByEmployee(exit.employeeId);
       if (wf && wf.currentStage !== "Exited") {
-        exitWorkflowService.moveToNextStage(wf.exitWorkflowId, currentUser, "F&F disbursed");
+        exitWorkflowService.moveToNextStage(wf.exitWorkflowId, currentUser?.name ?? String(currentUser), "F&F disbursed");
       }
     }
     toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nEmployee status locked as Exited.`);
