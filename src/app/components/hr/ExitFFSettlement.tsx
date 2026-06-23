@@ -79,14 +79,17 @@ const returnableMaterials: Omit<MaterialItem, "id" | "condition">[] = [
   { name: "Safety Equipment" },
 ];
 
-// ✅ FIXED: mockExitRecords — use live data from context
-const mockExitRecords = [] as any[]; // TODO: wire to EmployeeLifecycleContext = [
-
 export function ExitFFSettlement() {
   const { currentRole, currentUser } = useRole();
   const [exitRecords, setExitRecords] = useState<ExitRecord[]>((() => {
+    // Try DataService first (city-namespaced), then fall back to direct localStorage key
     const stored = DataService.get<any>("EXIT_SETTLEMENTS");
-    return stored.length > 0 ? stored : mockExitRecords;
+    if (stored.length > 0) return stored;
+    try {
+      const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return [];
   })());
   const [selectedExit, setSelectedExit] = useState<ExitRecord | null>(null);
   const [ffForm, setFFForm] = useState<Partial<FFCalculation>>({
@@ -104,125 +107,94 @@ export function ExitFFSettlement() {
   const isSuperAdmin = currentRole === "Super Admin";
   const isAccounts = currentRole === "Accounts";
 
+  /** Persist records to both DataService (namespaced) and raw localStorage keys */
+  const persistExits = (records: ExitRecord[]) => {
+    try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch { /* quota guard */ }
+    try {
+      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
+    } catch { /* quota guard */ }
+  };
+
+  /** Apply a patch to one exit record, persist, and update state */
+  const updateExit = (exitId: string, patch: Partial<ExitRecord>) => {
+    const updated = exitRecords.map(e => e.id === exitId ? { ...e, ...patch } : e);
+    setExitRecords(updated);
+    persistExits(updated);
+    return updated;
+  };
+
   // Supervisor material verification
   const handleMaterialVerification = (exitId: string, materialId: string, condition: MaterialItem['condition']) => {
     const comments = condition !== "Good" ? prompt(`Enter comments for ${condition}:`) || "" : "";
-    
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            materials: exit.materials.map(mat =>
-              mat.id === materialId
-                ? { 
-                    ...mat, 
-                    condition, 
-                    comments,
-                    verifiedBy: currentUser,
-                    verifiedOn: new Date().toISOString().split('T')[0]
-                  }
-                : mat
-            )
-          }
-        : exit
-    ));
-
-    toast.success(`✅ Material "${exitRecords.find(e => e.id === exitId)?.materials.find(m => m.id === materialId)?.name}" marked as: ${condition}`);
+    const exit = exitRecords.find(e => e.id === exitId);
+    if (!exit) return;
+    const matName = exit.materials.find(m => m.id === materialId)?.name ?? "";
+    updateExit(exitId, {
+      materials: exit.materials.map(mat =>
+        mat.id === materialId
+          ? { ...mat, condition, comments, verifiedBy: currentUser, verifiedOn: new Date().toISOString().split('T')[0] }
+          : mat
+      ),
+    });
+    toast.success(`✅ Material "${matName}" marked as: ${condition}`);
   };
 
   // Supervisor completes verification
   const handleSupervisorComplete = (exitId: string) => {
     const exit = exitRecords.find(e => e.id === exitId);
     if (!exit) return;
-
     const pendingItems = exit.materials.filter(m => m.condition === "Pending");
     if (pendingItems.length > 0) {
       toast.info(`❌ Please verify all ${pendingItems.length} pending items before completing!`);
       return;
     }
-
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "Supervisor Verified",
-            supervisorVerifiedBy: currentUser,
-            supervisorVerifiedOn: new Date().toISOString().split('T')[0]
-          }
-        : exit
-    ));
-
+    updateExit(exitId, {
+      status: "Supervisor Verified",
+      supervisorVerifiedBy: currentUser,
+      supervisorVerifiedOn: new Date().toISOString().split('T')[0],
+    });
     toast.success(`✅ Material return verification completed!\n\nAll items verified successfully.\nStatus updated to: Supervisor Verified\n\nNext: Awaiting HR verification`);
   };
 
   // HR verification
   const handleHRVerification = (exitId: string) => {
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "HR Verified",
-            hrVerifiedBy: currentUser,
-            hrVerifiedOn: new Date().toISOString().split('T')[0]
-          }
-        : exit
-    ));
-
+    updateExit(exitId, {
+      status: "HR Verified",
+      hrVerifiedBy: currentUser,
+      hrVerifiedOn: new Date().toISOString().split('T')[0],
+    });
     toast.success(`✅ HR verification completed!\n\nStatus: HR Verified\n\nNext: Calculate F&F settlement`);
   };
 
   // Calculate F&F
   const calculateFF = () => {
-    const totalEarnings = (ffForm.pendingSalary || 0) + (ffForm.leaveEncashment || 0) + 
+    const totalEarnings = (ffForm.pendingSalary || 0) + (ffForm.leaveEncashment || 0) +
                           (ffForm.bonus || 0) + (ffForm.reimbursements || 0);
-    const totalDeductions = (ffForm.noticePeriodRecovery || 0) + (ffForm.equipmentDamage || 0) + 
+    const totalDeductions = (ffForm.noticePeriodRecovery || 0) + (ffForm.equipmentDamage || 0) +
                             (ffForm.advanceRecovery || 0);
     const netAmount = totalEarnings - totalDeductions;
-
-    return {
-      ...ffForm,
-      totalEarnings,
-      totalDeductions,
-      netAmount
-    } as FFCalculation;
+    return { ...ffForm, totalEarnings, totalDeductions, netAmount } as FFCalculation;
   };
 
   const handleFFSubmit = (exitId: string) => {
     const calculation = calculateFF();
-    
     if (calculation.netAmount < 0) {
       const confirm = window.confirm(`Net amount is negative (₹${calculation.netAmount}). Employee owes company money. Continue?`);
       if (!confirm) return;
     }
-
-    const updatedRecords = exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "Awaiting Super Admin Approval",
-            ffCalculation: calculation
-          }
-        : exit
-    );
-    setExitRecords(updatedRecords);
-    DataService.setAll("EXIT_SETTLEMENTS", updatedRecords);
+    updateExit(exitId, { status: "Awaiting Super Admin Approval", ffCalculation: calculation });
     setSelectedExit(null);
     toast.success(`✅ F&F Settlement calculated!\n\nNet Amount: ₹${(calculation?.netAmount ?? 0).toLocaleString()}\n\nStatus: Awaiting Super Admin Approval`);
   };
 
   // Super Admin Approval
   const handleSuperAdminApproval = (exitId: string) => {
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "Super Admin Approved",
-            superAdminApprovedBy: currentUser,
-            superAdminApprovedOn: new Date().toISOString().split('T')[0]
-          }
-        : exit
-    ));
-
+    updateExit(exitId, {
+      status: "Super Admin Approved",
+      superAdminApprovedBy: currentUser,
+      superAdminApprovedOn: new Date().toISOString().split('T')[0],
+    });
     toast.success(`✅ F&F Settlement approved by Super Admin!\n\nStatus: Super Admin Approved\n\nNext: Sent to Accounts for disbursement`);
   };
 
@@ -230,42 +202,26 @@ export function ExitFFSettlement() {
   const handleAccountsSchedule = (exitId: string) => {
     const days = prompt("Enter days to schedule disbursement (max 15):", "15");
     if (!days) return;
-
     const disbursementDate = new Date();
     disbursementDate.setDate(disbursementDate.getDate() + parseInt(days));
-
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "Disbursement Scheduled",
-            disbursementDate: disbursementDate.toISOString().split('T')[0],
-            accountsProcessedBy: currentUser
-          }
-        : exit
-    ));
-
+    updateExit(exitId, {
+      status: "Disbursement Scheduled",
+      disbursementDate: disbursementDate.toISOString().split('T')[0],
+      accountsProcessedBy: currentUser,
+    });
     toast.success(`✅ Disbursement scheduled!\n\nDate: ${disbursementDate.toISOString().split('T')[0]}\n\n📧 Employee will receive notification 1 day before disbursement.`);
   };
 
   const handleDisburse = (exitId: string) => {
     const paymentMode = prompt("Enter payment mode (Bank Transfer/Cheque/Cash):");
     const paymentRef = prompt("Enter payment reference number:");
-    
     if (!paymentMode || !paymentRef) return;
-
-    setExitRecords(exitRecords.map(exit => 
-      exit.id === exitId 
-        ? {
-            ...exit,
-            status: "Disbursed",
-            disbursedOn: new Date().toISOString().split('T')[0],
-            paymentMode,
-            paymentReference: paymentRef
-          }
-        : exit
-    ));
-
+    updateExit(exitId, {
+      status: "Disbursed",
+      disbursedOn: new Date().toISOString().split('T')[0],
+      paymentMode,
+      paymentReference: paymentRef,
+    });
     toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nStatus: Disbursed`);
   };
 

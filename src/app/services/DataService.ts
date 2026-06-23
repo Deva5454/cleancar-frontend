@@ -86,6 +86,7 @@ const STORAGE_KEYS = {
   PLAN_DISCOUNTS:           "plan_discounts",
   PLAN_AUDIT_LOG:           "plan_audit_log",
   TDS_PAYMENTS:             "tds_payments",
+  EXIT_SETTLEMENTS:         "exit_settlements",  // Exit & F&F Settlement module
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

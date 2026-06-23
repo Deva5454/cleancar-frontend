@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V10";
+const SEED_FLAG = "ALL_DATA_SEEDED_V11";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -899,7 +899,8 @@ export function seedAllData(): void {
     ["HISTORIC_DATA_SEEDED_V1","HISTORIC_DATA_SEEDED_V2","HISTORIC_DATA_SEEDED_V3",
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
-     "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7"
+     "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
+     "ALL_DATA_SEEDED_V10"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1044,6 +1045,143 @@ export function seedAllData(): void {
 
     // ── 17. CLOTH TRACKING ───────────────────────────────────────────────────
     writeByCityId("cloth_tracking", CLOTH);
+
+    // ── 17b. EXIT SETTLEMENTS ────────────────────────────────────────────────
+    const exitKey = "cleancar_CITY-SURAT_exit_settlements";
+    if (!localStorage.getItem(exitKey)) {
+      const allGoodMaterials = () => [
+        { id:"m1",  name:"Car Washing Equipment Set",  condition:"Good" },
+        { id:"m2",  name:"Vacuum Cleaner",             condition:"Good" },
+        { id:"m3",  name:"Pressure Washer",            condition:"Good" },
+        { id:"m4",  name:"Company Uniform (2 sets)",   condition:"Good" },
+        { id:"m5",  name:"ID Card",                    condition:"Good" },
+        { id:"m6",  name:"Access Card/Keys",           condition:"Good" },
+        { id:"m7",  name:"Mobile Phone (if issued)",   condition:"Good" },
+        { id:"m8",  name:"Tablet (if issued)",         condition:"Good" },
+        { id:"m9",  name:"Tool Kit",                   condition:"Good" },
+        { id:"m10", name:"Safety Equipment",           condition:"Good" },
+      ];
+      const pendingMaterials = () => [
+        { id:"m1",  name:"Car Washing Equipment Set",  condition:"Good" },
+        { id:"m2",  name:"Vacuum Cleaner",             condition:"Good" },
+        { id:"m3",  name:"Pressure Washer",            condition:"Good" },
+        { id:"m4",  name:"Company Uniform (2 sets)",   condition:"Good" },
+        { id:"m5",  name:"ID Card",                    condition:"Good" },
+        { id:"m6",  name:"Access Card/Keys",           condition:"Good" },
+        { id:"m7",  name:"Mobile Phone (if issued)",   condition:"Pending" },
+        { id:"m8",  name:"Tablet (if issued)",         condition:"Pending" },
+        { id:"m9",  name:"Tool Kit",                   condition:"Pending" },
+        { id:"m10", name:"Safety Equipment",           condition:"Pending" },
+      ];
+      const EXIT_SEED: any[] = [
+        {
+          id:"EXT-2026-001", employeeId:"EDB-W-SUR1", employeeName:"Ravi Kumar",
+          empCode:"RSC-RK001", designation:"Car Washer", cityId:"CITY-SURAT",
+          resignationDate:"2026-04-01", lastWorkingDate:"2026-04-30",
+          noticePeriod:30, reasonForLeaving:"Personal reasons",
+          status:"Exit Initiated", materials: pendingMaterials(),
+        },
+        {
+          id:"EXT-2026-002", employeeId:"EDB-W-SUR2", employeeName:"Suresh Nair",
+          empCode:"RSC-SN002", designation:"Car Washer", cityId:"CITY-SURAT",
+          resignationDate:"2026-03-20", lastWorkingDate:"2026-04-19",
+          noticePeriod:30, reasonForLeaving:"Better opportunity",
+          status:"Supervisor Verification Pending", materials: pendingMaterials(),
+        },
+        {
+          id:"EXT-2026-003", employeeId:"EDB-W-SUR3", employeeName:"Manish Thakur",
+          empCode:"RSC-MT003", designation:"Senior Washer", cityId:"CITY-SURAT",
+          resignationDate:"2026-03-15", lastWorkingDate:"2026-04-14",
+          noticePeriod:30, reasonForLeaving:"Relocation",
+          status:"Supervisor Verified",
+          supervisorVerifiedBy:"Deepak Thakkar", supervisorVerifiedOn:"2026-04-15",
+          materials:[
+            { id:"m1",  name:"Car Washing Equipment Set",  condition:"Good" },
+            { id:"m2",  name:"Vacuum Cleaner",             condition:"Good" },
+            { id:"m3",  name:"Pressure Washer",            condition:"Minor Damage", comments:"Small scratch on handle" },
+            { id:"m4",  name:"Company Uniform (2 sets)",   condition:"Good" },
+            { id:"m5",  name:"ID Card",                    condition:"Good" },
+            { id:"m6",  name:"Access Card/Keys",           condition:"Good" },
+            { id:"m7",  name:"Mobile Phone (if issued)",   condition:"Good" },
+            { id:"m8",  name:"Tablet (if issued)",         condition:"Good" },
+            { id:"m9",  name:"Tool Kit",                   condition:"Good" },
+            { id:"m10", name:"Safety Equipment",           condition:"Good" },
+          ],
+        },
+        {
+          id:"EXT-2026-004", employeeId:"EDB-W-SUR4", employeeName:"Pooja Verma",
+          empCode:"RSC-PV004", designation:"Supervisor", cityId:"CITY-SURAT",
+          resignationDate:"2026-03-10", lastWorkingDate:"2026-04-09",
+          noticePeriod:30, reasonForLeaving:"Higher studies",
+          status:"HR Verified",
+          supervisorVerifiedBy:"Deepak Thakkar", supervisorVerifiedOn:"2026-04-10",
+          hrVerifiedBy:"Kavita Shah", hrVerifiedOn:"2026-04-12",
+          materials: allGoodMaterials(),
+        },
+        {
+          id:"EXT-2026-005", employeeId:"EDB-W-SUR5", employeeName:"Arjun Singh",
+          empCode:"RSC-AS005", designation:"Team Lead", cityId:"CITY-SURAT",
+          resignationDate:"2026-03-01", lastWorkingDate:"2026-03-31",
+          noticePeriod:30, reasonForLeaving:"Health issues",
+          status:"Awaiting Super Admin Approval",
+          supervisorVerifiedBy:"Deepak Thakkar", supervisorVerifiedOn:"2026-04-01",
+          hrVerifiedBy:"Kavita Shah", hrVerifiedOn:"2026-04-03",
+          materials:[
+            ...allGoodMaterials().slice(0,6),
+            { id:"m7", name:"Mobile Phone (if issued)", condition:"Missing", comments:"Employee claims lost" },
+            ...allGoodMaterials().slice(7),
+          ],
+          ffCalculation:{
+            pendingSalary:18000, leaveEncashment:4500, bonus:2000, reimbursements:500,
+            totalEarnings:25000,
+            noticePeriodRecovery:0, equipmentDamage:1500, advanceRecovery:0,
+            totalDeductions:1500, netAmount:23500,
+          },
+        },
+        {
+          id:"EXT-2026-006", employeeId:"EDB-W-SUR6", employeeName:"Kaveri Das",
+          empCode:"RSC-KD006", designation:"Car Washer", cityId:"CITY-SURAT",
+          resignationDate:"2026-02-15", lastWorkingDate:"2026-03-15",
+          noticePeriod:28, reasonForLeaving:"Family commitment",
+          status:"Disbursement Scheduled",
+          supervisorVerifiedBy:"Deepak Thakkar", supervisorVerifiedOn:"2026-03-16",
+          hrVerifiedBy:"Kavita Shah", hrVerifiedOn:"2026-03-18",
+          superAdminApprovedBy:"Rajesh Patel", superAdminApprovedOn:"2026-03-20",
+          disbursementDate:"2026-07-05",
+          accountsProcessedBy:"Accounts Team",
+          materials: allGoodMaterials(),
+          ffCalculation:{
+            pendingSalary:12000, leaveEncashment:3000, bonus:1000, reimbursements:0,
+            totalEarnings:16000,
+            noticePeriodRecovery:0, equipmentDamage:0, advanceRecovery:2000,
+            totalDeductions:2000, netAmount:14000,
+          },
+        },
+        {
+          id:"EXT-2026-007", employeeId:"EDB-W-SUR7", employeeName:"Vijay Patil",
+          empCode:"RSC-VP007", designation:"Car Washer", cityId:"CITY-SURAT",
+          resignationDate:"2026-02-01", lastWorkingDate:"2026-03-01",
+          noticePeriod:28, reasonForLeaving:"Joined competitor",
+          status:"Disbursed",
+          supervisorVerifiedBy:"Deepak Thakkar", supervisorVerifiedOn:"2026-03-02",
+          hrVerifiedBy:"Kavita Shah", hrVerifiedOn:"2026-03-04",
+          superAdminApprovedBy:"Rajesh Patel", superAdminApprovedOn:"2026-03-06",
+          disbursementDate:"2026-03-20", disbursedOn:"2026-03-20",
+          paymentMode:"Bank Transfer", paymentReference:"NEFT2026032098765",
+          accountsProcessedBy:"Accounts Team",
+          materials: allGoodMaterials(),
+          ffCalculation:{
+            pendingSalary:15000, leaveEncashment:3750, bonus:1500, reimbursements:750,
+            totalEarnings:21000,
+            noticePeriodRecovery:0, equipmentDamage:0, advanceRecovery:0,
+            totalDeductions:0, netAmount:21000,
+          },
+        },
+      ];
+      localStorage.setItem(exitKey, JSON.stringify(EXIT_SEED));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(EXIT_SEED));
+      console.log("[Seed] Seeded", EXIT_SEED.length, "exit settlement records");
+    }
 
     // ── 18. ACCOUNTING LEDGERS ───────────────────────────────────────────────
     // Force-clear stale SYS-... duplicate system ledgers; seed writes canonical LM-... IDs
