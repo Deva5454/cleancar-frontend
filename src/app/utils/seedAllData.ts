@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V12";
+const SEED_FLAG = "ALL_DATA_SEEDED_V13";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1047,6 +1047,11 @@ export function seedAllData(): void {
     writeByCityId("cloth_tracking", CLOTH);
 
     // ── 17b. EXIT SETTLEMENTS ────────────────────────────────────────────────
+    // Force-clear any previously corrupted data (objects stored in string fields)
+    localStorage.removeItem("cleancar_CITY-SURAT_exit_settlements");
+    localStorage.removeItem("cleancar_exit_settlements");
+    localStorage.removeItem("cleancar_CITY-SURAT_exit_workflows");
+    localStorage.removeItem("cleancar_exit_workflows");
     const exitKey = "cleancar_CITY-SURAT_exit_settlements";
     if (!localStorage.getItem(exitKey)) {
       const allGoodMaterials = () => [
