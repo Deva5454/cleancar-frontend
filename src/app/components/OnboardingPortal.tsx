@@ -5,7 +5,7 @@
  * Updated: 2026-03-26 11:45 - Added debug logging and server config files
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
