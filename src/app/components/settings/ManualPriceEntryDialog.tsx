@@ -302,7 +302,7 @@ export function ManualPriceEntryDialog({
               Approved By
             </Label>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <Badge className="bg-blue-600 text-white">{currentUser}</Badge>
+              <Badge className="bg-blue-600 text-white">{typeof currentUser === "object" ? (currentUser as any)?.name ?? "" : currentUser}</Badge>
               <div className="text-xs text-gray-600 mt-2">
                 Your name will be automatically recorded as the approver
               </div>

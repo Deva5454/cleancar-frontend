@@ -288,7 +288,7 @@ export function AddConsumableInputDialog({
           <div className="space-y-2">
             <Label>Recorded By</Label>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <div className="font-medium text-gray-900">{currentUser}</div>
+              <div className="font-medium text-gray-900">{typeof currentUser === "object" ? (currentUser as any)?.name ?? "" : currentUser}</div>
               <div className="text-xs text-gray-600 mt-1">
                 Auto-filled from logged-in user
               </div>

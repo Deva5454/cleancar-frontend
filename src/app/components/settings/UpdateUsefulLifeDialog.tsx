@@ -329,7 +329,7 @@ export function UpdateUsefulLifeDialog({
           <div className="space-y-2">
             <Label>Approved By (Admin/SA Only)</Label>
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <Badge className="bg-orange-600 text-white">{currentUser}</Badge>
+              <Badge className="bg-orange-600 text-white">{typeof currentUser === "object" ? (currentUser as any)?.name ?? "" : currentUser}</Badge>
               <div className="text-xs text-gray-600 mt-2">
                 Only Admin and SA roles can approve equipment parameter changes
               </div>
