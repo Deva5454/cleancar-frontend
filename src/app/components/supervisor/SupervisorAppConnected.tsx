@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSupervisor } from "../../contexts/SupervisorContext";
 import { useRole } from "../../contexts/RoleContext";
+import { DataService } from "../../services/DataService";
 import { SupervisorDashboard } from "./SupervisorDashboard";
 import { TeamAttendanceMonitorV2 } from "./TeamAttendanceMonitorV2";
 import { CoverDistributionScreen } from "./CoverDistributionScreen";
@@ -52,6 +53,81 @@ export function SupervisorAppConnected() {
   const navigate = useNavigate();
   const { scenario, scenarioData } = useScenario();
   const { currentUser } = useRole();
+
+  // ── Exit Verification State ──────────────────────────────────────────────
+  const _safeName = (v: any): string => {
+    if (!v) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "object") return v?.name ?? v?.fullName ?? "";
+    return String(v);
+  };
+  const _loadExits = () => {
+    try {
+      const stored = DataService.get<any>("EXIT_SETTLEMENTS");
+      const raw = stored.length > 0 ? stored : (() => {
+        const r = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        return r ? JSON.parse(r) : [];
+      })();
+      return raw.map((r: any) => ({
+        ...r,
+        supervisorVerifiedBy: _safeName(r.supervisorVerifiedBy),
+        hrVerifiedBy: _safeName(r.hrVerifiedBy),
+        materials: Array.isArray(r.materials) ? r.materials.map((m: any) => ({
+          ...m, verifiedBy: _safeName(m.verifiedBy),
+        })) : [],
+      }));
+    } catch { return []; }
+  };
+  const [exitRecords, setExitRecords] = useState<any[]>(_loadExits);
+  const pendingExits = exitRecords.filter(
+    e => e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated"
+  );
+  const _persistExits = (records: any[]) => {
+    try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
+    try {
+      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
+    } catch {}
+  };
+  const handleExitMaterialMark = (exitId: string, matId: string, condition: string) => {
+    const comments = condition !== "Good" ? window.prompt(`Comments for "${condition}":`) ?? "" : "";
+    const updated = exitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e,
+        materials: e.materials.map((m: any) =>
+          m.id !== matId ? m : {
+            ...m, condition, comments,
+            verifiedBy: currentUser?.name ?? "Supervisor",
+            verifiedOn: new Date().toISOString().split("T")[0],
+          }
+        ),
+      }
+    );
+    setExitRecords(updated);
+    _persistExits(updated);
+    toast.success(`Marked as: ${condition}`);
+  };
+  const handleExitVerificationComplete = (exitId: string) => {
+    const exit = exitRecords.find(e => e.id === exitId);
+    if (!exit) return;
+    const pending = exit.materials.filter((m: any) => m.condition === "Pending");
+    if (pending.length > 0) {
+      toast.error(`Verify all ${pending.length} pending items first.`);
+      return;
+    }
+    const updated = exitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e,
+        status: "Supervisor Verified",
+        supervisorVerifiedBy: currentUser?.name ?? "Supervisor",
+        supervisorVerifiedOn: new Date().toISOString().split("T")[0],
+      }
+    );
+    setExitRecords(updated);
+    _persistExits(updated);
+    toast.success(`✅ Verification complete for ${exit.employeeName}. HR notified.`);
+  };
+  // ── End Exit Verification ────────────────────────────────────────────────
   const {
     summary,
     team,
@@ -108,6 +184,7 @@ export function SupervisorAppConnected() {
     "/supervisor-app/audit-trail":  "audit-trail",
     "/supervisor-app/kpi-dashboard":"kpi-dashboard",
     "/supervisor-app/schedule":     "schedule",
+    "/supervisor-app/exit":         "exit",
   };
   const SCREEN_TO_PATH: Record<string, string> = {
     "dashboard":    "/supervisor-app",
@@ -126,6 +203,7 @@ export function SupervisorAppConnected() {
     "audit-result": "/supervisor-app/audit",
     "kpi-dashboard":"/supervisor-app/kpi-dashboard",
     "schedule":     "/supervisor-app/schedule",
+    "exit":         "/supervisor-app/exit",
   };
   const currentScreen = useMemo(
     () => PATH_TO_SCREEN[location.pathname] ?? "dashboard",
@@ -1343,6 +1421,14 @@ export function SupervisorAppConnected() {
               <TabsTrigger value="kpi-dashboard" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
                 KPI
               </TabsTrigger>
+              <TabsTrigger value="exit" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer relative">
+                Exit Verify
+                {pendingExits.length > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold leading-none">
+                    {pendingExits.length}
+                  </span>
+                )}
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -1611,6 +1697,141 @@ export function SupervisorAppConnected() {
           {/* KPI Dashboard (Bonus Tab) */}
           <TabsContent value="kpi-dashboard" className="mt-0">
             <KPIDashboardScreen dashboard={kpiDashboardData} />
+          </TabsContent>
+
+          {/* Exit Verifications Tab */}
+          <TabsContent value="exit" className="mt-0 p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Exit Material Verifications</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Verify items returned by exiting team members</p>
+            </div>
+
+            {pendingExits.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="font-medium text-gray-700">No pending verifications</p>
+                <p className="text-sm text-gray-400 mt-1">All material returns are verified</p>
+              </div>
+            ) : (
+              pendingExits.map((exit: any) => {
+                const totalItems = exit.materials.length;
+                const doneItems = exit.materials.filter((m: any) => m.condition !== "Pending").length;
+                const progress = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+                return (
+                  <div key={exit.id} className="bg-white border border-orange-200 rounded-xl shadow-sm overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-orange-50 px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{exit.employeeName}</p>
+                        <p className="text-xs text-gray-500">{exit.empCode} · {exit.designation} · Last day: {exit.lastWorkingDate}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">Progress</p>
+                        <p className="text-sm font-bold text-orange-700">{doneItems}/{totalItems}</p>
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="h-1.5 bg-gray-100">
+                      <div
+                        className={`h-1.5 transition-all ${progress === 100 ? "bg-green-500" : "bg-orange-400"}`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+
+                    {/* Reason */}
+                    <div className="px-4 pt-3 pb-1">
+                      <span className="text-xs text-gray-400">Reason: </span>
+                      <span className="text-xs text-gray-700">{exit.reasonForLeaving}</span>
+                    </div>
+
+                    {/* Materials */}
+                    <div className="px-4 pb-3 space-y-2 mt-2">
+                      {exit.materials.map((mat: any) => (
+                        <div
+                          key={mat.id}
+                          className={`rounded-lg border px-3 py-2 ${
+                            mat.condition === "Good"         ? "bg-green-50 border-green-200" :
+                            mat.condition === "Pending"      ? "bg-gray-50 border-gray-200" :
+                            mat.condition === "Missing"      ? "bg-red-50 border-red-200" :
+                            mat.condition === "Minor Damage" ? "bg-yellow-50 border-yellow-200" :
+                                                              "bg-orange-50 border-orange-200"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-base shrink-0">
+                                {mat.condition === "Good"    ? "✅" :
+                                 mat.condition === "Pending" ? "⏳" :
+                                 mat.condition === "Missing" ? "❌" : "⚠️"}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{mat.name}</p>
+                                {mat.comments && <p className="text-xs text-gray-500">{mat.comments}</p>}
+                                {mat.verifiedBy && (
+                                  <p className="text-xs text-gray-400">by {mat.verifiedBy} · {mat.verifiedOn}</p>
+                                )}
+                              </div>
+                            </div>
+                            {mat.condition !== "Pending" && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                                mat.condition === "Good" ? "bg-green-100 text-green-700" :
+                                mat.condition === "Missing" ? "bg-red-100 text-red-700" :
+                                "bg-yellow-100 text-yellow-700"
+                              }`}>
+                                {mat.condition}
+                              </span>
+                            )}
+                          </div>
+                          {mat.condition === "Pending" && (
+                            <div className="flex gap-1 mt-2 flex-wrap">
+                              {["Good", "Minor Damage", "Major Damage", "Missing"].map(cond => (
+                                <button
+                                  key={cond}
+                                  onClick={() => handleExitMaterialMark(exit.id, mat.id, cond)}
+                                  className={`text-xs rounded-lg px-2.5 py-1 border font-medium transition-colors ${
+                                    cond === "Good"         ? "bg-green-50  text-green-700  border-green-300  hover:bg-green-100" :
+                                    cond === "Minor Damage" ? "bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100" :
+                                    cond === "Major Damage" ? "bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100" :
+                                                              "bg-red-50    text-red-700    border-red-300    hover:bg-red-100"
+                                  }`}
+                                >
+                                  {cond === "Minor Damage" ? "Minor" : cond === "Major Damage" ? "Major" : cond}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Complete button */}
+                    <div className="px-4 pb-4 flex items-center justify-between">
+                      <p className="text-xs text-gray-400">
+                        {exit.materials.filter((m: any) => m.condition === "Pending").length > 0
+                          ? `${exit.materials.filter((m: any) => m.condition === "Pending").length} items still pending`
+                          : "All items verified — ready to complete"}
+                      </p>
+                      <button
+                        disabled={exit.materials.some((m: any) => m.condition === "Pending")}
+                        onClick={() => handleExitVerificationComplete(exit.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                          exit.materials.some((m: any) => m.condition === "Pending")
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-green-600 text-white hover:bg-green-700"
+                        }`}
+                      >
+                        ✓ Complete Verification
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </TabsContent>
         </Tabs>
       </div>
