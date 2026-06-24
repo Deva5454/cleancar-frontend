@@ -636,7 +636,7 @@ export function SalesHeadApp() {
 
       <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-9 min-w-max w-full mb-6 overflow-x-auto">
+          <TabsList className="flex w-full overflow-x-auto gap-1 mb-6">
             <TabsTrigger value="dashboard" className="text-xs gap-1">
               <LayoutDashboard className="w-3 h-3 hidden sm:block" />Dashboard
             </TabsTrigger>

@@ -891,7 +891,7 @@ export function TeleSalesManagerApp() {
         <Tabs value={currentScreen} onValueChange={setCurrentScreen}>
 
 
-          <TabsList className="grid w-full grid-cols-11 mb-6">
+          <TabsList className="flex w-full overflow-x-auto gap-1 mb-6">
 
 
             <TabsTrigger

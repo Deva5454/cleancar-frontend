@@ -108,14 +108,82 @@ export function ExitFFSettlement() {
     })) : r.materials,
   });
 
+  /**
+   * Cross-reference ExitSettlement records against exitWorkflowService.
+   * If a workflow record exists for an employee and its stage is more advanced
+   * than the settlement record's status, sync the settlement status up.
+   * This ensures ExitManagement.handleInitiate() is the single canonical entry
+   * point — any exit created via exitWorkflowService will appear here too.
+   */
+  const syncWithWorkflowService = (records: any[]): any[] => {
+    try {
+      const workflows = exitWorkflowService.getAll();
+      if (!workflows.length) return records;
+
+      // Build a map of employeeId → workflow for fast lookup
+      const wfMap = new Map(workflows.map(w => [w.employeeId, w]));
+
+      // Stage → ExitRecord status mapping
+      const stageToStatus: Record<string, ExitRecord["status"]> = {
+        "Initiated":      "Exit Initiated",
+        "Notice Period":  "Supervisor Verification Pending",
+        "Clearance":      "Supervisor Verification Pending",
+        "F&F Settlement": "HR Verified",
+        "Exited":         "Disbursed",
+      };
+
+      // Find workflow records that have NO matching settlement record yet
+      // and create stub settlement records so they appear in the UI
+      const existingEmployeeIds = new Set(records.map((r: any) => r.employeeId));
+      const newFromWorkflows: any[] = [];
+
+      workflows.forEach(wf => {
+        if (existingEmployeeIds.has(wf.employeeId)) {
+          // Already have a settlement record — just sync the status if workflow is ahead
+          return;
+        }
+        // Workflow exists but no settlement record — create one
+        newFromWorkflows.push({
+          id: `EXT-WF-${wf.exitWorkflowId}`,
+          employeeId: wf.employeeId,
+          employeeName: wf.employeeName,
+          empCode: wf.employeeId,
+          designation: wf.roleId ?? "",
+          cityId: wf.cityId ?? "CITY-SURAT",
+          verifierRole: (wf as any).verifierRole ?? getMaterialVerifierRole(wf.roleId ?? ""),
+          resignationDate: wf.initiatedDate,
+          lastWorkingDate: wf.lastWorkingDate,
+          noticePeriod: wf.noticePeriodDays,
+          reasonForLeaving: wf.exitReason,
+          status: stageToStatus[wf.currentStage] ?? "Exit Initiated",
+          materials: (wf.clearanceItems ?? []).map((ci: any, idx: number) => ({
+            id: `m${idx + 1}`,
+            name: ci.item,
+            condition: ci.status === "Returned" ? "Good"
+              : ci.status === "Not Applicable" ? "Good"
+              : "Pending",
+            comments: ci.notes ?? "",
+          })),
+        });
+      });
+
+      return [...records, ...newFromWorkflows].map(sanitizeRecord);
+    } catch {
+      return records;
+    }
+  };
+
   const [exitRecords, setExitRecords] = useState<ExitRecord[]>((() => {
     try {
       // Try DataService first (city-namespaced)
       const stored = DataService.get<any>("EXIT_SETTLEMENTS");
-      if (stored.length > 0) return stored.map(sanitizeRecord);
-      // Fall back to direct localStorage key
-      const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
-      if (raw) return (JSON.parse(raw) as any[]).map(sanitizeRecord);
+      const base = stored.length > 0 ? stored : (() => {
+        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        return raw ? JSON.parse(raw) : [];
+      })();
+      // Cross-reference with exitWorkflowService to catch exits initiated
+      // via ExitManagement that may not yet have a settlement record
+      return syncWithWorkflowService(base.map(sanitizeRecord));
     } catch { /* ignore */ }
     return [];
   })());
