@@ -145,15 +145,12 @@ import { tatTrackingService } from "../../services/tatTrackingService";
 
 
 import {
-
-
   TIME_MODE_HOURS,
-
-
   REFRESH_INTERVALS,
-
-
 } from "../../constants/teleSalesManager.constants";
+import { DataService } from "../../services/DataService";
+import { useRole } from "../../contexts/RoleContext";
+import { toast } from "sonner";
 
 
 
@@ -196,11 +193,64 @@ type TimeMode = "MORNING" | "MIDDAY" | "AFTERNOON" | "EVENING" | "OFF_HOURS";
 
 
 export function TeleSalesManagerApp() {
-
-
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "dashboard";
   const [currentScreen, setCurrentScreen] = useState<string>(initialTab);
+  const { currentUser } = useRole();
+
+  // ── Exit Verification State (TSM verifies TSE exits) ────────────────────
+  const _sn = (v: any) => !v ? "" : typeof v === "string" ? v : v?.name ?? "";
+  const _loadExits = () => {
+    try {
+      const s = DataService.get<any>("EXIT_SETTLEMENTS");
+      const r = s.length > 0 ? s : (() => {
+        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        return raw ? JSON.parse(raw) : [];
+      })();
+      return r.map((x: any) => ({ ...x, supervisorVerifiedBy: _sn(x.supervisorVerifiedBy) }));
+    } catch { return []; }
+  };
+  const [tsmExitRecords, setTsmExitRecords] = useState<any[]>(_loadExits);
+  const pendingTSEExits = tsmExitRecords.filter(
+    e => (e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated")
+      && e.verifierRole === "TSM"
+  );
+  const _persistExits = (records: any[]) => {
+    try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
+    try {
+      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
+    } catch {}
+  };
+  const handleTSMMaterialMark = (exitId: string, matId: string, condition: string) => {
+    const comments = condition !== "Good" ? window.prompt(`Comments for "${condition}":`) ?? "" : "";
+    const updated = tsmExitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e,
+        materials: e.materials.map((m: any) =>
+          m.id !== matId ? m : { ...m, condition, comments, verifiedBy: currentUser?.name ?? CURRENT_TSM_NAME, verifiedOn: new Date().toISOString().split("T")[0] }
+        ),
+      }
+    );
+    setTsmExitRecords(updated); _persistExits(updated);
+    toast.success(`Marked as: ${condition}`);
+  };
+  const handleTSMCompleteVerification = (exitId: string) => {
+    const exit = tsmExitRecords.find(e => e.id === exitId);
+    if (!exit) return;
+    const pending = exit.materials.filter((m: any) => m.condition === "Pending");
+    if (pending.length > 0) { toast.error(`Verify all ${pending.length} items first.`); return; }
+    const updated = tsmExitRecords.map(e =>
+      e.id !== exitId ? e : {
+        ...e, status: "Supervisor Verified",
+        supervisorVerifiedBy: currentUser?.name ?? CURRENT_TSM_NAME,
+        supervisorVerifiedOn: new Date().toISOString().split("T")[0],
+      }
+    );
+    setTsmExitRecords(updated); _persistExits(updated);
+    toast.success(`✅ Verification complete for ${exit.employeeName}. HR notified.`);
+  };
+  // ── End Exit Verification ────────────────────────────────────────────────
 
 
   // A3 FIX: track pre-selected stage so drill-down actually filters
@@ -1114,6 +1164,15 @@ export function TeleSalesManagerApp() {
             <TabsTrigger value="settings" className="gap-2">
               <span>⚙️</span>Settings
             </TabsTrigger>
+            <TabsTrigger value="exit-verify" className="gap-2 relative">
+              <span>🚪</span>
+              <span className="hidden sm:inline">Exit Verify</span>
+              {pendingTSEExits.length > 0 && (
+                <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold leading-none">
+                  {pendingTSEExits.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
 
@@ -1423,6 +1482,91 @@ export function TeleSalesManagerApp() {
           </TabsContent>
           <TabsContent value="settings" className="mt-0">
             <TSMSettingsPanel />
+          </TabsContent>
+
+          {/* TSE Exit Material Verification */}
+          <TabsContent value="exit-verify" className="mt-0 p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">TSE Exit Verifications</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Verify items returned by exiting TSE team members</p>
+            </div>
+            {pendingTSEExits.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-xl border">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <p className="font-medium text-gray-700">No pending TSE exit verifications</p>
+                <p className="text-sm text-gray-400 mt-1">All material returns are verified</p>
+              </div>
+            ) : (
+              pendingTSEExits.map((exit: any) => {
+                const done = exit.materials.filter((m: any) => m.condition !== "Pending").length;
+                const total = exit.materials.length;
+                return (
+                  <div key={exit.id} className="bg-white border border-purple-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="bg-purple-50 px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{exit.employeeName}</p>
+                        <p className="text-xs text-gray-500">{exit.empCode} · TSE · Last day: {exit.lastWorkingDate}</p>
+                        <p className="text-xs text-gray-400">Reason: {exit.reasonForLeaving}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-purple-700">{done}/{total}</p>
+                        <p className="text-xs text-gray-400">verified</p>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-gray-100">
+                      <div className={`h-1.5 ${done === total ? "bg-green-500" : "bg-purple-500"}`} style={{ width: `${total > 0 ? (done/total)*100 : 0}%` }} />
+                    </div>
+                    <div className="p-4 space-y-2">
+                      {exit.materials.map((mat: any) => (
+                        <div key={mat.id} className={`rounded-lg border px-3 py-2 flex items-start justify-between ${
+                          mat.condition === "Good" ? "bg-green-50 border-green-200" :
+                          mat.condition === "Pending" ? "bg-gray-50 border-gray-200" :
+                          mat.condition === "Missing" ? "bg-red-50 border-red-200" : "bg-yellow-50 border-yellow-200"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span>{mat.condition === "Good" ? "✅" : mat.condition === "Pending" ? "⏳" : mat.condition === "Missing" ? "❌" : "⚠️"}</span>
+                            <div>
+                              <p className="text-sm font-medium">{mat.name}</p>
+                              {mat.comments && <p className="text-xs text-gray-500">{mat.comments}</p>}
+                              {mat.verifiedBy && <p className="text-xs text-gray-400">by {mat.verifiedBy} · {mat.verifiedOn}</p>}
+                            </div>
+                          </div>
+                          {mat.condition === "Pending" && (
+                            <div className="flex gap-1 flex-wrap justify-end">
+                              {["Good","Minor Damage","Major Damage","Missing"].map(c => (
+                                <button key={c} onClick={() => handleTSMMaterialMark(exit.id, mat.id, c)}
+                                  className={`text-xs px-2 py-1 rounded border font-medium ${
+                                    c === "Good" ? "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" :
+                                    c === "Minor Damage" ? "bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100" :
+                                    c === "Major Damage" ? "bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100" :
+                                    "bg-red-50 text-red-700 border-red-300 hover:bg-red-100"}`}>
+                                  {c === "Minor Damage" ? "Minor" : c === "Major Damage" ? "Major" : c}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex justify-end pt-2">
+                        <button
+                          disabled={exit.materials.some((m: any) => m.condition === "Pending")}
+                          onClick={() => handleTSMCompleteVerification(exit.id)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+                            exit.materials.some((m: any) => m.condition === "Pending")
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-green-600 text-white hover:bg-green-700"
+                          }`}
+                        >
+                          ✓ Complete Verification
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </TabsContent>
 
         </Tabs>

@@ -49,6 +49,7 @@ export interface RoleConfig {
   canSeeTeamLeaves?: boolean;
   canManageOnboarding?: boolean;
   canProcessExitSettlement?: boolean;
+  materialVerifierRole?: string; // Role that verifies this role's materials on exit
   canRaiseMaterialRequisition?: boolean;
   canApproveRequisitions?: boolean;
 
@@ -103,6 +104,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: true,
     canProcessExitSettlement: true,
+    materialVerifierRole: "Super Admin",
     canRaiseMaterialRequisition: true,
     canApproveRequisitions: true,
   },
@@ -149,6 +151,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: true,
     canProcessExitSettlement: true,
+    materialVerifierRole: "Super Admin",
     canRaiseMaterialRequisition: true,
     canApproveRequisitions: true,
   },
@@ -184,6 +187,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Super Admin",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
     // DATA VISIBILITY: City Manager sees CITY-wide strategic aggregates only
@@ -222,6 +226,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
     // DATA VISIBILITY: Cluster Manager sees CLUSTER-level aggregates, not individual teams
@@ -259,6 +264,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -292,6 +298,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Sr Operations Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
     // DATA VISIBILITY: OM sees TEAM summaries, not individual washer raw data
@@ -327,6 +334,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Operations Manager",
     canRaiseMaterialRequisition: true, // ADDED: Can raise material requisitions
     canApproveRequisitions: false,
     // DATA VISIBILITY: Supervisor sees INDIVIDUAL washer data (operational level)
@@ -364,6 +372,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Supervisor",
     canRaiseMaterialRequisition: true, // ADDED: Can raise material requisitions
     canApproveRequisitions: false,
   },
@@ -398,6 +407,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -428,6 +438,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "TSM",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -460,6 +471,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -493,6 +505,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: true,
     canApproveRequisitions: true, // ADDED: Can approve material requisitions
   },
@@ -520,6 +533,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Store Manager",
     canRaiseMaterialRequisition: true,  // Can raise requisitions directly
     canApproveRequisitions: true, // ADDED: Can approve purchase requests
   },
@@ -582,6 +596,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: true,
     canProcessExitSettlement: true,
+    materialVerifierRole: "Super Admin",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -614,6 +629,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -634,6 +650,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: true,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "City Manager",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -655,6 +672,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Sales Head",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
   },
@@ -683,6 +701,7 @@ export const roleConfigurations: Record<Role, RoleConfig> = {
     canSeeTeamLeaves: false,
     canManageOnboarding: false,
     canProcessExitSettlement: false,
+    materialVerifierRole: "Super Admin",
     canRaiseMaterialRequisition: false,
     canApproveRequisitions: false,
     dataGranularity: "CITY",
@@ -795,4 +814,48 @@ export function shouldShowRawData(role: Role): boolean {
 export function shouldShowAggregatedView(role: Role): boolean {
   const config = roleConfigurations[role];
   return config?.showAggregatedView || false;
+}
+/**
+ * Get the role responsible for verifying material returns when an employee exits.
+ * Maps the exiting employee's designation to the role that must sign off.
+ *
+ * Example:
+ *   Car Washer exits → Supervisor verifies materials
+ *   TSM exits        → City Manager verifies materials
+ *   TSE exits        → TSM verifies materials
+ */
+export function getMaterialVerifierRole(designation: string): string {
+  const config = roleConfigurations[designation as Role];
+  if (config?.materialVerifierRole) return config.materialVerifierRole;
+
+  // Fallback map for designations that may not exactly match Role keys
+  const fallback: Record<string, string> = {
+    "Car Washer":           "Supervisor",
+    "Senior Washer":        "Supervisor",
+    "Supervisor":           "Operations Manager",
+    "Operations Manager":   "Sr Operations Manager",
+    "Sr Operations Manager":"City Manager",
+    "Cluster Manager":      "City Manager",
+    "TSM":                  "City Manager",
+    "TSE":                  "TSM",
+    "CCE":                  "City Manager",
+    "Store Manager":        "City Manager",
+    "Procurement Manager":  "Store Manager",
+    "Sales Head":           "City Manager",
+    "Sales Manager":        "Sales Head",
+    "Accounts":             "Super Admin",
+    "HR":                   "Super Admin",
+    "City Manager":         "Super Admin",
+  };
+  return fallback[designation] ?? "HR";
+}
+
+/**
+ * Returns true if the given role can perform material verification
+ * for an exit record with the specified verifierRole.
+ */
+export function canVerifyExitMaterials(currentRole: string, verifierRole: string): boolean {
+  // Super Admin can verify anything
+  if (currentRole === "Super Admin" || currentRole === "Admin") return true;
+  return currentRole === verifierRole;
 }

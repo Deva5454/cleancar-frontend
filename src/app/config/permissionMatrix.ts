@@ -106,6 +106,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": ["view"],
       "store-manager": [],
       "payroll-self-service": ["view"],
+      hr: ["view", "edit", "approve"],  // ← verify exit materials for direct reports
     },
 
     "Cluster Manager": {
@@ -270,6 +271,24 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": [],
       "store-manager": [],
       "payroll-self-service": ["view"],
+    },
+
+    TSM: {
+      dashboard: ["view", "export"],
+      leads: ["view", "create", "edit", "export"],
+      customers: ["view", "create", "edit", "export"],
+      complaints: ["view", "create", "edit"],
+      travel: ["view", "create"],
+      leave: ["view", "create", "approve"],
+      performance: ["view", "export"],
+      "crm": ["view", "create", "edit", "export"],
+      "jobs": [],
+      "admin": [],
+      "audit-trail": [],
+      "cloth-tracking": [],
+      "store-manager": [],
+      "payroll-self-service": ["view"],
+      hr: ["view", "edit"],  // ← verify exit materials for TSE direct reports
     },
 
     CCE: {

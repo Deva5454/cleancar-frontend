@@ -16,6 +16,7 @@ import {
 import { useRole } from "../../contexts/RoleContext";
 import { exitWorkflowService, ExitWorkflow } from "../../services/exitWorkflowService";
 import { DataService } from "../../services/DataService";
+import { getMaterialVerifierRole } from "../../lib/roleConfig";
 import { toast } from "sonner";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -38,6 +39,7 @@ export function ExitManagement() {
   // Form state
   const [form, setForm] = useState({
     employeeId: "",
+    designation: "",
     exitReason: "",
     resignationType: "Voluntary" as ExitWorkflow["resignationType"],
     noticePeriodDays: 30,
@@ -52,23 +54,77 @@ export function ExitManagement() {
 
   useEffect(() => { reload(); }, []);
 
+  // Auto-fill designation when employee is selected
+  const handleEmployeeSelect = (employeeId: string) => {
+    const emp = allEmployees.find((e: any) => e.id === employeeId || e.employeeId === employeeId);
+    setForm(f => ({
+      ...f,
+      employeeId,
+      designation: emp?.designation ?? emp?.role ?? "",
+    }));
+  };
+
   const handleInitiate = () => {
     setFormError("");
     if (!form.employeeId || !form.exitReason || !form.lastWorkingDate) {
       setFormError("Please fill all required fields.");
       return;
     }
+    const verifierRole = getMaterialVerifierRole(form.designation);
     const result = exitWorkflowService.initiateExit({
       ...form,
       initiatedBy: currentUser.name,
+      verifierRole,
     });
     if (!result.success) {
       setFormError(result.errors?.join(", ") ?? "Failed to initiate exit.");
       return;
     }
-    toast.success(`✅ Exit initiated for employee ${form.employeeId}`);
+
+    // Also create an ExitSettlement record so it appears in ExitFFSettlement page
+    const emp = allEmployees.find((e: any) => e.id === form.employeeId || e.employeeId === form.employeeId);
+    const newSettlement = {
+      id: `EXT-${Date.now()}`,
+      employeeId: form.employeeId,
+      employeeName: emp ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim() || emp.fullName || form.employeeId : form.employeeId,
+      empCode: emp?.employeeCode ?? emp?.empCode ?? form.employeeId,
+      designation: form.designation,
+      cityId: emp?.cityId ?? "CITY-SURAT",
+      verifierRole,
+      resignationDate: new Date().toISOString().split("T")[0],
+      lastWorkingDate: form.lastWorkingDate,
+      noticePeriod: form.noticePeriodDays,
+      reasonForLeaving: form.exitReason,
+      status: "Supervisor Verification Pending",
+      materials: [
+        { id:"m1",  name:"Car Washing Equipment Set",  condition:"Pending" },
+        { id:"m2",  name:"Vacuum Cleaner",             condition:"Pending" },
+        { id:"m3",  name:"Pressure Washer",            condition:"Pending" },
+        { id:"m4",  name:"Company Uniform (2 sets)",   condition:"Pending" },
+        { id:"m5",  name:"ID Card",                    condition:"Pending" },
+        { id:"m6",  name:"Access Card/Keys",           condition:"Pending" },
+        { id:"m7",  name:"Mobile Phone (if issued)",   condition:"Pending" },
+        { id:"m8",  name:"Tablet (if issued)",         condition:"Pending" },
+        { id:"m9",  name:"Tool Kit",                   condition:"Pending" },
+        { id:"m10", name:"Safety Equipment",           condition:"Pending" },
+      ],
+    };
+    try {
+      const existing = (() => {
+        const stored = DataService.get<any>("EXIT_SETTLEMENTS");
+        if (stored.length > 0) return stored;
+        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        return raw ? JSON.parse(raw) : [];
+      })();
+      const updated = [...existing, newSettlement];
+      DataService.setAll("EXIT_SETTLEMENTS", updated);
+      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(updated));
+      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(updated));
+    } catch { /* quota guard */ }
+
+    toast.success(`✅ Exit initiated for ${newSettlement.employeeName} · Verifier: ${verifierRole}`);
     setShowForm(false);
-    setForm({ employeeId: "", exitReason: "", resignationType: "Voluntary", noticePeriodDays: 30, lastWorkingDate: "" });
+    setForm({ employeeId: "", designation: "", exitReason: "", resignationType: "Voluntary", noticePeriodDays: 30, lastWorkingDate: "" });
     reload();
   };
 
@@ -146,9 +202,14 @@ export function ExitManagement() {
                 <Input
                   placeholder="e.g. EDB-W-SUR1"
                   value={form.employeeId}
-                  onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}
+                  onChange={e => handleEmployeeSelect(e.target.value)}
                 />
-                {allEmployees.length > 0 && (
+                {form.designation && (
+                  <p className="text-xs text-indigo-600 font-medium">
+                    {form.designation} → Material verifier: <strong>{getMaterialVerifierRole(form.designation)}</strong>
+                  </p>
+                )}
+                {allEmployees.length > 0 && !form.designation && (
                   <p className="text-xs text-gray-400">Active employees: {allEmployees.filter((e:any) => e.status === "Active").length}</p>
                 )}
               </div>

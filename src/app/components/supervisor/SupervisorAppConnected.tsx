@@ -80,7 +80,8 @@ export function SupervisorAppConnected() {
   };
   const [exitRecords, setExitRecords] = useState<any[]>(_loadExits);
   const pendingExits = exitRecords.filter(
-    e => e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated"
+    e => (e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated")
+      && (e.verifierRole === "Supervisor" || !e.verifierRole) // only show exits this supervisor should verify
   );
   const _persistExits = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}

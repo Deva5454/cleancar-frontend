@@ -1,6 +1,7 @@
 // Exit & Full & Final Settlement Module
 import { DataService } from "../../services/DataService";
 import { exitWorkflowService } from "../../services/exitWorkflowService";
+import { getMaterialVerifierRole, canVerifyExitMaterials } from "../../lib/roleConfig";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -44,13 +45,16 @@ type ExitRecord = {
   employeeName: string;
   empCode: string;
   designation: string;
+  cityId?: string;
+  /** Role responsible for material verification — derived from designation on initiation */
+  verifierRole: string;
   resignationDate: string;
   lastWorkingDate: string;
   noticePeriod: number; // days
   reasonForLeaving: string;
-  status: "Exit Initiated" | "Supervisor Verification Pending" | "Supervisor Verified" | 
-          "HR Verification Pending" | "HR Verified" | "F&F Calculated" | 
-          "Awaiting Super Admin Approval" | "Super Admin Approved" | 
+  status: "Exit Initiated" | "Supervisor Verification Pending" | "Supervisor Verified" |
+          "HR Verification Pending" | "HR Verified" | "F&F Calculated" |
+          "Awaiting Super Admin Approval" | "Super Admin Approved" |
           "With Accounts" | "Disbursement Scheduled" | "Disbursed" | "Closed";
   materials: MaterialItem[];
   supervisorVerifiedBy?: string;
@@ -130,6 +134,12 @@ export function ExitFFSettlement() {
   const isHR = ["HR", "Admin", "Super Admin"].includes(currentRole);
   const isSuperAdmin = currentRole === "Super Admin";
   const isAccounts = currentRole === "Accounts";
+
+  /** Returns true if the current user can verify materials for this specific exit record */
+  const canVerifyThisExit = (exit: ExitRecord): boolean => {
+    const verifierRole = exit.verifierRole ?? getMaterialVerifierRole(exit.designation);
+    return canVerifyExitMaterials(currentRole, verifierRole);
+  };
 
   /** Persist records to both DataService (namespaced) and raw localStorage keys */
   const persistExits = (records: ExitRecord[]) => {
@@ -262,7 +272,10 @@ export function ExitFFSettlement() {
     if (isSuperAdmin) return { text: "Super Admin — can approve F&F and all actions", color: "bg-purple-50 border-purple-200 text-purple-800" };
     if (isAccounts)   return { text: "Accounts — schedule disbursements and mark payments", color: "bg-blue-50 border-blue-200 text-blue-800" };
     if (isHR)         return { text: "HR — verify exits and calculate F&F settlements", color: "bg-green-50 border-green-200 text-green-800" };
-    if (isSupervisor) return { text: "Supervisor — verify material returns for your team", color: "bg-orange-50 border-orange-200 text-orange-800" };
+    if (isSupervisor) return { text: "Supervisor — verify material returns for Car Washers", color: "bg-orange-50 border-orange-200 text-orange-800" };
+    if (currentRole === "City Manager") return { text: "City Manager — verify material returns for TSM, CCE, Store Manager and senior staff exits", color: "bg-blue-50 border-blue-200 text-blue-800" };
+    if (currentRole === "TSM") return { text: "TSM — verify material returns for TSE exits", color: "bg-purple-50 border-purple-200 text-purple-800" };
+    if (currentRole === "Operations Manager") return { text: "Operations Manager — verify material returns for Supervisor exits", color: "bg-indigo-50 border-indigo-200 text-indigo-800" };
     return null;
   };
   const banner = getRoleBanner();
@@ -506,7 +519,13 @@ export function ExitFFSettlement() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium">{exit.employeeName}</p>
-                  <p className="text-xs text-gray-500">{exit.empCode} | {exit.designation}</p>
+                  <p className="text-xs text-gray-500">
+                    {exit.empCode} | {exit.designation}
+                    {" · "}
+                    <span className="font-medium text-indigo-600">
+                      Verifier: {exit.verifierRole ?? getMaterialVerifierRole(exit.designation)}
+                    </span>
+                  </p>
                 </div>
               </div>
             </CardHeader>
@@ -542,7 +561,7 @@ export function ExitFFSettlement() {
                     {exit.materials.map(material => (
                       <div key={material.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                         <span className="text-sm">{material.name}</span>
-                        {isSupervisor && exit.status === "Supervisor Verification Pending" ? (
+                        {canVerifyThisExit(exit) && exit.status === "Supervisor Verification Pending" ? (
                           <select
                             value={material.condition}
                             onChange={(e) => handleMaterialVerification(exit.id, material.id, e.target.value as any)}
@@ -566,7 +585,7 @@ export function ExitFFSettlement() {
                       </div>
                     ))}
                   </div>
-                  {isSupervisor && exit.status === "Supervisor Verification Pending" && (
+                  {canVerifyThisExit(exit) && exit.status === "Supervisor Verification Pending" && (
                     <div className="mt-3 flex justify-end">
                       <Button 
                         size="sm" 

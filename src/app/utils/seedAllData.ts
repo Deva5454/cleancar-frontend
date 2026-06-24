@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V13";
+const SEED_FLAG = "ALL_DATA_SEEDED_V14";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1081,21 +1081,21 @@ export function seedAllData(): void {
       const EXIT_SEED: any[] = [
         {
           id:"EXT-2026-001", employeeId:"EDB-W-SUR1", employeeName:"Ravi Kumar",
-          empCode:"RSC-RK001", designation:"Car Washer", cityId:"CITY-SURAT",
+          empCode:"RSC-RK001", designation:"Car Washer", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-04-01", lastWorkingDate:"2026-04-30",
           noticePeriod:30, reasonForLeaving:"Personal reasons",
           status:"Exit Initiated", materials: pendingMaterials(),
         },
         {
           id:"EXT-2026-002", employeeId:"EDB-W-SUR2", employeeName:"Suresh Nair",
-          empCode:"RSC-SN002", designation:"Car Washer", cityId:"CITY-SURAT",
+          empCode:"RSC-SN002", designation:"Car Washer", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-03-20", lastWorkingDate:"2026-04-19",
           noticePeriod:30, reasonForLeaving:"Better opportunity",
           status:"Supervisor Verification Pending", materials: pendingMaterials(),
         },
         {
           id:"EXT-2026-003", employeeId:"EDB-W-SUR3", employeeName:"Manish Thakur",
-          empCode:"RSC-MT003", designation:"Senior Washer", cityId:"CITY-SURAT",
+          empCode:"RSC-MT003", designation:"Senior Washer", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-03-15", lastWorkingDate:"2026-04-14",
           noticePeriod:30, reasonForLeaving:"Relocation",
           status:"Supervisor Verified",
@@ -1115,7 +1115,7 @@ export function seedAllData(): void {
         },
         {
           id:"EXT-2026-004", employeeId:"EDB-W-SUR4", employeeName:"Pooja Verma",
-          empCode:"RSC-PV004", designation:"Supervisor", cityId:"CITY-SURAT",
+          empCode:"RSC-PV004", designation:"Supervisor", verifierRole:"Operations Manager", cityId:"CITY-SURAT",
           resignationDate:"2026-03-10", lastWorkingDate:"2026-04-09",
           noticePeriod:30, reasonForLeaving:"Higher studies",
           status:"HR Verified",
@@ -1125,7 +1125,7 @@ export function seedAllData(): void {
         },
         {
           id:"EXT-2026-005", employeeId:"EDB-W-SUR5", employeeName:"Arjun Singh",
-          empCode:"RSC-AS005", designation:"Team Lead", cityId:"CITY-SURAT",
+          empCode:"RSC-AS005", designation:"Team Lead", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-03-01", lastWorkingDate:"2026-03-31",
           noticePeriod:30, reasonForLeaving:"Health issues",
           status:"Awaiting Super Admin Approval",
@@ -1145,7 +1145,7 @@ export function seedAllData(): void {
         },
         {
           id:"EXT-2026-006", employeeId:"EDB-W-SUR6", employeeName:"Kaveri Das",
-          empCode:"RSC-KD006", designation:"Car Washer", cityId:"CITY-SURAT",
+          empCode:"RSC-KD006", designation:"Car Washer", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-02-15", lastWorkingDate:"2026-03-15",
           noticePeriod:28, reasonForLeaving:"Family commitment",
           status:"Disbursement Scheduled",
@@ -1164,7 +1164,7 @@ export function seedAllData(): void {
         },
         {
           id:"EXT-2026-007", employeeId:"EDB-W-SUR7", employeeName:"Vijay Patil",
-          empCode:"RSC-VP007", designation:"Car Washer", cityId:"CITY-SURAT",
+          empCode:"RSC-VP007", designation:"Car Washer", verifierRole:"Supervisor", cityId:"CITY-SURAT",
           resignationDate:"2026-02-01", lastWorkingDate:"2026-03-01",
           noticePeriod:28, reasonForLeaving:"Joined competitor",
           status:"Disbursed",
@@ -1181,6 +1181,20 @@ export function seedAllData(): void {
             noticePeriodRecovery:0, equipmentDamage:0, advanceRecovery:0,
             totalDeductions:0, netAmount:21000,
           },
+        },
+        {
+          id:"EXT-2026-008", employeeId:"EDB-TSM-SUR1", employeeName:"Vikram Mehta",
+          empCode:"RSC-VM008", designation:"TSM", verifierRole:"City Manager", cityId:"CITY-SURAT",
+          resignationDate:"2026-04-05", lastWorkingDate:"2026-05-05",
+          noticePeriod:30, reasonForLeaving:"Moving to competitor",
+          status:"Supervisor Verification Pending", materials: pendingMaterials(),
+        },
+        {
+          id:"EXT-2026-009", employeeId:"EDB-TSE-SUR1", employeeName:"Priya Sharma",
+          empCode:"RSC-PS009", designation:"TSE", verifierRole:"TSM", cityId:"CITY-SURAT",
+          resignationDate:"2026-04-10", lastWorkingDate:"2026-05-10",
+          noticePeriod:30, reasonForLeaving:"Personal reasons",
+          status:"Supervisor Verification Pending", materials: pendingMaterials(),
         },
       ];
       localStorage.setItem(exitKey, JSON.stringify(EXIT_SEED));
