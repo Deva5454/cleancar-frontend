@@ -238,6 +238,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": [],
       "store-manager": [],
       "payroll-self-service": ["view"],
+      hr: ["view", "edit"],
     },
 
     "Sales Manager": {
@@ -694,6 +695,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": [],
       "store-manager": [],
       "payroll-self-service": ["view"],
+      hr: ["view", "edit"],
     },
 
     "Sales Manager": {

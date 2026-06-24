@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V14";
+const SEED_FLAG = "ALL_DATA_SEEDED_V15";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13","ALL_DATA_SEEDED_V14"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1194,6 +1194,13 @@ export function seedAllData(): void {
           empCode:"RSC-PS009", designation:"TSE", verifierRole:"TSM", cityId:"CITY-SURAT",
           resignationDate:"2026-04-10", lastWorkingDate:"2026-05-10",
           noticePeriod:30, reasonForLeaving:"Personal reasons",
+          status:"Supervisor Verification Pending", materials: pendingMaterials(),
+        },
+        {
+          id:"EXT-2026-010", employeeId:"EDB-SM-SUR1", employeeName:"Rahul Desai",
+          empCode:"RSC-RD010", designation:"Sales Manager", verifierRole:"Sales Head", cityId:"CITY-SURAT",
+          resignationDate:"2026-04-12", lastWorkingDate:"2026-05-12",
+          noticePeriod:30, reasonForLeaving:"Better package elsewhere",
           status:"Supervisor Verification Pending", materials: pendingMaterials(),
         },
       ];
