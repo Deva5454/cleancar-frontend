@@ -272,25 +272,6 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": [],
       "store-manager": [],
       "payroll-self-service": ["view"],
-    },
-
-    TSM: {
-      dashboard: ["view", "export"],
-      leads: ["view", "create", "edit", "export"],
-      customers: ["view", "create", "edit", "export"],
-      complaints: ["view", "create", "edit"],
-      travel: ["view", "create"],
-      leave: ["view", "create", "approve"],
-      performance: ["view", "export"],
-      "crm": ["view", "create", "edit", "export"],
-      "jobs": [],
-      "admin": [],
-      "audit-trail": [],
-      "cloth-tracking": [],
-      "store-manager": [],
-      "payroll-self-service": ["view"],
-      hr: ["view", "edit"],  // ← verify exit materials for TSE direct reports
-    },
 
     CCE: {
       dashboard: ["view"],
@@ -628,24 +609,6 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": ["view", "create"],
       "store-manager": ["view"],
       "payroll-self-service": ["view"],
-    },
-
-    Supervisor: {
-      dashboard: ["view"],
-      "car-washer": ["view", "create"],
-      complaints: ["view", "create"],
-      inventory: ["view"],
-      "cloth-tracking": ["view", "create"],
-      travel: ["view", "create"],
-      leave: ["view", "create"],
-      performance: ["view"],
-      "jobs": ["view", "create"],
-      "crm": [],
-      "admin": [],
-      "audit-trail": [],
-      "store-manager": [],
-      "payroll-self-service": ["view"],
-    },
 
     "Car Washer": {
       dashboard: ["view"],
@@ -660,24 +623,6 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking": [],
       "store-manager": [],
       "payroll-self-service": ["view"],
-    },
-
-    TSM: {
-      dashboard: ["view"],
-      leads: ["view", "create", "edit"],
-      customers: ["view", "create", "edit"],
-      complaints: ["view", "create"],
-      travel: ["view", "create"],
-      leave: ["view", "create", "approve"],
-      performance: ["view"],
-      "crm": ["view", "create", "edit", "export"],
-      "jobs": [],
-      "admin": [],
-      "audit-trail": [],
-      "cloth-tracking": [],
-      "store-manager": [],
-      "payroll-self-service": ["view"],
-    },
 
     "Sales Head": {
       dashboard: ["view", "export"],
