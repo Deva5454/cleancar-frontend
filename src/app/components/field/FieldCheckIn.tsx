@@ -66,15 +66,6 @@ function shiftEndHour(role: string): number {
   return m[role] ?? 19;
 }
 
-function shiftStartHour(role: string): number {
-  const m: Record<string, number> = { "Car Washer":5,"Operations Manager":10,"Supervisor":10,"Sales Manager":10,"Sales Head":10 };
-  return m[role] ?? 10;
-}
-function shiftEndHour(role: string): number {
-  const m: Record<string, number> = { "Car Washer":9,"Operations Manager":19,"Supervisor":19,"Sales Manager":19,"Sales Head":19 };
-  return m[role] ?? 19;
-}
-
 // ── Selfie Capturer ───────────────────────────────────────────────────────────
 
 function SelfieCapturer({
