@@ -13,6 +13,7 @@ import type { City, PermissionMatrix } from "../types/permissions";
 // Type for city-specific role permissions
 type RolePermissions = {
   [role in Role]: PermissionMatrix;
+  },
 };
 
 /**
@@ -872,6 +873,8 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking":       [],
     },
   },
+  },
+    },
 };
 
 /**
