@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V15";
+const SEED_FLAG = "ALL_DATA_SEEDED_V16";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13","ALL_DATA_SEEDED_V14"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13","ALL_DATA_SEEDED_V14","ALL_DATA_SEEDED_V15"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -967,6 +967,108 @@ export function seedAllData(): void {
       }
     }
   } catch(e) { console.error("[Seed] Incentive v6 seed failed:", e); }
+
+  // ── COMPREHENSIVE SEEDS — all keys needed by Store + Procurement modules ──
+  const seedIfEmpty = (key: string, data: any[]) => {
+    try { if (!localStorage.getItem(key)) { localStorage.setItem(key, JSON.stringify(data)); console.log(`[Seed] ${key}: ${data.length} records`); } } catch {}
+  };
+
+  // GRN records
+  seedIfEmpty("cleancar_grn_records", [
+    { grnNumber:"GRN-202605-001", grnDate:"2026-05-03", challanNumber:"DC-2026-0421", vehicleNumber:"GJ-05-AB-1234", deliveryPerson:"Ramesh Delivery",  supplierName:"Hindustan Unilever Ltd",  status:"Accepted",          totalAccepted:150,totalRejected:0,  createdAt:"2026-05-03T10:30:00.000Z", items:[{id:1,itemName:"Car Shampoo 5L",receivedThisDelivery:100,acceptedQuantity:100,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf A1"},{id:2,itemName:"Microfiber Cloth Large",receivedThisDelivery:50,acceptedQuantity:50,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf B2"}] },
+    { grnNumber:"GRN-202605-002", grnDate:"2026-05-11", challanNumber:"DC-2026-0498", vehicleNumber:"GJ-05-CD-5678", deliveryPerson:"Sunil Transport",   supplierName:"3M India Ltd",            status:"Partially Accepted",totalAccepted:80, totalRejected:20, createdAt:"2026-05-11T14:00:00.000Z", items:[{id:1,itemName:"Polish Compound 1kg",receivedThisDelivery:60,acceptedQuantity:60,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf C1"},{id:2,itemName:"Wax Applicator Pads",receivedThisDelivery:40,acceptedQuantity:20,rejectedQuantity:20,condition:"Damaged",storageLocation:"Shelf C2"}] },
+    { grnNumber:"GRN-202606-001", grnDate:"2026-06-02", challanNumber:"DC-2026-0612", vehicleNumber:"GJ-05-GH-3456", deliveryPerson:"Ramesh Delivery",  supplierName:"Hindustan Unilever Ltd",  status:"Accepted",          totalAccepted:300,totalRejected:0,  createdAt:"2026-06-02T11:00:00.000Z", items:[{id:1,itemName:"Car Shampoo 5L",receivedThisDelivery:150,acceptedQuantity:150,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf A1"},{id:2,itemName:"Glass Cleaner 500ml",receivedThisDelivery:50,acceptedQuantity:50,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf A4"}] },
+    { grnNumber:"GRN-202606-002", grnDate:"2026-06-14", challanNumber:"DC-2026-0689", vehicleNumber:"GJ-06-IJ-7890", deliveryPerson:"Sunil Transport",   supplierName:"Scotch-Brite (3M)",       status:"Accepted",          totalAccepted:240,totalRejected:0,  createdAt:"2026-06-14T13:30:00.000Z", items:[{id:1,itemName:"Scrub Pads",receivedThisDelivery:120,acceptedQuantity:120,rejectedQuantity:0,condition:"Good",storageLocation:"Shelf B1"}] },
+    { grnNumber:"GRN-202606-003", grnDate:"2026-06-20", challanNumber:"DC-2026-0731", vehicleNumber:"GJ-05-KL-2345", deliveryPerson:"Krishna Logistics", supplierName:"Bosch India",             status:"Partially Accepted",totalAccepted:8,  totalRejected:2,  createdAt:"2026-06-20T10:00:00.000Z", items:[{id:1,itemName:"Pressure Washer Nozzle",receivedThisDelivery:6,acceptedQuantity:6,rejectedQuantity:0,condition:"Good",storageLocation:"Equipment Rack 1"},{id:2,itemName:"Foam Cannon Attachment",receivedThisDelivery:4,acceptedQuantity:2,rejectedQuantity:2,condition:"Short Expiry",storageLocation:"Equipment Rack 2"}] },
+  ]);
+
+  // Issuance records
+  seedIfEmpty("cleancar_issuance_records", [
+    { issuanceId:"ISS-202605-001",issuanceDate:"2026-05-01",createdAt:"2026-05-01T08:00:00Z",issuedTo:"Harish Solanki",issuedToId:"EDB-SUP-SUR1",recipientType:"Supervisor",purpose:"Monthly stock replenishment — Zone 395001",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",quantity:5,unit:"L"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:20,unit:"Pcs"},{itemId:"INV-SUR-007",itemName:"Wheel Cleaner 1L",quantity:4,unit:"L"}],status:"Completed",issuedBy:"Nilesh Chauhan",totalItems:3,totalQty:29 },
+    { issuanceId:"ISS-202605-002",issuanceDate:"2026-05-01",createdAt:"2026-05-01T08:30:00Z",issuedTo:"Bhavesh Modi",  issuedToId:"EDB-SUP-SUR2",recipientType:"Supervisor",purpose:"Monthly stock replenishment — Zone 395007",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",quantity:4,unit:"L"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:15,unit:"Pcs"},{itemId:"INV-SUR-003",itemName:"Tyre Shine 500ml",quantity:3,unit:"L"}],status:"Completed",issuedBy:"Nilesh Chauhan",totalItems:3,totalQty:22 },
+    { issuanceId:"ISS-202606-001",issuanceDate:"2026-06-01",createdAt:"2026-06-01T08:00:00Z",issuedTo:"Harish Solanki",issuedToId:"EDB-SUP-SUR1",recipientType:"Supervisor",purpose:"Monthly stock replenishment — Zone 395001",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",quantity:5,unit:"L"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:20,unit:"Pcs"},{itemId:"INV-SUR-003",itemName:"Tyre Shine 500ml",quantity:4,unit:"L"}],status:"Completed",issuedBy:"Nilesh Chauhan",totalItems:3,totalQty:29 },
+    { issuanceId:"ISS-202606-002",issuanceDate:"2026-06-01",createdAt:"2026-06-01T08:30:00Z",issuedTo:"Bhavesh Modi",  issuedToId:"EDB-SUP-SUR2",recipientType:"Supervisor",purpose:"Monthly stock replenishment — Zone 395007",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",quantity:4,unit:"L"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:15,unit:"Pcs"}],status:"Completed",issuedBy:"Nilesh Chauhan",totalItems:2,totalQty:19 },
+    { issuanceId:"ISS-202606-003",issuanceDate:"2026-06-10",createdAt:"2026-06-10T09:30:00Z",issuedTo:"Sunil Thakor",  issuedToId:"EDB-CW-SUR1C",recipientType:"Car Washer", purpose:"Daily top-up",items:[{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:2,unit:"Pcs"},{itemId:"INV-SUR-003",itemName:"Tyre Shine 500ml",quantity:1,unit:"L"}],status:"Completed",issuedBy:"Harish Solanki",totalItems:2,totalQty:3 },
+    { issuanceId:"ISS-202606-004",issuanceDate:"2026-06-18",createdAt:"2026-06-18T08:00:00Z",issuedTo:"Nilesh Chauhan",issuedToId:"EDB-CW-SUR2A",recipientType:"Car Washer", purpose:"Equipment replacement",items:[{itemId:"INV-SUR-005",itemName:"Pressure Washer Nozzle",quantity:1,unit:"Pcs"}],status:"Completed",issuedBy:"Bhavesh Modi",totalItems:1,totalQty:1 },
+    { issuanceId:"ISS-202606-005",issuanceDate:"2026-06-24",createdAt:"2026-06-24T08:00:00Z",issuedTo:"Arvind Vasava", issuedToId:"EDB-CW-SUR2C",recipientType:"Car Washer", purpose:"New joiner kit",items:[{itemId:"INV-SUR-006",itemName:"Washer Uniform Set",quantity:1,unit:"Pcs"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",quantity:3,unit:"Pcs"}],status:"Completed",issuedBy:"Nilesh Chauhan",totalItems:2,totalQty:4 },
+  ]);
+
+  // Equipment
+  seedIfEmpty("cleancar_equipment", [
+    { equipmentId:"EQ-001",serialNo:"PW-KARCHER-001",name:"Pressure Washer K5",   category:"Washing Equipment", status:"Assigned",         assignedTo:"Harish Solanki",assignedDate:"2026-01-10",purchaseDate:"2025-12-01",condition:"Good",lastServiceDate:"2026-04-01",nextServiceDate:"2026-07-01" },
+    { equipmentId:"EQ-002",serialNo:"PW-KARCHER-002",name:"Pressure Washer K5",   category:"Washing Equipment", status:"Assigned",         assignedTo:"Bhavesh Modi",  assignedDate:"2026-01-10",purchaseDate:"2025-12-01",condition:"Good",lastServiceDate:"2026-04-01",nextServiceDate:"2026-07-01" },
+    { equipmentId:"EQ-003",serialNo:"PW-KARCHER-003",name:"Pressure Washer K5",   category:"Washing Equipment", status:"Under Maintenance",purchaseDate:"2025-12-15",condition:"Poor",notes:"Pump seal replaced" },
+    { equipmentId:"EQ-004",serialNo:"VC-BOSCH-001",  name:"Wet & Dry Vacuum",     category:"Cleaning Equipment",status:"Assigned",         assignedTo:"Mahesh Bharwad",assignedDate:"2026-02-01",purchaseDate:"2026-01-15",condition:"Good" },
+    { equipmentId:"EQ-005",serialNo:"VC-BOSCH-002",  name:"Wet & Dry Vacuum",     category:"Cleaning Equipment",status:"In Store",          purchaseDate:"2026-01-15",condition:"Good" },
+    { equipmentId:"EQ-006",serialNo:"FC-001",        name:"Foam Cannon Pro",      category:"Washing Equipment", status:"Assigned",         assignedTo:"Ramesh Koli",   assignedDate:"2026-02-05",purchaseDate:"2026-01-20",condition:"Good" },
+    { equipmentId:"EQ-007",serialNo:"FC-002",        name:"Foam Cannon Pro",      category:"Washing Equipment", status:"In Store",          purchaseDate:"2026-01-20",condition:"Good" },
+    { equipmentId:"EQ-008",serialNo:"BKT-TROLLEY-001",name:"Bucket & Trolley Set",category:"Accessories",       status:"Assigned",         assignedTo:"Sunil Thakor",  assignedDate:"2026-02-10",purchaseDate:"2026-01-25",condition:"Good" },
+    { equipmentId:"EQ-009",serialNo:"BKT-TROLLEY-002",name:"Bucket & Trolley Set",category:"Accessories",       status:"In Store",          purchaseDate:"2026-01-25",condition:"Good" },
+    { equipmentId:"EQ-010",serialNo:"PW-KARCHER-004",name:"Pressure Washer K2",   category:"Washing Equipment", status:"Retired",           purchaseDate:"2025-06-01",condition:"Poor",notes:"Motor failure Jun 2026" },
+  ]);
+
+  // Store requisitions
+  seedIfEmpty("cleancar_requisitions", [
+    { mrId:"MR-202604-001",mrDate:"2026-04-28",raisedBy:"Nilesh Chauhan (Store Manager)",urgency:"Normal",  status:"Completed",approvedBy:"Amit Desai",approvedDate:"2026-04-29",createdAt:"2026-04-28T09:00:00Z",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",currentStock:12,reorderLevel:20,qtyRequired:50},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",unit:"Pcs",currentStock:40,reorderLevel:50,qtyRequired:100}] },
+    { mrId:"MR-202605-001",mrDate:"2026-05-20",raisedBy:"Nilesh Chauhan (Store Manager)",urgency:"Urgent",  status:"Completed",approvedBy:"Amit Desai",approvedDate:"2026-05-21",createdAt:"2026-05-20T10:30:00Z",items:[{itemId:"INV-SUR-004",itemName:"Dashboard Polish",unit:"L",currentStock:3,reorderLevel:20,qtyRequired:25}] },
+    { mrId:"MR-202606-001",mrDate:"2026-06-18",raisedBy:"Nilesh Chauhan (Store Manager)",urgency:"Critical",status:"Approved", approvedBy:"Amit Desai",approvedDate:"2026-06-18",createdAt:"2026-06-18T08:00:00Z",items:[{itemId:"INV-SUR-008",itemName:"Glass Cleaner 500ml",unit:"L",currentStock:0,reorderLevel:10,qtyRequired:30}] },
+    { mrId:"MR-202606-002",mrDate:"2026-06-23",raisedBy:"Nilesh Chauhan (Store Manager)",urgency:"Normal",  status:"Submitted",                                                   createdAt:"2026-06-23T09:00:00Z",items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",currentStock:45,reorderLevel:20,qtyRequired:50}] },
+  ]);
+
+  // Purchase returns
+  seedIfEmpty("cleancar_purchase_returns", [
+    { returnId:"PR-202605-001",returnDate:"2026-05-12",supplier:"3M India Ltd",       grnRef:"GRN-202605-002",status:"Credit Note Received",items:[{itemName:"Wax Applicator Pads",qty:20,unit:"Pcs",reason:"Damaged on delivery"}],totalQty:20,dispatchDate:"2026-05-14",trackingNo:"DTDC-789012",creditNoteNo:"CN-3M-2026-045",raisedBy:"Nilesh Chauhan",createdAt:"2026-05-12T10:00:00Z" },
+    { returnId:"PR-202606-001",returnDate:"2026-06-21",supplier:"Bosch India",        grnRef:"GRN-202606-003",status:"Dispatched",           items:[{itemName:"Foam Cannon Attachment",qty:2,unit:"Pcs",reason:"Seal cracked"}],totalQty:2,dispatchDate:"2026-06-23",trackingNo:"BLUEDART-445566",raisedBy:"Nilesh Chauhan",createdAt:"2026-06-21T09:00:00Z" },
+    { returnId:"PR-202606-002",returnDate:"2026-06-24",supplier:"Pidilite Industries",grnRef:"GRN-202605-003",status:"Pending Dispatch",     items:[{itemName:"Dashboard Polish 250ml",qty:5,unit:"Pcs",reason:"Short expiry"}],totalQty:5,raisedBy:"Nilesh Chauhan",createdAt:"2026-06-24T11:00:00Z" },
+  ]);
+
+  // Stock verifications
+  seedIfEmpty("cleancar_stock_verifications", [
+    { verificationId:"SV-202604-001",verificationDate:"2026-04-30",type:"Monthly",   status:"Approved",conductedBy:"Nilesh Chauhan",approvedBy:"Amit Desai",approvedDate:"2026-05-01",stockAdjusted:true,totalVariance:-3,createdAt:"2026-04-30T17:00:00Z",lines:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",systemQty:18,physicalQty:18,variance:0,status:"Match"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",unit:"Pcs",systemQty:55,physicalQty:52,variance:-3,status:"Short",notes:"3 cloths found damaged"}] },
+    { verificationId:"SV-202605-001",verificationDate:"2026-05-31",type:"Monthly",   status:"Approved",conductedBy:"Nilesh Chauhan",approvedBy:"Amit Desai",approvedDate:"2026-06-01",stockAdjusted:true,totalVariance:2, createdAt:"2026-05-31T17:00:00Z",lines:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",systemQty:45,physicalQty:47,variance:2,status:"Excess",notes:"2L unlabelled"},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",unit:"Pcs",systemQty:120,physicalQty:120,variance:0,status:"Match"}] },
+    { verificationId:"SV-202606-001",verificationDate:"2026-06-15",type:"Spot Check",status:"Approved",conductedBy:"Nilesh Chauhan",approvedBy:"Amit Desai",approvedDate:"2026-06-16",stockAdjusted:true,totalVariance:0, createdAt:"2026-06-15T11:00:00Z",lines:[{itemId:"INV-SUR-005",itemName:"Pressure Washer Nozzle",unit:"Pcs",systemQty:6,physicalQty:6,variance:0,status:"Match"}] },
+  ]);
+
+  // MOQ settings
+  seedIfEmpty("cleancar_moq_settings", [
+    { id:"INV-SUR-001",name:"Car Shampoo 5L",        category:"Cleaning Supplies",unit:"L",  currentStock:45, moq:50, status:"below-moq",lastUpdated:"2026-06-01",supplier:"Hindustan Unilever" },
+    { id:"INV-SUR-002",name:"Microfiber Cloth Large",category:"Equipment",        unit:"Pcs",currentStock:120,moq:100,status:"normal",   lastUpdated:"2026-06-01",supplier:"3M India" },
+    { id:"INV-SUR-003",name:"Tyre Shine 500ml",      category:"Cleaning Supplies",unit:"L",  currentStock:30, moq:40, status:"below-moq",lastUpdated:"2026-05-15",supplier:"Pidilite Industries" },
+    { id:"INV-SUR-004",name:"Dashboard Polish",      category:"Cleaning Supplies",unit:"L",  currentStock:8,  moq:25, status:"critical", lastUpdated:"2026-05-15",supplier:"Pidilite Industries" },
+    { id:"INV-SUR-005",name:"Pressure Washer Nozzle",category:"Equipment",        unit:"Pcs",currentStock:6,  moq:10, status:"below-moq",lastUpdated:"2026-06-01",supplier:"Bosch India" },
+    { id:"INV-SUR-006",name:"Washer Uniform Set",    category:"Consumables",      unit:"Pcs",currentStock:25, moq:20, status:"normal",   lastUpdated:"2026-06-10",supplier:"Local Vendor" },
+    { id:"INV-SUR-007",name:"Wheel Cleaner 1L",      category:"Cleaning Supplies",unit:"L",  currentStock:18, moq:20, status:"below-moq",lastUpdated:"2026-05-20",supplier:"Pidilite Industries" },
+    { id:"INV-SUR-008",name:"Glass Cleaner 500ml",   category:"Cleaning Supplies",unit:"L",  currentStock:0,  moq:15, status:"critical", lastUpdated:"2026-04-30",supplier:"Hindustan Unilever" },
+  ]);
+
+  // Purchase orders
+  seedIfEmpty("cleancar_purchase_orders", [
+    { poNumber:"PO-2026-0245",supplier:"ChemClean Industries", amount:125000,status:"Pending Approval",date:"Mar 17, 2026",items:5,createdAt:"2026-03-17T09:00:00Z" },
+    { poNumber:"PO-2026-0244",supplier:"AutoCare Solutions",   amount:68500, status:"Approved",        date:"Mar 16, 2026",items:3,createdAt:"2026-03-16T10:00:00Z" },
+    { poNumber:"PO-2026-0243",supplier:"ProWash Equipment",    amount:52000, status:"Delivered",       date:"Mar 15, 2026",items:2,createdAt:"2026-03-15T11:00:00Z" },
+    { poNumber:"PO-2026-0242",supplier:"ChemClean Industries", amount:95000, status:"In Transit",      date:"Mar 14, 2026",items:7,createdAt:"2026-03-14T08:00:00Z" },
+    { poNumber:"PO-2026-0241",supplier:"CarCare Supplies",     amount:42000, status:"Approved",        date:"Mar 13, 2026",items:4,createdAt:"2026-03-13T09:00:00Z" },
+  ]);
+
+  // Material requisitions (procurement module)
+  seedIfEmpty("cleancar_material_requisitions", [
+    { id:"MR-202604-001",date:"2026-04-28",raisedBy:"Harish Solanki",raisedByRole:"Supervisor",  zone:["395001 — Ring Road"],urgency:"Routine",  items:3,status:"Fully Ordered",  requiredBy:"2026-05-05",daysRemaining:-51,reason:"Monthly zone replenishment",pmDirect:false,itemsList:[{itemType:"Chemical",itemName:"Car Wash Shampoo 5L",unit:"Liters",quantity:50,currentStock:12,reorderLevel:50,justification:"Below reorder"}] },
+    { id:"MR-202606-001",date:"2026-06-18",raisedBy:"Bhavesh Modi",  raisedByRole:"Supervisor",  zone:["395007 — Althan"],  urgency:"Emergency",items:1,status:"Pending Approval",requiredBy:"2026-06-20",daysRemaining:-5, reason:"Glass cleaner out of stock",  pmDirect:false,itemsList:[{itemType:"Chemical",itemName:"Glass Cleaner 500ml",unit:"Liters",quantity:30,currentStock:0,reorderLevel:10,justification:"Out of stock"}] },
+    { id:"MR-202606-002",date:"2026-06-23",raisedBy:"Nilesh Chauhan",raisedByRole:"Store Manager",zone:["395001 — Ring Road"],urgency:"Routine",  items:2,status:"Pending Approval",requiredBy:"2026-07-01",daysRemaining:6,  reason:"Monthly replenishment",       pmDirect:false,itemsList:[{itemType:"Chemical",itemName:"Car Wash Shampoo 5L",unit:"Liters",quantity:50,currentStock:45,reorderLevel:50,justification:"Routine order"},{itemType:"Consumable",itemName:"Microfiber Towel Premium",unit:"Pieces",quantity:100,currentStock:120,reorderLevel:100,justification:"Routine order"}] },
+  ]);
+
+  // Vendor requests
+  seedIfEmpty("cleancar_vendor_requests", [
+    { id:"VR-202605-001",productCategory:"Eco-friendly chemicals",description:"Biodegradable car wash supplies",quantity:"200L/month",urgency:"low",   status:"pending",   requestedBy:"Store Manager",submittedAt:"2026-05-10T09:00:00Z" },
+    { id:"VR-202606-001",productCategory:"PPE & Safety",          description:"Safety gloves and aprons",       quantity:"50 sets",   urgency:"medium",status:"reviewing",requestedBy:"Store Manager",submittedAt:"2026-06-01T10:00:00Z" },
+  ]);
+
+  // RFQ records
+  seedIfEmpty("cleancar_rfq_records", [
+    { rfqId:"RFQ-202603-001",suppliers:["SUP-001","SUP-002"],status:"Quotes Received",createdAt:"2026-03-10T10:00:00Z",items:[{itemName:"Car Wash Shampoo 5L",quantity:100,unit:"Liters"}] },
+    { rfqId:"RFQ-202606-001",suppliers:["SUP-003"],           status:"Sent",           createdAt:"2026-06-16T14:00:00Z",items:[{itemName:"Tyre Shine 500ml",   quantity:50, unit:"Liters"}] },
+  ]);
+
     localStorage.setItem(SEED_FLAG, "true");
 
     // ── 1. EMPLOYEES ─────────────────────────────────────────────────────────
