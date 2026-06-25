@@ -873,7 +873,9 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       "cloth-tracking":       [],
     },
   },
-    },
+  },
+},
+},
 };
 
 /**
