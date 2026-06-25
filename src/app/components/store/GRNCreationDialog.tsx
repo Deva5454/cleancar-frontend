@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Badge } from "../ui/badge";
-import { Calendar, Camera } from "lucide-react";
+import { Calendar, Camera, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { logger } from "../../services/logger";
 
@@ -84,9 +84,31 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
     );
   };
 
+  const [newItemName, setNewItemName] = useState("");
+
+  const handleAddItem = () => {
+    if (!newItemName.trim()) return;
+    setItems([...items, {
+      id: Date.now(),
+      itemName: newItemName.trim(),
+      poQuantity: 0,
+      previouslyReceived: 0,
+      receivedThisDelivery: 1,
+      condition: "Good",
+      acceptedQuantity: 1,
+      rejectedQuantity: 0,
+      storageLocation: "Main Store",
+    }]);
+    setNewItemName("");
+  };
+
   const handleSubmit = () => {
     if (!challanNumber) {
       toast.error("Please enter Delivery Challan Number");
+      return;
+    }
+    if (items.length === 0) {
+      toast.error("Please add at least one item");
       return;
     }
 
@@ -96,10 +118,29 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
 
     const totalAccepted = items.reduce((sum, item) => sum + item.acceptedQuantity, 0);
     const totalRejected = items.reduce((sum, item) => sum + item.rejectedQuantity, 0);
-    const batchesCreated = items.filter((item) => item.acceptedQuantity > 0).length;
+
+    const grnRecord = {
+      grnNumber,
+      grnDate,
+      challanNumber,
+      vehicleNumber,
+      deliveryPerson,
+      supplierName: linkedPO?.supplierName ?? "Walk-in / Direct",
+      status: totalRejected === 0 ? "Accepted" : totalAccepted === 0 ? "Rejected" : "Partially Accepted",
+      totalAccepted,
+      totalRejected,
+      items,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Persist to localStorage
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
+      localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
+    } catch { /* quota guard */ }
 
     toast.success("GRN created successfully", {
-      description: `${grnNumber} — ${totalAccepted} units accepted, ${totalRejected} rejected. ${batchesCreated} batches created.`,
+      description: `${grnNumber} — ${totalAccepted} units accepted, ${totalRejected} rejected.`,
     });
 
     onClose();
@@ -257,6 +298,20 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
                 </Button>
               </div>
             ))}
+          </div>
+
+          {/* Add Item Row */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Add item name (e.g. Microfiber Cloth)"
+              value={newItemName}
+              onChange={e => setNewItemName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAddItem()}
+              className="flex-1"
+            />
+            <Button variant="outline" onClick={handleAddItem} disabled={!newItemName.trim()}>
+              <Plus className="w-4 h-4 mr-1" /> Add
+            </Button>
           </div>
 
           {/* Summary */}
