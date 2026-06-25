@@ -60,8 +60,23 @@ interface RequisitionItem {
 
 export function MaterialRequisitions() {
   const { currentRole, currentUser } = useRole();
+  const MR_SEED = [
+    { id:"MR-202604-001", date:"2026-04-28", raisedBy:"Harish Solanki", raisedByRole:"Supervisor", zone:["395001 — Ring Road"], urgency:"Routine",   items:3, status:"Fully Ordered",  requiredBy:"2026-05-05", daysRemaining:-51, reason:"Monthly zone replenishment", pmDirect:false, itemsList:[ { itemType:"Chemical",    itemName:"Car Wash Shampoo 5L",    unit:"Liters", quantity:50, currentStock:12, reorderLevel:50, justification:"Below reorder level" }, { itemType:"Consumable", itemName:"Microfiber Towel Premium", unit:"Pieces",quantity:100,currentStock:40, reorderLevel:100,justification:"Running low"          }, { itemType:"Chemical",   itemName:"Wheel Cleaner 1L",       unit:"Liters", quantity:20, currentStock:5,  reorderLevel:30, justification:"Critically low"     } ] },
+    { id:"MR-202605-001", date:"2026-05-20", raisedBy:"Nilesh Chauhan", raisedByRole:"Store Manager",zone:["395001 — Ring Road","395007 — Althan"],urgency:"Urgent",status:"Approved",    requiredBy:"2026-05-28", daysRemaining:-28, reason:"Dashboard polish critically low", pmDirect:false, itemsList:[ { itemType:"Chemical",    itemName:"Wax Coating 1L",         unit:"Liters", quantity:25, currentStock:3,  reorderLevel:20, justification:"Stock-out imminent" }, { itemType:"Chemical",   itemName:"Interior Cleaner 5L",    unit:"Liters", quantity:30, currentStock:8,  reorderLevel:25, justification:"Below reorder"      } ] },
+    { id:"MR-202606-001", date:"2026-06-18", raisedBy:"Bhavesh Modi",   raisedByRole:"Supervisor",  zone:["395007 — Althan"],              urgency:"Emergency",  status:"Pending Approval",requiredBy:"2026-06-20", daysRemaining:-5,  reason:"Glass cleaner completely out",  pmDirect:false, itemsList:[ { itemType:"Chemical",    itemName:"Glass Cleaner 500ml",    unit:"Liters", quantity:30, currentStock:0,  reorderLevel:10, justification:"Out of stock"       } ] },
+    { id:"MR-202606-002", date:"2026-06-23", raisedBy:"Nilesh Chauhan", raisedByRole:"Store Manager",zone:["395001 — Ring Road"],            urgency:"Routine",    status:"Pending Approval",requiredBy:"2026-07-01", daysRemaining:6,   reason:"Monthly replenishment",         pmDirect:false, itemsList:[ { itemType:"Chemical",    itemName:"Car Wash Shampoo 5L",    unit:"Liters", quantity:50, currentStock:45, reorderLevel:50, justification:"Routine order"      }, { itemType:"Consumable", itemName:"Microfiber Towel Premium", unit:"Pieces",quantity:100,currentStock:120,reorderLevel:100,justification:"Routine order"      } ] },
+  ];
   const stored = localStorage.getItem("cleancar_material_requisitions");
-  const [requisitions, setRequisitions] = useState(stored ? JSON.parse(stored) : []);
+  const parsedStored = stored ? JSON.parse(stored) : [];
+  const [requisitions, setRequisitions] = useState(() => {
+    const stored = localStorage.getItem("cleancar_material_requisitions");
+    const parsed = stored ? JSON.parse(stored) : [];
+    if (parsed.length === 0) {
+      localStorage.setItem("cleancar_material_requisitions", JSON.stringify(MR_SEED));
+      return MR_SEED;
+    }
+    return parsed;
+  });
   const [showRaiseDialog, setShowRaiseDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);

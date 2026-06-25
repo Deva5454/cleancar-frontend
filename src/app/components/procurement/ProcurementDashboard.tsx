@@ -221,7 +221,25 @@ export function ProcurementOverview() {
   };
 
   const handleSubmitPO = () => {
-    toast.success("Purchase Order created and sent for approval");
+    if (!selectedSupplier) { toast.error("Please select a supplier"); return; }
+    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    const supplier = suppliers.find(s => s.id === selectedSupplier);
+    const newPO = {
+      poNumber,
+      supplier: supplier?.name ?? selectedSupplier,
+      amount: totalAmount,
+      status: "Pending Approval",
+      date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
+      items: poItems.filter(i => i.itemName).length,
+      itemsList: poItems.filter(i => i.itemName),
+      createdAt: new Date().toISOString(),
+    };
+    // ✅ C3 FIX: Persist to localStorage
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify([newPO, ...existing]));
+    } catch { /* quota guard */ }
+    toast.success(`Purchase Order ${poNumber} created and sent for approval`);
     setShowPODialog(false);
     setSelectedSupplier("");
     setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);

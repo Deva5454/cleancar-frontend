@@ -59,7 +59,13 @@ export function PurchaseReturns() {
   };
 
   const handleSubmitReturn = () => {
-    toast.success("Purchase return created successfully");
+    const returnNumber = `PR-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100)}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_purchase_returns") || "[]");
+      const rec = { returnNumber, grnRef: selectedGRN, status: "Pending Dispatch", items: returnItems.filter(i => i.itemName), createdAt: new Date().toISOString(), raisedBy: "Procurement Manager" };
+      localStorage.setItem("cleancar_purchase_returns", JSON.stringify([rec, ...existing]));
+    } catch {}
+    toast.success(`Purchase return ${returnNumber} created successfully`);
     setShowReturnDialog(false);
     setSelectedGRN("");
     setReturnItems([{ id: 1, itemName: "", receivedQty: 0, returnQty: 0, reason: "", condition: "" }]);

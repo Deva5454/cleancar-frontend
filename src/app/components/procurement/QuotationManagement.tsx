@@ -69,7 +69,13 @@ export function QuotationManagement() {
   };
 
   const handleSubmitRFQ = () => {
-    toast.success(`RFQ sent to ${selectedSuppliers.length} suppliers`);
+    const rfqId = `RFQ-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100)}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_rfq_records") || "[]");
+      const rfq = { rfqId, suppliers: selectedSuppliers, items: rfqItems, status: "Sent", createdAt: new Date().toISOString() };
+      localStorage.setItem("cleancar_rfq_records", JSON.stringify([rfq, ...existing]));
+    } catch {}
+    toast.success(`RFQ ${rfqId} sent to ${selectedSuppliers.length} suppliers`);
     setShowRFQDialog(false);
     setRFQItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", specifications: "" }]);
     setSelectedSuppliers([]);

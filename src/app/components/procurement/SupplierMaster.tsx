@@ -35,17 +35,35 @@ import { gstComplianceService } from "../../services/gstComplianceService";
 import { useCity } from "../../contexts/CityContext";
 import { GST_STATE_OPTIONS } from "../../services/accountingEntryService";
 
+
+// ── Seed suppliers (shown when gstComplianceService has no vendors) ──────────
+const SUPPLIER_SEED = [
+  { id:"SUP-001", companyName:"Hindustan Unilever Ltd",  tradeName:"HUL",          gst:"27AAACH0262P1ZE", gstin:"27AAACH0262P1ZE", contactPerson:"Vikram Shah",   phone:"9876543210", email:"vikram.shah@hul.com",       category:"Cleaning Supplies", categories:["Cleaning Supplies","Chemicals"], city:"Surat",  pinCode:"395003", state:"Gujarat",     paymentTerms:"Net 30",  creditLimit:500000, outstanding:125000, status:"Active", rating:4.5, totalOrders:28, totalValue:1250000 },
+  { id:"SUP-002", companyName:"3M India Ltd",            tradeName:"3M",           gst:"29AABCT3518Q1ZV", gstin:"29AABCT3518Q1ZV", contactPerson:"Priya Nair",    phone:"9876543211", email:"priya.nair@3m.com",          category:"Equipment",         categories:["Equipment","Consumables"],    city:"Mumbai", pinCode:"400051", state:"Maharashtra", paymentTerms:"Net 15",  creditLimit:300000, outstanding:68500,  status:"Active", rating:4.2, totalOrders:15, totalValue:650000  },
+  { id:"SUP-003", companyName:"Pidilite Industries",     tradeName:"Pidilite",     gst:"27AABCP6538N1Z6", gstin:"27AABCP6538N1Z6", contactPerson:"Anand Mehta",   phone:"9876543212", email:"anand.mehta@pidilite.com",   category:"Cleaning Supplies", categories:["Cleaning Supplies"],          city:"Surat",  pinCode:"395004", state:"Gujarat",     paymentTerms:"Net 30",  creditLimit:400000, outstanding:95000,  status:"Active", rating:4.0, totalOrders:22, totalValue:880000  },
+  { id:"SUP-004", companyName:"Bosch India Ltd",         tradeName:"Bosch",        gst:"29AABCB2792M1ZS", gstin:"29AABCB2792M1ZS", contactPerson:"Rajesh Kumar",  phone:"9876543213", email:"rajesh.kumar@bosch.in",      category:"Equipment",         categories:["Equipment"],                  city:"Pune",   pinCode:"411001", state:"Maharashtra", paymentTerms:"Net 45",  creditLimit:600000, outstanding:52000,  status:"Active", rating:4.8, totalOrders:8,  totalValue:420000  },
+  { id:"SUP-005", companyName:"Local Vendor Surat",      tradeName:"LV Surat",     gst:"27AAALV1234A1ZP", gstin:"27AAALV1234A1ZP", contactPerson:"Suresh Patel",  phone:"9876543214", email:"suresh@lvsurat.com",         category:"Consumables",       categories:["Consumables"],                city:"Surat",  pinCode:"395001", state:"Gujarat",     paymentTerms:"COD",     creditLimit:100000, outstanding:15000,  status:"Active", rating:3.5, totalOrders:42, totalValue:315000  },
+];
+
 export function SupplierMaster() {
   const navigate = useNavigate();
   const { availableCities } = useCity();
   const vendors = gstComplianceService.getVendors();
   const [formData, setFormData] = useState({ city: "", stateCode: "", state: "" });
-  const suppliers = vendors.map(v => ({
-    id: v.id, companyName: v.legalName, tradeName: v.tradeName||v.legalName,
-    gstin: v.gstin||"", contactPerson: v.contactPerson||"", phone: v.phone||"",
-    email: v.email||"", category: v.category||"General", city: v.city||"Surat",
-    status: "Active", rating: 4.0, totalOrders: 0, totalValue: 0,
-  }));
+  const suppliers = vendors.length > 0 ? vendors.map(v => ({
+    id: v.id, companyName: v.legalName, tradeName: v.tradeName || v.legalName,
+    gst: v.gstin || "", gstin: v.gstin || "",
+    contactPerson: v.contactPerson || "", phone: v.phone || "", email: v.email || "",
+    category: v.category || "General",
+    categories: Array.isArray((v as any).categories) ? (v as any).categories : (v.category ? [v.category] : ["General"]),
+    city: v.city || "Surat", pinCode: (v as any).pinCode || "",
+    state: (v as any).state || "Gujarat",
+    paymentTerms: (v as any).paymentTerms || "Net 30",
+    creditLimit: (v as any).creditLimit ?? 0,
+    outstanding: (v as any).outstanding ?? 0,
+    status: "Active", rating: (v as any).rating ?? 4.0,
+    totalOrders: (v as any).totalOrders ?? 0, totalValue: (v as any).totalValue ?? 0,
+  })) : SUPPLIER_SEED;
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");

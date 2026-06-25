@@ -31,13 +31,25 @@ export function PurchaseOrders() {
     { id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }
   ]);
 
-  const purchaseOrders = [
-    { poNumber: "PO-2026-0245", supplier: "ChemClean Industries", amount: 125000, status: "Pending Approval", date: "Mar 17, 2026", items: 5 },
-    { poNumber: "PO-2026-0244", supplier: "AutoCare Solutions", amount: 68500, status: "Approved", date: "Mar 16, 2026", items: 3 },
-    { poNumber: "PO-2026-0243", supplier: "ProWash Equipment", amount: 52000, status: "Delivered", date: "Mar 15, 2026", items: 2 },
-    { poNumber: "PO-2026-0242", supplier: "ChemClean Industries", amount: 95000, status: "In Transit", date: "Mar 14, 2026", items: 7 },
-    { poNumber: "PO-2026-0241", supplier: "CarCare Supplies", amount: 42000, status: "Approved", date: "Mar 13, 2026", items: 4 },
+  // ✅ C2 FIX: Load from localStorage, seed historic data on first load
+  const PO_SEED = [
+    { poNumber:"PO-2026-0245", supplier:"ChemClean Industries",  amount:125000, status:"Pending Approval", date:"Mar 17, 2026", items:5, createdAt:"2026-03-17T09:00:00Z" },
+    { poNumber:"PO-2026-0244", supplier:"AutoCare Solutions",    amount:68500,  status:"Approved",         date:"Mar 16, 2026", items:3, createdAt:"2026-03-16T10:00:00Z" },
+    { poNumber:"PO-2026-0243", supplier:"ProWash Equipment",     amount:52000,  status:"Delivered",        date:"Mar 15, 2026", items:2, createdAt:"2026-03-15T11:00:00Z" },
+    { poNumber:"PO-2026-0242", supplier:"ChemClean Industries",  amount:95000,  status:"In Transit",       date:"Mar 14, 2026", items:7, createdAt:"2026-03-14T08:00:00Z" },
+    { poNumber:"PO-2026-0241", supplier:"CarCare Supplies",      amount:42000,  status:"Approved",         date:"Mar 13, 2026", items:4, createdAt:"2026-03-13T09:00:00Z" },
   ];
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem("cleancar_purchase_orders");
+      const parsed = stored ? JSON.parse(stored) : [];
+      if (parsed.length === 0) {
+        localStorage.setItem("cleancar_purchase_orders", JSON.stringify(PO_SEED));
+        return PO_SEED;
+      }
+      return parsed;
+    } catch { return PO_SEED; }
+  });
 
   const suppliers = [
     { id: "SUP-001", name: "CleanPro Supplies Pvt Ltd" },
@@ -77,7 +89,33 @@ export function PurchaseOrders() {
   };
 
   const handleSubmitPO = () => {
-    toast.success("Purchase Order created and sent for approval");
+    if (!selectedSupplier) {
+      toast.error("Please select a supplier");
+      return;
+    }
+    if (poItems.every(i => !i.itemName)) {
+      toast.error("Please add at least one item");
+      return;
+    }
+    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    const supplier = suppliers.find(s => s.id === selectedSupplier);
+    const newPO = {
+      poNumber,
+      supplier: supplier?.name ?? selectedSupplier,
+      amount: totalAmount,
+      status: "Pending Approval",
+      date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      items: poItems.filter(i => i.itemName).length,
+      itemsList: poItems.filter(i => i.itemName),
+      createdAt: new Date().toISOString(),
+    };
+    // ✅ C2 FIX: Persist to localStorage
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify([newPO, ...existing]));
+    } catch { /* quota guard */ }
+    setPurchaseOrders(prev => [newPO, ...prev]);
+    toast.success(`Purchase Order ${poNumber} created and sent for approval`);
     setShowPODialog(false);
     setSelectedSupplier("");
     setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);
@@ -134,30 +172,19 @@ export function PurchaseOrders() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">1</p>
-            <p className="text-xs text-gray-500">Pending Approval</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">2</p>
-            <p className="text-xs text-gray-500">Approved</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-purple-600">1</p>
-            <p className="text-xs text-gray-500">In Transit</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">1</p>
-            <p className="text-xs text-gray-500">Delivered</p>
-          </CardContent>
-        </Card>
+        {[
+          { label:"Pending Approval", color:"text-orange-600", status:"Pending Approval" },
+          { label:"Approved",         color:"text-blue-600",   status:"Approved" },
+          { label:"In Transit",       color:"text-purple-600", status:"In Transit" },
+          { label:"Delivered",        color:"text-green-600",  status:"Delivered" },
+        ].map(s => (
+          <Card key={s.status}>
+            <CardContent className="p-4 text-center">
+              <p className={`text-2xl font-bold ${s.color}`}>{purchaseOrders.filter(p => p.status === s.status).length}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
