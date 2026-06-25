@@ -3,23 +3,27 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "../ui/dialog";
 import { Badge } from "../ui/badge";
-import { Calendar, Camera, Plus } from "lucide-react";
+import { Camera, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { logger } from "../../services/logger";
+
+interface GRNItem {
+  id: number;
+  itemName: string;
+  poQuantity: number;
+  previouslyReceived: number;
+  receivedThisDelivery: number;
+  condition: string;
+  acceptedQuantity: number;
+  rejectedQuantity: number;
+  storageLocation: string;
+  comments?: string;
+}
 
 interface GRNCreationDialogProps {
   open: boolean;
@@ -27,216 +31,200 @@ interface GRNCreationDialogProps {
   linkedPO?: any;
 }
 
+const emptyState = () => ({
+  grnDate:        new Date().toISOString().split("T")[0],
+  challanNumber:  "",
+  vehicleNumber:  "",
+  deliveryPerson: "",
+  newItemName:    "",
+  items:          [] as GRNItem[],
+});
+
 export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialogProps) {
-  const [grnDate, setGrnDate] = useState(new Date().toISOString().split("T")[0]);
+  const [form, setForm] = useState(emptyState);
 
+  // Reset form every time the dialog opens
   useEffect(() => {
-    logger.log("GRNCreationDialog - open:", open, "linkedPO:", linkedPO);
-  }, [open, linkedPO]);
-  const [challanNumber, setChallanNumber] = useState("");
-  const [vehicleNumber, setVehicleNumber] = useState("");
-  const [deliveryPerson, setDeliveryPerson] = useState("");
+    if (open) {
+      setForm({
+        ...emptyState(),
+        items: linkedPO
+          ? [
+              { id: 1, itemName: "Car Wash Shampoo 5L",    poQuantity: 100, previouslyReceived: 0, receivedThisDelivery: 100, condition: "Good", acceptedQuantity: 100, rejectedQuantity: 0, storageLocation: "Main Store Shelf 1" },
+              { id: 2, itemName: "Microfiber Towel Premium",poQuantity: 200, previouslyReceived: 0, receivedThisDelivery: 200, condition: "Good", acceptedQuantity: 200, rejectedQuantity: 0, storageLocation: "Main Store Shelf 2" },
+            ]
+          : [],
+      });
+    }
+  }, [open]);
 
-  const [items, setItems] = useState(
-    linkedPO
-      ? [
-          {
-            id: 1,
-            itemName: "Car Wash Shampoo 5L",
-            poQuantity: 100,
-            previouslyReceived: 0,
-            receivedThisDelivery: 100,
-            condition: "Good",
-            acceptedQuantity: 100,
-            rejectedQuantity: 0,
-            storageLocation: "Main Store Shelf 1",
-          },
-          {
-            id: 2,
-            itemName: "Microfiber Towel Premium",
-            poQuantity: 200,
-            previouslyReceived: 0,
-            receivedThisDelivery: 200,
-            condition: "Good",
-            acceptedQuantity: 200,
-            rejectedQuantity: 0,
-            storageLocation: "Main Store Shelf 2",
-          },
-        ]
-      : []
-  );
-
-  const handleConditionChange = (id: number, condition: string) => {
-    setItems(
-      items.map((item) => {
-        if (item.id === id) {
-          // If condition is not "Good", might have rejections
-          const accepted = condition === "Good" ? item.receivedThisDelivery : Math.floor(item.receivedThisDelivery * 0.9);
-          return {
-            ...item,
-            condition,
-            acceptedQuantity: accepted,
-            rejectedQuantity: item.receivedThisDelivery - accepted,
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  const [newItemName, setNewItemName] = useState("");
+  const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
 
   const handleAddItem = () => {
-    if (!newItemName.trim()) return;
-    setItems([...items, {
-      id: Date.now(),
-      itemName: newItemName.trim(),
-      poQuantity: 0,
-      previouslyReceived: 0,
-      receivedThisDelivery: 1,
-      condition: "Good",
-      acceptedQuantity: 1,
-      rejectedQuantity: 0,
-      storageLocation: "Main Store",
-    }]);
-    setNewItemName("");
+    if (!form.newItemName.trim()) return;
+    setForm(f => ({
+      ...f,
+      newItemName: "",
+      items: [...f.items, {
+        id: Date.now(),
+        itemName: f.newItemName.trim(),
+        poQuantity: 0, previouslyReceived: 0,
+        receivedThisDelivery: 1,
+        condition: "Good",
+        acceptedQuantity: 1,
+        rejectedQuantity: 0,
+        storageLocation: "Main Store",
+      }],
+    }));
   };
 
+  const updateItem = (id: number, patch: Partial<GRNItem>) =>
+    setForm(f => ({ ...f, items: f.items.map(i => i.id === id ? { ...i, ...patch } : i) }));
+
+  const removeItem = (id: number) =>
+    setForm(f => ({ ...f, items: f.items.filter(i => i.id !== id) }));
+
+  const handleConditionChange = (id: number, condition: string) => {
+    const item = form.items.find(i => i.id === id);
+    if (!item) return;
+    const accepted = condition === "Good" ? item.receivedThisDelivery : Math.floor(item.receivedThisDelivery * 0.9);
+    updateItem(id, { condition, acceptedQuantity: accepted, rejectedQuantity: item.receivedThisDelivery - accepted });
+  };
+
+  const handleQtyChange = (id: number, qty: number) =>
+    updateItem(id, { receivedThisDelivery: qty, acceptedQuantity: qty, rejectedQuantity: 0 });
+
   const handleSubmit = () => {
-    if (!challanNumber) {
+    if (!form.challanNumber.trim()) {
       toast.error("Please enter Delivery Challan Number");
       return;
     }
-    if (items.length === 0) {
+    if (form.items.length === 0) {
       toast.error("Please add at least one item");
       return;
     }
 
     const grnNumber = `GRN-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(
-      Math.floor(Math.random() * 1000)
+      Math.floor(Math.random() * 900) + 100
     ).padStart(3, "0")}`;
 
-    const totalAccepted = items.reduce((sum, item) => sum + item.acceptedQuantity, 0);
-    const totalRejected = items.reduce((sum, item) => sum + item.rejectedQuantity, 0);
+    const totalAccepted = form.items.reduce((s, i) => s + i.acceptedQuantity, 0);
+    const totalRejected = form.items.reduce((s, i) => s + i.rejectedQuantity, 0);
 
     const grnRecord = {
       grnNumber,
-      grnDate,
-      challanNumber,
-      vehicleNumber,
-      deliveryPerson,
-      supplierName: linkedPO?.supplierName ?? "Walk-in / Direct",
-      status: totalRejected === 0 ? "Accepted" : totalAccepted === 0 ? "Rejected" : "Partially Accepted",
+      grnDate:        form.grnDate,
+      challanNumber:  form.challanNumber,
+      vehicleNumber:  form.vehicleNumber,
+      deliveryPerson: form.deliveryPerson,
+      supplierName:   linkedPO?.supplierName ?? "Walk-in / Direct",
+      status:         totalRejected === 0 ? "Accepted" : totalAccepted === 0 ? "Rejected" : "Partially Accepted",
       totalAccepted,
       totalRejected,
-      items,
-      createdAt: new Date().toISOString(),
+      items:          form.items,
+      createdAt:      new Date().toISOString(),
     };
 
-    // Persist to localStorage
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
       localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
     } catch { /* quota guard */ }
 
-    toast.success("GRN created successfully", {
-      description: `${grnNumber} — ${totalAccepted} units accepted, ${totalRejected} rejected.`,
+    toast.success("GRN created successfully!", {
+      description: `${grnNumber} — ${totalAccepted} units accepted${totalRejected > 0 ? `, ${totalRejected} rejected` : ""}.`,
     });
 
     onClose();
   };
 
+  const totalAccepted = form.items.reduce((s, i) => s + i.acceptedQuantity, 0);
+  const totalRejected = form.items.reduce((s, i) => s + i.rejectedQuantity, 0);
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => {
-      logger.log("Dialog onOpenChange:", isOpen);
-      if (!isOpen) {
-        onClose();
-      }
-    }}>
+    <Dialog open={open} onOpenChange={isOpen => { if (!isOpen) onClose(); }}>
       <DialogContent className="w-[95vw] sm:w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Goods Receipt Note (GRN)</DialogTitle>
           <DialogDescription>
-            {linkedPO ? `Linked to ${linkedPO.poNumber} — ${linkedPO.supplierName}` : "Create new GRN"}
+            {linkedPO ? `Linked to ${linkedPO.poNumber} — ${linkedPO.supplierName}` : "Create new GRN — enter delivery details and items received"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Header Section */}
-          <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-md">
-            <div className="space-y-2">
+
+          {/* ── Header fields ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="space-y-1.5">
               <Label className="text-xs">GRN Date</Label>
-              <Input type="date" value={grnDate} onChange={(e) => setGrnDate(e.target.value)} />
+              <Input type="date" value={form.grnDate} onChange={e => set("grnDate", e.target.value)} />
             </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs">Delivery Challan Number *</Label>
-              <Input value={challanNumber} onChange={(e) => setChallanNumber(e.target.value)} placeholder="DC-2026-XXX" />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Delivery Challan No. *</Label>
+              <Input value={form.challanNumber} onChange={e => set("challanNumber", e.target.value)} placeholder="DC-2026-XXX" />
             </div>
-
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label className="text-xs">Supplier</Label>
-              <Input value={linkedPO?.supplierName || ""} disabled className="bg-white" />
+              <Input value={linkedPO?.supplierName ?? ""} disabled placeholder="Walk-in / Direct" className="bg-white" />
             </div>
-
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label className="text-xs">Delivery Person</Label>
-              <Input value={deliveryPerson} onChange={(e) => setDeliveryPerson(e.target.value)} placeholder="Optional" />
+              <Input value={form.deliveryPerson} onChange={e => set("deliveryPerson", e.target.value)} placeholder="Optional" />
             </div>
-
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label className="text-xs">Vehicle Number</Label>
-              <Input value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder="GJ-XX-XXXX" />
+              <Input value={form.vehicleNumber} onChange={e => set("vehicleNumber", e.target.value)} placeholder="GJ-XX-XXXX" />
             </div>
-
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label className="text-xs">Received By</Label>
-              <Input value="Suresh Bhai (Store Manager)" disabled className="bg-white" />
+              <Input value="Store Manager" disabled className="bg-white" />
             </div>
           </div>
 
-          {/* Items Section */}
+          {/* ── Items ── */}
           <div className="space-y-3">
-            <h3 className="font-medium">Receipt Items</h3>
+            <h3 className="font-semibold text-gray-900">Receipt Items</h3>
 
-            {items.map((item) => (
-              <div key={item.id} className="border rounded-md p-4 space-y-3">
+            {form.items.length === 0 && (
+              <div className="text-center py-6 border-2 border-dashed rounded-lg text-sm text-gray-400">
+                No items added yet — use the field below to add items
+              </div>
+            )}
+
+            {form.items.map(item => (
+              <div key={item.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{item.itemName}</p>
-                    <p className="text-xs text-gray-500">
-                      PO Qty: {item.poQuantity} | Previously Received: {item.previouslyReceived}
-                    </p>
+                    <p className="font-medium text-gray-900">{item.itemName}</p>
+                    {item.poQuantity > 0 && (
+                      <p className="text-xs text-gray-500">
+                        PO Qty: {item.poQuantity} | Previously Received: {item.previouslyReceived}
+                      </p>
+                    )}
                   </div>
-                  <Badge variant={item.condition === "Good" ? "default" : "destructive"}>{item.condition}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={item.condition === "Good" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                      {item.condition}
+                    </Badge>
+                    <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-5 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="space-y-1">
                     <Label className="text-xs">Qty Received</Label>
                     <Input
-                      type="number"
-                      className="font-medium"
+                      type="number" min={0}
                       value={item.receivedThisDelivery}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        setItems(
-                          items.map((i) =>
-                            i.id === item.id
-                              ? { ...i, receivedThisDelivery: val, acceptedQuantity: val, rejectedQuantity: 0 }
-                              : i
-                          )
-                        );
-                      }}
+                      onChange={e => handleQtyChange(item.id, parseInt(e.target.value) || 0)}
+                      className="font-medium"
                     />
                   </div>
-
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label className="text-xs">Condition</Label>
-                    <Select value={item.condition} onValueChange={(val) => handleConditionChange(item.id, val)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Select value={item.condition} onValueChange={val => handleConditionChange(item.id, val)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Good">Good</SelectItem>
                         <SelectItem value="Damaged">Damaged</SelectItem>
@@ -244,44 +232,32 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Accepted Qty</Label>
-                    <Input type="number" className="font-medium text-green-600" value={item.acceptedQuantity} readOnly />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Accepted</Label>
+                    <Input type="number" value={item.acceptedQuantity} readOnly className="font-medium text-green-700 bg-green-50" />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Rejected Qty</Label>
-                    <Input
-                      type="number"
-                      className="font-medium text-red-600"
-                      value={item.rejectedQuantity}
-                      readOnly
-                    />
+                  <div className="space-y-1">
+                    <Label className="text-xs">Rejected</Label>
+                    <Input type="number" value={item.rejectedQuantity} readOnly className="font-medium text-red-600 bg-red-50" />
                   </div>
-
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <Label className="text-xs">Storage Location</Label>
-                    <Input value={item.storageLocation} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, storageLocation: e.target.value} : i))} />
+                    <Input value={item.storageLocation} onChange={e => updateItem(item.id, { storageLocation: e.target.value })} />
                   </div>
                 </div>
 
                 {/* Batch Details */}
                 {item.acceptedQuantity > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
-                    <p className="text-xs font-medium text-blue-900">Batch Details</p>
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                    <p className="text-xs font-medium text-blue-900 mb-2">Batch Details</p>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs text-blue-900">Batch Number</Label>
-                        <Input
-                          className="text-xs"
-                          value={`BATCH-${item.itemName.substring(0, 4).toUpperCase()}-${grnDate.replace(/-/g, "")}-001`}
-                          readOnly
-                        />
+                        <Input className="text-xs" value={`BATCH-${item.itemName.substring(0, 4).toUpperCase()}-${form.grnDate.replace(/-/g, "")}-001`} readOnly />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-blue-900">Mfg Date</Label>
-                        <Input type="date" className="text-xs" defaultValue={grnDate} />
+                        <Input type="date" className="text-xs" defaultValue={form.grnDate} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-blue-900">Expiry Date</Label>
@@ -291,58 +267,54 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
                   </div>
                 )}
 
-                {/* Photo Capture */}
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="w-full text-xs">
                   <Camera className="w-4 h-4 mr-2" />
                   {item.condition !== "Good" ? "Add Photos (Required)" : "Add Photos (Optional)"}
                 </Button>
               </div>
             ))}
+
+            {/* Add item row */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type item name and press Enter or click Add…"
+                value={form.newItemName}
+                onChange={e => set("newItemName", e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleAddItem()}
+              />
+              <Button variant="outline" onClick={handleAddItem} disabled={!form.newItemName.trim()}>
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
+            </div>
           </div>
 
-          {/* Add Item Row */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Add item name (e.g. Microfiber Cloth)"
-              value={newItemName}
-              onChange={e => setNewItemName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAddItem()}
-              className="flex-1"
-            />
-            <Button variant="outline" onClick={handleAddItem} disabled={!newItemName.trim()}>
-              <Plus className="w-4 h-4 mr-1" /> Add
-            </Button>
-          </div>
-
-          {/* Summary */}
-          <div className="bg-gray-50 rounded-md p-4">
-            <h3 className="font-medium mb-3">GRN Summary</h3>
+          {/* ── Summary ── */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="font-semibold text-gray-900 mb-3">GRN Summary</h3>
             <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
-                <p className="text-gray-600">Total Items</p>
-                <p className="font-bold text-lg">{items.length}</p>
+                <p className="text-gray-500 text-xs">Total Items</p>
+                <p className="font-bold text-xl">{form.items.length}</p>
               </div>
               <div>
-                <p className="text-gray-600">Units Received</p>
-                <p className="font-bold text-lg">{items.reduce((sum, i) => sum + i.receivedThisDelivery, 0)}</p>
+                <p className="text-gray-500 text-xs">Units Received</p>
+                <p className="font-bold text-xl">{form.items.reduce((s, i) => s + i.receivedThisDelivery, 0)}</p>
               </div>
               <div>
-                <p className="text-gray-600">Units Accepted</p>
-                <p className="font-bold text-lg text-green-600">{items.reduce((sum, i) => sum + i.acceptedQuantity, 0)}</p>
+                <p className="text-gray-500 text-xs">Units Accepted</p>
+                <p className="font-bold text-xl text-green-700">{totalAccepted}</p>
               </div>
               <div>
-                <p className="text-gray-600">Units Rejected</p>
-                <p className="font-bold text-lg text-red-600">{items.reduce((sum, i) => sum + i.rejectedQuantity, 0)}</p>
+                <p className="text-gray-500 text-xs">Units Rejected</p>
+                <p className="font-bold text-xl text-red-600">{totalRejected}</p>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} className="flex-1">
+          {/* ── Actions ── */}
+          <div className="flex gap-3 pt-2 border-t">
+            <Button variant="outline" onClick={onClose} className="flex-1">Cancel</Button>
+            <Button onClick={handleSubmit} className="flex-1 bg-blue-600 hover:bg-blue-700">
               Save GRN
             </Button>
           </div>
