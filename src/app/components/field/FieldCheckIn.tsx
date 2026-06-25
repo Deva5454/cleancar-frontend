@@ -405,8 +405,6 @@ export function FieldCheckIn() {
   const hour    = nowHour();
   const shiftStart = shiftStartHour(currentRole);
   const shiftEnd   = shiftEndHour(currentRole);
-  const shiftStart = shiftStartHour(currentRole);
-  const shiftEnd   = shiftEndHour(currentRole);
 
   // ── Selfie screens ──
   if (uiStep === "selfie-in") return (
