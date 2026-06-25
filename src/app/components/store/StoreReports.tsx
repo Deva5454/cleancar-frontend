@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Button } from "../ui/button";
 import { FileText, Download, TrendingDown, TrendingUp, Package, Wrench, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { DataService } from "../../services/DataService";
 
-const INVENTORY = [
+const INVENTORY_SEED = [
   { itemId:"INV-SUR-001", itemName:"Car Shampoo 5L",         unit:"L",   centralStock:45, reorderLevel:20, category:"Cleaning Supplies" },
   { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large", unit:"Pcs", centralStock:120,reorderLevel:50, category:"Equipment" },
   { itemId:"INV-SUR-003", itemName:"Tyre Shine 500ml",       unit:"L",   centralStock:30, reorderLevel:15, category:"Cleaning Supplies" },
@@ -17,6 +18,13 @@ const INVENTORY = [
   { itemId:"INV-SUR-007", itemName:"Wheel Cleaner 1L",       unit:"L",   centralStock:18, reorderLevel:12, category:"Cleaning Supplies" },
   { itemId:"INV-SUR-008", itemName:"Glass Cleaner 500ml",    unit:"L",   centralStock:0,  reorderLevel:10, category:"Cleaning Supplies" },
 ];
+
+function getLiveInventory() {
+  try {
+    const items = DataService.get<any>("INVENTORY_ITEMS");
+    return items.length > 0 ? items.map((i: any) => ({ itemId:i.itemId, itemName:i.itemName, unit:i.unit, centralStock:i.centralStock??0, reorderLevel:i.reorderLevel??0, category:i.category??"General" })) : INVENTORY_SEED;
+  } catch { return INVENTORY_SEED; }
+}
 
 const loadData = (key: string, def: any[]) => { try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : def; } catch { return def; } };
 
@@ -45,14 +53,14 @@ export function StoreReports() {
 
   const getReportRows = (): any[] => {
     switch (reportType) {
-      case "daily-stock": return INVENTORY.map(i=>({ "Item":i.itemName, "Category":i.category, "Unit":i.unit, "Central Stock":i.centralStock, "Reorder Level":i.reorderLevel, "Status": i.centralStock===0?"Out of Stock":i.centralStock<=i.reorderLevel?"Below Reorder":"Adequate" }));
+      case "daily-stock": return getLiveInventory().map(i=>({ "Item":i.itemName, "Category":i.category, "Unit":i.unit, "Central Stock":i.centralStock, "Reorder Level":i.reorderLevel, "Status": i.centralStock===0?"Out of Stock":i.centralStock<=i.reorderLevel?"Below Reorder":"Adequate" }));
       case "grn":         return grns.filter((g:any)=>g.grnDate>=from&&g.grnDate<=to).map((g:any)=>({ "GRN No":g.grnNumber, "Date":g.grnDate, "Supplier":g.supplierName, "Challan":g.challanNumber, "Accepted":g.totalAccepted, "Rejected":g.totalRejected, "Status":g.status }));
       case "issuance":    return issuances.filter((i:any)=>i.issuanceDate>=from&&i.issuanceDate<=to).map((i:any)=>({ "Issuance No":i.issuanceId, "Date":i.issuanceDate, "Issued To":i.issuedTo, "Type":i.recipientType, "Purpose":i.purpose, "Total Qty":i.totalQty, "Status":i.status }));
       case "equipment":   return equipment.map((e:any)=>({ "Equipment ID":e.equipmentId, "Name":e.name, "Serial No":e.serialNo, "Category":e.category, "Status":e.status, "Assigned To":e.assignedTo??"—", "Condition":e.condition }));
       case "verification":return verifications.map((v:any)=>({ "Verification ID":v.verificationId, "Date":v.verificationDate, "Type":v.type, "Status":v.status, "Conducted By":v.conductedBy, "Total Variance":v.totalVariance }));
-      case "dead-stock":  return INVENTORY.filter(i=>i.centralStock===0).map(i=>({ "Item":i.itemName, "Unit":i.unit, "Stock":i.centralStock, "Reorder Level":i.reorderLevel, "Status":"Out of Stock" }));
+      case "dead-stock":  return getLiveInventory().filter(i=>i.centralStock===0).map(i=>({ "Item":i.itemName, "Unit":i.unit, "Stock":i.centralStock, "Reorder Level":i.reorderLevel, "Status":"Out of Stock" }));
       case "expiry":      return [{ "Note":"Expiry tracking based on GRN batch dates", "Items to Check":"Car Shampoo, Dashboard Polish, Tyre Shine" }];
-      default:            return INVENTORY.map(i=>({ "Item":i.itemName, "Stock":i.centralStock, "Unit":i.unit }));
+      default:            return getLiveInventory().map(i=>({ "Item":i.itemName, "Stock":i.centralStock, "Unit":i.unit }));
     }
   };
 
@@ -90,8 +98,8 @@ export function StoreReports() {
   const showDateRange = dateReports.includes(reportType);
 
   // Quick summary stats
-  const belowReorder = INVENTORY.filter(i=>i.centralStock<=i.reorderLevel).length;
-  const outOfStock   = INVENTORY.filter(i=>i.centralStock===0).length;
+  const belowReorder = getLiveInventory().filter(i=>i.centralStock<=i.reorderLevel).length;
+  const outOfStock   = getLiveInventory().filter(i=>i.centralStock===0).length;
   const totalGRNs    = grns.length;
   const totalIssued  = issuances.reduce((s:number,i:any)=>s+(i.totalQty||0),0);
 
@@ -154,7 +162,7 @@ export function StoreReports() {
           <CardHeader><div className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-orange-600"/><CardTitle className="text-sm text-orange-800">Items Needing Attention</CardTitle></div></CardHeader>
           <CardContent>
             <div className="space-y-1">
-              {INVENTORY.filter(i=>i.centralStock<=i.reorderLevel).map(i=>(
+              {getLiveInventory().filter(i=>i.centralStock<=i.reorderLevel).map(i=>(
                 <div key={i.itemId} className="flex items-center justify-between text-xs">
                   <span className="font-medium">{i.itemName}</span>
                   <span className={i.centralStock===0?"text-red-600 font-semibold":"text-orange-700"}>{i.centralStock===0?"OUT OF STOCK":`${i.centralStock} ${i.unit} (reorder: ${i.reorderLevel})`}</span>

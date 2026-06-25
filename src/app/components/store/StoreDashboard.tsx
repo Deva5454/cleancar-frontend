@@ -198,65 +198,125 @@ export function StoreDashboard() {
         </Card>
       </div>
 
-      {/* Row 2: Pending Deliveries (static) + Equipment Tasks (static) */}
+        {/* Row 2: Pending Deliveries (from GRN records + POs) + Equipment Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* Pending Deliveries — static until PO module is built */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Truck className="w-5 h-5 text-blue-600" />Pending Deliveries
-              </CardTitle>
-              <Badge variant="secondary">0</Badge>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Expected deliveries from open POs</p>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-sm text-gray-500">
-              No pending deliveries. Create a Purchase Order to track incoming stock.
-            </div>
-            <Button size="sm" variant="outline" className="w-full mt-2" onClick={() => handleCreateGRN(null)}>
-              <FileText className="w-4 h-4 mr-2" />Create GRN Directly
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Pending Deliveries — from purchase orders and recent GRNs */}
+        {(() => {
+          const grns = (() => { try { return JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]"); } catch { return []; } })();
+          const recent = grns.slice(0, 3);
+          return (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-blue-600" />Goods Receipts
+                  </CardTitle>
+                  <Badge variant="secondary">{grns.length}</Badge>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Recent GRN records</p>
+              </CardHeader>
+              <CardContent>
+                {recent.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-gray-500">
+                    No GRN records yet. Create a GRN to track received stock.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recent.map((grn: any) => (
+                      <div key={grn.grnNumber} className="flex items-center justify-between text-xs border rounded px-3 py-2">
+                        <div>
+                          <p className="font-medium">{grn.grnNumber}</p>
+                          <p className="text-gray-500">{grn.supplierName} · {grn.grnDate}</p>
+                        </div>
+                        <span className={`font-semibold ${grn.status === "Accepted" ? "text-green-600" : grn.status === "Rejected" ? "text-red-600" : "text-yellow-600"}`}>
+                          {grn.totalAccepted} accepted
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => handleCreateGRN(null)}>
+                  <FileText className="w-4 h-4 mr-2" />Create New GRN
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
-        {/* Equipment Tasks (static — real data once equipment module built) */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-teal-600" />Equipment Tasks
-              </CardTitle>
-              <Badge variant="secondary">0</Badge>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Pending kit assignments and returns</p>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-sm text-gray-500">
-              No equipment tasks pending.
-            </div>
-          </CardContent>
-        </Card>
+        {/* Equipment Tasks — from equipment records */}
+        {(() => {
+          const equipment = (() => { try { return JSON.parse(localStorage.getItem("cleancar_equipment") || "[]"); } catch { return []; } })();
+          const inStore = equipment.filter((e: any) => e.status === "In Store");
+          const maintenance = equipment.filter((e: any) => e.status === "Under Maintenance");
+          return (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-teal-600" />Equipment Status
+                  </CardTitle>
+                  <Badge variant="secondary">{equipment.length} total</Badge>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Kit assignments and maintenance</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {[["In Store", inStore.length, "text-green-700"], ["Assigned", equipment.filter((e: any) => e.status === "Assigned").length, "text-blue-700"], ["Maintenance", maintenance.length, "text-yellow-700"]].map(([l, v, c]) => (
+                    <div key={l as string} className="text-center border rounded p-2">
+                      <p className={`text-xl font-bold ${c}`}>{v}</p>
+                      <p className="text-xs text-gray-500">{l}</p>
+                    </div>
+                  ))}
+                </div>
+                {maintenance.length > 0 && (
+                  <div className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">
+                    ⚠ {maintenance.length} item{maintenance.length > 1 ? "s" : ""} under maintenance
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>
 
       {/* Row 3: Purchase Return Dispatch */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingDown className="w-5 h-5 text-orange-600" />Purchase Return Dispatch
-              </CardTitle>
-              <Badge variant="secondary">0</Badge>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Returns ready for physical dispatch</p>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-6 text-sm text-gray-500">No returns pending dispatch.</div>
-          </CardContent>
-        </Card>
+        {/* Purchase Return Dispatch — from real purchase returns */}
+        {(() => {
+          const returns = (() => { try { return JSON.parse(localStorage.getItem("cleancar_purchase_returns") || "[]"); } catch { return []; } })();
+          const pending = returns.filter((r: any) => r.status === "Pending Dispatch");
+          return (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingDown className="w-5 h-5 text-orange-600" />Purchase Return Dispatch
+                  </CardTitle>
+                  <Badge variant={pending.length > 0 ? "destructive" : "secondary"}>{pending.length} pending</Badge>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Returns ready for physical dispatch</p>
+              </CardHeader>
+              <CardContent>
+                {pending.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-gray-500">No returns pending dispatch.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {pending.slice(0, 3).map((r: any) => (
+                      <div key={r.returnId} className="flex items-center justify-between text-xs border border-orange-200 bg-orange-50 rounded px-3 py-2">
+                        <div>
+                          <p className="font-medium">{r.returnId}</p>
+                          <p className="text-gray-500">{r.supplier} · {r.returnDate}</p>
+                        </div>
+                        <span className="text-orange-700 font-medium">{r.totalQty} units</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Daily Stock Movement — live from today's transactions */}
         <Card>

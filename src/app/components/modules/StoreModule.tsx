@@ -23,7 +23,7 @@ export function StoreModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="flex w-full overflow-x-auto gap-1 mb-2">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="stock-position">Stock Position</TabsTrigger>
           <TabsTrigger value="goods-receipt">Goods Receipt</TabsTrigger>

@@ -88,14 +88,28 @@ export function VendorRequest() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    toast.success("Vendor request submitted successfully!");
-    setFormData({
-      productCategory: "",
-      description: "",
-      quantity: "",
-      urgency: "medium"
-    });
+    if (!formData.productCategory || !formData.description || !formData.quantity) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    // ✅ C5 FIX: Save vendor request to localStorage
+    const requestId = `VR-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
+    const record = {
+      id: requestId,
+      productCategory: formData.productCategory,
+      description: formData.description,
+      quantity: formData.quantity,
+      urgency: formData.urgency,
+      status: "pending",
+      requestedBy: "Store Manager",
+      submittedAt: new Date().toISOString(),
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
+      localStorage.setItem("cleancar_vendor_requests", JSON.stringify([record, ...existing]));
+    } catch {}
+    toast.success(`Vendor request ${requestId} submitted — Admin will review and onboard vendor.`);
+    setFormData({ productCategory: "", description: "", quantity: "", urgency: "medium" });
   };
 
   const getStatusBadge = (status: string) => {

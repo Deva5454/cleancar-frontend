@@ -1,10 +1,10 @@
 import { useRole } from "../contexts/RoleContext";
 import { useApprovals, approvalPermissions } from "../contexts/ApprovalContext";
-import { BackButton } from "./ui/back-button";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { BackButton } from "../ui/back-button";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./ui/table";
+} from "../ui/table";
 import { Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
 export function ApprovalCenter() {

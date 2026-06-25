@@ -86,13 +86,47 @@ export function GRNEntry() {
   const handleSubmitGRN = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const quantityReceived = parseInt(formData.get('quantity-received') as string);
-    const quantityOrdered = parseInt(formData.get('quantity-ordered') as string);
+    const quantityReceived = parseInt(formData.get('quantity-received') as string) || 0;
+    const quantityOrdered  = parseInt(formData.get('quantity-ordered')  as string) || 0;
+    const itemName         = String(formData.get('item-name') || "Unknown Item");
+    const challanNo        = String(formData.get('challan-number') || "");
+    const supplierName     = String(formData.get('supplier-name') || "Walk-in");
+
+    // ✅ C3 FIX: Save GRN record to localStorage
+    const grnNumber = `GRN-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
+    const grnRecord = {
+      grnNumber, supplierName, challanNumber: challanNo,
+      grnDate: new Date().toISOString().split("T")[0],
+      status: quantityReceived >= quantityOrdered ? "Accepted" : "Partially Accepted",
+      totalAccepted: quantityReceived, totalRejected: Math.max(0, quantityOrdered - quantityReceived),
+      items: [{ id:1, itemName, receivedThisDelivery: quantityReceived, acceptedQuantity: quantityReceived, rejectedQuantity: 0, condition:"Good", storageLocation:"Main Store" }],
+      createdAt: new Date().toISOString(),
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
+      localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
+    } catch {}
+
+    // ✅ C3 FIX: Update live inventory
+    try {
+      const { DataService } = require("../../services/DataService");
+      const liveItems = DataService.get("INVENTORY_ITEMS");
+      if (liveItems.length > 0) {
+        const key = itemName.trim().toLowerCase();
+        const updated = liveItems.map((inv: any) => {
+          if ((inv.itemName ?? "").trim().toLowerCase() === key) {
+            return { ...inv, centralStock: (inv.centralStock ?? 0) + quantityReceived, updatedAt: new Date().toISOString() };
+          }
+          return inv;
+        });
+        DataService.setAll("INVENTORY_ITEMS", updated);
+      }
+    } catch {}
 
     if (quantityReceived < quantityOrdered) {
-      toast.warning("Partial GRN recorded - Alert sent to Accounts, Admin, and Super Admin!");
+      toast.warning(`Partial GRN ${grnNumber} recorded — ${quantityReceived}/${quantityOrdered} received. Accounts, Admin and Super Admin alerted.`);
     } else {
-      toast.success("GRN recorded successfully - Full delivery received!");
+      toast.success(`GRN ${grnNumber} recorded — full delivery received!`);
     }
 
     setGrnDialogOpen(false);

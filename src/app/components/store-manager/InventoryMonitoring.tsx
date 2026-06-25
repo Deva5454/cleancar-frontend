@@ -1,133 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../ui/table";
 import { Search, Package, AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { DataService } from "../../services/DataService";
 
 interface InventoryItem {
-  id: string;
-  name: string;
-  category: string;
-  currentStock: number;
-  moq: number;
-  unit: string;
-  weeklyConsumption: number;
-  trend: "up" | "down" | "stable";
+  id: string; name: string; category: string;
+  currentStock: number; moq: number; unit: string;
+  weeklyConsumption: number; trend: "up" | "down" | "stable";
   status: "normal" | "low" | "critical";
   lastRestocked: string;
 }
 
+function buildLiveInventory(): InventoryItem[] {
+  try {
+    const items = DataService.get<any>("INVENTORY_ITEMS");
+    if (items.length === 0) throw new Error("empty");
+    return items.map((i: any) => ({
+      id:               i.itemId,
+      name:             i.itemName,
+      category:         i.category ?? "General",
+      currentStock:     i.centralStock ?? 0,
+      moq:              i.reorderLevel ?? 0,
+      unit:             i.unit ?? "",
+      weeklyConsumption:Math.round((i.reorderLevel ?? 0) * 0.3),
+      trend:            i.centralStock <= (i.reorderLevel ?? 0) * 0.5 ? "down" : i.centralStock >= (i.reorderLevel ?? 0) * 1.5 ? "up" : "stable",
+      status:           i.centralStock === 0 ? "critical" : i.centralStock <= (i.reorderLevel ?? 0) ? "low" : "normal",
+      lastRestocked:    i.lastProcurementDate ?? i.updatedAt?.split("T")[0] ?? "—",
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export function InventoryMonitoring() {
   const [searchTerm, setSearchTerm] = useState("");
+  // ✅ H5 FIX: Load live inventory from DataService
+  const [inventory, setInventory] = useState<InventoryItem[]>(buildLiveInventory);
 
-  const inventory: InventoryItem[] = [
-    {
-      id: "1",
-      name: "Car Shampoo Premium",
-      category: "Cleaning Chemicals",
-      currentStock: 45,
-      moq: 50,
-      unit: "Liters",
-      weeklyConsumption: 12,
-      trend: "up",
-      status: "low",
-      lastRestocked: "2026-02-28"
-    },
-    {
-      id: "2",
-      name: "Microfiber Cloth",
-      category: "Consumables",
-      currentStock: 120,
-      moq: 100,
-      unit: "Pieces",
-      weeklyConsumption: 25,
-      trend: "stable",
-      status: "normal",
-      lastRestocked: "2026-03-05"
-    },
-    {
-      id: "3",
-      name: "Wax Polish",
-      category: "Polishing Products",
-      currentStock: 15,
-      moq: 30,
-      unit: "Bottles",
-      weeklyConsumption: 8,
-      trend: "up",
-      status: "critical",
-      lastRestocked: "2026-02-20"
-    },
-    {
-      id: "4",
-      name: "Tire Shine Spray",
-      category: "Finishing Products",
-      currentStock: 25,
-      moq: 40,
-      unit: "Bottles",
-      weeklyConsumption: 10,
-      trend: "down",
-      status: "low",
-      lastRestocked: "2026-03-01"
-    },
-    {
-      id: "5",
-      name: "Glass Cleaner",
-      category: "Cleaning Chemicals",
-      currentStock: 80,
-      moq: 60,
-      unit: "Liters",
-      weeklyConsumption: 15,
-      trend: "stable",
-      status: "normal",
-      lastRestocked: "2026-03-07"
-    },
-    {
-      id: "6",
-      name: "Foam Gun Nozzle",
-      category: "Equipment Parts",
-      currentStock: 5,
-      moq: 15,
-      unit: "Pieces",
-      weeklyConsumption: 2,
-      trend: "stable",
-      status: "critical",
-      lastRestocked: "2026-01-15"
-    },
-    {
-      id: "7",
-      name: "Vacuum Bags",
-      category: "Consumables",
-      currentStock: 35,
-      moq: 50,
-      unit: "Pieces",
-      weeklyConsumption: 18,
-      trend: "up",
-      status: "low",
-      lastRestocked: "2026-03-02"
-    },
-    {
-      id: "8",
-      name: "Air Freshener",
-      category: "Finishing Products",
-      currentStock: 150,
-      moq: 100,
-      unit: "Pieces",
-      weeklyConsumption: 20,
-      trend: "stable",
-      status: "normal",
-      lastRestocked: "2026-03-08"
-    }
-  ];
+  useEffect(() => {
+    // Refresh on focus to pick up changes made in other tabs
+    const refresh = () => setInventory(buildLiveInventory());
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
 
   const filteredInventory = inventory.filter(
     (item) =>

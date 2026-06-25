@@ -12,6 +12,31 @@ import {
 } from "../ui/select";
 import { Package, Plus, CheckCircle, Clock, Truck, User, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { DataService } from "../../services/DataService";
+
+// ── Live inventory helpers ────────────────────────────────────────────────────
+function getLiveItems() {
+  try {
+    const items = DataService.get<any>("INVENTORY_ITEMS");
+    return items.length > 0 ? items : [];
+  } catch { return []; }
+}
+
+function deductFromInventory(issuedItems: IssuanceItem[], issuanceId: string) {
+  try {
+    const liveItems = getLiveItems();
+    if (!liveItems.length) return;
+    const updated = liveItems.map((inv: any) => {
+      const line = issuedItems.find(i => i.itemId === inv.itemId);
+      if (!line) return inv;
+      const newStock = Math.max(0, (inv.centralStock ?? 0) - line.quantity);
+      return { ...inv, centralStock: newStock, updatedAt: new Date().toISOString() };
+    });
+    DataService.setAll("INVENTORY_ITEMS", updated);
+    try { localStorage.setItem("cleancar_CITY-SURAT_inventory_items", JSON.stringify(updated)); } catch {}
+    console.log(`[Issuance] ${issuanceId} — inventory deducted`);
+  } catch (e) { console.error("[Issuance] Failed to deduct inventory:", e); }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface IssuanceItem { itemId: string; itemName: string; quantity: number; unit: string; batchNo?: string; }
@@ -30,15 +55,15 @@ interface Issuance {
   totalQty:     number;
 }
 
-// ── Reference data (in sync with seedAllData.ts inventory) ───────────────────
-const INVENTORY_ITEMS = [
-  { itemId:"INV-SUR-001", itemName:"Car Shampoo 5L",          unit:"L",   centralStock:45 },
-  { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large",  unit:"Pcs", centralStock:120 },
-  { itemId:"INV-SUR-003", itemName:"Tyre Shine 500ml",        unit:"L",   centralStock:30 },
-  { itemId:"INV-SUR-004", itemName:"Dashboard Polish",        unit:"L",   centralStock:8 },
-  { itemId:"INV-SUR-005", itemName:"Pressure Washer Nozzle",  unit:"Pcs", centralStock:6 },
-  { itemId:"INV-SUR-006", itemName:"Washer Uniform Set",      unit:"Pcs", centralStock:25 },
-  { itemId:"INV-SUR-007", itemName:"Wheel Cleaner 1L",        unit:"L",   centralStock:18 },
+// ── Reference data — loaded live from DataService, fallback to seed ──────────
+const INVENTORY_SEED = [
+  { itemId:"INV-SUR-001", itemName:"Car Shampoo 5L",         unit:"L",   centralStock:45 },
+  { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large", unit:"Pcs", centralStock:120 },
+  { itemId:"INV-SUR-003", itemName:"Tyre Shine 500ml",       unit:"L",   centralStock:30 },
+  { itemId:"INV-SUR-004", itemName:"Dashboard Polish",       unit:"L",   centralStock:8  },
+  { itemId:"INV-SUR-005", itemName:"Pressure Washer Nozzle", unit:"Pcs", centralStock:6  },
+  { itemId:"INV-SUR-006", itemName:"Washer Uniform Set",     unit:"Pcs", centralStock:25 },
+  { itemId:"INV-SUR-007", itemName:"Wheel Cleaner 1L",       unit:"L",   centralStock:18 },
 ];
 
 const RECIPIENTS = [
@@ -190,18 +215,32 @@ export function StoreIssuances() {
   const [form, setForm] = useState(emptyForm());
   const [filter, setFilter] = useState<"All" | "Supervisor" | "Car Washer">("All");
 
-  // Reset form on open
-  useEffect(() => { if (dialogOpen) setForm(emptyForm()); }, [dialogOpen]);
+  // ✅ C2 FIX: Load live inventory on every dialog open so stock values are current
+  const [liveInventory, setLiveInventory] = useState<any[]>([]);
+
+  // Reset form on open + refresh live inventory
+  useEffect(() => {
+    if (dialogOpen) {
+      setForm(emptyForm());
+      const live = getLiveItems();
+      setLiveInventory(live.length > 0 ? live : INVENTORY_SEED);
+    }
+  }, [dialogOpen]);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const selectedRecipient = RECIPIENTS.find(r => r.id === form.recipientId);
 
   const handleAddItem = () => {
-    const inv = INVENTORY_ITEMS.find(i => i.itemId === form.newItemId);
+    // ✅ C2 FIX: Use liveInventory so stock values are real
+    const inv = liveInventory.find((i: any) => i.itemId === form.newItemId);
     if (!inv) { toast.error("Select an item first"); return; }
     if (form.items.find(i => i.itemId === form.newItemId)) { toast.error("Item already added"); return; }
     if (form.newQty < 1) { toast.error("Quantity must be at least 1"); return; }
+    if (form.newQty > (inv.centralStock ?? 0)) {
+      toast.error(`Only ${inv.centralStock} ${inv.unit} in stock`);
+      return;
+    }
     setForm(f => ({
       ...f,
       newItemId: "",
@@ -247,6 +286,9 @@ export function StoreIssuances() {
       localStorage.setItem("cleancar_issuance_records", JSON.stringify(updated));
       setIssuances(updated);
     } catch {}
+
+    // ✅ C2 FIX: Deduct issued quantities from live centralStock
+    deductFromInventory(form.items, id);
 
     toast.success("Materials issued successfully!", {
       description: `${id} — ${record.totalQty} units issued to ${record.issuedTo}`,
@@ -437,9 +479,9 @@ export function StoreIssuances() {
                   <Select value={form.newItemId} onValueChange={v => set("newItemId", v)}>
                     <SelectTrigger><SelectValue placeholder="Select item…" /></SelectTrigger>
                     <SelectContent>
-                      {INVENTORY_ITEMS.map(i => (
-                        <SelectItem key={i.itemId} value={i.itemId} disabled={!!form.items.find(f => f.itemId === i.itemId)}>
-                          {i.itemName} (Stock: {i.centralStock} {i.unit})
+                      {liveInventory.map((i: any) => (
+                        <SelectItem key={i.itemId} value={i.itemId} disabled={!!form.items.find(f => f.itemId === i.itemId) || (i.centralStock ?? 0) === 0}>
+                          {i.itemName} (Stock: {i.centralStock ?? 0} {i.unit}){(i.centralStock ?? 0) === 0 ? " — Out of Stock" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

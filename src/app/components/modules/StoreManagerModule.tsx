@@ -10,32 +10,53 @@ import {
 } from "recharts";
 import { BackButton } from "../ui/back-button";
 
+/** Build weekly consumption trend from issuance records */
+function buildConsumptionTrend() {
+  try {
+    const issuances = JSON.parse(localStorage.getItem("cleancar_issuance_records") || "[]");
+    const now = new Date();
+    const weeks: Record<string, number> = { "Week 1": 0, "Week 2": 0, "Week 3": 0, "Week 4": 0 };
+    issuances.forEach((iss: any) => {
+      const d = new Date(iss.issuanceDate);
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+        const day = d.getDate();
+        const week = day <= 7 ? "Week 1" : day <= 14 ? "Week 2" : day <= 21 ? "Week 3" : "Week 4";
+        weeks[week] = (weeks[week] ?? 0) + (iss.totalQty ?? 0);
+      }
+    });
+    return Object.entries(weeks).map(([week, consumption], i) => ({ week, consumption, id: `week-${i+1}` }));
+  } catch {
+    return [
+      { week: "Week 1", consumption: 0, id: "week-1" },
+      { week: "Week 2", consumption: 0, id: "week-2" },
+      { week: "Week 3", consumption: 0, id: "week-3" },
+      { week: "Week 4", consumption: 0, id: "week-4" },
+    ];
+  }
+}
+
+/** Build supervisor consumption from issuance records */
+function buildSupervisorConsumption() {
+  try {
+    const issuances = JSON.parse(localStorage.getItem("cleancar_issuance_records") || "[]");
+    const map: Record<string, number> = {};
+    issuances.forEach((iss: any) => {
+      if (iss.recipientType === "Supervisor") {
+        map[iss.issuedTo] = (map[iss.issuedTo] ?? 0) + (iss.totalQty ?? 0);
+      }
+    });
+    return Object.entries(map).length > 0
+      ? Object.entries(map).map(([region, consumption], i) => ({ region, consumption, id: `sup-${i}` }))
+      : [{ region: "No data yet", consumption: 0, id: "empty" }];
+  } catch {
+    return [{ region: "No data yet", consumption: 0, id: "empty" }];
+  }
+}
+
 export function StoreManagerModule() {
-  const consumptionTrendData = [
-    { week: "Week 1", consumption: 450, id: "week-1" },
-    { week: "Week 2", consumption: 520, id: "week-2" },
-    { week: "Week 3", consumption: 480, id: "week-3" },
-    { week: "Week 4", consumption: 648, id: "week-4" } // 35% increase
-  ];
-
-  const regionalConsumption = [
-    { region: "Mumbai Central", consumption: 1200, id: "reg-central" },
-    { region: "Mumbai Western", consumption: 1050, id: "reg-western" },
-    { region: "Mumbai Eastern", consumption: 980, id: "reg-eastern" },
-    { region: "Thane", consumption: 850, id: "reg-thane" },
-    { region: "Navi Mumbai", consumption: 920, id: "reg-navi" }
-  ];
-
-  // REMOVED: Manpower ratio data - operational metric (belongs to Operations Manager)
-  // Store Manager should track consumption vs stock/purchase, not vs manpower
-  /* const manpowerRatioData = [
-    { month: "Oct", manpower: 45, consumption: 420, id: "mp-oct" },
-    { month: "Nov", manpower: 48, consumption: 480, id: "mp-nov" },
-    { month: "Dec", manpower: 50, consumption: 510, id: "mp-dec" },
-    { month: "Jan", manpower: 52, consumption: 550, id: "mp-jan" },
-    { month: "Feb", manpower: 55, consumption: 580, id: "mp-feb" },
-    { month: "Mar", manpower: 58, consumption: 648, id: "mp-mar" }
-  ]; */
+  // ✅ H2 FIX: Build chart data from real issuance records
+  const consumptionTrendData = buildConsumptionTrend();
+  const regionalConsumption  = buildSupervisorConsumption();
 
   return (
     <div className="space-y-6">

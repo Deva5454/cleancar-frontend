@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -128,12 +129,16 @@ export function MOQManagement() {
   };
 
   const handleSave = (productId: string) => {
-    setProducts(products.map(p => 
-      p.id === productId 
+    const updated = products.map(p =>
+      p.id === productId
         ? { ...p, moq: editValue, lastUpdated: new Date().toISOString().split('T')[0] }
         : p
-    ));
+    );
+    setProducts(updated);
     setEditingId(null);
+    // ✅ H1 FIX: Persist MOQ changes to localStorage
+    try { localStorage.setItem("cleancar_moq_settings", JSON.stringify(updated)); } catch {}
+    toast.success("MOQ updated successfully");
   };
 
   const handleCancel = () => {

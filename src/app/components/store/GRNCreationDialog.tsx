@@ -11,6 +11,53 @@ import {
 import { Badge } from "../ui/badge";
 import { Camera, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { DataService } from "../../services/DataService";
+import { useRole } from "../../contexts/RoleContext";
+
+/** Update centralStock in INVENTORY_ITEMS for all accepted GRN items */
+function applyGRNToInventory(items: GRNItem[], grnNumber: string) {
+  try {
+    const liveItems = DataService.get<any>("INVENTORY_ITEMS");
+    if (!liveItems.length) return;
+
+    // Build a name→qty map for accepted items
+    const acceptedMap: Record<string, number> = {};
+    items.forEach(i => {
+      if (i.acceptedQuantity > 0) {
+        // Normalise name: lower-case, trim to match inventory names loosely
+        const key = i.itemName.trim().toLowerCase();
+        acceptedMap[key] = (acceptedMap[key] ?? 0) + i.acceptedQuantity;
+      }
+    });
+
+    const updated = liveItems.map((inv: any) => {
+      const invKey = (inv.itemName ?? "").trim().toLowerCase();
+      const qty = acceptedMap[invKey] ?? 0;
+      if (qty === 0) return inv;
+      return {
+        ...inv,
+        centralStock: (inv.centralStock ?? 0) + qty,
+        updatedAt:    new Date().toISOString(),
+        lastProcurementDate: new Date().toISOString().split("T")[0],
+      };
+    });
+
+    DataService.setAll("INVENTORY_ITEMS", updated);
+    // Also write raw key used by StockVerification
+    try {
+      localStorage.setItem(
+        "cleancar_CITY-SURAT_inventory_items",
+        JSON.stringify(updated)
+      );
+    } catch { /* quota guard */ }
+
+    console.log(`[GRN] ${grnNumber} — inventory updated for`,
+      Object.entries(acceptedMap).map(([k, v]) => `${k}: +${v}`).join(", ")
+    );
+  } catch (e) {
+    console.error("[GRN] Failed to update inventory:", e);
+  }
+}
 
 interface GRNItem {
   id: number;
@@ -42,6 +89,8 @@ const emptyState = () => ({
 
 export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialogProps) {
   const [form, setForm] = useState(emptyState);
+  const { currentUser } = useRole();
+  const receivedBy = currentUser?.name ?? "Store Manager";
 
   // Reset form every time the dialog opens
   useEffect(() => {
@@ -130,6 +179,9 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
       localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
     } catch { /* quota guard */ }
 
+    // ✅ C1 FIX: Update live inventory centralStock for accepted items
+    applyGRNToInventory(form.items, grnNumber);
+
     toast.success("GRN created successfully!", {
       description: `${grnNumber} — ${totalAccepted} units accepted${totalRejected > 0 ? `, ${totalRejected} rejected` : ""}.`,
     });
@@ -176,7 +228,7 @@ export function GRNCreationDialog({ open, onClose, linkedPO }: GRNCreationDialog
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Received By</Label>
-              <Input value="Store Manager" disabled className="bg-white" />
+              <Input value={receivedBy} disabled className="bg-white" />
             </div>
           </div>
 

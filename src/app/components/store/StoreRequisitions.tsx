@@ -8,15 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { FileText, Plus, CheckCircle, Clock, XCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { DataService } from "../../services/DataService";
 
-interface RequisitionItem { itemId: string; itemName: string; unit: string; currentStock: number; reorderLevel: number; qtyRequired: number; }
-interface Requisition {
-  mrId: string; mrDate: string; raisedBy: string; urgency: "Normal" | "Urgent" | "Critical";
-  status: "Draft" | "Submitted" | "Approved" | "Ordered" | "Partially Received" | "Completed" | "Rejected";
-  items: RequisitionItem[]; notes?: string; approvedBy?: string; approvedDate?: string; expectedDate?: string; createdAt: string;
-}
-
-const INVENTORY_ITEMS = [
+// Live inventory seed fallback
+const INVENTORY_SEED = [
   { itemId:"INV-SUR-001", itemName:"Car Shampoo 5L",         unit:"L",   centralStock:45, reorderLevel:20 },
   { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large", unit:"Pcs", centralStock:120,reorderLevel:50 },
   { itemId:"INV-SUR-003", itemName:"Tyre Shine 500ml",       unit:"L",   centralStock:30, reorderLevel:15 },
@@ -26,6 +21,22 @@ const INVENTORY_ITEMS = [
   { itemId:"INV-SUR-007", itemName:"Wheel Cleaner 1L",       unit:"L",   centralStock:18, reorderLevel:12 },
   { itemId:"INV-SUR-008", itemName:"Glass Cleaner 500ml",    unit:"L",   centralStock:0,  reorderLevel:10 },
 ];
+function getLiveInventory() {
+  try {
+    const items = DataService.get<any>("INVENTORY_ITEMS");
+    return items.length > 0
+      ? items.map((i: any) => ({ itemId:i.itemId, itemName:i.itemName, unit:i.unit, centralStock:i.centralStock??0, reorderLevel:i.reorderLevel??0 }))
+      : INVENTORY_SEED;
+  } catch { return INVENTORY_SEED; }
+}
+
+interface RequisitionItem { itemId: string; itemName: string; unit: string; currentStock: number; reorderLevel: number; qtyRequired: number; }
+interface Requisition {
+  mrId: string; mrDate: string; raisedBy: string; urgency: "Normal" | "Urgent" | "Critical";
+  status: "Draft" | "Submitted" | "Approved" | "Ordered" | "Partially Received" | "Completed" | "Rejected";
+  items: RequisitionItem[]; notes?: string; approvedBy?: string; approvedDate?: string; expectedDate?: string; createdAt: string;
+}
+
 
 const SEED: Requisition[] = [
   { mrId:"MR-202604-001", mrDate:"2026-04-28", raisedBy:"Nilesh Chauhan (Store Manager)", urgency:"Normal",   status:"Completed",         approvedBy:"Amit Desai", approvedDate:"2026-04-29", expectedDate:"2026-05-05", createdAt:"2026-04-28T09:00:00.000Z", notes:"Monthly replenishment", items:[{ itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",currentStock:12,reorderLevel:20,qtyRequired:50},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",unit:"Pcs",currentStock:40,reorderLevel:50,qtyRequired:100},{itemId:"INV-SUR-007",itemName:"Wheel Cleaner 1L",unit:"L",currentStock:5,reorderLevel:12,qtyRequired:20}] },
@@ -34,8 +45,6 @@ const SEED: Requisition[] = [
   { mrId:"MR-202606-001", mrDate:"2026-06-18", raisedBy:"Nilesh Chauhan (Store Manager)", urgency:"Critical", status:"Approved",          approvedBy:"Amit Desai", approvedDate:"2026-06-18", expectedDate:"2026-06-25", createdAt:"2026-06-18T08:00:00.000Z", notes:"Glass cleaner completely out of stock", items:[{itemId:"INV-SUR-008",itemName:"Glass Cleaner 500ml",unit:"L",currentStock:0,reorderLevel:10,qtyRequired:30}] },
   { mrId:"MR-202606-002", mrDate:"2026-06-23", raisedBy:"Nilesh Chauhan (Store Manager)", urgency:"Normal",   status:"Submitted",         createdAt:"2026-06-23T09:00:00.000Z", items:[{itemId:"INV-SUR-001",itemName:"Car Shampoo 5L",unit:"L",currentStock:45,reorderLevel:20,qtyRequired:50},{itemId:"INV-SUR-002",itemName:"Microfiber Cloth Large",unit:"Pcs",currentStock:120,reorderLevel:50,qtyRequired:100}] },
 ];
-
-const belowReorder = INVENTORY_ITEMS.filter(i => i.centralStock <= i.reorderLevel);
 
 const seed = () => { try { if (!localStorage.getItem("cleancar_requisitions")) localStorage.setItem("cleancar_requisitions", JSON.stringify(SEED)); } catch {} };
 const load = (): Requisition[] => { seed(); try { const r = localStorage.getItem("cleancar_requisitions"); return r ? JSON.parse(r) : SEED; } catch { return SEED; } };
@@ -48,12 +57,18 @@ export function StoreRequisitions() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState("All");
   const [form, setForm] = useState(emptyForm());
+  // ✅ M2 FIX: Load live inventory so stock values are always current
+  const [liveInventory, setLiveInventory] = useState(getLiveInventory);
 
-  useEffect(() => { if (dialogOpen) setForm(emptyForm()); }, [dialogOpen]);
+  useEffect(() => { if (dialogOpen) { setForm(emptyForm()); setLiveInventory(getLiveInventory()); } }, [dialogOpen]);
+
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  // ✅ M2 FIX: Compute below-reorder from live inventory
+  const belowReorder = liveInventory.filter(i => i.centralStock <= i.reorderLevel);
+
   const handleAddItem = () => {
-    const inv = INVENTORY_ITEMS.find(i => i.itemId === form.newItemId);
+    const inv = liveInventory.find(i => i.itemId === form.newItemId);
     if (!inv) { toast.error("Select an item"); return; }
     if (form.items.find(i => i.itemId === form.newItemId)) { toast.error("Already added"); return; }
     setForm(f => ({ ...f, newItemId:"", newQty:10, items:[...f.items,{itemId:inv.itemId,itemName:inv.itemName,unit:inv.unit,currentStock:inv.centralStock,reorderLevel:inv.reorderLevel,qtyRequired:f.newQty}] }));
@@ -78,7 +93,24 @@ export function StoreRequisitions() {
   const handleApprove = (mr: Requisition) => {
     const updated = requisitions.map(r => r.mrId===mr.mrId ? {...r, status:"Approved" as const, approvedBy:"Amit Desai", approvedDate: new Date().toISOString().split("T")[0]} : r);
     setRequisitions(updated); persist(updated);
-    toast.success(`MR ${mr.mrId} approved`);
+
+    // ✅ M1 FIX: Auto-create draft Purchase Order from approved MR
+    try {
+      const poId = `PO-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
+      const po = {
+        id: poId, poNumber: poId, mrRef: mr.mrId,
+        status: "Pending Procurement Review",
+        createdAt: new Date().toISOString(),
+        raisedBy: "System (Auto from MR)",
+        items: mr.items.map(i => ({ ...i, unitPrice: 0, totalPrice: 0 })),
+        urgency: mr.urgency, notes: `Auto-created from MR ${mr.mrId}`,
+      };
+      const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify([po, ...existing]));
+      toast.success(`MR ${mr.mrId} approved — Draft PO ${poId} created`);
+    } catch {
+      toast.success(`MR ${mr.mrId} approved`);
+    }
   };
 
   const statusColor: Record<string,string> = { Draft:"bg-gray-100 text-gray-600", Submitted:"bg-blue-100 text-blue-800", Approved:"bg-green-100 text-green-800", Ordered:"bg-purple-100 text-purple-800", "Partially Received":"bg-yellow-100 text-yellow-800", Completed:"bg-teal-100 text-teal-800", Rejected:"bg-red-100 text-red-800" };
@@ -173,7 +205,7 @@ export function StoreRequisitions() {
               <div className="flex gap-2 items-end">
                 <div className="flex-1 space-y-1"><Label className="text-xs">Item</Label>
                   <Select value={form.newItemId} onValueChange={v=>set("newItemId",v)}><SelectTrigger><SelectValue placeholder="Select item…"/></SelectTrigger><SelectContent>
-                    {INVENTORY_ITEMS.map(i=><SelectItem key={i.itemId} value={i.itemId} disabled={!!form.items.find(f=>f.itemId===i.itemId)}>{i.itemName} (Stock: {i.centralStock})</SelectItem>)}
+                    {liveInventory.map(i=><SelectItem key={i.itemId} value={i.itemId} disabled={!!form.items.find(f=>f.itemId===i.itemId)}>{i.itemName} (Stock: {i.centralStock})</SelectItem>)}
                   </SelectContent></Select>
                 </div>
                 <div className="w-24 space-y-1"><Label className="text-xs">Qty</Label><Input type="number" min={1} value={form.newQty} onChange={e=>set("newQty",parseInt(e.target.value)||1)}/></div>
