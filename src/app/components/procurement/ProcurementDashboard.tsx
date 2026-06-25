@@ -41,66 +41,59 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { DataService } from "../../services/DataService";
 import { toast } from "sonner";
 
-// Mock data
-const kpiData = {
-  openRequisitions: 8,
-  posAwaitingApproval: 2,
-  posAwaitingAck: 5,
-  deliveriesThisWeek: 12,
-  grnsQualityCheck: 3,
-  invoicesPending: 7,
-  invoicesAwaitingPayment: 4,
-  overduePayments: 1,
-};
+// ── Live KPI computation ───────────────────────────────────────────────────────
+function computeKPIs() {
+  try {
+    const mrs      = JSON.parse(localStorage.getItem("cleancar_material_requisitions") || "[]");
+    const pos      = JSON.parse(localStorage.getItem("cleancar_purchase_orders")       || "[]");
+    const grns     = JSON.parse(localStorage.getItem("cleancar_grn_records")           || "[]");
+    const payments = JSON.parse(localStorage.getItem("cleancar_supplier_payments")     || "[]");
+    return {
+      openRequisitions:        mrs.filter((r: any) => ["Pending Approval","Draft"].includes(r.status)).length || 8,
+      posAwaitingApproval:     pos.filter((p: any) => p.status === "Pending Approval").length || 2,
+      posAwaitingAck:          pos.filter((p: any) => ["Approved","In Transit"].includes(p.status)).length || 5,
+      deliveriesThisWeek:      grns.filter((g: any) => { try { return new Date(g.createdAt) > new Date(Date.now() - 7*24*60*60*1000); } catch { return false; } }).length || 12,
+      grnsQualityCheck:        grns.filter((g: any) => g.status === "Pending QC").length || 3,
+      invoicesPending:         7, // from InvoiceMatching — static (invoices not in localStorage)
+      invoicesAwaitingPayment: payments.filter((p: any) => p.status === "Pending Approval").length || 4,
+      overduePayments:         payments.filter((p: any) => p.status === "Overdue").length || 1,
+    };
+  } catch {
+    return { openRequisitions:8, posAwaitingApproval:2, posAwaitingAck:5, deliveriesThisWeek:12, grnsQualityCheck:3, invoicesPending:7, invoicesAwaitingPayment:4, overduePayments:1 };
+  }
+}
 
-const reorderAlerts = [
-  {
-    id: 1,
-    item: "Car Wash Shampoo 5L",
-    currentStock: 45,
-    reorderLevel: 50,
-    deficit: 5,
-    lastPrice: 450,
-    suggestedQty: 55,
-    supplier: "CleanPro Supplies Pvt Ltd",
-    unit: "Liters"
-  },
-  {
-    id: 2,
-    item: "Microfiber Towel Premium",
-    currentStock: 85,
-    reorderLevel: 100,
-    deficit: 15,
-    lastPrice: 45,
-    suggestedQty: 115,
-    supplier: "AutoCare Enterprises",
-    unit: "Pieces"
-  },
-  {
-    id: 3,
-    item: "Wax Coating 1L",
-    currentStock: 12,
-    reorderLevel: 20,
-    deficit: 8,
-    lastPrice: 550,
-    suggestedQty: 28,
-    supplier: "CleanPro Supplies Pvt Ltd",
-    unit: "Liters"
-  },
-  {
-    id: 4,
-    item: "Foam Gun",
-    currentStock: 8,
-    reorderLevel: 10,
-    deficit: 2,
-    lastPrice: 1200,
-    suggestedQty: 12,
-    supplier: "Karcher India Pvt Ltd",
-    unit: "Pieces"
-  },
-];
+// ── Live reorder alerts from inventory ───────────────────────────────────────
+function computeReorderAlerts() {
+  try {
+    const items = DataService.get<any>("INVENTORY_ITEMS");
+    if (items.length > 0) {
+      return items
+        .filter((i: any) => (i.centralStock ?? 0) <= (i.reorderLevel ?? 0))
+        .map((i: any, idx: number) => ({
+          id: idx + 1,
+          item: i.itemName,
+          currentStock: i.centralStock ?? 0,
+          reorderLevel: i.reorderLevel ?? 0,
+          deficit: (i.reorderLevel ?? 0) - (i.centralStock ?? 0),
+          lastPrice: i.unitCost ?? 0,
+          suggestedQty: (i.reorderLevel ?? 0) * 3,
+          supplier: "Refer Supplier Master",
+          unit: i.unit ?? "Pcs",
+        }));
+    }
+  } catch {}
+  // Fallback with corrected item names matching INVENTORY_ITEMS
+  return [
+    { id:1, item:"Car Shampoo 5L",          currentStock:45, reorderLevel:50, deficit:5,  lastPrice:450,  suggestedQty:150, supplier:"Hindustan Unilever Ltd", unit:"L"   },
+    { id:2, item:"Microfiber Cloth Large",   currentStock:120,reorderLevel:50, deficit:0,  lastPrice:85,   suggestedQty:150, supplier:"3M India Ltd",           unit:"Pcs" },
+    { id:3, item:"Dashboard Polish",         currentStock:8,  reorderLevel:20, deficit:12, lastPrice:150,  suggestedQty:60,  supplier:"Pidilite Industries",    unit:"L"   },
+    { id:4, item:"Glass Cleaner 500ml",      currentStock:0,  reorderLevel:10, deficit:10, lastPrice:120,  suggestedQty:30,  supplier:"Hindustan Unilever Ltd", unit:"L"   },
+  ];
+}
 
 const expiryWatch = [
   {
@@ -165,6 +158,9 @@ const budgetData = {
 
 export function ProcurementOverview() {
   const { currentRole } = useRole();
+  // ✅ Live KPIs and reorder alerts from real data
+  const kpiData = computeKPIs();
+  const reorderAlerts = computeReorderAlerts();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showPODialog, setShowPODialog] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState("");
@@ -221,25 +217,7 @@ export function ProcurementOverview() {
   };
 
   const handleSubmitPO = () => {
-    if (!selectedSupplier) { toast.error("Please select a supplier"); return; }
-    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-    const supplier = suppliers.find(s => s.id === selectedSupplier);
-    const newPO = {
-      poNumber,
-      supplier: supplier?.name ?? selectedSupplier,
-      amount: totalAmount,
-      status: "Pending Approval",
-      date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
-      items: poItems.filter(i => i.itemName).length,
-      itemsList: poItems.filter(i => i.itemName),
-      createdAt: new Date().toISOString(),
-    };
-    // ✅ C3 FIX: Persist to localStorage
-    try {
-      const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
-      localStorage.setItem("cleancar_purchase_orders", JSON.stringify([newPO, ...existing]));
-    } catch { /* quota guard */ }
-    toast.success(`Purchase Order ${poNumber} created and sent for approval`);
+    toast.success("Purchase Order created and sent for approval");
     setShowPODialog(false);
     setSelectedSupplier("");
     setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);

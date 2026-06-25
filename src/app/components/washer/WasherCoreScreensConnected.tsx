@@ -17,6 +17,8 @@ import { WasherIncentiveTracker } from "./WasherIncentiveTracker";
 import { WasherCheckOut } from "./WasherCheckOut";
 import { DaySummaryScreen } from "./DaySummaryScreen";
 import { mockWasherDataService, computePeriodicFlagsB } from "../../services/mockWasherDataService";
+import { fieldTrackingService } from "../../services/fieldTrackingService";
+import { fieldTrackingService } from "../../services/fieldTrackingService";
 import type { CustomerJob } from "../../services/mockWasherDataService";
 type Screen = "dashboard" | "checkin" | "schedule" | "active" | "incentive" | "checkout";
 
@@ -162,6 +164,48 @@ export function WasherCoreScreensConnected() {
       }
     } catch (_) {}
 
+    // FIELD TRACKING: Bridge washer check-in to unified field tracking
+    try {
+      const washerName = profile?.name || (currentUser as any)?.employeeName || "Car Washer";
+      const doCheckIn = (lat: number, lng: number, accuracy: number) => {
+        fieldTrackingService.checkIn({
+          employeeId: washerId || "WASHER-DEMO",
+          employeeName: washerName,
+          role: "Car Washer",
+          selfieBase64: checkInPhoto || "",
+          shiftStartTime: "05:00",
+          shiftEndTime: "09:00",
+        });
+      };
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => doCheckIn(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+          () => doCheckIn(21.1702, 72.8311, 999)
+        );
+      } else { doCheckIn(21.1702, 72.8311, 999); }
+    } catch (_) {}
+
+    // FIELD TRACKING: Bridge washer check-in to unified field tracking
+    try {
+      const washerName = profile?.name || (currentUser as any)?.employeeName || "Car Washer";
+      const doCheckIn = (lat: number, lng: number, accuracy: number) => {
+        fieldTrackingService.checkIn({
+          employeeId: washerId || "WASHER-DEMO",
+          employeeName: washerName,
+          role: "Car Washer",
+          selfieBase64: checkInPhoto || "",
+          shiftStartTime: "05:00",
+          shiftEndTime: "09:00",
+        });
+      };
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => doCheckIn(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+          () => doCheckIn(21.1702, 72.8311, 999)
+        );
+      } else { doCheckIn(21.1702, 72.8311, 999); }
+    } catch (_) {}
+
     // Fix: start GPS tracking on check-in
     const currentJob = activeJobId ? jobs.find(j => j.id === activeJobId) : null;
     const washerEmployeeId = (currentUser as any)?.employeeId || "";
@@ -232,6 +276,7 @@ export function WasherCoreScreensConnected() {
   const handleSubmitCheckOut = () => {
     setCheckedOut(true);
     setShowDaySummary(true);
+    try { fieldTrackingService.checkOut(checkOutPhoto || ""); } catch (_) {}
   };
 
   // â"€â"€ MAP JOBS TO CARDS â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€

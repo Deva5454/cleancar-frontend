@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { BackButton } from "../ui/back-button";
 import { ProcurementOverview } from "../procurement/ProcurementDashboard";
@@ -13,7 +14,12 @@ import { SupplierPayments } from "../procurement/SupplierPayments";
 import { PurchaseAnalytics } from "../procurement/PurchaseAnalytics";
 
 export function ProcurementModule() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const location = useLocation();
+  // Support tab navigation from other components:
+  //   navigate("/procurement", { state: { tab: "purchase-orders", prefill: mrData } })
+  const locationState = location.state as { tab?: string; prefill?: any } | null;
+  const [activeTab, setActiveTab] = useState(locationState?.tab ?? "dashboard");
+  const [prefillMR, setPrefillMR] = useState<any>(locationState?.prefill ?? null);
 
   return (
     <div className="space-y-6">
@@ -56,7 +62,7 @@ export function ProcurementModule() {
         </TabsContent>
 
         <TabsContent value="purchase-orders">
-          <PurchaseOrders />
+          <PurchaseOrders prefillFromMR={prefillMR} onPrefillConsumed={() => setPrefillMR(null)} />
         </TabsContent>
 
         <TabsContent value="goods-receipt">

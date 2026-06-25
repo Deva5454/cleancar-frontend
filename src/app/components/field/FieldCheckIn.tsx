@@ -57,6 +57,24 @@ function formatCoords(lat: number, lng: number): string {
 function nowHour(): number { return new Date().getHours(); }
 function nowMinute(): number { return new Date().getMinutes(); }
 
+function shiftStartHour(role: string): number {
+  const m: Record<string, number> = { "Car Washer":5,"Operations Manager":10,"Supervisor":10,"Sales Manager":10,"Sales Head":10 };
+  return m[role] ?? 10;
+}
+function shiftEndHour(role: string): number {
+  const m: Record<string, number> = { "Car Washer":9,"Operations Manager":19,"Supervisor":19,"Sales Manager":19,"Sales Head":19 };
+  return m[role] ?? 19;
+}
+
+function shiftStartHour(role: string): number {
+  const m: Record<string, number> = { "Car Washer":5,"Operations Manager":10,"Supervisor":10,"Sales Manager":10,"Sales Head":10 };
+  return m[role] ?? 10;
+}
+function shiftEndHour(role: string): number {
+  const m: Record<string, number> = { "Car Washer":9,"Operations Manager":19,"Supervisor":19,"Sales Manager":19,"Sales Head":19 };
+  return m[role] ?? 19;
+}
+
 // ── Selfie Capturer ───────────────────────────────────────────────────────────
 
 function SelfieCapturer({
@@ -359,7 +377,7 @@ export function FieldCheckIn() {
     const result = await fieldTrackingService.checkIn({
       employeeId:   currentUser?.employeeId || "EMP-SM-001",
       employeeName: currentUser?.name       || currentRole,
-      role: currentRole as "Sales Head" | "Sales Manager",
+      role: currentRole,
       selfieBase64,
     });
     if (result.ok) {
@@ -385,6 +403,10 @@ export function FieldCheckIn() {
   const session = state.session;
   const today   = new Date().toISOString().slice(0, 10);
   const hour    = nowHour();
+  const shiftStart = shiftStartHour(currentRole);
+  const shiftEnd   = shiftEndHour(currentRole);
+  const shiftStart = shiftStartHour(currentRole);
+  const shiftEnd   = shiftEndHour(currentRole);
 
   // ── Selfie screens ──
   if (uiStep === "selfie-in") return (

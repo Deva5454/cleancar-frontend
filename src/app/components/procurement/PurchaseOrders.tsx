@@ -23,33 +23,61 @@ import {
 import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 
-export function PurchaseOrders() {
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+interface PurchaseOrdersProps {
+  prefillFromMR?: { mrRef?: string; items?: any[]; urgency?: string } | null;
+  onPrefillConsumed?: () => void;
+}
+
+const PO_SEED = [
+  { poNumber:"PO-2026-0245", supplier:"ChemClean Industries", amount:125000, status:"Pending Approval", date:"Mar 17, 2026", items:5, createdAt:"2026-03-17T09:00:00Z" },
+  { poNumber:"PO-2026-0244", supplier:"AutoCare Solutions",   amount:68500,  status:"Approved",         date:"Mar 16, 2026", items:3, createdAt:"2026-03-16T10:00:00Z" },
+  { poNumber:"PO-2026-0243", supplier:"ProWash Equipment",    amount:52000,  status:"Delivered",        date:"Mar 15, 2026", items:2, createdAt:"2026-03-15T11:00:00Z" },
+  { poNumber:"PO-2026-0242", supplier:"ChemClean Industries", amount:95000,  status:"In Transit",       date:"Mar 14, 2026", items:7, createdAt:"2026-03-14T08:00:00Z" },
+  { poNumber:"PO-2026-0241", supplier:"CarCare Supplies",     amount:42000,  status:"Approved",         date:"Mar 13, 2026", items:4, createdAt:"2026-03-13T09:00:00Z" },
+];
+
+function loadPOs(): any[] {
+  try {
+    const stored = localStorage.getItem("cleancar_purchase_orders");
+    const parsed = stored ? JSON.parse(stored) : [];
+    if (parsed.length === 0) {
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify(PO_SEED));
+      return PO_SEED;
+    }
+    return parsed;
+  } catch { return PO_SEED; }
+}
+
+export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrdersProps = {}) {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [showPODialog, setShowPODialog] = useState(false);
+  const [viewPO, setViewPO] = useState<any>(null);
   const [selectedSupplier, setSelectedSupplier] = useState("");
   const [poItems, setPOItems] = useState([
     { id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }
   ]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>(loadPOs);
 
-  // ✅ C2 FIX: Load from localStorage, seed historic data on first load
-  const PO_SEED = [
-    { poNumber:"PO-2026-0245", supplier:"ChemClean Industries",  amount:125000, status:"Pending Approval", date:"Mar 17, 2026", items:5, createdAt:"2026-03-17T09:00:00Z" },
-    { poNumber:"PO-2026-0244", supplier:"AutoCare Solutions",    amount:68500,  status:"Approved",         date:"Mar 16, 2026", items:3, createdAt:"2026-03-16T10:00:00Z" },
-    { poNumber:"PO-2026-0243", supplier:"ProWash Equipment",     amount:52000,  status:"Delivered",        date:"Mar 15, 2026", items:2, createdAt:"2026-03-15T11:00:00Z" },
-    { poNumber:"PO-2026-0242", supplier:"ChemClean Industries",  amount:95000,  status:"In Transit",       date:"Mar 14, 2026", items:7, createdAt:"2026-03-14T08:00:00Z" },
-    { poNumber:"PO-2026-0241", supplier:"CarCare Supplies",      amount:42000,  status:"Approved",         date:"Mar 13, 2026", items:4, createdAt:"2026-03-13T09:00:00Z" },
-  ];
-  const [purchaseOrders, setPurchaseOrders] = useState<any[]>(() => {
-    try {
-      const stored = localStorage.getItem("cleancar_purchase_orders");
-      const parsed = stored ? JSON.parse(stored) : [];
-      if (parsed.length === 0) {
-        localStorage.setItem("cleancar_purchase_orders", JSON.stringify(PO_SEED));
-        return PO_SEED;
-      }
-      return parsed;
-    } catch { return PO_SEED; }
-  });
+  // Open dialog pre-filled when navigated from MR Convert to PO
+  useEffect(() => {
+    if (prefillFromMR) {
+      const items = (prefillFromMR.items ?? []).map((item: any, i: number) => ({
+        id: i + 1,
+        itemName: item.itemName ?? item.name ?? "",
+        quantity: item.qtyRequired ?? item.quantity ?? 0,
+        unit: item.unit ?? "Pieces",
+        rate: 0,
+        amount: 0,
+      }));
+      if (items.length > 0) setPOItems(items);
+      setShowPODialog(true);
+      onPrefillConsumed?.();
+    }
+  }, [prefillFromMR]);
 
   const suppliers = [
     { id: "SUP-001", name: "CleanPro Supplies Pvt Ltd" },
@@ -89,40 +117,39 @@ export function PurchaseOrders() {
   };
 
   const handleSubmitPO = () => {
-    if (!selectedSupplier) {
-      toast.error("Please select a supplier");
-      return;
-    }
-    if (poItems.every(i => !i.itemName)) {
-      toast.error("Please add at least one item");
-      return;
-    }
-    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+    if (!selectedSupplier) { toast.error("Select a supplier"); return; }
     const supplier = suppliers.find(s => s.id === selectedSupplier);
+    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
     const newPO = {
-      poNumber,
-      supplier: supplier?.name ?? selectedSupplier,
+      poNumber, supplier: supplier?.name ?? selectedSupplier,
       amount: totalAmount,
       status: "Pending Approval",
-      date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
       items: poItems.filter(i => i.itemName).length,
       itemsList: poItems.filter(i => i.itemName),
       createdAt: new Date().toISOString(),
     };
-    // ✅ C2 FIX: Persist to localStorage
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
       localStorage.setItem("cleancar_purchase_orders", JSON.stringify([newPO, ...existing]));
-    } catch { /* quota guard */ }
+    } catch {}
     setPurchaseOrders(prev => [newPO, ...prev]);
-    toast.success(`Purchase Order ${poNumber} created and sent for approval`);
+    toast.success(`${poNumber} created and sent for approval`);
     setShowPODialog(false);
     setSelectedSupplier("");
     setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);
   };
 
+  const handleApprovePO = (po: any) => {
+    const updated = purchaseOrders.map(p => p.poNumber === po.poNumber ? { ...p, status: "Approved", approvedBy: "Procurement Manager", approvedAt: new Date().toISOString() } : p);
+    setPurchaseOrders(updated);
+    try { localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updated)); } catch {}
+    toast.success(`${po.poNumber} approved`);
+  };
+
   const handleViewPO = (poNumber: string) => {
-    toast.info(`Opening ${poNumber} details...`);
+    const po = purchaseOrders.find(p => p.poNumber === poNumber);
+    setViewPO(po ?? null);
   };
 
   const totalAmount = poItems.reduce((sum, item) => sum + item.amount, 0);
@@ -172,19 +199,30 @@ export function PurchaseOrders() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label:"Pending Approval", color:"text-orange-600", status:"Pending Approval" },
-          { label:"Approved",         color:"text-blue-600",   status:"Approved" },
-          { label:"In Transit",       color:"text-purple-600", status:"In Transit" },
-          { label:"Delivered",        color:"text-green-600",  status:"Delivered" },
-        ].map(s => (
-          <Card key={s.status}>
-            <CardContent className="p-4 text-center">
-              <p className={`text-2xl font-bold ${s.color}`}>{purchaseOrders.filter(p => p.status === s.status).length}</p>
-              <p className="text-xs text-gray-500">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-orange-600">1</p>
+            <p className="text-xs text-gray-500">Pending Approval</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-blue-600">2</p>
+            <p className="text-xs text-gray-500">Approved</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-purple-600">1</p>
+            <p className="text-xs text-gray-500">In Transit</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-green-600">1</p>
+            <p className="text-xs text-gray-500">Delivered</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -214,10 +252,17 @@ export function PurchaseOrders() {
                     <p className="font-bold text-lg">₹{po.amount.toLocaleString()}</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => handleViewPO(po.poNumber)}>
-                  <FileText className="w-4 h-4 mr-1" />
-                  View
-                </Button>
+                <div className="flex gap-2">
+                  {po.status === "Pending Approval" && (
+                    <Button size="sm" onClick={() => handleApprovePO(po)} className="bg-green-600 hover:bg-green-700">
+                      Approve
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => handleViewPO(po.poNumber)}>
+                    <FileText className="w-4 h-4 mr-1" />
+                    View
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -455,6 +500,50 @@ export function PurchaseOrders() {
               <CheckCircle className="w-4 h-4 mr-2" />
               Create PO & Submit for Approval
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── VIEW PO DIALOG ── */}
+      <Dialog open={!!viewPO} onOpenChange={o => { if (!o) setViewPO(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Purchase Order — {viewPO?.poNumber}</DialogTitle>
+            <DialogDescription>{viewPO?.supplier} · {viewPO?.date}</DialogDescription>
+          </DialogHeader>
+          {viewPO && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-lg p-4 text-sm">
+                <div><p className="text-xs text-gray-400">Supplier</p><p className="font-medium">{viewPO.supplier}</p></div>
+                <div><p className="text-xs text-gray-400">Status</p><Badge variant={getStatusColor(viewPO.status) as any}>{viewPO.status}</Badge></div>
+                <div><p className="text-xs text-gray-400">Date</p><p>{viewPO.date}</p></div>
+                <div><p className="text-xs text-gray-400">Items</p><p>{viewPO.items} line item{viewPO.items !== 1 ? "s" : ""}</p></div>
+                {viewPO.approvedBy && <div className="col-span-2"><p className="text-xs text-gray-400">Approved By</p><p className="text-green-700 font-medium">{viewPO.approvedBy}</p></div>}
+              </div>
+              {viewPO.itemsList && viewPO.itemsList.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Line Items</p>
+                  <table className="w-full text-xs border-collapse">
+                    <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b">Item</th><th className="text-right px-2 py-1.5 border-b">Qty</th><th className="text-right px-2 py-1.5 border-b">Rate</th><th className="text-right px-2 py-1.5 border-b">Amount</th></tr></thead>
+                    <tbody className="divide-y">{viewPO.itemsList.map((item: any, i: number) => (
+                      <tr key={i}><td className="px-2 py-1.5">{item.itemName}</td><td className="px-2 py-1.5 text-right">{item.quantity} {item.unit}</td><td className="px-2 py-1.5 text-right">₹{item.rate}</td><td className="px-2 py-1.5 text-right font-medium">₹{item.amount.toLocaleString()}</td></tr>
+                    ))}</tbody>
+                    <tfoot><tr className="border-t-2"><td className="px-2 py-1.5 font-bold" colSpan={3}>Total</td><td className="px-2 py-1.5 text-right font-bold">₹{viewPO.amount.toLocaleString()}</td></tr></tfoot>
+                  </table>
+                </div>
+              )}
+              {!viewPO.itemsList && <div className="text-center py-4 text-sm text-gray-400">No line item detail available</div>}
+              <div className="flex items-center justify-between bg-gray-50 rounded px-4 py-3">
+                <span className="font-medium text-sm">Total Amount</span>
+                <span className="text-xl font-bold">₹{viewPO.amount.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewPO(null)}>Close</Button>
+            {viewPO?.status === "Pending Approval" && (
+              <Button onClick={() => { handleApprovePO(viewPO); setViewPO(null); }} className="bg-green-600 hover:bg-green-700">Approve PO</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

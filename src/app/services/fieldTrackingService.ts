@@ -142,10 +142,28 @@ function upsertSession(session: FieldSession): void {
 // ── Roles that require field tracking ─────────────────────────────────────────
 
 export const FIELD_TRACKING_ROLES = [
-  "Sales Head",
-  "Sales Manager",
+  "Car Washer",
+  "Operations Manager",
   "Supervisor",
+  "Sales Manager",
+  "Sales Head",
 ] as const;
+
+export const ROLE_COLORS: Record<string, { pin: string; badge: string; text: string }> = {
+  "Car Washer":         { pin: "#3b82f6", badge: "bg-blue-100",   text: "text-blue-800" },
+  "Operations Manager": { pin: "#f59e0b", badge: "bg-amber-100",  text: "text-amber-800" },
+  "Supervisor":         { pin: "#ef4444", badge: "bg-red-100",    text: "text-red-800" },
+  "Sales Manager":      { pin: "#22c55e", badge: "bg-green-100",  text: "text-green-800" },
+  "Sales Head":         { pin: "#0ea5e9", badge: "bg-sky-100",    text: "text-sky-800" },
+};
+
+export const ROLE_SHIFT: Record<string, { startTime: string; endTime: string }> = {
+  "Car Washer":         { startTime: "05:00", endTime: "09:00" },
+  "Operations Manager": { startTime: "10:00", endTime: "19:00" },
+  "Supervisor":         { startTime: "10:00", endTime: "19:00" },
+  "Sales Manager":      { startTime: "10:00", endTime: "19:00" },
+  "Sales Head":         { startTime: "10:00", endTime: "19:00" },
+};
 
 export type FieldTrackingRole = typeof FIELD_TRACKING_ROLES[number];
 
@@ -216,7 +234,9 @@ class FieldTrackingService {
   async checkIn(params: {
     employeeId: string;
     employeeName: string;
-    role: "Sales Head" | "Sales Manager" | "Supervisor";
+    role: string;
+    shiftStartTime?: string;
+    shiftEndTime?: string;
     selfieBase64: string;
   }): Promise<{ ok: boolean; error?: string }> {
 
@@ -231,12 +251,15 @@ class FieldTrackingService {
     }
 
     const now = new Date().toISOString();
+    const roleShift = ROLE_SHIFT[params.role] || { startTime: "10:00", endTime: "19:00" };
     const session: FieldSession = {
       id: `FS-${Date.now()}`,
       employeeId: params.employeeId,
       employeeName: params.employeeName,
       role: params.role,
       date: now.slice(0, 10),
+      shiftStartTime: params.shiftStartTime || roleShift.startTime,
+      shiftEndTime: params.shiftEndTime || roleShift.endTime,
       checkInTime: now,
       checkInSelfieBase64: params.selfieBase64,
       checkInLocation: geoPoint,

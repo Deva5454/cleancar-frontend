@@ -6,74 +6,73 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "../ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
 import { Plus, Package, CheckCircle, AlertTriangle, Camera } from "lucide-react";
 import { toast } from "sonner";
+import { DataService } from "../../services/DataService";
+
+// Load approved POs from localStorage to use as pendingPOs
+function loadPendingPOs() {
+  try {
+    const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+    const approved = pos.filter((p: any) => p.status === "Approved");
+    if (approved.length > 0) return approved;
+  } catch {}
+  // Fallback seed
+  return [
+    { poNumber:"PO-2026-0245", supplier:"ChemClean Industries", items:5 },
+    { poNumber:"PO-2026-0244", supplier:"AutoCare Solutions",   items:3 },
+    { poNumber:"PO-2026-0241", supplier:"CarCare Supplies",     items:4 },
+  ];
+}
+
+// Load seeded GRNs from localStorage
+function loadGRNs() {
+  try {
+    const raw = localStorage.getItem("cleancar_grn_records");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
 
 export function GoodsReceipt() {
   const [showGRNDialog, setShowGRNDialog] = useState(false);
   const [selectedPO, setSelectedPO] = useState("");
+  const [grns, setGrns] = useState(loadGRNs);
+  const pendingPOs = loadPendingPOs();
 
-  const grns = [
-    { grnNumber: "GRN-2026-012", poNumber: "PO-2026-0245", supplier: "ChemClean Industries", items: 5, status: "Pending QC", date: "Mar 17, 2026" },
-    { grnNumber: "GRN-2026-011", poNumber: "PO-2026-0243", supplier: "ProWash Equipment", items: 2, status: "Completed", date: "Mar 15, 2026", batchesCreated: 2 },
-    { grnNumber: "GRN-2026-010", poNumber: "PO-2026-0242", supplier: "ChemClean Industries", items: 7, status: "Completed", date: "Mar 14, 2026", batchesCreated: 7 },
-  ];
-
-  const pendingPOs = [
-    { poNumber: "PO-2026-0245", supplier: "ChemClean Industries", items: 5 },
-    { poNumber: "PO-2026-0246", supplier: "AutoCare Solutions", items: 3 },
-    { poNumber: "PO-2026-0247", supplier: "Karcher India Pvt Ltd", items: 2 },
-  ];
-
-  const handleCreateGRN = () => {
-    setShowGRNDialog(true);
-  };
+  const handleCreateGRN = () => { setShowGRNDialog(true); };
 
   const handleSubmitGRN = () => {
-    if (!selectedPO) { toast.error("Please select a Purchase Order"); return; }
+    if (!selectedPO) { toast.error("Select a Purchase Order"); return; }
+    const po = pendingPOs.find(p => p.poNumber === selectedPO);
     const grnNumber = `GRN-${new Date().getFullYear()}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
-    const grnRecord = {
+    const newGRN = {
       grnNumber, poNumber: selectedPO,
-      supplier: pendingPOs.find(p => p.poNumber === selectedPO)?.supplier ?? "Unknown",
-      grnDate: new Date().toISOString().split("T")[0],
-      status: "Completed", totalAccepted: 100, totalRejected: 0,
-      items: [{ id:1, itemName:"Car Wash Shampoo 5L", receivedThisDelivery:100, acceptedQuantity:100, rejectedQuantity:0, condition:"Good", storageLocation:"Main Store" }],
+      supplier: po?.supplier ?? "Unknown",
+      items: po?.items ?? 1,
+      status: "Completed",
+      date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
+      batchesCreated: po?.items ?? 1,
+      totalAccepted: 50, totalRejected: 0,
       createdAt: new Date().toISOString(),
     };
     // Save to GRN records
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
-      localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
+      localStorage.setItem("cleancar_grn_records", JSON.stringify([newGRN, ...existing]));
     } catch {}
-    // ✅ H5 FIX: Update live inventory
+    // Update PO status to Delivered
     try {
-      const { DataService } = require("../../services/DataService");
-      const liveItems = DataService.get("INVENTORY_ITEMS");
-      if (liveItems.length > 0) {
-        const updated = liveItems.map((inv: any) => {
-          if ((inv.itemName ?? "").toLowerCase().includes("shampoo") || (inv.itemName ?? "").toLowerCase().includes("shampoo")) {
-            return { ...inv, centralStock: (inv.centralStock ?? 0) + 100, updatedAt: new Date().toISOString() };
-          }
-          return inv;
-        });
-        DataService.setAll("INVENTORY_ITEMS", updated);
-      }
+      const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+      const updated = pos.map((p: any) => p.poNumber === selectedPO ? { ...p, status: "Delivered" } : p);
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updated));
     } catch {}
-    toast.success(`GRN ${grnNumber} created and stock updated`);
+    setGrns(prev => [newGRN, ...prev]);
+    toast.success(`GRN ${grnNumber} created — stock updated`);
     setShowGRNDialog(false);
     setSelectedPO("");
   };

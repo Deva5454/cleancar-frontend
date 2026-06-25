@@ -62,34 +62,53 @@ export function SupplierDetail() {
   const vendors = gstComplianceService.getVendors();
   const vendorData = vendors.find(v => v.id === supplierId) || vendors[0];
 
-  // Map vendor data to supplier format with defaults
   const supplier = vendorData ? {
     id: vendorData.id || "",
-    companyName: vendorData.legalName || "",
-    tradeName: vendorData.tradeName || vendorData.legalName || "",
+    companyName: (vendorData as any).name ?? (vendorData as any).legalName ?? "",
+    tradeName: (vendorData as any).tradeName ?? (vendorData as any).name ?? "",
     supplierType: "Vendor",
     contactPerson: vendorData.contactPerson || "",
-    phone: vendorData.phone || "",
-    email: vendorData.email || "",
-    city: vendorData.city || "",
+    phone: (vendorData as any).contactPhone ?? (vendorData as any).phone ?? "",
+    email: (vendorData as any).contactEmail ?? (vendorData as any).email ?? "",
+    city: (vendorData as any).city ?? vendorData.state ?? "",
     state: vendorData.state || "",
-    pinCode: vendorData.pinCode || "",
+    pinCode: (vendorData as any).pinCode || "",
     gst: vendorData.gstin || "",
     pan: vendorData.pan || "",
-    status: "Active",
-    rating: 4.0,
-    outstanding: 0,
-    creditLimit: 0,
-    paymentTerms: "Net 30",
-    categories: [],
+    status: vendorData.status ?? "Active",
+    rating: (vendorData as any).rating ?? 4.0,
+    outstanding: (vendorData as any).outstanding ?? 0,
+    creditLimit: (vendorData as any).creditLimit ?? 0,
+    paymentTerms: vendorData.paymentTerms || "Net 30",
+    categories: Array.isArray((vendorData as any).categories)
+      ? (vendorData as any).categories
+      : [(vendorData as any).vendorType ?? "General"],
     documents: [],
-    notes: []
+    notes: [],
   } : null;
 
-  const purchaseHistory: any[] = [];
+  const purchaseHistory = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]")
+        .filter((p: any) => supplier && (p.supplier ?? "").toLowerCase().includes(supplier.companyName.split(" ")[0].toLowerCase()))
+        .slice(0, 5);
+    } catch { return []; }
+  })();
+  const paymentHistory = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("cleancar_supplier_payments") || "[]")
+        .filter((p: any) => supplier && (p.supplier ?? "").toLowerCase().includes(supplier.companyName.split(" ")[0].toLowerCase()))
+        .slice(0, 5);
+    } catch { return []; }
+  })();
   const invoiceHistory: any[] = [];
-  const paymentHistory: any[] = [];
-  const mockPerformanceData = { onTimeDelivery: 0, qualityScore: 0, priceCompetitiveness: 0, orderFulfillmentRate: 0, responseTime: 0 };
+  const mockPerformanceData = {
+    onTimeDelivery: supplier?.rating ? Math.round(supplier.rating * 20) : 80,
+    qualityScore: supplier?.rating ? Math.round(supplier.rating * 19) : 75,
+    priceCompetitiveness: 78,
+    orderFulfillmentRate: 95,
+    responseTime: 2,
+  };
   const mockRatingHistory: any[] = [];
   const [showBlacklistDialog, setShowBlacklistDialog] = useState(false);
   const [showNoteDialog, setShowNoteDialog] = useState(false);
