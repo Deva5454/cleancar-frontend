@@ -156,6 +156,50 @@ function SVGTrail({ sessions, selected, highlightLat, highlightLng, highlightTyp
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+
+// ── Timeline Event Row ────────────────────────────────────────────────────────
+
+function TimelineRow({
+  time, type, label, durationMins, distanceKm, address, onClick, active
+}: {
+  time: string; type: string; label: string;
+  durationMins?: number; distanceKm?: number;
+  address?: string; onClick?: () => void; active?: boolean;
+}) {
+  const isHalt  = type === "halt";
+  const isDrive = type === "drive";
+  const isStart = type === "start";
+  const isEnd   = type === "end";
+  const iconBg  = isHalt ? "#fef3c7" : isDrive ? "#eff6ff" : isStart ? "#f0fdf4" : "#fff1f2";
+  const iconBdr = isHalt ? "#f59e0b" : isDrive ? "#3b82f6" : isStart ? "#22c55e" : "#ef4444";
+  const iconLbl = isHalt ? "⏳" : isDrive ? "◎" : isStart ? "▶" : "■";
+  const durCol  = isHalt ? "#d97706" : isDrive ? "#3b82f6" : "#64748b";
+  return (
+    <div
+      className={`flex gap-3 px-4 py-2 cursor-pointer transition-colors ${active ? "bg-blue-50" : "hover:bg-slate-50"}`}
+      onClick={onClick}
+    >
+      <div className="w-14 text-xs text-slate-400 pt-1 shrink-0 font-mono">{new Date(time).toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</div>
+      <div className="flex flex-col items-center">
+        <div style={{width:20,height:20,borderRadius:"50%",background:iconBg,border:`2px solid ${iconBdr}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,flexShrink:0}}>{iconLbl}</div>
+        {!isEnd && <div style={{width:2,flex:1,background:"#e2e8f0",minHeight:16}}/>}
+      </div>
+      <div className="flex-1 pb-3">
+        <div className="flex justify-between items-start">
+          <span className="text-sm font-semibold text-slate-800">{label}</span>
+          {durationMins !== undefined && (
+            <span style={{color:durCol}} className="text-xs font-bold ml-2 shrink-0">
+              {Math.floor(durationMins/60)>0?`${Math.floor(durationMins/60)}h `:""}{durationMins%60}m
+              {distanceKm !== undefined && ` · ${distanceKm<1?Math.round(distanceKm*1000)+"m":distanceKm.toFixed(2)+"km"}`}
+            </span>
+          )}
+        </div>
+        {address && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{address}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function SuperAdminFieldTracker() {
   const [selectedEmp, setSelectedEmp]     = useState<string>("all");
   const [selectedDate, setSelectedDate]   = useState(today());
