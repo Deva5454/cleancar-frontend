@@ -17,7 +17,7 @@
  *   EMPLOYEE_DATABASE_RECORDS    (auth system)
  */
 
-const SEED_FLAG = "ALL_DATA_SEEDED_V16";
+const SEED_FLAG = "ALL_DATA_SEEDED_V17";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const NOW   = new Date().toISOString();
@@ -900,7 +900,7 @@ export function seedAllData(): void {
      "HISTORIC_DATA_SEEDED_V4","HISTORIC_DATA_SEEDED_V5","ACC_SEED_V1","ACC_SEED_V2",
      "ALL_DATA_SEEDED_V1","ALL_DATA_SEEDED_V2","ALL_DATA_SEEDED_V3","ALL_DATA_SEEDED_V4",
      "ALL_DATA_SEEDED_V5","ALL_DATA_SEEDED_V6","ALL_DATA_SEEDED_V8","ALL_DATA_SEEDED_V7",
-     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13","ALL_DATA_SEEDED_V14","ALL_DATA_SEEDED_V15"
+     "ALL_DATA_SEEDED_V10","ALL_DATA_SEEDED_V11","ALL_DATA_SEEDED_V12","ALL_DATA_SEEDED_V13","ALL_DATA_SEEDED_V14","ALL_DATA_SEEDED_V15","ALL_DATA_SEEDED_V16"
     ].forEach(f => localStorage.removeItem(f));
 
     // FIX: Set SEED_FLAG first — prevents infinite re-seed if quota hit mid-run
@@ -1073,7 +1073,8 @@ export function seedAllData(): void {
   // ── FIELD TRACKING SESSIONS — Rich Surat seed data ─────────────────────────
   try {
     const SESSIONS_KEY = "field_sessions_v1";
-    if (!localStorage.getItem(SESSIONS_KEY)) {
+    localStorage.removeItem(SESSIONS_KEY); // V17: always refresh session seed
+    if (true) {
       const today     = new Date().toISOString().slice(0, 10);
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 
