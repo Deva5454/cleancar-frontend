@@ -32,7 +32,14 @@ function today() { return new Date().toISOString().slice(0, 10); }
 
 // ── SVG Trail Map (OpenStreetMap-style placeholder until Leaflet loads) ────────
 
-function SVGTrail({ sessions, selected, highlightLat, highlightLng }: { sessions: FieldSession[]; selected: string | null; highlightLat?: number | null; highlightLng?: number | null }) {
+function SVGTrail({ sessions, selected, highlightLat, highlightLng, highlightType, haltMarkers }: {
+  sessions: FieldSession[];
+  selected: string | null;
+  highlightLat?: number | null;
+  highlightLng?: number | null;
+  highlightType?: "halt" | "drive" | null;
+  haltMarkers?: Array<{ lat: number; lng: number; index: number; durationMins: number }>;
+}) {
   const allPts = sessions.flatMap(s => s.trail || []);
   if (allPts.length < 2) return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-400">
@@ -42,15 +49,35 @@ function SVGTrail({ sessions, selected, highlightLat, highlightLng }: { sessions
     </div>
   );
 
-  const lats = allPts.map(p => p.lat), lngs = allPts.map(p => p.lng);
+  const PAD = 40, W = 900, H = 500;
+
+  // If there's a highlighted point, center the view around it (zoom in)
+  let lats: number[], lngs: number[];
+  if (highlightLat && highlightLng) {
+    const ZOOM = 0.008; // zoom radius in degrees
+    lats = [highlightLat - ZOOM, highlightLat + ZOOM];
+    lngs = [highlightLng - ZOOM, highlightLng + ZOOM];
+    // Ensure trail points near the highlight are included
+    const nearby = allPts.filter(p =>
+      Math.abs(p.lat - highlightLat) < ZOOM * 2 &&
+      Math.abs(p.lng - highlightLng) < ZOOM * 2
+    );
+    if (nearby.length > 2) {
+      lats = [Math.min(...nearby.map(p => p.lat), highlightLat - ZOOM * 0.5), Math.max(...nearby.map(p => p.lat), highlightLat + ZOOM * 0.5)];
+      lngs = [Math.min(...nearby.map(p => p.lng), highlightLng - ZOOM * 0.5), Math.max(...nearby.map(p => p.lng), highlightLng + ZOOM * 0.5)];
+    }
+  } else {
+    lats = allPts.map(p => p.lat);
+    lngs = allPts.map(p => p.lng);
+  }
+
   const [minLat, maxLat] = [Math.min(...lats), Math.max(...lats)];
   const [minLng, maxLng] = [Math.min(...lngs), Math.max(...lngs)];
-  const PAD = 40, W = 900, H = 500;
+
   const tx = (lng: number) => PAD + ((lng - minLng) / (maxLng - minLng || 0.001)) * (W - 2 * PAD);
   const ty = (lat: number) => H - PAD - ((lat - minLat) / (maxLat - minLat || 0.001)) * (H - 2 * PAD);
 
-  const colors = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#0ea5e9"];
-
+  const roleColors = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#0ea5e9"];
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full bg-slate-50 rounded-lg">
@@ -61,30 +88,24 @@ function SVGTrail({ sessions, selected, highlightLat, highlightLng }: { sessions
           <line x1={W * r} y1={PAD} x2={W * r} y2={H - PAD} stroke="#e2e8f0" strokeWidth="1" />
         </g>
       ))}
-      {/* OSM attribution */}
       <text x={W - 10} y={H - 6} fontSize="9" textAnchor="end" fill="#94a3b8">© OpenStreetMap contributors</text>
-      {/* Highlighted stop marker */}
-      {highlightLat && highlightLng && (
-        <g>
-          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="14" fill="#f59e0b" opacity="0.25" />
-          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="8" fill="#f59e0b" stroke="white" strokeWidth="2" />
-          <text x={tx(highlightLng)} y={ty(highlightLat) + 4} fontSize="10" textAnchor="middle" fill="white" fontWeight="bold">⏳</text>
-        </g>
-      )}
 
+      {/* GPS trails */}
       {sessions.map((s, idx) => {
         const trail = s.trail || [];
         if (trail.length < 2) return null;
-        const col = ROLE_COLORS[s.role]?.pin || colors[idx % colors.length];
+        const col = ROLE_COLORS[s.role]?.pin || roleColors[idx % roleColors.length];
         const isSelected = selected === s.employeeId;
         const d = trail.map((p, i) => `${i === 0 ? "M" : "L"}${tx(p.lng).toFixed(1)},${ty(p.lat).toFixed(1)}`).join(" ");
         const last = trail[trail.length - 1];
+        const first = trail[0];
         return (
-          <g key={s.id} opacity={selected && !isSelected ? 0.3 : 1}>
+          <g key={s.id} opacity={selected && !isSelected ? 0.2 : 1}>
             <path d={d} fill="none" stroke={col} strokeWidth={isSelected ? 3 : 2}
               strokeLinecap="round" strokeLinejoin="round" />
             {/* Start dot */}
-            <circle cx={tx(trail[0].lng)} cy={ty(trail[0].lat)} r="6" fill="#22c55e" stroke="white" strokeWidth="2" />
+            <circle cx={tx(first.lng)} cy={ty(first.lat)} r="6" fill="#22c55e" stroke="white" strokeWidth="2" />
+            <text x={tx(first.lng) + 8} y={ty(first.lat) - 6} fontSize="9" fill="#22c55e" fontWeight="bold">START</text>
             {/* Current/last position */}
             <circle cx={tx(last.lng)} cy={ty(last.lat)} r="8" fill={col} stroke="white" strokeWidth="2" />
             <text x={tx(last.lng) + 10} y={ty(last.lat) + 4} fontSize="11" fill={col} fontWeight="bold">
@@ -93,64 +114,45 @@ function SVGTrail({ sessions, selected, highlightLat, highlightLng }: { sessions
           </g>
         );
       })}
+
+      {/* Always-visible halt number markers */}
+      {haltMarkers && haltMarkers.map(h => (
+        <g key={h.index}>
+          <circle cx={tx(h.lng)} cy={ty(h.lat)} r="10" fill="#f59e0b" stroke="white" strokeWidth="2" opacity="0.85" />
+          <text x={tx(h.lng)} y={ty(h.lat) + 4} fontSize="10" textAnchor="middle" fill="white" fontWeight="bold">{h.index + 1}</text>
+        </g>
+      ))}
+
+      {/* Highlighted point when timeline row clicked */}
+      {highlightLat && highlightLng && (
+        <g>
+          {/* Outer pulse ring */}
+          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="22" fill={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} opacity="0.15" />
+          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="15" fill={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} opacity="0.25" />
+          {/* Main marker */}
+          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="9" fill={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} stroke="white" strokeWidth="2.5" />
+          <text x={tx(highlightLng)} y={ty(highlightLat) + 4} fontSize="11" textAnchor="middle" fill="white" fontWeight="bold">
+            {highlightType === "halt" ? "⏳" : "→"}
+          </text>
+          {/* Crosshair lines */}
+          <line x1={tx(highlightLng) - 18} y1={ty(highlightLat)} x2={tx(highlightLng) - 12} y2={ty(highlightLat)} stroke={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} strokeWidth="1.5" />
+          <line x1={tx(highlightLng) + 12} y1={ty(highlightLat)} x2={tx(highlightLng) + 18} y2={ty(highlightLat)} stroke={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} strokeWidth="1.5" />
+          <line x1={tx(highlightLng)} y1={ty(highlightLat) - 18} x2={tx(highlightLng)} y2={ty(highlightLat) - 12} stroke={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} strokeWidth="1.5" />
+          <line x1={tx(highlightLng)} y1={ty(highlightLat) + 12} x2={tx(highlightLng)} y2={ty(highlightLat) + 18} stroke={highlightType === "halt" ? "#f59e0b" : "#3b82f6"} strokeWidth="1.5" />
+        </g>
+      )}
+
+      {/* Zoom indicator when zoomed in */}
+      {highlightLat && highlightLng && (
+        <g>
+          <rect x={W - 85} y={8} width={78} height={20} rx="4" fill="white" opacity="0.9" />
+          <text x={W - 46} y={22} fontSize="10" textAnchor="middle" fill="#64748b">🔍 Zoomed in</text>
+        </g>
+      )}
     </svg>
   );
 }
 
-// ── Timeline Event Row ────────────────────────────────────────────────────────
-
-function TimelineRow({
-  time, type, label, durationMins, distanceKm, address, onClick, active
-}: {
-  time: string; type: string; label: string;
-  durationMins?: number; distanceKm?: number;
-  address?: string; onClick?: () => void; active?: boolean;
-}) {
-  const isHalt  = type === "halt";
-  const isDrive = type === "drive";
-  const isStart = type === "start";
-  const isEnd   = type === "end";
-
-  const iconBg    = isHalt ? "#fef3c7" : isDrive ? "#eff6ff" : isStart ? "#f0fdf4" : "#fff1f2";
-  const iconBdr   = isHalt ? "#f59e0b" : isDrive ? "#3b82f6" : isStart ? "#22c55e" : "#ef4444";
-  const iconLabel = isHalt ? "⏳" : isDrive ? "◎" : isStart ? "▶" : "■";
-  const durColor  = isHalt ? "#d97706" : isDrive ? "#3b82f6" : "#64748b";
-
-  return (
-    <div
-      className={`flex gap-3 px-4 py-2 cursor-pointer transition-colors ${active ? "bg-blue-50" : "hover:bg-slate-50"}`}
-      onClick={onClick}
-    >
-      {/* Time */}
-      <div className="w-14 text-xs text-slate-400 pt-1 shrink-0 font-mono">{fmtTime(time)}</div>
-
-      {/* Icon + connector */}
-      <div className="flex flex-col items-center">
-        <div style={{
-          width: 20, height: 20, borderRadius: "50%",
-          background: iconBg, border: `2px solid ${iconBdr}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 9, flexShrink: 0,
-        }}>{iconLabel}</div>
-        {!isEnd && <div style={{ width: 2, flex: 1, background: "#e2e8f0", minHeight: 16 }} />}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 pb-3">
-        <div className="flex justify-between items-start">
-          <span className="text-sm font-semibold text-slate-800">{label}</span>
-          {durationMins !== undefined && (
-            <span style={{ color: durColor }} className="text-xs font-bold ml-2 shrink-0">
-              {fmtDuration(durationMins)}
-              {distanceKm !== undefined && ` · ${fmtDist(distanceKm)}`}
-            </span>
-          )}
-        </div>
-        {address && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{address}</p>}
-      </div>
-    </div>
-  );
-}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -247,8 +249,37 @@ export function SuperAdminFieldTracker() {
           <SVGTrail
               sessions={selectedSessions}
               selected={selectedEmp === "all" ? null : selectedEmp}
-              highlightLat={activeEvent !== null && timeline?.events[activeEvent]?.type === "halt" ? (timeline.events[activeEvent] as any).lat : null}
-              highlightLng={activeEvent !== null && timeline?.events[activeEvent]?.type === "halt" ? (timeline.events[activeEvent] as any).lng : null}
+              highlightLat={activeEvent !== null ? (() => {
+                const ev = timeline?.events[activeEvent];
+                if (!ev) return null;
+                if (ev.type === "halt") return (ev as any).lat;
+                // For drives: show midpoint of drive segment
+                const s = selectedSession?.trail || [];
+                const driveStart = s.findIndex(p => p.ts >= ev.startTime);
+                const driveEnd = s.findIndex(p => p.ts >= ev.endTime);
+                if (driveStart >= 0 && driveEnd > driveStart) {
+                  const mid = Math.floor((driveStart + driveEnd) / 2);
+                  return s[mid]?.lat || null;
+                }
+                return null;
+              })() : null}
+              highlightLng={activeEvent !== null ? (() => {
+                const ev = timeline?.events[activeEvent];
+                if (!ev) return null;
+                if (ev.type === "halt") return (ev as any).lng;
+                const s = selectedSession?.trail || [];
+                const driveStart = s.findIndex(p => p.ts >= ev.startTime);
+                const driveEnd = s.findIndex(p => p.ts >= ev.endTime);
+                if (driveStart >= 0 && driveEnd > driveStart) {
+                  const mid = Math.floor((driveStart + driveEnd) / 2);
+                  return s[mid]?.lng || null;
+                }
+                return null;
+              })() : null}
+              highlightType={activeEvent !== null ? timeline?.events[activeEvent]?.type as "halt"|"drive" : null}
+              haltMarkers={timeline?.events
+                .map((ev, i) => ev.type === "halt" ? { lat: (ev as any).lat, lng: (ev as any).lng, index: i, durationMins: (ev as any).durationMins } : null)
+                .filter(Boolean) as any}
             />
         </div>
         <div className="absolute top-4 right-4 flex gap-2">
