@@ -29,6 +29,7 @@ import {
   type LiveLocation,
   type FieldSession,
 } from "../../services/fieldTrackingService";
+import { travelReimbursementService } from "../../services/travelReimbursementService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -386,7 +387,6 @@ export function LiveLocationDashboard() {
       {/* GPS-auto-submitted reimbursements today */}
       {(() => {
         try {
-          const { travelReimbursementService } = require("../../services/travelReimbursementService");
           const today = new Date().toISOString().slice(0, 10);
           const autoTrips = travelReimbursementService.getTrips().filter(
             (t: any) => t.autoSubmittedFromFieldTracking && t.tripDate === today

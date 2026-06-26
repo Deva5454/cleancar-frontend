@@ -250,7 +250,8 @@ const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule"));
 const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule"));
 const BusinessFlowDemo = lazy(() => import("./components/BusinessFlowDemo"));
 
-const LiveLocationDashboard = lazy(() => import("./components/field/LiveLocationDashboard"));
+// LiveLocationDashboard — static import (small component, no lazy needed)
+import { LiveLocationDashboard } from "./components/field/LiveLocationDashboard";
 import { UnauthorizedPage } from "./components/pages/UnauthorizedPage";
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
@@ -592,7 +593,7 @@ export const router = createBrowserRouter([
 
       // Organization Hierarchy Dashboard - City â†’ Cluster â†’ Pincode
       { path: "hierarchy-dashboard", element: <HierarchyDashboard /> },
-      { path: "field-tracker",       element: <Suspense fallback={<PageLoader />}><LiveLocationDashboard /></Suspense> },
+      { path: "field-tracker",       element: <LiveLocationDashboard /> },
 
       // Tele Sales Manager App (Production) - Pipeline control tower
       { path: "tsm-app", element: <TeleSalesManagerApp /> },
