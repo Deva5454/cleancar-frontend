@@ -209,7 +209,6 @@ import { CustomerPlanPage as CustomerPlanPageDirect } from "./components/subscri
 import { CancellationRequestPage } from "./components/subscription/CancellationRequestPage";
 import { AppProviderSimple } from "./contexts/AppProviderSimple";
 const SuperAdminPlanEditor = lazy(() => import("./components/admin/SuperAdminPlanEditor"));
-const SuperAdminFieldTracker = lazy(() => import("./components/admin/SuperAdminFieldTracker"));
 // import { AdminPlanManagement } from "./components/subscription/AdminPlanManagement"; // NOW LAZY
 import { SubscriptionDiagnostics } from "./components/subscription/SubscriptionDiagnostics";
 const HierarchyDashboard = lazy(() => import("./components/hierarchy/HierarchyDashboard"));
@@ -250,6 +249,8 @@ const GSTR3BModule = lazy(() => import("./components/gst/GSTR3BModule"));
 const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule"));
 const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule"));
 const BusinessFlowDemo = lazy(() => import("./components/BusinessFlowDemo"));
+
+const LiveLocationDashboard = lazy(() => import("./components/field/LiveLocationDashboard").then(m => ({ default: m.LiveLocationDashboard })));
 import { UnauthorizedPage } from "./components/pages/UnauthorizedPage";
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
@@ -477,7 +478,6 @@ export const router = createBrowserRouter([
           { path: "role-based-demo", element: <DevOnlyRoute element={<RoleBasedAnalyticsDashboard />} /> },
         ]
       },
-      { path: "field-tracker", element: <SuperAdminFieldTracker /> },
       { path: "founder/control-tower", element: <FounderControlTower /> },
       { path: "founder/financial-view", element: <DetailedFinancialView /> },
       { path: "founder/cash-flow", element: <CashFlowDashboard /> },
@@ -592,6 +592,7 @@ export const router = createBrowserRouter([
 
       // Organization Hierarchy Dashboard - City â†’ Cluster â†’ Pincode
       { path: "hierarchy-dashboard", element: <HierarchyDashboard /> },
+      { path: "field-tracker",       element: <Suspense fallback={<PageLoader />}><LiveLocationDashboard /></Suspense> },
 
       // Tele Sales Manager App (Production) - Pipeline control tower
       { path: "tsm-app", element: <TeleSalesManagerApp /> },
