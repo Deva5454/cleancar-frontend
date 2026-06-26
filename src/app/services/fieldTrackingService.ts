@@ -126,7 +126,7 @@ function saveOfflineQueue(q: OfflineGeoPoint[]): void {
   localStorage.setItem(SK.OFFLINE_QUEUE, JSON.stringify(q));
 }
 
-function loadSessions(): FieldSession[] {
+export function loadSessions(): FieldSession[] {
   try { return JSON.parse(localStorage.getItem(SK.SESSIONS) || "[]"); } catch { return []; }
 }
 
@@ -149,6 +149,7 @@ export const FIELD_TRACKING_ROLES = [
   "Sales Head",
 ] as const;
 
+// Role colours for map pins and UI badges
 export const ROLE_COLORS: Record<string, { pin: string; badge: string; text: string }> = {
   "Car Washer":         { pin: "#3b82f6", badge: "bg-blue-100",   text: "text-blue-800" },
   "Operations Manager": { pin: "#f59e0b", badge: "bg-amber-100",  text: "text-amber-800" },
@@ -157,6 +158,7 @@ export const ROLE_COLORS: Record<string, { pin: string; badge: string; text: str
   "Sales Head":         { pin: "#0ea5e9", badge: "bg-sky-100",    text: "text-sky-800" },
 };
 
+// Shift timing per role — used for auto-prompt and auto-checkout
 export const ROLE_SHIFT: Record<string, { startTime: string; endTime: string }> = {
   "Car Washer":         { startTime: "05:00", endTime: "09:00" },
   "Operations Manager": { startTime: "10:00", endTime: "19:00" },
@@ -164,6 +166,151 @@ export const ROLE_SHIFT: Record<string, { startTime: string; endTime: string }> 
   "Sales Manager":      { startTime: "10:00", endTime: "19:00" },
   "Sales Head":         { startTime: "10:00", endTime: "19:00" },
 };
+
+// ── Attendance Status ──────────────────────────────────────────────────────
+export type AttendanceStatus = "Present" | "Late" | "Half Day" | "Absent" | "Holiday" | "Weekend";
+
+export interface DailyAttendance {
+  date: string;                    // YYYY-MM-DD
+  employeeId: string;
+  employeeName: string;
+  role: string;
+  status: AttendanceStatus;
+  checkInTime: string | null;      // ISO
+  checkOutTime: string | null;     // ISO
+  shiftStartTime: string;          // "05:00" or "10:00"
+  shiftEndTime: string;            // "09:00" or "19:00"
+  lateMinutes: number;             // 0 if on time
+  earlyLeaveMinutes: number;       // 0 if full day
+  totalHoursWorked: number;        // decimal hours
+  requiredHours: number;           // shift duration in hours
+  selfieBase64: string;
+  gpsLat: number | null;
+  gpsLng: number | null;
+  sessionId: string | null;
+}
+
+/**
+ * Calculate attendance status from a FieldSession.
+ * Rules:
+ *   - No check-in today = Absent
+ *   - Check-in within 15 mins of shift start = Present
+ *   - Check-in 16-60 mins after shift start = Late
+ *   - Check-in > 60 mins after shift start = Half Day
+ *   - Worked < 50% of shift duration = Half Day (even if on time)
+ */
+export function calcAttendance(session: FieldSession | null, date: string, employeeId: string, employeeName: string, role: string): DailyAttendance {
+  const roleShift = ROLE_SHIFT[role] || { startTime: "10:00", endTime: "19:00" };
+  const [startH, startM] = roleShift.startTime.split(":").map(Number);
+  const [endH, endM] = roleShift.endTime.split(":").map(Number);
+  const requiredHours = (endH + endM/60) - (startH + startM/60);
+
+  const base: DailyAttendance = {
+    date, employeeId, employeeName, role,
+    status: "Absent",
+    checkInTime: null,
+    checkOutTime: null,
+    shiftStartTime: roleShift.startTime,
+    shiftEndTime: roleShift.endTime,
+    lateMinutes: 0,
+    earlyLeaveMinutes: 0,
+    totalHoursWorked: 0,
+    requiredHours,
+    selfieBase64: "",
+    gpsLat: null,
+    gpsLng: null,
+    sessionId: null,
+  };
+
+  if (!session) return base;
+
+  const checkIn = new Date(session.checkInTime);
+  const shiftStart = new Date(date + "T" + roleShift.startTime + ":00");
+  const shiftEnd   = new Date(date + "T" + roleShift.endTime   + ":00");
+  const lateMinutes = Math.max(0, Math.round((checkIn.getTime() - shiftStart.getTime()) / 60000));
+
+  let totalHoursWorked = 0;
+  let earlyLeaveMinutes = 0;
+  let checkOutTime: string | null = null;
+
+  if (session.checkOutTime) {
+    const checkOut = new Date(session.checkOutTime);
+    checkOutTime = session.checkOutTime;
+    totalHoursWorked = Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 3600000);
+    earlyLeaveMinutes = Math.max(0, Math.round((shiftEnd.getTime() - checkOut.getTime()) / 60000));
+  } else {
+    // Still checked in — calculate hours so far
+    totalHoursWorked = Math.max(0, (Date.now() - checkIn.getTime()) / 3600000);
+  }
+
+  // Determine status
+  let status: AttendanceStatus;
+  if (lateMinutes <= 15) {
+    status = totalHoursWorked >= requiredHours * 0.5 ? "Present" : "Half Day";
+  } else if (lateMinutes <= 60) {
+    status = totalHoursWorked >= requiredHours * 0.5 ? "Late" : "Half Day";
+  } else {
+    status = "Half Day";
+  }
+
+  return {
+    ...base,
+    status,
+    checkInTime: session.checkInTime,
+    checkOutTime,
+    lateMinutes,
+    earlyLeaveMinutes,
+    totalHoursWorked: Math.round(totalHoursWorked * 100) / 100,
+    selfieBase64: session.checkInSelfieBase64 || "",
+    gpsLat: session.checkInLocation?.lat || null,
+    gpsLng: session.checkInLocation?.lng || null,
+    sessionId: session.id,
+  };
+}
+
+/**
+ * Get attendance records for a date range for all sessions.
+ * Returns one DailyAttendance per employee per day.
+ */
+export function getAttendanceForDateRange(
+  employeeIds: string[],
+  employeeMap: Record<string, { name: string; role: string }>,
+  startDate: string,
+  endDate: string
+): DailyAttendance[] {
+  const sessions = loadSessions();
+  const results: DailyAttendance[] = [];
+  
+  const start = new Date(startDate);
+  const end   = new Date(endDate);
+  
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const isWeekend = d.getDay() === 0; // Sunday off
+    
+    for (const empId of employeeIds) {
+      const emp = employeeMap[empId];
+      if (!emp) continue;
+      
+      if (isWeekend) {
+        results.push({
+          date: dateStr, employeeId: empId, employeeName: emp.name, role: emp.role,
+          status: "Weekend", checkInTime: null, checkOutTime: null,
+          shiftStartTime: ROLE_SHIFT[emp.role]?.startTime || "10:00",
+          shiftEndTime:   ROLE_SHIFT[emp.role]?.endTime   || "19:00",
+          lateMinutes: 0, earlyLeaveMinutes: 0, totalHoursWorked: 0,
+          requiredHours: 0, selfieBase64: "", gpsLat: null, gpsLng: null, sessionId: null,
+        });
+        continue;
+      }
+      
+      const session = sessions.find(s => s.employeeId === empId && s.date === dateStr) || null;
+      results.push(calcAttendance(session, dateStr, empId, emp.name, emp.role));
+    }
+  }
+  
+  return results.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export type FieldTrackingRole = typeof FIELD_TRACKING_ROLES[number];
 
@@ -235,9 +382,9 @@ class FieldTrackingService {
     employeeId: string;
     employeeName: string;
     role: string;
-    shiftStartTime?: string;
-    shiftEndTime?: string;
     selfieBase64: string;
+    shiftStartTime?: string;  // e.g. "05:00" — overrides FIELD_HOURS.CHECK_IN_HOUR
+    shiftEndTime?: string;    // e.g. "09:00" — overrides FIELD_HOURS.SUGGESTED_CHECKOUT
   }): Promise<{ ok: boolean; error?: string }> {
 
     if (this.state.isCheckedIn) return { ok: false, error: "Already checked in" };
@@ -630,5 +777,3 @@ class FieldTrackingService {
 }
 
 export const fieldTrackingService = new FieldTrackingService();
-
-// Build: 2026-06-25 23:50:52
