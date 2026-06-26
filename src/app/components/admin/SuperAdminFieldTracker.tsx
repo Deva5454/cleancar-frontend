@@ -32,7 +32,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 
 // ── SVG Trail Map (OpenStreetMap-style placeholder until Leaflet loads) ────────
 
-function SVGTrail({ sessions, selected }: { sessions: FieldSession[]; selected: string | null }) {
+function SVGTrail({ sessions, selected, highlightLat, highlightLng }: { sessions: FieldSession[]; selected: string | null; highlightLat?: number | null; highlightLng?: number | null }) {
   const allPts = sessions.flatMap(s => s.trail || []);
   if (allPts.length < 2) return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-400">
@@ -63,6 +63,14 @@ function SVGTrail({ sessions, selected }: { sessions: FieldSession[]; selected: 
       ))}
       {/* OSM attribution */}
       <text x={W - 10} y={H - 6} fontSize="9" textAnchor="end" fill="#94a3b8">© OpenStreetMap contributors</text>
+      {/* Highlighted stop marker */}
+      {highlightLat && highlightLng && (
+        <g>
+          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="14" fill="#f59e0b" opacity="0.25" />
+          <circle cx={tx(highlightLng)} cy={ty(highlightLat)} r="8" fill="#f59e0b" stroke="white" strokeWidth="2" />
+          <text x={tx(highlightLng)} y={ty(highlightLat) + 4} fontSize="10" textAnchor="middle" fill="white" fontWeight="bold">⏳</text>
+        </g>
+      )}
 
       {sessions.map((s, idx) => {
         const trail = s.trail || [];
@@ -236,7 +244,12 @@ export function SuperAdminFieldTracker() {
       {/* Right: SVG map */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 p-2">
-          <SVGTrail sessions={selectedSessions} selected={selectedEmp === "all" ? null : selectedEmp} />
+          <SVGTrail
+              sessions={selectedSessions}
+              selected={selectedEmp === "all" ? null : selectedEmp}
+              highlightLat={activeEvent !== null && timeline?.events[activeEvent]?.type === "halt" ? (timeline.events[activeEvent] as any).lat : null}
+              highlightLng={activeEvent !== null && timeline?.events[activeEvent]?.type === "halt" ? (timeline.events[activeEvent] as any).lng : null}
+            />
         </div>
         <div className="absolute top-4 right-4 flex gap-2">
           <Button size="sm" variant="outline" onClick={refresh} className="bg-white shadow-sm">
@@ -335,13 +348,54 @@ export function SuperAdminFieldTracker() {
                 durationMins={ev.durationMins}
                 distanceKm={ev.type === "drive" ? (ev as Drive).distanceKm : undefined}
                 address={ev.type === "halt" ? (ev as Halt).address : undefined}
-                onClick={() => setActiveEvent(i)}
+                onClick={() => setActiveEvent(activeEvent === i ? null : i)}
                 active={activeEvent === i}
               />
             ))}
             {selectedSession.checkOutTime && (
               <TimelineRow time={selectedSession.checkOutTime} type="end" label="Check-Out" />
             )}
+            {/* Selected stop detail */}
+            {activeEvent !== null && timeline?.events[activeEvent]?.type === "halt" && (() => {
+              const halt = timeline.events[activeEvent] as any;
+              return (
+                <div className="mx-3 mb-3 mt-1 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-bold text-amber-800">⏳ Stop Details</span>
+                    <span className="text-xs px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full font-semibold">{halt.durationMins} mins</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Started</span>
+                      <span className="font-mono font-semibold">{fmtTime(halt.startTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Ended</span>
+                      <span className="font-mono font-semibold">{fmtTime(halt.endTime)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Duration</span>
+                      <span className="font-semibold">{fmtDuration(halt.durationMins)}</span>
+                    </div>
+                    {halt.address && (
+                      <div className="pt-1 border-t border-amber-200">
+                        <div className="text-amber-700 mb-0.5">Location</div>
+                        <div className="text-amber-900 font-medium leading-relaxed">{halt.address}</div>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-amber-200">
+                      <a
+                        href={`https://www.google.com/maps?q=${halt.lat},${halt.lng}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-blue-600 hover:underline font-medium"
+                      >
+                        📍 Open in Google Maps
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
         {!selectedSession && selectedEmp !== "all" && (
@@ -468,7 +522,6 @@ export function SuperAdminFieldTracker() {
       </div>
     );
   };
-
 
   // ── Tab: Attendance ──────────────────────────────────────────────────────
   const AttendanceTab = () => {
