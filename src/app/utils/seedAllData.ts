@@ -1070,28 +1070,219 @@ export function seedAllData(): void {
   ]);
 
 
-  // ── FIELD TRACKING SESSIONS ─────────────────────────────────────────────────
+  // ── FIELD TRACKING SESSIONS — Rich Surat seed data ─────────────────────────
   try {
     const SESSIONS_KEY = "field_sessions_v1";
     if (!localStorage.getItem(SESSIONS_KEY)) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today     = new Date().toISOString().slice(0, 10);
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      const makeTrail = (baseLat: number, baseLng: number, count: number) =>
-        Array.from({ length: count }, (_, i) => ({
-          lat: baseLat + i * 0.0012 + Math.random() * 0.0005,
-          lng: baseLng + i * 0.0015 + Math.random() * 0.0005,
-          accuracy: Math.round(5 + Math.random() * 15),
-          ts: new Date(Date.now() - (count - i) * 300000).toISOString(),
-        }));
-      const sessions = [
-        { id:"FS-2026-001", employeeId:"EDB-SUP-SUR1", employeeName:"Harish Solanki", role:"Supervisor", date:today, checkInTime:new Date(Date.now()-9900000).toISOString(), checkOutTime:null, checkInLocation:{lat:21.1702,lng:72.8311,accuracy:8,ts:new Date(Date.now()-9900000).toISOString()}, trail:makeTrail(21.1702,72.8311,14), totalDistanceKm:3.75, checkOutReason:null, reinstateRequest:null },
-        { id:"FS-2026-002", employeeId:"EDB-SM-SUR1",  employeeName:"Arvind Mehta",   role:"Sales Manager", date:today, checkInTime:new Date(Date.now()-14400000).toISOString(), checkOutTime:null, checkInLocation:{lat:21.1890,lng:72.8456,accuracy:6,ts:new Date(Date.now()-14400000).toISOString()}, trail:makeTrail(21.1890,72.8456,18), totalDistanceKm:5.2, checkOutReason:null, reinstateRequest:null },
-        { id:"FS-2026-003", employeeId:"EDB-SH-SUR1",  employeeName:"Pooja Sharma",   role:"Sales Head",    date:today, checkInTime:new Date(Date.now()-18000000).toISOString(), checkOutTime:new Date(Date.now()-3600000).toISOString(), checkInLocation:{lat:21.2012,lng:72.8567,accuracy:10,ts:new Date(Date.now()-18000000).toISOString()}, trail:makeTrail(21.2012,72.8567,22), totalDistanceKm:7.1, checkOutReason:"manual", reinstateRequest:null },
-        { id:"FS-2026-004", employeeId:"EDB-SUP-SUR2", employeeName:"Bhavesh Modi",   role:"Supervisor",    date:yesterday, checkInTime:new Date(Date.now()-86400000-28800000).toISOString(), checkOutTime:new Date(Date.now()-86400000-7200000).toISOString(), checkInLocation:{lat:21.1602,lng:72.8211,accuracy:12,ts:new Date(Date.now()-86400000-28800000).toISOString()}, trail:makeTrail(21.1602,72.8211,16), totalDistanceKm:4.3, checkOutReason:"manual", reinstateRequest:null },
-        { id:"FS-2026-005", employeeId:"EDB-SM-SUR1",  employeeName:"Arvind Mehta",   role:"Sales Manager", date:yesterday, checkInTime:new Date(Date.now()-86400000-32400000).toISOString(), checkOutTime:new Date(Date.now()-86400000-7200000).toISOString(), checkInLocation:{lat:21.1756,lng:72.8342,accuracy:7,ts:new Date(Date.now()-86400000-32400000).toISOString()}, trail:makeTrail(21.1756,72.8342,20), totalDistanceKm:6.8, checkOutReason:"manual", reinstateRequest:null },
+
+      // Helper: build a GPS trail from waypoints with intermediate interpolation
+      // Each waypoint is [lat, lng, isoTime, label]
+      const buildTrail = (waypoints: [number, number, string][], jitter = 0.0004) => {
+        const pts: any[] = [];
+        for (let i = 0; i < waypoints.length - 1; i++) {
+          const [lat1, lng1, t1] = waypoints[i];
+          const [lat2, lng2, t2] = waypoints[i + 1];
+          const steps = 5;
+          const t1ms = new Date(t1).getTime(), t2ms = new Date(t2).getTime();
+          for (let s = 0; s <= steps; s++) {
+            const f = s / steps;
+            pts.push({
+              lat: lat1 + (lat2 - lat1) * f + (Math.random() - 0.5) * jitter,
+              lng: lng1 + (lng2 - lng1) * f + (Math.random() - 0.5) * jitter,
+              accuracy: Math.round(6 + Math.random() * 12),
+              speed: f > 0 && f < 1 ? Math.round(15 + Math.random() * 20) : 0,
+              ts: new Date(t1ms + (t2ms - t1ms) * f).toISOString(),
+            });
+          }
+        }
+        // deduplicate by ts
+        const seen = new Set<string>();
+        return pts.filter(p => { const k = p.ts; if (seen.has(k)) return false; seen.add(k); return true; });
+      };
+
+      // ── Session 1: Arvind Mehta (Sales Manager) — TODAY — ACTIVE ─────────
+      // Route: Head Office (Ring Road) → Adajan Market (Lead) → Halt 22m →
+      //        Pal Township (Demo) → Halt 38m → Vesu Zone (Subscription) → Halt 15m
+      const s1Trail = buildTrail([
+        [21.1702, 72.8311, `${today}T09:05:00+05:30`],   // Head Office
+        [21.1890, 72.8200, `${today}T09:22:00+05:30`],   // En route
+        [21.2003, 72.8038, `${today}T09:38:00+05:30`],   // Adajan Market — arrive
+        [21.2003, 72.8038, `${today}T10:00:00+05:30`],   // HALT at Adajan (22m)
+        [21.2010, 72.8020, `${today}T10:14:00+05:30`],   // Leave Adajan
+        [21.2058, 72.7871, `${today}T10:29:00+05:30`],   // Pal Township — arrive
+        [21.2058, 72.7871, `${today}T11:07:00+05:30`],   // HALT at Pal (38m)
+        [21.1980, 72.7900, `${today}T11:21:00+05:30`],   // Leave Pal
+        [21.1750, 72.7950, `${today}T11:38:00+05:30`],   // En route to Vesu
+        [21.1465, 72.7973, `${today}T11:52:00+05:30`],   // Vesu Commercial Zone
+        [21.1465, 72.7973, `${today}T12:07:00+05:30`],   // HALT Vesu (15m)
+        [21.1550, 72.8050, `${today}T12:25:00+05:30`],   // Current location
+      ]);
+      const sessions: any[] = [
+        {
+          id: "FS-2026-TODAY-001",
+          employeeId: "EDB-SM-SUR1",
+          employeeName: "Arvind Mehta",
+          role: "Sales Manager",
+          date: today,
+          checkInTime: `${today}T09:05:00+05:30`,
+          checkInSelfieBase64: "",
+          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 8, speed: 0, ts: `${today}T09:05:00+05:30` },
+          checkOutTime: null,
+          checkOutSelfieBase64: null,
+          checkOutReason: null,
+          trail: s1Trail,
+          totalDistanceKm: 14.3,
+          reinstateRequest: null,
+          attendanceReg: null,
+          isAutoCheckout: false,
+          viewOnly: false,
+        },
+
+        // ── Session 2: Pooja Sharma (Sales Head) — TODAY — ACTIVE ────────────
+        // Route: Head Office → Katargam → Halt 45m (meeting) → Udhna → Halt 20m
+        {
+          id: "FS-2026-TODAY-002",
+          employeeId: "EDB-SH-SUR1",
+          employeeName: "Pooja Sharma",
+          role: "Sales Head",
+          date: today,
+          checkInTime: `${today}T08:45:00+05:30`,
+          checkInSelfieBase64: "",
+          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 9, speed: 0, ts: `${today}T08:45:00+05:30` },
+          checkOutTime: null,
+          checkOutSelfieBase64: null,
+          checkOutReason: null,
+          trail: buildTrail([
+            [21.1702, 72.8311, `${today}T08:45:00+05:30`],  // Head Office
+            [21.1950, 72.8380, `${today}T09:02:00+05:30`],  // En route
+            [21.2294, 72.8320, `${today}T09:22:00+05:30`],  // Katargam — arrive
+            [21.2294, 72.8320, `${today}T10:07:00+05:30`],  // HALT 45m (team meeting)
+            [21.2200, 72.8450, `${today}T10:21:00+05:30`],  // Leave Katargam
+            [21.1812, 72.8635, `${today}T10:40:00+05:30`],  // Udhna Gate — arrive
+            [21.1812, 72.8635, `${today}T11:00:00+05:30`],  // HALT 20m
+            [21.1850, 72.8580, `${today}T11:18:00+05:30`],  // Current position
+          ]),
+          totalDistanceKm: 8.7,
+          reinstateRequest: null,
+          attendanceReg: null,
+          isAutoCheckout: false,
+          viewOnly: false,
+        },
+
+        // ── Session 3: Harish Solanki (Supervisor) — TODAY — CHECKED OUT ─────
+        // Route: Ring Road zone → Citylight → Halt 30m → back via Athwalines
+        {
+          id: "FS-2026-TODAY-003",
+          employeeId: "EDB-SUP-SUR1",
+          employeeName: "Harish Solanki",
+          role: "Supervisor",
+          date: today,
+          checkInTime: `${today}T07:30:00+05:30`,
+          checkInSelfieBase64: "",
+          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 10, speed: 0, ts: `${today}T07:30:00+05:30` },
+          checkOutTime: `${today}T13:15:00+05:30`,
+          checkOutSelfieBase64: "",
+          checkOutReason: "manual" as const,
+          trail: buildTrail([
+            [21.1702, 72.8311, `${today}T07:30:00+05:30`],  // Ring Road base
+            [21.1650, 72.8200, `${today}T07:45:00+05:30`],  // Moving south
+            [21.1583, 72.7865, `${today}T08:05:00+05:30`],  // Citylight Colony — arrive
+            [21.1583, 72.7865, `${today}T08:35:00+05:30`],  // HALT 30m (vehicle inspection)
+            [21.1630, 72.7960, `${today}T08:50:00+05:30`],  // Leave Citylight
+            [21.1875, 72.8317, `${today}T09:15:00+05:30`],  // Athwalines
+            [21.1875, 72.8317, `${today}T09:35:00+05:30`],  // HALT 20m
+            [21.1800, 72.8280, `${today}T09:50:00+05:30`],  // Moving
+            [21.1702, 72.8311, `${today}T10:05:00+05:30`],  // Back at Ring Road
+          ]),
+          totalDistanceKm: 7.2,
+          reinstateRequest: null,
+          attendanceReg: null,
+          isAutoCheckout: false,
+          viewOnly: true,
+        },
+
+        // ── Session 4: Bhavesh Modi (Supervisor) — YESTERDAY — FULL DAY ──────
+        // Althan zone — full patrol with 3 stops
+        {
+          id: "FS-2026-YEST-001",
+          employeeId: "EDB-SUP-SUR2",
+          employeeName: "Bhavesh Modi",
+          role: "Supervisor",
+          date: yesterday,
+          checkInTime: `${yesterday}T08:00:00+05:30`,
+          checkInSelfieBase64: "",
+          checkInLocation: { lat: 21.1537, lng: 72.8456, accuracy: 7, speed: 0, ts: `${yesterday}T08:00:00+05:30` },
+          checkOutTime: `${yesterday}T16:30:00+05:30`,
+          checkOutSelfieBase64: "",
+          checkOutReason: "manual" as const,
+          trail: buildTrail([
+            [21.1537, 72.8456, `${yesterday}T08:00:00+05:30`],  // Althan base
+            [21.1600, 72.8500, `${yesterday}T08:18:00+05:30`],  // Moving
+            [21.1700, 72.8580, `${yesterday}T08:35:00+05:30`],  // Site 1 — arrive
+            [21.1700, 72.8580, `${yesterday}T09:05:00+05:30`],  // HALT 30m
+            [21.1750, 72.8620, `${yesterday}T09:20:00+05:30`],  // Moving
+            [21.1812, 72.8635, `${yesterday}T09:38:00+05:30`],  // Udhna — arrive
+            [21.1812, 72.8635, `${yesterday}T10:18:00+05:30`],  // HALT 40m (supply collection)
+            [21.1750, 72.8700, `${yesterday}T10:35:00+05:30`],  // Moving east
+            [21.1900, 72.8750, `${yesterday}T10:55:00+05:30`],  // Varachha area
+            [21.1900, 72.8750, `${yesterday}T11:20:00+05:30`],  // HALT 25m (customer issue)
+            [21.1750, 72.8600, `${yesterday}T11:40:00+05:30`],  // Return route
+            [21.1537, 72.8456, `${yesterday}T12:10:00+05:30`],  // Back at Althan — lunch
+            [21.1537, 72.8456, `${yesterday}T13:00:00+05:30`],  // HALT 50m (lunch)
+            [21.1480, 72.8400, `${yesterday}T13:20:00+05:30`],  // Afternoon round
+            [21.1400, 72.8350, `${yesterday}T13:45:00+05:30`],  // South Althan
+            [21.1537, 72.8456, `${yesterday}T16:30:00+05:30`],  // End at base
+          ]),
+          totalDistanceKm: 19.6,
+          reinstateRequest: null,
+          attendanceReg: null,
+          isAutoCheckout: false,
+          viewOnly: true,
+        },
+
+        // ── Session 5: Arvind Mehta — YESTERDAY — with reinstate flag ─────────
+        {
+          id: "FS-2026-YEST-002",
+          employeeId: "EDB-SM-SUR1",
+          employeeName: "Arvind Mehta",
+          role: "Sales Manager",
+          date: yesterday,
+          checkInTime: `${yesterday}T09:10:00+05:30`,
+          checkInSelfieBase64: "",
+          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 8, speed: 0, ts: `${yesterday}T09:10:00+05:30` },
+          checkOutTime: `${yesterday}T23:59:00+05:30`,
+          checkOutSelfieBase64: null,
+          checkOutReason: "auto_23_59" as const,
+          trail: buildTrail([
+            [21.1702, 72.8311, `${yesterday}T09:10:00+05:30`],
+            [21.2003, 72.8038, `${yesterday}T09:35:00+05:30`],  // Adajan
+            [21.2003, 72.8038, `${yesterday}T10:10:00+05:30`],  // HALT 35m
+            [21.2089, 72.7982, `${yesterday}T10:28:00+05:30`],  // Adajan Patia
+            [21.2089, 72.7982, `${yesterday}T11:00:00+05:30`],  // HALT 32m
+            [21.1980, 72.8050, `${yesterday}T11:18:00+05:30`],
+            [21.1702, 72.8311, `${yesterday}T11:40:00+05:30`],  // Back at office
+          ]),
+          totalDistanceKm: 11.2,
+          reinstateRequest: {
+            submittedAt: `${yesterday}T07:02:00+05:30`,
+            reason: "App was in background and location turned off accidentally. Was at Adajan Patia till 6 PM for customer demos.",
+            status: "Pending" as const,
+          },
+          attendanceReg: {
+            type: "auto_checkout" as const,
+            submittedAt: `${yesterday}T23:59:00+05:30`,
+            reason: "Auto-checkout at midnight",
+            status: "Pending" as const,
+          },
+          isAutoCheckout: true,
+          viewOnly: true,
+        },
       ];
+
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-      console.log("[Seed] field_sessions_v1: 5 sessions (2 active, 3 completed)");
+      console.log("[Seed] field_sessions_v1: 5 rich Surat sessions with drives + halts");
     }
   } catch(e) { console.error("[Seed] Field sessions seed failed:", e); }
 
