@@ -250,7 +250,7 @@ const GSTFilingModule = lazy(() => import("./components/gst/GSTFilingModule"));
 const GSTMonitoringModule = lazy(() => import("./components/gst/GSTMonitoringModule"));
 const BusinessFlowDemo = lazy(() => import("./components/BusinessFlowDemo"));
 
-const LiveLocationDashboard = lazy(() => import("./components/field/LiveLocationDashboard").then(m => ({ default: m.LiveLocationDashboard })));
+const LiveLocationDashboard = lazy(() => import("./components/field/LiveLocationDashboard"));
 import { UnauthorizedPage } from "./components/pages/UnauthorizedPage";
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";

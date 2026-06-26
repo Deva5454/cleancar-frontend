@@ -406,3 +406,5 @@ export function LiveLocationDashboard() {
     </div>
   );
 }
+
+export default LiveLocationDashboard;

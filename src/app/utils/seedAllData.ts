@@ -1069,6 +1069,32 @@ export function seedAllData(): void {
     { rfqId:"RFQ-202606-001",suppliers:["SUP-003"],           status:"Sent",           createdAt:"2026-06-16T14:00:00Z",items:[{itemName:"Tyre Shine 500ml",   quantity:50, unit:"Liters"}] },
   ]);
 
+
+  // ── FIELD TRACKING SESSIONS ─────────────────────────────────────────────────
+  try {
+    const SESSIONS_KEY = "field_sessions_v1";
+    if (!localStorage.getItem(SESSIONS_KEY)) {
+      const today = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const makeTrail = (baseLat: number, baseLng: number, count: number) =>
+        Array.from({ length: count }, (_, i) => ({
+          lat: baseLat + i * 0.0012 + Math.random() * 0.0005,
+          lng: baseLng + i * 0.0015 + Math.random() * 0.0005,
+          accuracy: Math.round(5 + Math.random() * 15),
+          ts: new Date(Date.now() - (count - i) * 300000).toISOString(),
+        }));
+      const sessions = [
+        { id:"FS-2026-001", employeeId:"EDB-SUP-SUR1", employeeName:"Harish Solanki", role:"Supervisor", date:today, checkInTime:new Date(Date.now()-9900000).toISOString(), checkOutTime:null, checkInLocation:{lat:21.1702,lng:72.8311,accuracy:8,ts:new Date(Date.now()-9900000).toISOString()}, trail:makeTrail(21.1702,72.8311,14), totalDistanceKm:3.75, checkOutReason:null, reinstateRequest:null },
+        { id:"FS-2026-002", employeeId:"EDB-SM-SUR1",  employeeName:"Arvind Mehta",   role:"Sales Manager", date:today, checkInTime:new Date(Date.now()-14400000).toISOString(), checkOutTime:null, checkInLocation:{lat:21.1890,lng:72.8456,accuracy:6,ts:new Date(Date.now()-14400000).toISOString()}, trail:makeTrail(21.1890,72.8456,18), totalDistanceKm:5.2, checkOutReason:null, reinstateRequest:null },
+        { id:"FS-2026-003", employeeId:"EDB-SH-SUR1",  employeeName:"Pooja Sharma",   role:"Sales Head",    date:today, checkInTime:new Date(Date.now()-18000000).toISOString(), checkOutTime:new Date(Date.now()-3600000).toISOString(), checkInLocation:{lat:21.2012,lng:72.8567,accuracy:10,ts:new Date(Date.now()-18000000).toISOString()}, trail:makeTrail(21.2012,72.8567,22), totalDistanceKm:7.1, checkOutReason:"manual", reinstateRequest:null },
+        { id:"FS-2026-004", employeeId:"EDB-SUP-SUR2", employeeName:"Bhavesh Modi",   role:"Supervisor",    date:yesterday, checkInTime:new Date(Date.now()-86400000-28800000).toISOString(), checkOutTime:new Date(Date.now()-86400000-7200000).toISOString(), checkInLocation:{lat:21.1602,lng:72.8211,accuracy:12,ts:new Date(Date.now()-86400000-28800000).toISOString()}, trail:makeTrail(21.1602,72.8211,16), totalDistanceKm:4.3, checkOutReason:"manual", reinstateRequest:null },
+        { id:"FS-2026-005", employeeId:"EDB-SM-SUR1",  employeeName:"Arvind Mehta",   role:"Sales Manager", date:yesterday, checkInTime:new Date(Date.now()-86400000-32400000).toISOString(), checkOutTime:new Date(Date.now()-86400000-7200000).toISOString(), checkInLocation:{lat:21.1756,lng:72.8342,accuracy:7,ts:new Date(Date.now()-86400000-32400000).toISOString()}, trail:makeTrail(21.1756,72.8342,20), totalDistanceKm:6.8, checkOutReason:"manual", reinstateRequest:null },
+      ];
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+      console.log("[Seed] field_sessions_v1: 5 sessions (2 active, 3 completed)");
+    }
+  } catch(e) { console.error("[Seed] Field sessions seed failed:", e); }
+
     localStorage.setItem(SEED_FLAG, "true");
 
     // ── 1. EMPLOYEES ─────────────────────────────────────────────────────────
