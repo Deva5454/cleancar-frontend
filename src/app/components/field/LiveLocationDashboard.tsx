@@ -21,7 +21,7 @@ import { Badge } from "../ui/badge";
 import {
   MapPin, Navigation, Clock, Footprints, AlertTriangle,
   RefreshCw, ChevronDown, ChevronRight, Users, CheckCircle2,
-  XCircle, Camera,
+  XCircle, Camera, IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -382,6 +382,47 @@ export function LiveLocationDashboard() {
 
       {/* Pending reinstatements — always visible */}
       <PendingReinstatePanel onApproved={refresh} />
+
+      {/* GPS-auto-submitted reimbursements today */}
+      {(() => {
+        try {
+          const { travelReimbursementService } = require("../../services/travelReimbursementService");
+          const today = new Date().toISOString().slice(0, 10);
+          const autoTrips = travelReimbursementService.getTrips().filter(
+            (t: any) => t.autoSubmittedFromFieldTracking && t.tripDate === today
+          );
+          if (!autoTrips.length) return null;
+          return (
+            <Card className="p-4 border-2 border-blue-200 bg-blue-50">
+              <div className="flex items-center gap-2 mb-3">
+                <IndianRupee className="w-4 h-4 text-blue-600" />
+                <h3 className="font-semibold text-blue-900 text-sm">
+                  {autoTrips.length} Travel Reimbursement{autoTrips.length > 1 ? "s" : ""} Auto-Submitted Today
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {autoTrips.map((t: any) => (
+                  <div key={t.id} className="bg-white rounded-lg p-3 border border-blue-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{t.employeeName}</p>
+                      <p className="text-xs text-gray-500">
+                        {t.totalKm} km · {t.gpsTrailPoints} GPS points · ₹{t.ratePerKm}/km
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-700">₹{t.netPayableAmount?.toLocaleString()}</p>
+                      <Badge className="bg-blue-100 text-blue-800 text-xs">Pending Manager</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-blue-600 mt-2">
+                These claims are auto-submitted from GPS checkout and awaiting manager approval in Travel module.
+              </p>
+            </Card>
+          );
+        } catch { return null; }
+      })()}
 
       {/* Live view */}
       {activeTab === "live" && (

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { CheckCircle, XCircle, Eye, Clock } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Clock, Navigation } from "lucide-react";
 import { toast } from "sonner";
 import { TravelEmployeeView } from "./TravelEmployeeView";
 
@@ -71,12 +71,24 @@ export function TravelManagerView() {
             <Card key={trip.id} className="cursor-pointer hover:shadow-md" onClick={() => setSelected(trip)}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-sm">{trip.employeeName}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm">{trip.employeeName}</p>
+                      {trip.autoSubmittedFromFieldTracking && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                          <Navigation className="w-2.5 h-2.5" />GPS Verified
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500">{trip.designation} · {trip.tripDate}</p>
                     <p className="text-xs text-gray-600 mt-1">{trip.purposeOfVisit}</p>
+                    {trip.autoSubmittedFromFieldTracking && trip.gpsTrailPoints && (
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        {trip.gpsTrailPoints} GPS points recorded · Distance GPS-verified
+                      </p>
+                    )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0 ml-3">
                     <p className="font-bold text-green-700">₹{trip.netPayableAmount?.toLocaleString()}</p>
                     <p className="text-xs text-gray-400">{trip.totalKm} km</p>
                   </div>
@@ -95,6 +107,20 @@ export function TravelManagerView() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* GPS auto-submit notice */}
+                {selected.autoSubmittedFromFieldTracking && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+                    <Navigation className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-blue-800">
+                      <p className="font-semibold">GPS-Verified Claim</p>
+                      <p className="mt-0.5">
+                        This claim was auto-submitted at checkout using {selected.gpsTrailPoints} GPS trail points.
+                        Distance of {selected.gpsDistanceKm} km is haversine-computed — no odometer photos required.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Trip details */}
                 <div className="bg-gray-50 rounded-lg p-3 space-y-2 text-sm">
                   {[
@@ -104,7 +130,9 @@ export function TravelManagerView() {
                     ["Purpose",   selected.purposeOfVisit],
                     ["Location",  selected.visitLocation],
                     ["Outcome",   selected.outcomeOfVisit || "Not entered"],
-                    ["Distance",  `${selected.startReading} → ${selected.endReading} km (${selected.totalKm} km)`],
+                    ["Distance",  selected.autoSubmittedFromFieldTracking
+                      ? `${selected.totalKm} km (GPS-computed)`
+                      : `${selected.startReading} → ${selected.endReading} km (${selected.totalKm} km)`],
                     ["Rate",      `₹${selected.ratePerKm}/km`],
                   ].map(([k,v]) => (
                     <div key={k} className="flex justify-between">

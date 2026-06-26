@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Camera, MapPin, CheckCircle, Clock, ChevronRight, Car, Bike, FileText, History } from "lucide-react";
+import { Camera, MapPin, CheckCircle, Clock, ChevronRight, Car, Bike, FileText, History, Navigation } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "new_trip" | "my_trips";
@@ -445,12 +445,24 @@ export function TravelEmployeeView() {
             </div>
           ) : (
             [...myTrips].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(trip => (
-              <Card key={trip.id} className="hover:shadow-md transition-shadow">
+              <Card key={trip.id} className={`hover:shadow-md transition-shadow ${trip.autoSubmittedFromFieldTracking ? "border-blue-200" : ""}`}>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-medium text-sm text-gray-900">{trip.purposeOfVisit}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm text-gray-900">{trip.purposeOfVisit}</p>
+                        {trip.autoSubmittedFromFieldTracking && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                            <Navigation className="w-2.5 h-2.5" />GPS Auto
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500">{trip.visitLocation} · {trip.tripDate}</p>
+                      {trip.autoSubmittedFromFieldTracking && trip.gpsTrailPoints && (
+                        <p className="text-xs text-blue-600 mt-0.5">
+                          Verified by {trip.gpsTrailPoints} GPS points · Auto-submitted at checkout
+                        </p>
+                      )}
                     </div>
                     <Badge className={STATUS_COLORS[trip.status] || "bg-gray-100 text-gray-700"}>
                       {trip.status}
