@@ -1304,6 +1304,53 @@ export function seedAllData(): void {
 
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
       console.log("[Seed] field_sessions_v1: 5 rich sessions - walk/auto/BRTS/bike/car modes");
+  // ── TRAVEL PERMISSIONS + GPS TRIPS ────────────────────────────────────────
+  try {
+    const TP_KEY = "TRAVEL_PERMISSIONS";
+    const TR_KEY = "TRAVEL_RATES";
+    const TT_KEY = "TRAVEL_TRIPS";
+    const today2     = new Date().toISOString().slice(0, 10);
+    const yesterday2 = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    // Rates
+    if (!localStorage.getItem(TR_KEY)) {
+      localStorage.setItem(TR_KEY, JSON.stringify([
+        { vehicleType:"2W", ratePerKm:3, effectiveFrom:"2026-01-01", setBy:"Super Admin", updatedAt:new Date().toISOString() },
+        { vehicleType:"4W", ratePerKm:6, effectiveFrom:"2026-01-01", setBy:"Super Admin", updatedAt:new Date().toISOString() },
+      ]));
+    }
+
+    // Permissions — enable ALL field employees. Without this isEmployeeEnabled()
+    // returns false and autoSubmitFromSession() silently returns null.
+    localStorage.setItem(TP_KEY, JSON.stringify([
+      { employeeId:"EDB-SH-SUR1",   employeeName:"Pooja Sharma",   designation:"Sales Head",    cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"4W" },
+      { employeeId:"EDB-SH-SUR2",   employeeName:"Ravi Shah",      designation:"Sales Head",    cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"4W" },
+      { employeeId:"EDB-SM-SUR1",   employeeName:"Arvind Mehta",   designation:"Sales Manager", cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+      { employeeId:"EDB-SMGR-SUR1", employeeName:"Nayan Joshi",    designation:"Sales Manager", cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+      { employeeId:"EDB-SMGR-SUR2", employeeName:"Kalpesh Rathod", designation:"Sales Manager", cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+      { employeeId:"EDB-SMGR-SUR3", employeeName:"Amit Trivedi",   designation:"Sales Manager", cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+      { employeeId:"EDB-SUP-SUR1",  employeeName:"Harish Solanki", designation:"Supervisor",    cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+      { employeeId:"EDB-SUP-SUR2",  employeeName:"Bhavesh Modi",   designation:"Supervisor",    cityId:"CITY-SURAT", isEnabled:true, enabledBy:"Super Admin", enabledAt:"2026-01-01T00:00:00.000Z", vehicleType:"2W" },
+    ]));
+    console.log("[Seed] TRAVEL_PERMISSIONS: 8 field employees enabled");
+
+    // Pre-seed GPS trips for already-completed sessions
+    const existTrips: any[] = JSON.parse(localStorage.getItem(TT_KEY) || "[]");
+    const seenIds = new Set(existTrips.map((t: any) => t.fieldSessionId).filter(Boolean));
+    const gpsTrips: any[] = [
+      { id:"TRIP-GPS-TODAY-001", employeeId:"EDB-SM-SUR1",  employeeName:"Arvind Mehta",   designation:"Sales Manager", cityId:"CITY-SURAT", city:"Surat", reportingManagerId:"EDB-SH-SUR1",  reportingManagerName:"Pooja Sharma",  vehicleType:"2W", vehicleNumber:"GPS-TRACKED", tripDate:today2,     startTime:"09:05", endTime:"17:10", purposeOfVisit:"Field day - GPS auto-submitted (Sales Manager)", visitLocation:"Adajan, Vesu, Pal, Katargam - Surat", outcomeOfVisit:"Auto-submitted from GPS field tracking", startReading:0, endReading:32.1, totalKm:32.1, ratePerKm:3, calculatedAmount:96,  taxAmount:0, tdsAmount:0, netPayableAmount:96,  status:"Pending Manager", submittedAt:`${today2}T17:10:00+05:30`,     createdAt:`${today2}T17:10:00+05:30`,     updatedAt:`${today2}T17:10:00+05:30`,     autoSubmittedFromFieldTracking:true, fieldSessionId:"FS-2026-TODAY-001", gpsDistanceKm:32.1, gpsTrailPoints:87 },
+      { id:"TRIP-GPS-TODAY-002", employeeId:"EDB-SH-SUR1",  employeeName:"Pooja Sharma",   designation:"Sales Head",    cityId:"CITY-SURAT", city:"Surat", reportingManagerId:"EDB-CM-SUR",   reportingManagerName:"Amit Desai",    vehicleType:"4W", vehicleNumber:"GPS-TRACKED", tripDate:today2,     startTime:"10:00",                purposeOfVisit:"Field day - GPS auto-submitted (Sales Head)",    visitLocation:"Udhna Gate - Surat",                     outcomeOfVisit:"In progress",                         startReading:0, endReading:8.7,  totalKm:8.7,  ratePerKm:6, calculatedAmount:52,  taxAmount:0, tdsAmount:0, netPayableAmount:52,  status:"Pending Manager", submittedAt:`${today2}T10:00:00+05:30`,     createdAt:`${today2}T10:00:00+05:30`,     updatedAt:`${today2}T10:00:00+05:30`,     autoSubmittedFromFieldTracking:true, fieldSessionId:"FS-2026-TODAY-002", gpsDistanceKm:8.7,  gpsTrailPoints:24 },
+      { id:"TRIP-GPS-TODAY-003", employeeId:"EDB-SUP-SUR1", employeeName:"Harish Solanki", designation:"Supervisor",    cityId:"CITY-SURAT", city:"Surat", reportingManagerId:"EDB-SM-SUR1",  reportingManagerName:"Arvind Mehta",  vehicleType:"2W", vehicleNumber:"GPS-TRACKED", tripDate:today2,     startTime:"09:30",                purposeOfVisit:"Field day - GPS auto-submitted (Supervisor)",    visitLocation:"Athwalines, Citylight - Surat",          outcomeOfVisit:"In progress",                         startReading:0, endReading:7.2,  totalKm:7.2,  ratePerKm:3, calculatedAmount:22,  taxAmount:0, tdsAmount:0, netPayableAmount:22,  status:"Pending Manager", submittedAt:`${today2}T09:30:00+05:30`,     createdAt:`${today2}T09:30:00+05:30`,     updatedAt:`${today2}T09:30:00+05:30`,     autoSubmittedFromFieldTracking:true, fieldSessionId:"FS-2026-TODAY-003", gpsDistanceKm:7.2,  gpsTrailPoints:19 },
+      { id:"TRIP-GPS-YEST-001",  employeeId:"EDB-SUP-SUR2", employeeName:"Bhavesh Modi",   designation:"Supervisor",    cityId:"CITY-SURAT", city:"Surat", reportingManagerId:"EDB-SM-SUR1",  reportingManagerName:"Arvind Mehta",  vehicleType:"2W", vehicleNumber:"GPS-TRACKED", tripDate:yesterday2, startTime:"08:00", endTime:"12:35", purposeOfVisit:"Field day - GPS auto-submitted (Supervisor)",    visitLocation:"Althan, Udhna, Varachha - Surat",        outcomeOfVisit:"Auto-submitted from GPS field tracking", startReading:0, endReading:19.6, totalKm:19.6, ratePerKm:3, calculatedAmount:59,  taxAmount:0, tdsAmount:0, netPayableAmount:59,  status:"Approved",        submittedAt:`${yesterday2}T12:35:00+05:30`, createdAt:`${yesterday2}T12:35:00+05:30`, updatedAt:`${yesterday2}T15:00:00+05:30`, autoSubmittedFromFieldTracking:true, fieldSessionId:"FS-2026-YEST-001",  gpsDistanceKm:19.6, gpsTrailPoints:52, approvedBy:"Arvind Mehta", approvedAt:`${yesterday2}T15:00:00+05:30` },
+    ];
+    const newTrips = gpsTrips.filter(t => !seenIds.has(t.fieldSessionId));
+    if (newTrips.length > 0) {
+      localStorage.setItem(TT_KEY, JSON.stringify([...newTrips, ...existTrips]));
+      console.log("[Seed] TRAVEL_TRIPS: " + newTrips.length + " GPS trips seeded");
+    }
+  } catch(e) { console.error("[Seed] Travel seed failed:", e); }
+
+
     }
   } catch(e) { console.error("[Seed] Field sessions seed failed:", e); }
 
