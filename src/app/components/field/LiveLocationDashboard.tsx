@@ -77,17 +77,47 @@ const staleMin = (iso: string) => Math.round((Date.now() - new Date(iso).getTime
 
 // ── Journey event detection ───────────────────────────────────────────────────
 interface JourneyEvent {
-  type: "checkin" | "drive" | "stop" | "checkout";
-  startIdx: number;
-  endIdx: number;
-  startTime: string;
-  endTime?: string;
-  durationMins: number;
-  distanceKm?: number;
-  location?: string;
-  lat: number;
-  lng: number;
+  type:           "checkin" | "drive" | "stop" | "checkout";
+  startIdx:       number;
+  endIdx:         number;
+  startTime:      string;
+  endTime?:       string;
+  durationMins:   number;
+  distanceKm?:    number;
+  location?:      string;
+  lat:            number;
+  lng:            number;
+  transportMode?: "walk" | "auto" | "brts" | "bike" | "car";
+  avgSpeedKmh?:   number;
 }
+
+function inferMode(speedKmh: number): "walk" | "auto" | "brts" | "bike" | "car" {
+  if (speedKmh < 5)  return "walk";
+  if (speedKmh < 15) return "auto";
+  if (speedKmh < 25) return "brts";
+  if (speedKmh < 45) return "bike";
+  return "car";
+}
+
+const MODE_LABEL: Record<string, string> = {
+  walk: "Walking",
+  auto: "Auto Rickshaw",
+  brts: "BRTS / Bus",
+  bike: "Two-Wheeler",
+  car:  "Car",
+};
+
+const MODE_ICON: Record<string, string> = {
+  walk: "🚶", auto: "🛺", brts: "🚌", bike: "🏍️", car: "🚗",
+};
+
+const MODE_COLOR: Record<string, string> = {
+  walk: "text-green-700 bg-green-50 border-green-200",
+  auto: "text-yellow-700 bg-yellow-50 border-yellow-200",
+  brts: "text-blue-700 bg-blue-50 border-blue-200",
+  bike: "text-orange-700 bg-orange-50 border-orange-200",
+  car:  "text-purple-700 bg-purple-50 border-purple-200",
+};
 
 function buildJourney(session: FieldSession): JourneyEvent[] {
   const trail = session.trail;
@@ -155,6 +185,15 @@ function buildJourney(session: FieldSession): JourneyEvent[] {
           distanceKm: driveDist,
           location: locationName(trail[driveEndIdx].lat, trail[driveEndIdx].lng),
           lat: trail[driveEndIdx].lat, lng: trail[driveEndIdx].lng,
+          avgSpeedKmh: (() => {
+            const mins = Math.round((new Date(trail[driveEndIdx].ts).getTime() - new Date(trail[segStart].ts).getTime()) / 60000);
+            return mins > 0 ? Math.round(driveDist / (mins / 60)) : 0;
+          })(),
+          transportMode: (() => {
+            const mins = Math.round((new Date(trail[driveEndIdx].ts).getTime() - new Date(trail[segStart].ts).getTime()) / 60000);
+            const spd = mins > 0 ? driveDist / (mins / 60) : 0;
+            return inferMode(spd);
+          })(),
         });
       }
 
@@ -185,16 +224,18 @@ function buildJourney(session: FieldSession): JourneyEvent[] {
       return Math.round(d * 100) / 100;
     })();
     if (driveDist > 0.01) {
+      const _fdMins = Math.round((new Date(trail[trail.length-1].ts).getTime() - new Date(trail[segStart].ts).getTime()) / 60000);
+      const _fdSpd = _fdMins > 0 ? driveDist / (_fdMins/60) : 0;
       events.push({
         type: "drive",
         startIdx: segStart, endIdx: trail.length - 1,
         startTime: trail[segStart].ts, endTime: trail[trail.length - 1].ts,
-        durationMins: Math.round(
-          (new Date(trail[trail.length - 1].ts).getTime() - new Date(trail[segStart].ts).getTime()) / 60000
-        ),
+        durationMins: _fdMins,
         distanceKm: driveDist,
         location: locationName(trail[trail.length - 1].lat, trail[trail.length - 1].lng),
         lat: trail[trail.length - 1].lat, lng: trail[trail.length - 1].lng,
+        avgSpeedKmh: Math.round(_fdSpd),
+        transportMode: inferMode(_fdSpd),
       });
     }
   }
@@ -251,16 +292,27 @@ function RouteMap({ trail, events }: { trail: GeoPoint[]; events: JourneyEvent[]
         <path d={pathD} fill="none" stroke="#94a3b8" strokeWidth="1.5"
           strokeLinecap="round" strokeLinejoin="round" opacity="0.4" strokeDasharray="4 2" />
 
-        {/* Colored segments */}
+        {/* Colour segments by transport mode */}
         {trail.slice(1).map((p, i) => {
           const prev = trail[i];
           const isStop = stopIndices.has(i + 1);
+          const driveEvent = events.find(e =>
+            e.type === "drive" && i + 1 >= e.startIdx && i + 1 <= e.endIdx
+          );
+          const segColor =
+            isStop ? "#f59e0b" :
+            driveEvent?.transportMode === "walk" ? "#22c55e" :
+            driveEvent?.transportMode === "auto" ? "#eab308" :
+            driveEvent?.transportMode === "brts" ? "#3b82f6" :
+            driveEvent?.transportMode === "bike" ? "#f97316" :
+            driveEvent?.transportMode === "car"  ? "#8b5cf6" :
+            "#6366f1";
           return (
             <line key={i}
               x1={tx(prev.lng).toFixed(1)} y1={ty(prev.lat).toFixed(1)}
               x2={tx(p.lng).toFixed(1)}   y2={ty(p.lat).toFixed(1)}
-              stroke={isStop ? "#f59e0b" : "#6366f1"}
-              strokeWidth="2.5" strokeLinecap="round" opacity="0.85"
+              stroke={segColor}
+              strokeWidth="2.5" strokeLinecap="round" opacity="0.9"
             />
           );
         })}
@@ -289,19 +341,14 @@ function RouteMap({ trail, events }: { trail: GeoPoint[]; events: JourneyEvent[]
       </svg>
 
       {/* Legend */}
-      <div className="absolute bottom-2 left-3 flex items-center gap-3 text-[10px] text-gray-500">
-        <span className="flex items-center gap-1">
-          <span className="w-4 h-1 bg-indigo-500 rounded inline-block" />Drive
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-4 h-1 bg-amber-400 rounded inline-block" />Halt
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Start
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />End
-        </span>
+      <div className="absolute bottom-2 left-3 flex items-center gap-2 flex-wrap text-[9px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-4 h-1 bg-green-500 rounded inline-block" />Walk</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-1 bg-yellow-400 rounded inline-block" />Auto</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-1 bg-blue-500 rounded inline-block" />BRTS</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-1 bg-orange-500 rounded inline-block" />Bike</span>
+        <span className="flex items-center gap-1"><span className="w-4 h-1 bg-purple-500 rounded inline-block" />Car</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Start</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />End</span>
       </div>
     </div>
   );
@@ -353,12 +400,21 @@ function TimelineRow({ event, index, isLast }: { event: JourneyEvent; index: num
 
         {/* Drive stats */}
         {event.type === "drive" && (
-          <div className="flex gap-3 mt-1.5 text-xs text-indigo-700">
-            <span className="flex items-center gap-1"><Car className="w-3 h-3" />{event.distanceKm} km</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{durStr(event.durationMins)}</span>
-            <span className="text-indigo-500">
-              ~{event.durationMins > 0 ? Math.round((event.distanceKm ?? 0) / (event.durationMins / 60)) : 0} km/h avg
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            {event.transportMode && (
+              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${MODE_COLOR[event.transportMode]}`}>
+                {MODE_ICON[event.transportMode]} {MODE_LABEL[event.transportMode]}
+              </span>
+            )}
+            <span className="text-xs text-indigo-600 flex items-center gap-1">
+              <Car className="w-3 h-3" />{event.distanceKm} km
             </span>
+            <span className="text-xs text-indigo-600 flex items-center gap-1">
+              <Clock className="w-3 h-3" />{durStr(event.durationMins)}
+            </span>
+            {event.avgSpeedKmh !== undefined && event.avgSpeedKmh > 0 && (
+              <span className="text-xs text-indigo-400">~{event.avgSpeedKmh} km/h avg</span>
+            )}
           </div>
         )}
 

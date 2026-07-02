@@ -1077,213 +1077,233 @@ export function seedAllData(): void {
     if (true) {
       const today     = new Date().toISOString().slice(0, 10);
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const d2ago     = new Date(Date.now() - 2*86400000).toISOString().slice(0, 10);
 
-      // Helper: build a GPS trail from waypoints with intermediate interpolation
-      // Each waypoint is [lat, lng, isoTime, label]
-      const buildTrail = (waypoints: [number, number, string][], jitter = 0.0004) => {
-        const pts: any[] = [];
-        for (let i = 0; i < waypoints.length - 1; i++) {
-          const [lat1, lng1, t1] = waypoints[i];
-          const [lat2, lng2, t2] = waypoints[i + 1];
-          const steps = 5;
-          const t1ms = new Date(t1).getTime(), t2ms = new Date(t2).getTime();
-          for (let s = 0; s <= steps; s++) {
-            const f = s / steps;
-            pts.push({
-              lat: lat1 + (lat2 - lat1) * f + (Math.random() - 0.5) * jitter,
-              lng: lng1 + (lng2 - lng1) * f + (Math.random() - 0.5) * jitter,
-              accuracy: Math.round(6 + Math.random() * 12),
-              speed: f > 0 && f < 1 ? Math.round(15 + Math.random() * 20) : 0,
-              ts: new Date(t1ms + (t2ms - t1ms) * f).toISOString(),
-            });
-          }
-        }
-        // deduplicate by ts
-        const seen = new Set<string>();
-        return pts.filter(p => { const k = p.ts; if (seen.has(k)) return false; seen.add(k); return true; });
+      // Helper: interpolate GPS trail between waypoints
+      // waypoints = [lat, lng, "HH:MM"] — time as HH:MM on today's date
+      const pt = (lat: number, lng: number, hhmm: string, date: string, speed = 0): any => {
+        const [hh, mm] = hhmm.split(":").map(Number);
+        return {
+          lat: lat + (Math.random() - 0.5) * 0.0003,
+          lng: lng + (Math.random() - 0.5) * 0.0003,
+          accuracy: Math.round(5 + Math.random() * 10),
+          speed,
+          ts: `${date}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00+05:30`,
+        };
       };
 
-      // ── Session 1: Arvind Mehta (Sales Manager) — TODAY — ACTIVE ─────────
-      // Route: Head Office (Ring Road) → Adajan Market (Lead) → Halt 22m →
-      //        Pal Township (Demo) → Halt 38m → Vesu Zone (Subscription) → Halt 15m
-      const s1Trail = buildTrail([
-        [21.1702, 72.8311, `${today}T09:05:00+05:30`],   // Head Office
-        [21.1890, 72.8200, `${today}T09:22:00+05:30`],   // En route
-        [21.2003, 72.8038, `${today}T09:38:00+05:30`],   // Adajan Market — arrive
-        [21.2003, 72.8038, `${today}T10:00:00+05:30`],   // HALT at Adajan (22m)
-        [21.2010, 72.8020, `${today}T10:14:00+05:30`],   // Leave Adajan
-        [21.2058, 72.7871, `${today}T10:29:00+05:30`],   // Pal Township — arrive
-        [21.2058, 72.7871, `${today}T11:07:00+05:30`],   // HALT at Pal (38m)
-        [21.1980, 72.7900, `${today}T11:21:00+05:30`],   // Leave Pal
-        [21.1750, 72.7950, `${today}T11:38:00+05:30`],   // En route to Vesu
-        [21.1465, 72.7973, `${today}T11:52:00+05:30`],   // Vesu Commercial Zone
-        [21.1465, 72.7973, `${today}T12:07:00+05:30`],   // HALT Vesu (15m)
-        [21.1550, 72.8050, `${today}T12:25:00+05:30`],   // Current location
-      ]);
-      const sessions: any[] = [
+      // Interpolate N steps between two waypoints
+      const interp = (lat1: number, lng1: number, t1: string, lat2: number, lng2: number, t2: string, date: string, steps = 6, spd = 0) => {
+        const [h1,m1] = t1.split(":").map(Number);
+        const [h2,m2] = t2.split(":").map(Number);
+        const tMin1 = h1*60+m1, tMin2 = h2*60+m2;
+        return Array.from({length: steps+1}, (_,i) => {
+          const f = i/steps;
+          const tMin = Math.round(tMin1 + (tMin2-tMin1)*f);
+          return pt(lat1+(lat2-lat1)*f, lng1+(lng2-lng1)*f, `${Math.floor(tMin/60)}:${String(tMin%60).padStart(2,"0")}`, date, spd);
+        });
+      };
+
+      // ── SESSION 1: Arvind Mehta (Sales Manager) ─────────────────────────
+      // FULL DAY: Walk → Auto → Client 1 (Adajan) → Walk → BRTS → Client 2 (Vesu)
+      //           → Auto → Client 3 (Pal) → Bike → Lunch (Citylight) → Car → Office
+      // Total: ~32km, 7 stops, 5 transport modes
+      const s1: any[] = [
+        // 9:05 — Leave Head Office on foot
+        ...interp(21.1702, 72.8311, "9:05", 21.1678, 72.8275, "9:12", today, 4, 0),
+        // 9:12 — Board auto rickshaw at Athwalines junction
+        ...interp(21.1678, 72.8275, "9:12", 21.1875, 72.8317, "9:20", today, 5, 4.5),
+        // 9:20–9:30 — Auto continues to Adajan Market
+        ...interp(21.1875, 72.8317, "9:20", 21.2003, 72.8038, "9:30", today, 6, 5.0),
+        // HALT 1: 9:30–10:15 — Client meeting at Adajan Market (45 min)
+        ...Array.from({length:8}, () => pt(21.2003+Math.random()*0.002, 72.8038+Math.random()*0.002, "9:35", today)),
+        pt(21.2003, 72.8038, "9:45", today), pt(21.2003, 72.8038, "10:00", today), pt(21.2003, 72.8038, "10:15", today),
+        // 10:15 — Walk inside Adajan to BRTS stop
+        ...interp(21.2003, 72.8038, "10:15", 21.1980, 72.8060, "10:22", today, 4, 0.8),
+        // 10:22 — Board BRTS (Surat BRTS Ring Road corridor toward Vesu)
+        ...interp(21.1980, 72.8060, "10:22", 21.1850, 72.8100, "10:28", today, 4, 14),
+        ...interp(21.1850, 72.8100, "10:28", 21.1700, 72.8050, "10:35", today, 5, 16),
+        ...interp(21.1700, 72.8050, "10:35", 21.1550, 72.7980, "10:42", today, 5, 18),
+        ...interp(21.1550, 72.7980, "10:42", 21.1465, 72.7973, "10:48", today, 4, 15),
+        // HALT 2: 10:50–11:45 — Client demo at Vesu Commercial Zone (55 min)
+        pt(21.1465, 72.7973, "10:50", today), pt(21.1465, 72.7973, "11:05", today),
+        pt(21.1460, 72.7970, "11:20", today), pt(21.1468, 72.7975, "11:35", today), pt(21.1465, 72.7973, "11:45", today),
+        // 11:45 — Auto from Vesu to Pal Township
+        ...interp(21.1465, 72.7973, "11:45", 21.1680, 72.7910, "11:55", today, 6, 12),
+        ...interp(21.1680, 72.7910, "11:55", 21.2058, 72.7871, "12:08", today, 6, 14),
+        // HALT 3: 12:10–13:00 — Client follow-up at Pal Township (50 min)
+        pt(21.2058, 72.7871, "12:10", today), pt(21.2058, 72.7871, "12:25", today),
+        pt(21.2055, 72.7868, "12:40", today), pt(21.2058, 72.7871, "13:00", today),
+        // 13:00 — Rent a Rapido bike to Citylight for lunch
+        ...interp(21.2058, 72.7871, "13:00", 21.1900, 72.7900, "13:07", today, 5, 25),
+        ...interp(21.1900, 72.7900, "13:07", 21.1583, 72.7865, "13:16", today, 6, 28),
+        // HALT 4: 13:18–14:00 — Lunch at Citylight Colony (42 min)
+        pt(21.1583, 72.7865, "13:18", today), pt(21.1583, 72.7865, "13:30", today),
+        pt(21.1580, 72.7862, "13:45", today), pt(21.1583, 72.7865, "14:00", today),
+        // 14:00 — Colleague's car back toward office, drops at Ring Road
+        ...interp(21.1583, 72.7865, "14:00", 21.1650, 72.7980, "14:08", today, 5, 35),
+        ...interp(21.1650, 72.7980, "14:08", 21.1702, 72.8311, "14:20", today, 7, 38),
+        // HALT 5: 14:22–15:00 — Office check-in (emails / reporting) (38 min)
+        pt(21.1702, 72.8311, "14:22", today), pt(21.1702, 72.8311, "14:40", today), pt(21.1702, 72.8311, "15:00", today),
+        // 15:00 — Auto to Katargam for afternoon client
+        ...interp(21.1702, 72.8311, "15:00", 21.1950, 72.8380, "15:10", today, 6, 14),
+        ...interp(21.1950, 72.8380, "15:10", 21.2294, 72.8320, "15:22", today, 7, 18),
+        // HALT 6: 15:25–16:30 — Extended client negotiation at Katargam (65 min)
+        pt(21.2294, 72.8320, "15:25", today), pt(21.2294, 72.8320, "15:40", today),
+        pt(21.2290, 72.8318, "15:55", today), pt(21.2294, 72.8320, "16:10", today), pt(21.2294, 72.8320, "16:30", today),
+        // 16:30 — Walk to nearby chai stall (3 min)
+        ...interp(21.2294, 72.8320, "16:30", 21.2300, 72.8310, "16:33", today, 3, 0.5),
+        // HALT 7: 16:33–16:45 — Chai break (12 min)
+        pt(21.2300, 72.8310, "16:35", today), pt(21.2300, 72.8310, "16:45", today),
+        // 16:45 — Auto back to Head Office
+        ...interp(21.2300, 72.8310, "16:45", 21.2000, 72.8280, "16:57", today, 7, 18),
+        ...interp(21.2000, 72.8280, "16:57", 21.1702, 72.8311, "17:10", today, 7, 15),
+      ];
+
+      // ── SESSION 2: Pooja Sharma (Sales Head) — TODAY ACTIVE ──────────────
+      // Short morning: Office → Car to Udhna → Walk → Back
+      const s2: any[] = [
+        ...interp(21.1702, 72.8311, "10:00", 21.1780, 72.8400, "10:08", today, 5, 32),
+        ...interp(21.1780, 72.8400, "10:08", 21.1812, 72.8635, "10:18", today, 6, 38),
+        // Halt at Udhna
+        pt(21.1812, 72.8635, "10:20", today), pt(21.1812, 72.8635, "10:45", today), pt(21.1812, 72.8635, "11:00", today),
+        // Walk inside Udhna area
+        ...interp(21.1812, 72.8635, "11:00", 21.1820, 72.8620, "11:07", today, 4, 0.6),
+        // Halt 2
+        pt(21.1820, 72.8620, "11:10", today), pt(21.1820, 72.8620, "11:30", today),
+        // Car back
+        ...interp(21.1820, 72.8620, "11:30", 21.1702, 72.8311, "11:42", today, 6, 35),
+      ];
+
+      // ── SESSION 3: Bhavesh Modi (Supervisor) — YESTERDAY — FULL PATROL ──
+      // 6 stops across Althan zone, mix of bike + walking
+      const s3: any[] = [
+        // Bike from base to Site 1
+        ...interp(21.1537, 72.8456, "8:00", 21.1620, 72.8530, "8:08", yesterday, 6, 22),
+        ...interp(21.1620, 72.8530, "8:08", 21.1700, 72.8580, "8:15", yesterday, 5, 28),
+        // Halt 1: Site 1 inspection (30 min)
+        pt(21.1700, 72.8580, "8:16", yesterday), pt(21.1700, 72.8580, "8:30", yesterday), pt(21.1700, 72.8580, "8:45", yesterday),
+        // Walk to nearby stall
+        ...interp(21.1700, 72.8580, "8:45", 21.1710, 72.8570, "8:50", yesterday, 3, 0.8),
+        // Halt 2: Stall check (12 min)
+        pt(21.1710, 72.8570, "8:51", yesterday), pt(21.1710, 72.8570, "9:03", yesterday),
+        // Bike to Udhna
+        ...interp(21.1710, 72.8570, "9:03", 21.1812, 72.8635, "9:11", yesterday, 5, 28),
+        // Halt 3: Udhna supply collection (40 min)
+        pt(21.1812, 72.8635, "9:12", yesterday), pt(21.1812, 72.8635, "9:30", yesterday),
+        pt(21.1810, 72.8633, "9:45", yesterday), pt(21.1812, 72.8635, "9:52", yesterday),
+        // Bike to Varachha
+        ...interp(21.1812, 72.8635, "9:52", 21.1950, 72.8700, "10:02", yesterday, 6, 30),
+        ...interp(21.1950, 72.8700, "10:02", 21.2119, 72.8766, "10:12", yesterday, 6, 32),
+        // Halt 4: Customer complaint at Varachha (25 min)
+        pt(21.2119, 72.8766, "10:13", yesterday), pt(21.2119, 72.8766, "10:25", yesterday), pt(21.2119, 72.8766, "10:38", yesterday),
+        // Bike back to Althan for lunch
+        ...interp(21.2119, 72.8766, "10:38", 21.1812, 72.8600, "10:48", yesterday, 6, 32),
+        ...interp(21.1812, 72.8600, "10:48", 21.1537, 72.8456, "11:00", yesterday, 6, 28),
+        // Halt 5: Lunch break (55 min)
+        pt(21.1537, 72.8456, "11:01", yesterday), pt(21.1537, 72.8456, "11:20", yesterday),
+        pt(21.1535, 72.8454, "11:40", yesterday), pt(21.1537, 72.8456, "11:56", yesterday),
+        // Walk to afternoon zone
+        ...interp(21.1537, 72.8456, "11:56", 21.1490, 72.8410, "12:05", yesterday, 4, 0.7),
+        // Halt 6: Afternoon site check (20 min)
+        pt(21.1490, 72.8410, "12:06", yesterday), pt(21.1490, 72.8410, "12:18", yesterday), pt(21.1490, 72.8410, "12:26", yesterday),
+        // Walk + bike back to base
+        ...interp(21.1490, 72.8410, "12:26", 21.1537, 72.8456, "12:35", yesterday, 4, 1.2),
+      ];
+
+      // ── SESSION 4: Harish Solanki — 2 DAYS AGO — WALK-HEAVY SHORT DAY ───
+      const s4: any[] = [
+        // Walk from Ring Road to Athwalines
+        ...interp(21.1702, 72.8311, "9:30", 21.1800, 72.8300, "9:42", d2ago, 6, 0.6),
+        ...interp(21.1800, 72.8300, "9:42", 21.1875, 72.8317, "9:52", d2ago, 5, 0.5),
+        // Halt 1: Athwalines check (18 min)
+        pt(21.1875, 72.8317, "9:53", d2ago), pt(21.1875, 72.8317, "10:05", d2ago), pt(21.1875, 72.8317, "10:11", d2ago),
+        // Auto to Citylight
+        ...interp(21.1875, 72.8317, "10:11", 21.1700, 72.8100, "10:20", d2ago, 5, 14),
+        ...interp(21.1700, 72.8100, "10:20", 21.1583, 72.7865, "10:30", d2ago, 6, 16),
+        // Halt 2: Citylight team meeting (40 min)
+        pt(21.1583, 72.7865, "10:31", d2ago), pt(21.1583, 72.7865, "10:50", d2ago), pt(21.1583, 72.7865, "11:11", d2ago),
+        // Walk back toward auto
+        ...interp(21.1583, 72.7865, "11:11", 21.1620, 72.7920, "11:18", d2ago, 4, 0.5),
+        // Auto back to Ring Road
+        ...interp(21.1620, 72.7920, "11:18", 21.1702, 72.8311, "11:30", d2ago, 5, 12),
+      ];
+
+      const sessions = [
         {
           id: "FS-2026-TODAY-001",
-          employeeId: "EDB-SM-SUR1",
-          employeeName: "Arvind Mehta",
-          role: "Sales Manager",
-          date: today,
-          checkInTime: `${today}T09:05:00+05:30`,
-          checkInSelfieBase64: "",
-          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 8, speed: 0, ts: `${today}T09:05:00+05:30` },
-          checkOutTime: null,
-          checkOutSelfieBase64: null,
-          checkOutReason: null,
-          trail: s1Trail,
-          totalDistanceKm: 14.3,
-          reinstateRequest: null,
-          attendanceReg: null,
-          isAutoCheckout: false,
-          viewOnly: false,
+          employeeId: "EDB-SM-SUR1", employeeName: "Arvind Mehta", role: "Sales Manager",
+          date: today, checkInTime: `${today}T09:05:00+05:30`,
+          checkInSelfieBase64: "", checkOutSelfieBase64: "",
+          checkInLocation: s1[0],
+          checkOutTime: `${today}T17:10:00+05:30`, checkOutReason: "manual",
+          trail: s1, totalDistanceKm: 32.1,
+          reinstateRequest: null, attendanceReg: null, isAutoCheckout: false, viewOnly: true,
         },
-
-        // ── Session 2: Pooja Sharma (Sales Head) — TODAY — ACTIVE ────────────
-        // Route: Head Office → Katargam → Halt 45m (meeting) → Udhna → Halt 20m
         {
           id: "FS-2026-TODAY-002",
-          employeeId: "EDB-SH-SUR1",
-          employeeName: "Pooja Sharma",
-          role: "Sales Head",
-          date: today,
-          checkInTime: `${today}T08:45:00+05:30`,
-          checkInSelfieBase64: "",
-          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 9, speed: 0, ts: `${today}T08:45:00+05:30` },
-          checkOutTime: null,
-          checkOutSelfieBase64: null,
-          checkOutReason: null,
-          trail: buildTrail([
-            [21.1702, 72.8311, `${today}T08:45:00+05:30`],  // Head Office
-            [21.1950, 72.8380, `${today}T09:02:00+05:30`],  // En route
-            [21.2294, 72.8320, `${today}T09:22:00+05:30`],  // Katargam — arrive
-            [21.2294, 72.8320, `${today}T10:07:00+05:30`],  // HALT 45m (team meeting)
-            [21.2200, 72.8450, `${today}T10:21:00+05:30`],  // Leave Katargam
-            [21.1812, 72.8635, `${today}T10:40:00+05:30`],  // Udhna Gate — arrive
-            [21.1812, 72.8635, `${today}T11:00:00+05:30`],  // HALT 20m
-            [21.1850, 72.8580, `${today}T11:18:00+05:30`],  // Current position
-          ]),
-          totalDistanceKm: 8.7,
-          reinstateRequest: null,
-          attendanceReg: null,
-          isAutoCheckout: false,
-          viewOnly: false,
+          employeeId: "EDB-SH-SUR1", employeeName: "Pooja Sharma", role: "Sales Head",
+          date: today, checkInTime: `${today}T10:00:00+05:30`,
+          checkInSelfieBase64: "", checkOutSelfieBase64: null,
+          checkInLocation: s2[0],
+          checkOutTime: null, checkOutReason: null,
+          trail: s2, totalDistanceKm: 8.7,
+          reinstateRequest: null, attendanceReg: null, isAutoCheckout: false, viewOnly: false,
         },
-
-        // ── Session 3: Harish Solanki (Supervisor) — TODAY — CHECKED OUT ─────
-        // Route: Ring Road zone → Citylight → Halt 30m → back via Athwalines
-        {
-          id: "FS-2026-TODAY-003",
-          employeeId: "EDB-SUP-SUR1",
-          employeeName: "Harish Solanki",
-          role: "Supervisor",
-          date: today,
-          checkInTime: `${today}T07:30:00+05:30`,
-          checkInSelfieBase64: "",
-          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 10, speed: 0, ts: `${today}T07:30:00+05:30` },
-          checkOutTime: `${today}T13:15:00+05:30`,
-          checkOutSelfieBase64: "",
-          checkOutReason: "manual" as const,
-          trail: buildTrail([
-            [21.1702, 72.8311, `${today}T07:30:00+05:30`],  // Ring Road base
-            [21.1650, 72.8200, `${today}T07:45:00+05:30`],  // Moving south
-            [21.1583, 72.7865, `${today}T08:05:00+05:30`],  // Citylight Colony — arrive
-            [21.1583, 72.7865, `${today}T08:35:00+05:30`],  // HALT 30m (vehicle inspection)
-            [21.1630, 72.7960, `${today}T08:50:00+05:30`],  // Leave Citylight
-            [21.1875, 72.8317, `${today}T09:15:00+05:30`],  // Athwalines
-            [21.1875, 72.8317, `${today}T09:35:00+05:30`],  // HALT 20m
-            [21.1800, 72.8280, `${today}T09:50:00+05:30`],  // Moving
-            [21.1702, 72.8311, `${today}T10:05:00+05:30`],  // Back at Ring Road
-          ]),
-          totalDistanceKm: 7.2,
-          reinstateRequest: null,
-          attendanceReg: null,
-          isAutoCheckout: false,
-          viewOnly: true,
-        },
-
-        // ── Session 4: Bhavesh Modi (Supervisor) — YESTERDAY — FULL DAY ──────
-        // Althan zone — full patrol with 3 stops
         {
           id: "FS-2026-YEST-001",
-          employeeId: "EDB-SUP-SUR2",
-          employeeName: "Bhavesh Modi",
-          role: "Supervisor",
-          date: yesterday,
-          checkInTime: `${yesterday}T08:00:00+05:30`,
-          checkInSelfieBase64: "",
-          checkInLocation: { lat: 21.1537, lng: 72.8456, accuracy: 7, speed: 0, ts: `${yesterday}T08:00:00+05:30` },
-          checkOutTime: `${yesterday}T16:30:00+05:30`,
-          checkOutSelfieBase64: "",
-          checkOutReason: "manual" as const,
-          trail: buildTrail([
-            [21.1537, 72.8456, `${yesterday}T08:00:00+05:30`],  // Althan base
-            [21.1600, 72.8500, `${yesterday}T08:18:00+05:30`],  // Moving
-            [21.1700, 72.8580, `${yesterday}T08:35:00+05:30`],  // Site 1 — arrive
-            [21.1700, 72.8580, `${yesterday}T09:05:00+05:30`],  // HALT 30m
-            [21.1750, 72.8620, `${yesterday}T09:20:00+05:30`],  // Moving
-            [21.1812, 72.8635, `${yesterday}T09:38:00+05:30`],  // Udhna — arrive
-            [21.1812, 72.8635, `${yesterday}T10:18:00+05:30`],  // HALT 40m (supply collection)
-            [21.1750, 72.8700, `${yesterday}T10:35:00+05:30`],  // Moving east
-            [21.1900, 72.8750, `${yesterday}T10:55:00+05:30`],  // Varachha area
-            [21.1900, 72.8750, `${yesterday}T11:20:00+05:30`],  // HALT 25m (customer issue)
-            [21.1750, 72.8600, `${yesterday}T11:40:00+05:30`],  // Return route
-            [21.1537, 72.8456, `${yesterday}T12:10:00+05:30`],  // Back at Althan — lunch
-            [21.1537, 72.8456, `${yesterday}T13:00:00+05:30`],  // HALT 50m (lunch)
-            [21.1480, 72.8400, `${yesterday}T13:20:00+05:30`],  // Afternoon round
-            [21.1400, 72.8350, `${yesterday}T13:45:00+05:30`],  // South Althan
-            [21.1537, 72.8456, `${yesterday}T16:30:00+05:30`],  // End at base
-          ]),
-          totalDistanceKm: 19.6,
-          reinstateRequest: null,
-          attendanceReg: null,
-          isAutoCheckout: false,
-          viewOnly: true,
+          employeeId: "EDB-SUP-SUR2", employeeName: "Bhavesh Modi", role: "Supervisor",
+          date: yesterday, checkInTime: `${yesterday}T08:00:00+05:30`,
+          checkInSelfieBase64: "", checkOutSelfieBase64: "",
+          checkInLocation: s3[0],
+          checkOutTime: `${yesterday}T12:35:00+05:30`, checkOutReason: "manual",
+          trail: s3, totalDistanceKm: 19.6,
+          reinstateRequest: null, attendanceReg: null, isAutoCheckout: false, viewOnly: true,
         },
-
-        // ── Session 5: Arvind Mehta — YESTERDAY — with reinstate flag ─────────
+        {
+          id: "FS-2026-D2AGO-001",
+          employeeId: "EDB-SUP-SUR1", employeeName: "Harish Solanki", role: "Supervisor",
+          date: d2ago, checkInTime: `${d2ago}T09:30:00+05:30`,
+          checkInSelfieBase64: "", checkOutSelfieBase64: "",
+          checkInLocation: s4[0],
+          checkOutTime: `${d2ago}T11:30:00+05:30`, checkOutReason: "manual",
+          trail: s4, totalDistanceKm: 7.2,
+          reinstateRequest: null, attendanceReg: null, isAutoCheckout: false, viewOnly: true,
+        },
+        // Auto-checkout session with reinstatement pending
         {
           id: "FS-2026-YEST-002",
-          employeeId: "EDB-SM-SUR1",
-          employeeName: "Arvind Mehta",
-          role: "Sales Manager",
-          date: yesterday,
-          checkInTime: `${yesterday}T09:10:00+05:30`,
-          checkInSelfieBase64: "",
-          checkInLocation: { lat: 21.1702, lng: 72.8311, accuracy: 8, speed: 0, ts: `${yesterday}T09:10:00+05:30` },
-          checkOutTime: `${yesterday}T23:59:00+05:30`,
-          checkOutSelfieBase64: null,
-          checkOutReason: "auto_23_59" as const,
-          trail: buildTrail([
-            [21.1702, 72.8311, `${yesterday}T09:10:00+05:30`],
-            [21.2003, 72.8038, `${yesterday}T09:35:00+05:30`],  // Adajan
-            [21.2003, 72.8038, `${yesterday}T10:10:00+05:30`],  // HALT 35m
-            [21.2089, 72.7982, `${yesterday}T10:28:00+05:30`],  // Adajan Patia
-            [21.2089, 72.7982, `${yesterday}T11:00:00+05:30`],  // HALT 32m
-            [21.1980, 72.8050, `${yesterday}T11:18:00+05:30`],
-            [21.1702, 72.8311, `${yesterday}T11:40:00+05:30`],  // Back at office
-          ]),
-          totalDistanceKm: 11.2,
+          employeeId: "EDB-SM-SUR1", employeeName: "Arvind Mehta", role: "Sales Manager",
+          date: d2ago,
+          checkInTime: `${d2ago}T09:00:00+05:30`,
+          checkInSelfieBase64: "", checkOutSelfieBase64: null,
+          checkInLocation: { lat:21.1702, lng:72.8311, accuracy:8, speed:0, ts:`${d2ago}T09:00:00+05:30` },
+          checkOutTime: `${d2ago}T23:59:00+05:30`, checkOutReason: "auto_23_59",
+          trail: [
+            pt(21.1702, 72.8311, "9:00", d2ago),
+            ...interp(21.1702, 72.8311, "9:00", 21.2003, 72.8038, "9:25", d2ago, 6, 14),
+            pt(21.2003, 72.8038, "9:30", d2ago), pt(21.2003, 72.8038, "10:15", d2ago),
+            ...interp(21.2003, 72.8038, "10:15", 21.2089, 72.7982, "10:28", d2ago, 5, 12),
+            pt(21.2089, 72.7982, "10:30", d2ago), pt(21.2089, 72.7982, "11:05", d2ago),
+          ],
+          totalDistanceKm: 5.8,
           reinstateRequest: {
-            submittedAt: `${yesterday}T07:02:00+05:30`,
-            reason: "App was in background and location turned off accidentally. Was at Adajan Patia till 6 PM for customer demos.",
-            status: "Pending" as const,
+            submittedAt: `${d2ago}T06:55:00+05:30`,
+            reason: "My phone battery died at 8 PM while I was at Adajan Patia with a client. Charged at client office and returned home at 10 PM. Attended 3 meetings that day.",
+            status: "Pending",
           },
           attendanceReg: {
-            type: "auto_checkout" as const,
-            submittedAt: `${yesterday}T23:59:00+05:30`,
+            type: "auto_checkout",
+            submittedAt: `${d2ago}T23:59:00+05:30`,
             reason: "Auto-checkout at midnight",
-            status: "Pending" as const,
+            status: "Pending",
           },
-          isAutoCheckout: true,
-          viewOnly: true,
+          isAutoCheckout: true, viewOnly: true,
         },
       ];
 
       localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-      console.log("[Seed] field_sessions_v1: 5 rich Surat sessions with drives + halts");
+      console.log("[Seed] field_sessions_v1: 5 rich sessions - walk/auto/BRTS/bike/car modes");
     }
   } catch(e) { console.error("[Seed] Field sessions seed failed:", e); }
 
