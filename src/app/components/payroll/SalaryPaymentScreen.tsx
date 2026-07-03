@@ -80,7 +80,7 @@ interface PaymentForm {
 export function SalaryPaymentScreen() {
   const { payrollRuns } = usePayroll();
   const { employees } = useEmployee();
-  const { getSalaryPayables, markAsPaid } = useFinance();
+  const { getSalaryPayables, getTravelPayables, markAsPaid } = useFinance();
   const { city } = useCity();
 
   const basePayables = payrollRuns.map(run => {
@@ -101,8 +101,8 @@ export function SalaryPaymentScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [travelUTR, setTravelUTR] = useState<Record<string, string>>({});
 
-  const travelPayables = getSalaryPayables(city)
-    .filter(p => p.travelTripId && p.status === "Pending")
+  const travelPayables = getTravelPayables(city)
+    .filter(p => p.status === "Pending")
     .map(p => {
       const emp = employeeDatabaseService.getById(p.employeeId || "");
       return {

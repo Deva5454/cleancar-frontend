@@ -22,7 +22,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import {
   AlertCircle, CheckCircle, Plus, CreditCard,
-  Clock, Building2, User, FileText,
+  Clock, Building2, User, FileText, Navigation,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,11 +33,13 @@ const PAYMENT_METHODS: Payable["paymentMethod"][] = [
 function typeIcon(type: Payable["type"]) {
   if (type === "Salary")    return <User     className="w-3.5 h-3.5" />;
   if (type === "Statutory") return <FileText  className="w-3.5 h-3.5" />;
+  if (type === "Travel")    return <Navigation className="w-3.5 h-3.5" />;
   return                           <Building2 className="w-3.5 h-3.5" />;
 }
 function typeBadgeClass(type: Payable["type"]) {
   if (type === "Salary")    return "bg-blue-50 text-blue-700";
   if (type === "Statutory") return "bg-purple-50 text-purple-700";
+  if (type === "Travel")    return "bg-teal-50 text-teal-700";
   return "bg-orange-50 text-orange-700";
 }
 function statusBadgeClass(status: Payable["status"]) {
@@ -173,7 +175,7 @@ export default function PayablesDashboard() {
       {/* Type filter pills */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-gray-500 font-medium">Type:</span>
-        {(["All", "Vendor", "Salary", "Statutory"] as const).map(t => (
+        {(["All", "Vendor", "Salary", "Travel", "Statutory"] as const).map(t => (
           <button key={t} onClick={() => setTypeFilter(t)}
             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
               typeFilter === t

@@ -19,7 +19,7 @@ export function useTravelPayableBridge() {
       : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split("T")[0];
 
     createPayable({
-      type: "Salary",
+      type: "Travel",
       employeeId:   trip.employeeId,
       employeeName: trip.employeeName,
       description:  `Travel Reimbursement — ${trip.tripDate} — ${trip.purposeOfVisit}`,

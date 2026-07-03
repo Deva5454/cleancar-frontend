@@ -27,7 +27,7 @@ export interface MRRData {
 
 export interface Payable {
   payableId: string;
-  type: "Salary" | "Vendor" | "Statutory";
+  type: "Salary" | "Vendor" | "Statutory" | "Travel";
   // For Salary Payables
   employeeId?: string; // GLOBAL IDENTITY - links to HRDataContext
   payrollId?: string; // Links to PayrollRun in HRDataContext
@@ -50,7 +50,7 @@ export interface Payable {
   invoiceDate?: string;
   // For Statutory Payables
   statutoryType?: "PF" | "ESIC" | "TDS" | "GST" | "PT";
-  // For Travel Reimbursement Payables (Salary type, cross-referenced to a TravelTrip)
+  // For Travel Reimbursement Payables (type: "Travel", cross-referenced to a TravelTrip)
   travelTripId?: string;
   taxAmount?: number;
   tdsAmount?: number;
@@ -121,6 +121,7 @@ interface FinanceContextType {
   markAsPaid: (payableId: string, paymentReference: string, paymentMethod: Payable["paymentMethod"]) => void;
   approvePayable: (payableId: string, approvedBy: string) => void;
   getSalaryPayables: (cityId?: string) => Payable[];
+  getTravelPayables: (cityId?: string) => Payable[];
   getVendorPayables: (cityId?: string) => Payable[];
   getStatutoryPayables: (cityId?: string) => Payable[];
   getPendingPayables: (cityId?: string) => Payable[];
@@ -589,6 +590,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         { ...entryBase, ledgerEntryId: `LED-${Date.now()}-STAT-CR`, accountCode: "2200", accountName: "Statutory Payable", entryType: "CREDIT" as const, amount: payableData.amount, description: `Statutory payable — ${payableData.description}` },
       ]);
 
+    } else if (payableData.type === "Travel") {
+      // ── TRAVEL REIMBURSEMENT JOURNAL ENTRY ────────────────────────────────
+      // Kept separate from Salary Expense/Payable — travel reimbursement is a
+      // business expense, not wages, and should not inflate labour-cost figures
+      // on Analytics/Unit Economics dashboards (which filter by type "Salary").
+      // No tax/TDS on reimbursements per company policy, so it's a simple 2-line entry.
+      setLedgerEntries(prev => [...prev,
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-TRV-DR`, accountCode: "5150", accountName: "Travel Reimbursement Expense", entryType: "DEBIT" as const, amount: payableData.amount, description: payableData.description },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-TRV-CR`, accountCode: "2150", accountName: "Travel Reimbursement Payable", entryType: "CREDIT" as const, amount: payableData.amount, description: payableData.description },
+      ]);
+
     } else {
       // ── VENDOR / AP JOURNAL ENTRY ─────────────────────────────────────────
       // Dr  Expense Account (5300 — vendor expense)
@@ -638,8 +650,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         cityId: payable.cityId,
         createdAt: new Date().toISOString(),
       };
+      const settlementAccountCode = payable.type === "Travel" ? "2150" : "2000";
+      const settlementAccountName = payable.type === "Travel"
+        ? "Travel Reimbursement Payable"
+        : (payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable");
       setLedgerEntries(prev => [...prev,
-        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: "2000", accountName: payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable", entryType: "DEBIT" as const, amount: payable.amount },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payable.amount },
         { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "1000", accountName: "Bank Account", entryType: "CREDIT" as const, amount: payable.amount },
       ]);
       // G9 FIX: fire PAYMENT_MADE so downstream modules (Supervisor, Reports) can react
@@ -663,6 +679,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const getSalaryPayables = (cityId?: string): Payable[] => {
     return payables.filter((p) => p.type === "Salary" && (!cityId || p.cityId === cityId));
+  };
+
+  const getTravelPayables = (cityId?: string): Payable[] => {
+    return payables.filter((p) => p.type === "Travel" && (!cityId || p.cityId === cityId));
   };
 
   const getVendorPayables = (cityId?: string): Payable[] => {
@@ -1291,6 +1311,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     markAsPaid,
     approvePayable,
     getSalaryPayables,
+    getTravelPayables,
     getVendorPayables,
     getStatutoryPayables,
     getPendingPayables,
@@ -1357,7 +1378,7 @@ export function useFinance() {
       mrrData: [], addMRREntry: noop, updateMRR: noop, removeMRREntry: noop,
       getMRRForMonth: noopArray, getTotalMRR: noopNumber,
       payables: [], createPayable: noop, updatePayable: noop, markAsPaid: noop,
-      approvePayable: noop, getSalaryPayables: noopArray, getVendorPayables: noopArray,
+      approvePayable: noop, getSalaryPayables: noopArray, getTravelPayables: noopArray, getVendorPayables: noopArray,
       getStatutoryPayables: noopArray, getPendingPayables: noopArray, getOverduePayables: noopArray,
       revenues: [], recordRevenue: noop, getRevenueForMonth: noopArray, getTotalRevenue: noopNumber,
       ledgerEntries: [], createLedgerEntry: noop, getLedgerEntriesByAccount: noopArray,
