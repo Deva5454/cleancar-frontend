@@ -140,7 +140,7 @@ export function EmployeeProvider({ children }: { children: ReactNode }) {
         (emp) => {
           const newEmployee: Employee = {
             ...emp,
-            employeeId: `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            employeeId: emp.employeeId || `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };

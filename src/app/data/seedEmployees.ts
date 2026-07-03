@@ -6,6 +6,8 @@
  * After seeding, HRDataContext + DataService maintain the data
  */
 
+import { employeeDatabaseService } from "../services/employeeDatabaseService";
+
 type Employee = any;
 
 export const SEED_EMPLOYEES: Omit<Employee, "employeeId" | "createdAt" | "updatedAt">[] = [
@@ -332,21 +334,55 @@ export const SEED_EMPLOYEES: Omit<Employee, "employeeId" | "createdAt" | "update
 /**
  * Seed employees into DataService
  * Call this once on app initialization if no employees exist
+ *
+ * NOTE: In normal operation this never runs — main.tsx's seedAllData() populates
+ * the EMPLOYEES key (from EMPLOYEE_DATABASE_RECORDS, "EDB-..." IDs) before any
+ * context mounts, so getEmployeeCount() is never 0. This is a defensive fallback
+ * for edge cases where that hasn't happened (e.g. an isolated test harness).
+ * It derives from employeeDatabaseService (not the separate SEED_EMPLOYEES roster
+ * below, which is unreachable dead data) so that if this path ever *does* fire,
+ * the seeded employeeId space still matches EMPLOYEE_DATABASE_RECORDS/RoleContext's
+ * "EDB-..." IDs instead of reintroducing a second, incompatible "EMP-..." roster.
  */
 export function seedEmployeesIfEmpty(
   getEmployeeCount: () => number,
-  addEmployee: (emp: Omit<Employee, "employeeId" | "createdAt" | "updatedAt">) => Employee
+  addEmployee: (emp: any) => Employee
 ): void {
   const count = getEmployeeCount();
-
-  if (count === 0) {
-    console.log("[SeedEmployees] No employees found. Seeding initial data...");
-    SEED_EMPLOYEES.forEach((emp) => {
-      addEmployee(emp);
-    });
-    console.log(`[SeedEmployees] Seeded ${SEED_EMPLOYEES.length} employees`);
-  } else {
+  if (count > 0) {
     console.log(`[SeedEmployees] ${count} employees already exist. Skipping seed.`);
+    return;
   }
+
+  const records = employeeDatabaseService.getAll();
+
+  if (records.length > 0) {
+    console.log("[SeedEmployees] No employees found. Seeding from EMPLOYEE_DATABASE_RECORDS...");
+    records.forEach((r: any) => {
+      addEmployee({
+        employeeId: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.email,
+        phone: r.mobile,
+        role: r.designation,
+        status: r.status === "Exited" ? "Terminated" : r.status,
+        joiningDate: r.dateOfJoining,
+        department: r.department,
+        city: r.city ?? r.workLocation,
+        cityId: r.workLocation,
+        assignedPincodes: r.pinCodes,
+      });
+    });
+    console.log(`[SeedEmployees] Seeded ${records.length} employees from EMPLOYEE_DATABASE_RECORDS`);
+    return;
+  }
+
+  // Last-resort fallback if EMPLOYEE_DATABASE_RECORDS is also empty
+  console.log("[SeedEmployees] No employees found anywhere. Seeding built-in demo roster...");
+  SEED_EMPLOYEES.forEach((emp) => {
+    addEmployee(emp);
+  });
+  console.log(`[SeedEmployees] Seeded ${SEED_EMPLOYEES.length} employees`);
 }
 
