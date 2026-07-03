@@ -111,6 +111,26 @@ Employee sees "Paid" — FieldCheckIn.tsx polls TRAVEL_TRIPS + TRAVEL_NOTIFICATI
 **Parallel oversight path (read-only, no state mutation):**
 `LiveLocationDashboard.tsx` (`/field-tracker`) independently reads `field_sessions_v1` (live + historical GPS sessions) and cross-references `TRAVEL_TRIPS` by `fieldSessionId` to show the claim status inline with the route map. It does not participate in the approval chain.
 
+### 3.1 Storage key reference — every key, who writes it, who reads it
+
+`fieldTrackingService.ts`'s keys are **raw `localStorage`** (no wrapper). `travelReimbursementService.ts` and `FinanceContext.tsx`'s keys go through **`DataService`**, which internally adds a `cleancar_` prefix and (for some keys) per-city scoping — call `DataService.get("KEY_NAME")` / `DataService.setAll("KEY_NAME", ...)` with the logical name below; don't touch `localStorage` for these directly.
+
+| Storage key | Written by | Read by | What's in it |
+|---|---|---|---|
+| `field_active_session_id` | `fieldTrackingService.checkIn()` (sets it) / `checkOut()` (clears it) | `fieldTrackingService._rehydrate()` on every page load, to restore an in-progress session | A single session ID string, or absent if nobody's checked in |
+| `field_sessions_v1` | `fieldTrackingService.checkIn()` (new session) / trail-recording timer (appends GPS points) / `checkOut()` (sets `checkOutTime`, `totalDistanceKm`) / `seedAllData.ts` (demo sessions) | `FieldCheckIn.tsx` (own session, via `getState()`), `LiveLocationDashboard.tsx` (`getLiveLocations()`, `getSessionsForEmployee()`, `getSessionsForDate()`) | Array of `FieldSession` — check-in/out times, selfies, full GPS trail, attendance regularisation state |
+| `field_offline_gps_queue` | `fieldTrackingService`'s GPS watcher, when a point can't be saved live (no signal) | `fieldTrackingService.flushOfflineQueue()`, on network-`online` event or the 30s poll in `FieldCheckIn.tsx` | Buffered `GeoPoint`s waiting to be merged into a session's trail |
+| `field_watcher_active` | `fieldTrackingService` internal flag | `fieldTrackingService` internal flag | Whether the GPS watcher is currently registered — housekeeping only |
+| `TRAVEL_TRIPS` | `travelReimbursementService.autoSubmitFromSession()` (new trip) / `managerApprove()` / `hrApprove()` / `cityManagerApprove()` / `reject()` / `markAddedToPayroll()` (status transitions) / `seedAllData.ts` (demo trips) | `TravelManagerView`, `TravelHRView`, `TravelAdminSettings` (approvals + ledger tabs), `TravelEmployeeView`, `FieldCheckIn.tsx` (own trip via `fieldSessionId`), `LiveLocationDashboard.tsx` (claim summary) | Array of `TravelTrip` — the claim itself, GPS distance, rate, amount, and full approval audit trail (who approved, when, at each stage) |
+| `TRAVEL_PERMISSIONS` | `TravelAdminSettings.togglePermission()` / `.updateVehicleType()` (Super Admin/City Manager) / `seedAllData.ts` (demo) | `travelReimbursementService.isEmployeeEnabled()` (gates `autoSubmitFromSession`), `TravelAdminSettings` Permissions tab | Which employees can submit travel claims, and their vehicle type (2W/4W) |
+| `TRAVEL_RATES` | `TravelAdminSettings.saveRate()` (Super Admin only) | `travelReimbursementService.getEffectiveRate()`, used by `autoSubmitFromSession()` to price the claim | Global ₹/km for 2W and 4W |
+| `TRAVEL_EXCEPTIONS` | `TravelAdminSettings.addException()` / `.deleteException()` | `travelReimbursementService.getEffectiveRate()` (checked before falling back to `TRAVEL_RATES`) | Per-employee or uniform rate overrides |
+| `TRAVEL_PHOTOS` | `travelReimbursementService.savePhoto()` (only used by the legacy manual-entry `startTrip`/`endTrip` flow, not the GPS auto-submit path) | `TravelHRView`'s photo comparison view | Base64 odometer photos — GPS-auto-submitted trips never populate this |
+| `TRAVEL_NOTIFICATIONS` | `travelReimbursementService.pushNotification()`, called from `managerApprove()`/`hrApprove()`/`cityManagerApprove()`/`reject()` | `FieldCheckIn.tsx`'s 30s poll (`getNotificationsForEmployee()`, then `markNotificationRead()`) | Per-employee approval/rejection notifications, read/unread |
+| `EMPLOYEE_DATABASE_RECORDS` | `seedAllData()` on first load (authoritative — see §2.1); `demoEmployees.ts` fallback only if this key is empty | `employeeDatabaseService.getAll()`/`.getById()` — used by `RoleContext` (login, `currentUser.employeeId`), `autoSubmitFromSession()` (reporting-manager lookup), `TravelAdminSettings` (Permissions/Exceptions employee list), `SalaryPaymentScreen` (bank details for travel payables) | All login-capable employees, `EDB-...` ID space |
+| `FINANCE_PAYABLES` | `FinanceContext.createPayable()` (called by `useTravelPayableBridge().finalizeTravelApproval()`) / `.markAsPaid()` (status → "Paid") | `SalaryPaymentScreen` (`getSalaryPayables()`, filtered by `travelTripId` for the travel-linked table) | `Payable` records — one per travel claim that reached "Approved", cross-referenced back to `TRAVEL_TRIPS` via `travelTripId` |
+| `EMPLOYEES` (`DataService`) | `seedEmployees.ts` via `EmployeeContext`/`HRDataContext` | `EmployeeContext`'s `useEmployee()` — used by `SalaryPaymentScreen`'s *regular payroll* table (not the travel one) | A **separate, unrelated** employee list, `EMP-...` ID space — see §7.1 |
+
 ---
 
 ## 4. State machines
