@@ -67,6 +67,7 @@ const roleToEmployeeRole: Record<Role, EmployeeRole> = {
   "HR": "HR",
   "Sales Head": "Sales Head",
   "Sales Manager": "Sales Manager",
+  "Marketing Agency": "Marketing Agency",
 };
 
 // City name from cityId
@@ -120,6 +121,7 @@ const DEFAULT_EMPLOYEE_IDS: Record<Role, string> = {
   "HR":                   "EMP-016",
   "Sales Head":           "EMP-SH-001",
   "Sales Manager":        "EMP-SM-001",
+  "Marketing Agency":     "EMP-MKT-001",
 };
 
 const DEFAULT_NAMES: Record<Role, string> = {
@@ -141,6 +143,7 @@ const DEFAULT_NAMES: Record<Role, string> = {
   "HR":                   "HR",
   "Sales Head":           "Sales Head",
   "Sales Manager":        "Sales Manager",
+  "Marketing Agency":     "Marketing Agency",
 };
 
 export function RoleProvider({ children }: { children: ReactNode }) {

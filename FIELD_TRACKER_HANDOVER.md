@@ -227,6 +227,7 @@ Original write-up: `EmployeeContext`/`HRDataContext` (`DataService` key `EMPLOYE
 - ~~Make `CITY_MANAGER_APPROVAL_THRESHOLD` a Super-Admin-configurable value~~ — done, §9.5.
 - ~~Confirm `FieldCheckIn`'s "Field Day Complete" summary survives a hard refresh~~ — was actually broken; fixed, §9.6.
 - ~~`seedAllData.ts:1586` Exit Management stray reference~~ — fixed, §9.7.
+- ~~Reconcile `EmployeeRole` vs `Role` enum split (Sales Head/Sales Manager/Marketing Agency missing from `EmployeeRole`)~~ — fixed, §9.10.
 
 ---
 
@@ -297,4 +298,28 @@ Before touching this, I had a research pass done specifically on `PayrollContext
 - Normal load: employee data unchanged, still `EDB-...`-keyed, count now correctly 37 (not 42) after the dedup fix.
 - **The actual failure scenario, reproduced and confirmed fixed:** cleared `cleancar_employees`/`cleancar_CITY-SURAT_employees`/`cleancar_CITY-MUMBAI_employees` from `localStorage` while leaving `EMPLOYEE_DATABASE_RECORDS` intact (simulating the exact partial-reset scenario this fix targets), then reloaded. Before this fix, this would have triggered `seedEmployeesIfEmpty()`'s old fallback and reintroduced an `EMP-...`-keyed roster disconnected from login. After the fix: the fallback correctly re-derives all employees from `EMPLOYEE_DATABASE_RECORDS`, every `employeeId` is `EDB-...`-prefixed, zero console errors.
 
-**What's still genuinely unresolved, for completeness:** the `EmployeeRole` vs `Role` enum split noted during research (`OrgContext.tsx`'s `EmployeeRole` union doesn't include `"Sales Manager"`/`"Sales Head"`, and splits "Car Washer" into Full/Part-Time variants that don't match the EDB roster's plain `"Car Washer"`). This is pre-existing, already-live (the EDB-derived roster has been feeding `EmployeeContext` in production with these "invalid" role strings all along, per the finding above), and affects things like `HRDataContext.getManagers()` (`HRDataContext.tsx:369-377`) silently excluding Sales Manager/Sales Head from manager-role queries. Not touched — widening or reconciling that enum is a design decision (does "manager" mean the `EmployeeRole` literal list, or should it include Sales leadership too?) rather than a mechanical fix, and is separable from the ID-space problem this section actually fixes.
+**Update — the `EmployeeRole`/`Role` split flagged above is now fixed too, see §9.10.**
+
+### 9.10 — `EmployeeRole` vs `Role` enum split (was §9.9's last open item) — fixed
+
+**Root cause confirmed, not just theorized:** `RoleContext.tsx`'s `roleToEmployeeRole: Record<Role, EmployeeRole>` map was already trying to assign `"Sales Head"` and `"Sales Manager"` as `EmployeeRole` values (mapping each to itself) — proof the two enums were always meant to line up, they just drifted. Running `npx tsc --noEmit | grep RoleContext.tsx` before any fix showed exactly 4 live errors:
+```
+RoleContext.tsx(68,3): error TS2322: Type '"Sales Head"' is not assignable to type 'EmployeeRole'.
+RoleContext.tsx(69,3): error TS2322: Type '"Sales Manager"' is not assignable to type 'EmployeeRole'.
+RoleContext.tsx(104,7): error TS2741: Property '"Marketing Agency"' is missing in type ... but required in type 'Record<Role, string>'.
+RoleContext.tsx(125,7): error TS2741: Property '"Marketing Agency"' is missing in type ... but required in type 'Record<Role, string>'.
+```
+
+**Fixed:**
+- `src/app/contexts/OrgContext.tsx` — widened the `EmployeeRole` union to add `"Sales Head" | "Sales Manager" | "Marketing Agency"`, and added the same 3 roles to `DEFAULT_ROLES` (so they show up in role-selection dropdowns, not just internally).
+- `src/app/contexts/RoleContext.tsx` — added the missing `"Marketing Agency"` key to all 3 `Record<Role, ...>` object literals that the widened union now requires: `roleToEmployeeRole`, `DEFAULT_EMPLOYEE_IDS` (`"EMP-MKT-001"`), `DEFAULT_NAMES` (`"Marketing Agency"`).
+- `src/app/contexts/HRDataContext.tsx` — `getManagers()` now includes `"Sales Head"` and `"Sales Manager"` in its role filter list. This is the actual functional bug the enum split caused: any "get all managers" query (approval routing, manager pickers) was silently dropping Sales Head/Sales Manager, even though 5 such employees exist in the live seed data.
+- Confirmed `src/app/components/payroll/OrgContext.tsx` (a second file that also defines an `EmployeeRole` type) is dead, unimported duplicate code — `grep -rln` for importers found none. Left untouched; not in scope.
+
+**Verified:**
+- `npx tsc --noEmit | grep RoleContext.tsx` after the fix: zero results (was 4).
+- Full-repo `tsc --noEmit` error count: 3027 before this fix → 3023 after. Diffed both error lists line-for-line (normalizing line/column numbers): the only 4 errors that disappeared are exactly the 4 above; zero new errors appeared anywhere else in the codebase — so widening the `EmployeeRole` union introduced no exhaustiveness-check regressions in any `switch`/mapping keyed off that type.
+- `npx vite build` — production build still succeeds.
+- Browser check: `EMPLOYEE_DATABASE_RECORDS` has 5 Sales Head/Sales Manager employees (`EDB-SH-SUR1/2`, `EDB-SMGR-SUR1/2/3`); confirmed they match `HRDataContext.getManagers()`'s updated role filter, zero console errors.
+
+This closes out the last open item from §9.9 and from the original contradictions table (§7). No further known contradictions remain.

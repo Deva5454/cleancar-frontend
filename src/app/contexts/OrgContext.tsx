@@ -33,7 +33,10 @@ export type EmployeeRole =
   | "Store Manager"
   | "Procurement Manager"
   | "Accounts"
-  | "Super Admin";
+  | "Super Admin"
+  | "Sales Head"
+  | "Sales Manager"
+  | "Marketing Agency";
 
 export interface Department {
   id: string;
@@ -100,6 +103,9 @@ const DEFAULT_ROLES: EmployeeRole[] = [
   "Procurement Manager",
   "Accounts",
   "HR",
+  "Sales Head",
+  "Sales Manager",
+  "Marketing Agency",
 ];
 
 const DEFAULT_DEPARTMENTS: Department[] = [

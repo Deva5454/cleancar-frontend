@@ -373,6 +373,8 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
       "Sr Operations Manager",
       "Operations Manager",
       "Cluster Manager",
+      "Sales Head",
+      "Sales Manager",
     ]);
   };
 
