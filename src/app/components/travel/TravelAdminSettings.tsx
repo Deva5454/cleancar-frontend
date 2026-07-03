@@ -2,25 +2,80 @@ import { useState } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useCity } from "../../contexts/CityContext";
+import { useFinance } from "../../contexts/FinanceContext";
 import { isFieldTrackingRole, FIELD_TRACKING_ROLES } from "../../services/fieldTrackingService";
-import { travelReimbursementService, type VehicleType, type TravelExceptionPolicy } from "../../services/travelReimbursementService";
+import { travelReimbursementService, CITY_MANAGER_APPROVAL_THRESHOLD, type VehicleType, type TravelExceptionPolicy, type TravelTrip } from "../../services/travelReimbursementService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Settings, Users, Bike, Car, Plus, Trash2, Shield, ToggleLeft, ToggleRight } from "lucide-react";
+import { Settings, Users, Bike, Car, Plus, Trash2, Shield, ToggleLeft, ToggleRight, CheckCircle, XCircle, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props { cityManagerMode?: boolean; }
+
+const STATUS_COLORS: Record<string, string> = {
+  "Draft":                "bg-gray-100 text-gray-700",
+  "Pending Manager":      "bg-amber-100 text-amber-700",
+  "Pending HR":           "bg-blue-100 text-blue-700",
+  "Pending City Manager": "bg-orange-100 text-orange-700",
+  "Approved":             "bg-green-100 text-green-700",
+  "Rejected":             "bg-red-100 text-red-700",
+  "Added to Payroll":     "bg-purple-100 text-purple-700",
+};
 
 export function TravelAdminSettings({ cityManagerMode = false }: Props) {
   const { currentUser, currentRole } = useRole();
   const { employees } = useEmployee();
   const { city, availableCities } = useCity();
+  const { createPayable } = useFinance();
   const isSuperAdmin = currentRole === "Super Admin" || currentRole === "Admin";
 
-  const [tab, setTab] = useState<"rates" | "permissions" | "exceptions">(cityManagerMode ? "permissions" : "rates");
+  const [tab, setTab] = useState<"rates" | "permissions" | "exceptions" | "approvals" | "ledger">(
+    cityManagerMode ? "approvals" : "rates"
+  );
   const [refresh, setRefresh] = useState(0);
+  const [selectedForApproval, setSelectedForApproval] = useState<TravelTrip | null>(null);
+  const [approvalComments, setApprovalComments] = useState("");
+
+  // ── City Manager approvals ──
+  const pendingCityManagerApprovals = travelReimbursementService.getPendingCityManagerApproval(cityManagerMode ? city : undefined);
+
+  const approveTrip = (trip: TravelTrip) => {
+    travelReimbursementService.cityManagerApprove(trip.id, currentUser?.employeeId || "", currentUser?.name || "City Manager", approvalComments);
+
+    createPayable({
+      type: "Salary",
+      employeeId:  trip.employeeId,
+      employeeName: trip.employeeName,
+      description: `Travel Reimbursement — ${trip.tripDate} — ${trip.purposeOfVisit}`,
+      amount:      trip.netPayableAmount || 0,
+      dueDate:     new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split("T")[0],
+      status:      "Pending",
+      cityId:      trip.cityId,
+      travelTripId: trip.id,
+      taxAmount:   0,
+      tdsAmount:   0,
+    });
+
+    travelReimbursementService.markAddedToPayroll(
+      trip.id, new Date().toISOString().slice(0, 7), `PAYROLL-TRAVEL-${trip.id}`
+    );
+
+    toast.success(`Approved. ₹${trip.netPayableAmount?.toLocaleString()} will be added to ${trip.employeeName}'s payroll.`);
+    setSelectedForApproval(null); setApprovalComments(""); setRefresh(r => r + 1);
+  };
+
+  const rejectTrip = (trip: TravelTrip, reason: string) => {
+    if (!reason.trim()) { toast.error("Rejection reason is required"); return; }
+    travelReimbursementService.reject(trip.id, currentUser?.name || "City Manager", reason);
+    toast.success("Trip rejected.");
+    setSelectedForApproval(null); setApprovalComments(""); setRefresh(r => r + 1);
+  };
+
+  // ── Super Admin trip ledger (all cities, all employees) ──
+  const allTrips = travelReimbursementService.getTrips()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   // ── Rates state ──
   const rates = travelReimbursementService.getRates();
@@ -105,17 +160,22 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Travel Reimbursement — Settings</h1>
           <p className="text-sm text-gray-500">
-            {cityManagerMode ? "Manage employee access for your city" : "Global rates, permissions and exceptions"}
+            {cityManagerMode ? "Approve high-value claims and manage employee access for your city" : "Global rates, permissions, exceptions and trip ledger"}
           </p>
         </div>
       </div>
 
       <div className="flex gap-2 border-b">
-        {(!cityManagerMode ? ["rates","permissions","exceptions"] : ["permissions"]).map(t => (
+        {(!cityManagerMode
+          ? ["rates","permissions","exceptions","ledger"]
+          : ["approvals","permissions"]
+        ).map(t => (
           <button key={t} onClick={() => setTab(t as any)}
             className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors capitalize ${
               tab === t ? "border-slate-700 text-slate-900" : "border-transparent text-gray-500"
-            }`}>{t}</button>
+            }`}>
+            {t === "approvals" ? `Approvals (${pendingCityManagerApprovals.length})` : t}
+          </button>
         ))}
       </div>
 
@@ -282,6 +342,83 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── APPROVALS TAB ── (City Manager only) */}
+      {tab === "approvals" && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Claims above ₹{CITY_MANAGER_APPROVAL_THRESHOLD.toLocaleString()} require your approval after HR review.
+          </p>
+          {pendingCityManagerApprovals.length === 0 && (
+            <p className="text-center text-gray-400 py-8">No claims pending your approval.</p>
+          )}
+          {pendingCityManagerApprovals.map(trip => (
+            <Card key={trip.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{trip.employeeName}</p>
+                    <p className="text-xs text-gray-500">{trip.designation} · {trip.tripDate} · {trip.totalKm} km</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{trip.purposeOfVisit}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Approved by manager: {trip.managerApprovedBy || "—"} · HR: {trip.hrApprovedBy || "—"}</p>
+                  </div>
+                  <p className="font-bold text-green-700 text-sm">₹{trip.netPayableAmount?.toLocaleString()}</p>
+                </div>
+                {selectedForApproval?.id === trip.id ? (
+                  <div className="space-y-2">
+                    <Input value={approvalComments} onChange={e => setApprovalComments(e.target.value)} placeholder="Comments (optional for approve, required for reject)" />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+                        onClick={() => rejectTrip(trip, approvalComments)}>
+                        <XCircle className="w-4 h-4 mr-1" /> Reject
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => approveTrip(trip)}>
+                        <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => { setSelectedForApproval(trip); setApprovalComments(""); }}>
+                    Review
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ── LEDGER TAB ── (Super Admin only — cross-employee, all-cities trip audit trail) */}
+      {tab === "ledger" && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-500 flex items-center gap-1.5">
+            <ListOrdered className="w-4 h-4" /> Full trip ledger across all cities and employees.
+          </p>
+          {allTrips.length === 0 && (
+            <p className="text-center text-gray-400 py-8">No trips recorded yet.</p>
+          )}
+          {allTrips.map(trip => (
+            <div key={trip.id} className="p-3 bg-white border rounded-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm text-gray-900">{trip.employeeName}</p>
+                    <Badge className={`text-xs ${STATUS_COLORS[trip.status] || "bg-gray-100 text-gray-700"}`}>{trip.status}</Badge>
+                  </div>
+                  <p className="text-xs text-gray-500">{trip.city} · {trip.tripDate} · {trip.totalKm} km</p>
+                </div>
+                <p className="font-bold text-sm text-gray-900">₹{trip.netPayableAmount?.toLocaleString()}</p>
+              </div>
+              <div className="text-xs text-gray-400 mt-1.5 flex flex-wrap gap-x-3">
+                <span>Manager: {trip.managerApprovedBy || "—"}</span>
+                <span>HR: {trip.hrApprovedBy || "—"}</span>
+                <span>City Manager: {trip.cityManagerApprovedBy || "—"}</span>
+                <span>Payroll: {trip.payrollMonth || "—"}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

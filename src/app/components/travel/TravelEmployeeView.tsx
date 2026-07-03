@@ -165,12 +165,13 @@ export function TravelEmployeeView() {
   );
 
   const STATUS_COLORS: Record<string, string> = {
-    "Draft":          "bg-gray-100 text-gray-700",
-    "Pending Manager":"bg-amber-100 text-amber-700",
-    "Pending HR":     "bg-blue-100 text-blue-700",
-    "Approved":       "bg-green-100 text-green-700",
-    "Rejected":       "bg-red-100 text-red-700",
-    "Added to Payroll":"bg-purple-100 text-purple-700",
+    "Draft":                "bg-gray-100 text-gray-700",
+    "Pending Manager":      "bg-amber-100 text-amber-700",
+    "Pending HR":           "bg-blue-100 text-blue-700",
+    "Pending City Manager": "bg-orange-100 text-orange-700",
+    "Approved":             "bg-green-100 text-green-700",
+    "Rejected":             "bg-red-100 text-red-700",
+    "Added to Payroll":     "bg-purple-100 text-purple-700",
   };
 
   return (

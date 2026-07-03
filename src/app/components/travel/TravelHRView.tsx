@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
+import { Checkbox } from "../ui/checkbox";
 import { CheckCircle, XCircle, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,6 +22,7 @@ export function TravelHRView() {
   const [showReject, setShowReject] = useState(false);
   const [searchQ, setSearchQ]  = useState("");
   const [refresh, setRefresh]  = useState(0);
+  const [payImmediately, setPayImmediately] = useState(false);
 
   const pending = useMemo(() =>
     travelReimbursementService.getPendingHRApproval(city),
@@ -35,44 +37,56 @@ export function TravelHRView() {
   );
 
   const STATUS_COLORS: Record<string, string> = {
-    "Draft":           "bg-gray-100 text-gray-700",
-    "Pending Manager": "bg-amber-100 text-amber-700",
-    "Pending HR":      "bg-blue-100 text-blue-700",
-    "Approved":        "bg-green-100 text-green-700",
-    "Rejected":        "bg-red-100 text-red-700",
-    "Added to Payroll":"bg-purple-100 text-purple-700",
+    "Draft":                "bg-gray-100 text-gray-700",
+    "Pending Manager":      "bg-amber-100 text-amber-700",
+    "Pending HR":           "bg-blue-100 text-blue-700",
+    "Pending City Manager": "bg-orange-100 text-orange-700",
+    "Approved":             "bg-green-100 text-green-700",
+    "Rejected":             "bg-red-100 text-red-700",
+    "Added to Payroll":     "bg-purple-100 text-purple-700",
   };
 
   const handleApprove = () => {
     if (!selected) return;
-    travelReimbursementService.hrApprove(selected.id, currentUser?.name || "HR", comments);
+    const updatedTrip = travelReimbursementService.hrApprove(selected.id, currentUser?.name || "HR", comments);
+
+    if (updatedTrip.status === "Pending City Manager") {
+      toast.success(`Approved by HR. Sent to City Manager for approval (above ₹${updatedTrip.netPayableAmount?.toLocaleString()} threshold).`);
+      setSelected(null); setComments(""); setPayImmediately(false); setRefresh(r => r + 1);
+      return;
+    }
 
     // Bridge: create Finance payable so salary processing picks it up
+    const dueDate = payImmediately
+      ? new Date().toISOString().split("T")[0]
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split("T")[0]; // 1st of next month
+
     createPayable({
       type: "Salary",
       employeeId:  selected.employeeId,
+      employeeName: selected.employeeName,
       description: `Travel Reimbursement — ${selected.tripDate} — ${selected.purposeOfVisit}`,
       amount:      selected.netPayableAmount || 0,
-      dueDate:     new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
-                     .toISOString().split("T")[0], // 1st of next month
+      dueDate,
       status:      "Pending",
       cityId:      selected.cityId,
       travelTripId: selected.id,
       taxAmount:   0,
       tdsAmount:   0,
-      createdAt:   new Date().toISOString(),
-      updatedAt:   new Date().toISOString(),
+      isAdhoc:     payImmediately,
     });
 
     // Mark trip as Added to Payroll
     travelReimbursementService.markAddedToPayroll(
       selected.id,
       new Date().toISOString().slice(0, 7),
-      `PAYROLL-TRAVEL-${selected.id}`
+      payImmediately ? `ADHOC-TRAVEL-${selected.id}` : `PAYROLL-TRAVEL-${selected.id}`
     );
 
-    toast.success(`Approved and added to payroll. ₹${selected.netPayableAmount?.toLocaleString()} will appear in ${selected.employeeName}'s next salary. No TDS/Tax deducted.`);
-    setSelected(null); setComments(""); setRefresh(r => r + 1);
+    toast.success(payImmediately
+      ? `Approved for immediate payment. ₹${selected.netPayableAmount?.toLocaleString()} sent to Accounts for urgent processing.`
+      : `Approved and added to payroll. ₹${selected.netPayableAmount?.toLocaleString()} will appear in ${selected.employeeName}'s next salary. No TDS/Tax deducted.`);
+    setSelected(null); setComments(""); setPayImmediately(false); setRefresh(r => r + 1);
   };
 
   const handleReject = () => {
@@ -229,8 +243,14 @@ export function TravelHRView() {
                   <label className="block text-sm font-medium mb-1">HR Comments (optional)</label>
                   <Input value={comments} onChange={e => setComments(e.target.value)} placeholder="Any notes for records..." />
                 </div>
+                <label className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 rounded p-2 cursor-pointer">
+                  <Checkbox checked={payImmediately} onCheckedChange={(c) => setPayImmediately(c as boolean)} />
+                  Pay immediately (urgent / ad-hoc — skip next payroll cycle)
+                </label>
                 <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
-                  Approving will mark this for addition to {selected.employeeName}'s salary for {new Date().toLocaleString("en-IN", { month: "long", year: "numeric" })}. No TDS will be deducted.
+                  {payImmediately
+                    ? "Approving will send this to Accounts for immediate payment today, outside the normal payroll run."
+                    : `Approving will mark this for addition to ${selected.employeeName}'s salary for ${new Date().toLocaleString("en-IN", { month: "long", year: "numeric" })}. No TDS will be deducted.`}
                 </p>
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50"

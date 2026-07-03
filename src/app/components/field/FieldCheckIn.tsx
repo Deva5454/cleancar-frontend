@@ -36,6 +36,10 @@ import {
   type FieldSession,
   type TrackingState,
 } from "../../services/fieldTrackingService";
+import {
+  travelReimbursementService,
+  type TravelTrip,
+} from "../../services/travelReimbursementService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +60,59 @@ function formatCoords(lat: number, lng: number): string {
 
 function nowHour(): number { return new Date().getHours(); }
 function nowMinute(): number { return new Date().getMinutes(); }
+
+// ── Travel Claim Status Card ─────────────────────────────────────────────────
+
+const TRAVEL_STATUS_STYLE: Record<string, string> = {
+  "Pending Manager":      "border-blue-300 bg-blue-50 text-blue-700",
+  "Pending HR":           "border-amber-300 bg-amber-50 text-amber-700",
+  "Pending City Manager": "border-orange-300 bg-orange-50 text-orange-700",
+  "Approved":             "border-green-300 bg-green-50 text-green-700",
+  "Added to Payroll":     "border-emerald-400 bg-emerald-50 text-emerald-800",
+  "Rejected":             "border-red-300 bg-red-50 text-red-700",
+};
+
+const TRAVEL_STATUS_LABEL: Record<string, string> = {
+  "Pending Manager":      "Pending Approval",
+  "Pending HR":           "With HR",
+  "Pending City Manager": "With City Manager",
+  "Approved":             "Approved",
+  "Added to Payroll":     "In Payroll",
+  "Rejected":             "Rejected",
+};
+
+function travelStatusMessage(trip: TravelTrip): string {
+  switch (trip.status) {
+    case "Pending Manager":      return "Waiting for your manager to approve";
+    case "Pending HR":           return "Approved by manager — HR reviewing";
+    case "Pending City Manager": return "Approved by HR — waiting for City Manager approval";
+    case "Approved":             return `₹${trip.netPayableAmount} will be added to your payroll`;
+    case "Added to Payroll":     return `₹${trip.netPayableAmount} included in this month's payroll`;
+    case "Rejected":             return trip.rejectionReason ? `Reason: ${trip.rejectionReason}` : "Claim rejected";
+    default:                     return "";
+  }
+}
+
+function TravelClaimCard({ trip }: { trip: TravelTrip }) {
+  const style = TRAVEL_STATUS_STYLE[trip.status] || "border-gray-300 bg-gray-50 text-gray-700";
+  return (
+    <div className={`p-4 rounded-lg border-2 flex items-start gap-3 ${style}`}>
+      <Navigation className="w-5 h-5 mt-0.5 shrink-0" />
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-sm">Travel Claim {trip.status === "Rejected" ? "Rejected" : "Submitted"}</p>
+          <Badge className="text-xs">{TRAVEL_STATUS_LABEL[trip.status] || trip.status}</Badge>
+        </div>
+        <p className="text-xs mt-0.5">{travelStatusMessage(trip)}</p>
+        {trip.gpsDistanceKm != null && (
+          <p className="text-xs mt-1 opacity-80">
+            🧭 {trip.gpsDistanceKm} km GPS · ₹{trip.ratePerKm}/km · ₹{trip.netPayableAmount}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function shiftStartHour(role: string): number {
   const m: Record<string, number> = { "Car Washer":5,"Operations Manager":10,"Supervisor":10,"Sales Manager":10,"Sales Head":10 };
@@ -362,6 +419,37 @@ export function FieldCheckIn() {
     return () => window.removeEventListener("online", flush);
   }, []);
 
+  // ── Poll travel claim status for the current session (updates as manager/HR approve) ──
+  const [travelTrip, setTravelTrip] = useState<TravelTrip | null>(null);
+  useEffect(() => {
+    const sessionId = state.session?.id;
+    if (!sessionId) { setTravelTrip(null); return; }
+    const load = () => {
+      const trip = travelReimbursementService.getTrips().find(t => t.fieldSessionId === sessionId) || null;
+      setTravelTrip(trip);
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [state.session?.id]);
+
+  // ── Poll for travel claim notifications (approved / rejected) ──
+  useEffect(() => {
+    const employeeId = currentUser?.employeeId;
+    if (!employeeId) return;
+    const checkNotifications = () => {
+      const unread = travelReimbursementService.getNotificationsForEmployee(employeeId).filter(n => !n.read);
+      unread.forEach(n => {
+        if (n.type === "travel_rejected") toast.error(n.message);
+        else toast.success(n.message);
+        travelReimbursementService.markNotificationRead(n.id);
+      });
+    };
+    checkNotifications();
+    const t = setInterval(checkNotifications, 30000);
+    return () => clearInterval(t);
+  }, [currentUser?.employeeId]);
+
   // ── Handlers ──
   const handleCheckIn = async (selfieBase64: string) => {
     setUiStep("idle");
@@ -633,6 +721,8 @@ export function FieldCheckIn() {
             <Shield className="w-3 h-3" /> GPS trail visible to Admin / Super Admin only
           </p>
         </Card>
+
+        {travelTrip && <TravelClaimCard trip={travelTrip} />}
 
         <p className="text-center text-xs text-gray-400">
           Field day complete for {today}. Check in tomorrow to start a new day.

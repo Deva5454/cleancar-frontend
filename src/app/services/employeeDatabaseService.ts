@@ -42,6 +42,9 @@ export interface EmployeeDatabaseRecord {
   reportingManager: string;
   workLocation: string;
   pinCodes: string[];
+  bankAccountNumber?: string;
+  bankIFSC?: string;
+  bankName?: string;
   employeeType: EmployeeType;
   dateOfJoining: string;
   probationPeriod: string;

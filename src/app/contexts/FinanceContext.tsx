@@ -50,6 +50,11 @@ export interface Payable {
   invoiceDate?: string;
   // For Statutory Payables
   statutoryType?: "PF" | "ESIC" | "TDS" | "GST" | "PT";
+  // For Travel Reimbursement Payables (Salary type, cross-referenced to a TravelTrip)
+  travelTripId?: string;
+  taxAmount?: number;
+  tdsAmount?: number;
+  isAdhoc?: boolean; // true = HR requested immediate payment instead of next payroll cycle
   // Common fields
   amount: number;
   dueDate: string;

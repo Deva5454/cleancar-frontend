@@ -5,6 +5,7 @@
  */
 
 import { DataService } from "./DataService";
+import { employeeDatabaseService } from "./employeeDatabaseService";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -13,9 +14,13 @@ export type TripStatus =
   | "Draft"
   | "Pending Manager"
   | "Pending HR"
+  | "Pending City Manager"
   | "Approved"
   | "Rejected"
   | "Added to Payroll";
+
+// Claims above this amount require City Manager approval after HR review
+export const CITY_MANAGER_APPROVAL_THRESHOLD = 2000;
 
 export interface TravelRate {
   vehicleType: VehicleType;
@@ -108,6 +113,10 @@ export interface TravelTrip {
   hrApprovedAt?: string;
   hrComments?: string;
 
+  cityManagerApprovedBy?: string;
+  cityManagerApprovedAt?: string;
+  cityManagerComments?: string;
+
   rejectedBy?: string;
   rejectedAt?: string;
   rejectionReason?: string;
@@ -124,14 +133,24 @@ export interface TravelTrip {
   gpsTrailPoints?: number;                   // how many GPS points in the trail
 }
 
+export interface TravelNotification {
+  id: string;
+  employeeId: string;
+  type: "travel_manager_approved" | "travel_hr_approved" | "travel_pending_city_manager" | "travel_city_manager_approved" | "travel_rejected";
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 // ── Keys ──────────────────────────────────────────────────────────────────
 
 const KEYS = {
-  RATES:       "TRAVEL_RATES",
-  EXCEPTIONS:  "TRAVEL_EXCEPTIONS",
-  PERMISSIONS: "TRAVEL_PERMISSIONS",
-  TRIPS:       "TRAVEL_TRIPS",
-  PHOTOS:      "TRAVEL_PHOTOS",
+  RATES:         "TRAVEL_RATES",
+  EXCEPTIONS:    "TRAVEL_EXCEPTIONS",
+  PERMISSIONS:   "TRAVEL_PERMISSIONS",
+  TRIPS:         "TRAVEL_TRIPS",
+  PHOTOS:        "TRAVEL_PHOTOS",
+  NOTIFICATIONS: "TRAVEL_NOTIFICATIONS",
 };
 
 // ── Default rates ─────────────────────────────────────────────────────────
@@ -294,9 +313,39 @@ class TravelReimbursementService {
     );
   }
 
+  getPendingCityManagerApproval(cityId?: string): TravelTrip[] {
+    return this.getTrips().filter(t =>
+      t.status === "Pending City Manager" && (!cityId || t.cityId === cityId)
+    );
+  }
+
   private saveTrip(trip: TravelTrip): void {
     const all = this.getTrips().filter(t => t.id !== trip.id);
     DataService.setAll(KEYS.TRIPS, [...all, { ...trip, updatedAt: new Date().toISOString() }]);
+  }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  getNotificationsForEmployee(employeeId: string): TravelNotification[] {
+    return DataService.get<TravelNotification>(KEYS.NOTIFICATIONS)
+      .filter(n => n.employeeId === employeeId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  markNotificationRead(id: string): void {
+    const all = DataService.get<TravelNotification>(KEYS.NOTIFICATIONS);
+    DataService.setAll(KEYS.NOTIFICATIONS, all.map(n => n.id === id ? { ...n, read: true } : n));
+  }
+
+  private pushNotification(
+    employeeId: string, type: TravelNotification["type"], message: string
+  ): void {
+    const all = DataService.get<TravelNotification>(KEYS.NOTIFICATIONS);
+    const notif: TravelNotification = {
+      id: `TNOTIF-${Date.now()}`, employeeId, type, message,
+      read: false, createdAt: new Date().toISOString(),
+    };
+    DataService.setAll(KEYS.NOTIFICATIONS, [...all, notif].slice(-500));
   }
 
   startTrip(data: {
@@ -360,18 +409,42 @@ class TravelReimbursementService {
       managerComments: comments,
     };
     this.saveTrip(updated);
+    this.pushNotification(trip.employeeId, "travel_manager_approved",
+      `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by your manager — HR is now reviewing.`);
     return updated;
   }
 
   hrApprove(tripId: string, hrName: string, comments: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
+    const needsCityManager = (trip.netPayableAmount ?? 0) > CITY_MANAGER_APPROVAL_THRESHOLD;
     const updated = {
-      ...trip, status: "Approved" as TripStatus,
+      ...trip, status: (needsCityManager ? "Pending City Manager" : "Approved") as TripStatus,
       hrApprovedBy: hrName, hrApprovedAt: new Date().toISOString(),
       hrComments: comments,
     };
     this.saveTrip(updated);
+    if (needsCityManager) {
+      this.pushNotification(trip.employeeId, "travel_pending_city_manager",
+        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and now needs City Manager approval (above ₹${CITY_MANAGER_APPROVAL_THRESHOLD}).`);
+    } else {
+      this.pushNotification(trip.employeeId, "travel_hr_approved",
+        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and will be added to your payroll.`);
+    }
+    return updated;
+  }
+
+  cityManagerApprove(tripId: string, cmId: string, cmName: string, comments: string): TravelTrip {
+    const trip = this.getTrips().find(t => t.id === tripId);
+    if (!trip) throw new Error("Trip not found");
+    const updated = {
+      ...trip, status: "Approved" as TripStatus,
+      cityManagerApprovedBy: cmName, cityManagerApprovedAt: new Date().toISOString(),
+      cityManagerComments: comments,
+    };
+    this.saveTrip(updated);
+    this.pushNotification(trip.employeeId, "travel_city_manager_approved",
+      `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by the City Manager and will be added to your payroll.`);
     return updated;
   }
 
@@ -383,6 +456,8 @@ class TravelReimbursementService {
       rejectedBy, rejectedAt: new Date().toISOString(), rejectionReason: reason,
     };
     this.saveTrip(updated);
+    this.pushNotification(trip.employeeId, "travel_rejected",
+      `Your travel claim for ${trip.tripDate} was rejected: ${reason}`);
     return updated;
   }
 
@@ -488,14 +563,14 @@ class TravelReimbursementService {
       gpsTrailPoints:      session.trail.length,
     };
 
-    // 9. Resolve reporting manager from TRAVEL_PERMISSIONS city or employee records
-    //    Fall back to empty string — manager can still approve by searching
-    const allPerms = this.getPermissions();
-    const cityMgr = allPerms.find(p => p.cityId === trip.cityId && p.isEnabled);
-    if (cityMgr) {
-      // Best effort: no direct manager link in permission record
-      // Manager will see the trip in their queue if they are the reporting manager
-    }
+    // 9. Resolve reporting manager from the employee database record
+    const allEmployees = employeeDatabaseService.getAll();
+    const emp = allEmployees.find(e => e.id === session.employeeId || e.tempId === session.employeeId);
+    const manager = emp?.reportingManager
+      ? allEmployees.find(e => e.fullName === emp.reportingManager)
+      : undefined;
+    trip.reportingManagerId   = manager?.id ?? "";
+    trip.reportingManagerName = manager?.fullName ?? emp?.reportingManager ?? "";
 
     // 10. Save and return
     this.saveTrip(trip);

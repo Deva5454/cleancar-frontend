@@ -44,6 +44,9 @@ import { toast } from "sonner";
 import { Checkbox } from "../ui/checkbox";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { useFinance } from "../../contexts/FinanceContext";
+import { useCity } from "../../contexts/CityContext";
+import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -77,11 +80,49 @@ interface PaymentForm {
 export function SalaryPaymentScreen() {
   const { payrollRuns } = usePayroll();
   const { employees } = useEmployee();
+  const { getSalaryPayables, markAsPaid } = useFinance();
+  const { city } = useCity();
 
-  const basePayables = payrollRuns.map(run => { const emp = employees.find(e => e.employeeId === run.employeeId); return { employeeId:run.employeeId, employeeName:emp?emp.firstName+" "+emp.lastName:run.employeeId, role:emp?.role||"Employee", netSalary:run.netSalary, expenseId:"EXP-"+run.payrollId, accountNumber:"XXXX1234", ifscCode:"SBIN0001234", selected:false }; });
+  const basePayables = payrollRuns.map(run => {
+    const emp = employees.find(e => e.employeeId === run.employeeId);
+    return {
+      employeeId: run.employeeId,
+      employeeName: emp ? emp.firstName + " " + emp.lastName : run.employeeId,
+      role: emp?.role || "Employee",
+      netSalary: run.netSalary,
+      expenseId: "EXP-" + run.payrollId,
+      accountNumber: emp?.bankDetails?.accountNumber || "—",
+      ifscCode: emp?.bankDetails?.ifscCode || "—",
+      selected: false,
+    };
+  });
   const [payables, setPayables] = useState<SalaryPayable[]>(basePayables);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [travelUTR, setTravelUTR] = useState<Record<string, string>>({});
+
+  const travelPayables = getSalaryPayables(city)
+    .filter(p => p.travelTripId && p.status === "Pending")
+    .map(p => {
+      const emp = employeeDatabaseService.getById(p.employeeId || "");
+      return {
+        ...p,
+        bankAccountNumber: emp?.bankAccountNumber || "—",
+        bankIFSC: emp?.bankIFSC || "—",
+        bankName: emp?.bankName || "—",
+      };
+    });
+
+  const handleMarkTravelPaid = (payableId: string) => {
+    const utr = travelUTR[payableId]?.trim();
+    if (!utr) {
+      toast.error("Enter a UTR / payment reference before marking as paid");
+      return;
+    }
+    markAsPaid(payableId, utr, "Bank Transfer");
+    toast.success("Travel reimbursement marked as paid");
+    setTravelUTR(prev => { const next = { ...prev }; delete next[payableId]; return next; });
+  };
 
   const [paymentForm, setPaymentForm] = useState<PaymentForm>({
     paymentMode: "BANK_TRANSFER",
@@ -386,6 +427,64 @@ export function SalaryPaymentScreen() {
           )}
         </CardContent>
       </Card>
+
+      {/* Travel Reimbursement Payables */}
+      {travelPayables.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Travel Reimbursement Payables</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Bank Details</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>UTR / Payment Ref</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {travelPayables.map((payable) => (
+                  <TableRow key={payable.payableId}>
+                    <TableCell>
+                      <div className="font-medium">{payable.employeeName}</div>
+                      <div className="text-xs text-gray-500">{payable.description}</div>
+                      {payable.isAdhoc && (
+                        <Badge className="mt-1 bg-amber-100 text-amber-800">Ad-hoc</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">
+                      <div>{payable.bankAccountNumber}</div>
+                      <div className="text-xs text-gray-500">{payable.bankIFSC} · {payable.bankName}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(payable.amount)}
+                    </TableCell>
+                    <TableCell className="text-sm">{payable.dueDate}</TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="e.g., NEFT123456789"
+                        value={travelUTR[payable.payableId] || ""}
+                        onChange={(e) =>
+                          setTravelUTR(prev => ({ ...prev, [payable.payableId]: e.target.value }))
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" onClick={() => handleMarkTravelPaid(payable.payableId)}>
+                        Mark as Paid
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Action Buttons */}
       <Card className="border-2 border-green-300 bg-green-50">
