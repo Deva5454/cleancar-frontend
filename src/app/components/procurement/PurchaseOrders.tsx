@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -22,9 +23,6 @@ import {
 } from "../ui/select";
 import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 interface PurchaseOrdersProps {
   prefillFromMR?: { mrRef?: string; items?: any[]; urgency?: string } | null;
