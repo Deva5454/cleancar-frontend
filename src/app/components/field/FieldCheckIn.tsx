@@ -96,8 +96,10 @@ function travelStatusMessage(trip: TravelTrip): string {
 function TravelClaimCard({ trip }: { trip: TravelTrip }) {
   const style = TRAVEL_STATUS_STYLE[trip.status] || "border-gray-300 bg-gray-50 text-gray-700";
   return (
-    <div className={`p-4 rounded-lg border-2 flex items-start gap-3 ${style}`}>
-      <Navigation className="w-5 h-5 mt-0.5 shrink-0" />
+    <div className={`p-4 rounded-xl border-2 flex items-start gap-3 shadow-sm ${style}`}>
+      <div className="w-9 h-9 rounded-full bg-white/70 flex items-center justify-center shrink-0">
+        <Navigation className="w-4.5 h-4.5" />
+      </div>
       <div className="flex-1">
         <div className="flex items-center justify-between">
           <p className="font-semibold text-sm">Travel Claim {trip.status === "Rejected" ? "Rejected" : "Submitted"}</p>
@@ -669,9 +671,11 @@ export function FieldCheckIn() {
         )}
 
         {/* Summary */}
-        <Card className="p-5 border-2 border-gray-200">
+        <Card className="p-5 border-2 border-gray-200 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <CheckCircle2 className="w-8 h-8 text-gray-400" />
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            </div>
             <div>
               <p className="font-semibold">Field Day Complete</p>
               <p className="text-xs text-gray-500">{session.date}</p>
@@ -684,7 +688,7 @@ export function FieldCheckIn() {
               { label: "Duration",   val: durationStr },
               { label: "Distance",   val: `${session.totalDistanceKm} km` },
             ].map(m => (
-              <div key={m.label} className="bg-gray-50 rounded-lg p-3 text-center">
+              <div key={m.label} className="bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-400">{m.label}</p>
                 <p className="font-bold text-sm">{m.val}</p>
               </div>
@@ -736,9 +740,9 @@ export function FieldCheckIn() {
 
   return (
     <div className="space-y-5">
-      <Card className="p-6 text-center space-y-4 border-2 border-dashed border-gray-300">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-          <MapPin className="w-8 h-8 text-gray-400" />
+      <Card className="p-6 text-center space-y-4 border-2 border-dashed border-blue-200 bg-blue-50/30 shadow-sm">
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+          <MapPin className="w-8 h-8 text-blue-500" />
         </div>
         <div>
           <p className="font-semibold text-gray-900 text-lg">Not Checked In</p>
@@ -753,7 +757,7 @@ export function FieldCheckIn() {
           )}
         </div>
         <Button
-          className="w-full bg-green-600 hover:bg-green-700 gap-2 py-5 text-base font-semibold"
+          className="w-full bg-green-600 hover:bg-green-700 gap-2 py-5 text-base font-semibold shadow-sm shadow-green-600/30"
           onClick={() => setUiStep("selfie-in")}
         >
           <Camera className="w-5 h-5" /> Start Field Day

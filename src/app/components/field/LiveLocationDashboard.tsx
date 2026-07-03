@@ -449,26 +449,34 @@ function JourneyPanel({ session }: { session: FieldSession }) {
       {/* Day summary strip */}
       <div className="px-4 pt-4 pb-3 border-b bg-white sticky top-0 z-10">
         <div className="flex items-start justify-between mb-3">
-          <div>
-            <h2 className="font-bold text-gray-900">{session.employeeName}</h2>
-            <p className="text-xs text-gray-500">{fmtDate(session.date)} · {session.role}</p>
+          <div className="flex items-center gap-3">
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ROLE_COLOR[session.role] ?? "bg-gray-100 text-gray-700"}`}>
+              {session.employeeName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900">{session.employeeName}</h2>
+              <p className="text-xs text-gray-500">{fmtDate(session.date)} · {session.role}</p>
+            </div>
           </div>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLOR[session.role] ?? "bg-gray-100 text-gray-700"}`}>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${ROLE_COLOR[session.role] ?? "bg-gray-100 text-gray-700"}`}>
             {session.role}
           </span>
         </div>
 
         {/* Day Summary card — PagarBook style */}
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="bg-gray-50 rounded-lg p-2">
-            <p className="text-gray-400">Total Distance</p>
+          <div className="bg-gray-50 rounded-xl p-2.5">
+            <Footprints className="w-3.5 h-3.5 mx-auto mb-1 text-gray-400" />
+            <p className="text-gray-400">Distance</p>
             <p className="font-bold text-gray-900 text-base">{session.totalDistanceKm} km</p>
           </div>
-          <div className="bg-amber-50 rounded-lg p-2">
+          <div className="bg-amber-50 rounded-xl p-2.5">
+            <Coffee className="w-3.5 h-3.5 mx-auto mb-1 text-amber-500" />
             <p className="text-amber-600">Halts</p>
             <p className="font-bold text-amber-900 text-base">{stops.length} · {durStr(haltMins)}</p>
           </div>
-          <div className="bg-indigo-50 rounded-lg p-2">
+          <div className="bg-indigo-50 rounded-xl p-2.5">
+            <Car className="w-3.5 h-3.5 mx-auto mb-1 text-indigo-500" />
             <p className="text-indigo-600">Drives</p>
             <p className="font-bold text-indigo-900 text-base">{drives.length} · {durStr(drivingMins)}</p>
           </div>
@@ -482,8 +490,10 @@ function JourneyPanel({ session }: { session: FieldSession }) {
         {/* Travel claim */}
         {travel ? (
           <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <IndianRupee className="w-4 h-4 text-green-600" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                <IndianRupee className="w-4 h-4 text-green-600" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-green-900">GPS Travel Claim Auto-Submitted</p>
                 <p className="text-xs text-green-700">
@@ -532,18 +542,16 @@ function StaffRow({ name, role, status, sub, selected, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-100 hover:bg-blue-50 transition-colors ${
+      className={`w-full text-left flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 hover:bg-blue-50 active:bg-blue-100 transition-colors ${
         selected ? "bg-blue-50 border-l-4 border-l-blue-600" : "border-l-4 border-l-transparent"
       }`}
     >
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ROLE_COLOR[role] ?? "bg-gray-100 text-gray-700"}`}>
+      <div className={`relative w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${ROLE_COLOR[role] ?? "bg-gray-100 text-gray-700"}`}>
         {initials}
+        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${dotColor}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
-          <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
-        </div>
+        <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
         <p className="text-xs text-gray-500 truncate">{sub}</p>
       </div>
       <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
@@ -629,19 +637,27 @@ export function LiveLocationDashboard() {
   const stale = live.filter(l => staleMin(l.lastUpdated) > 5).length;
 
   return (
-    <div className="flex h-[calc(100vh-120px)] bg-white rounded-2xl border shadow-sm overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] bg-white rounded-2xl border shadow-sm overflow-hidden">
 
       {/* ── LEFT: Staff list ────────────────────────────────────────────────── */}
-      <div className="w-72 shrink-0 flex flex-col border-r bg-gray-50">
+      <div className={`w-full md:w-80 shrink-0 flex-col border-r bg-gray-50 ${
+        panel.mode === "empty" ? "flex" : "hidden md:flex"
+      }`}>
 
         {/* Header */}
-        <div className="px-4 pt-4 pb-2 border-b bg-white">
+        <div className="px-4 pt-4 pb-3 border-b bg-white">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="font-bold text-gray-900 text-base flex items-center gap-1.5">
-              <Navigation className="w-4 h-4 text-blue-600" />Field Tracker
-            </h1>
-            <button onClick={doRefresh} className="text-gray-400 hover:text-blue-600 transition-colors">
-              <RefreshCw className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                <Navigation className="w-4.5 h-4.5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-bold text-gray-900 text-base leading-tight">Field Tracker</h1>
+                <p className="text-[11px] text-gray-400 leading-tight">Live GPS · Attendance</p>
+              </div>
+            </div>
+            <button onClick={doRefresh} className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50">
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
           {/* Status chips */}
@@ -726,7 +742,15 @@ export function LiveLocationDashboard() {
       </div>
 
       {/* ── RIGHT: Detail panel ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white">
+      <div className={`flex-1 flex-col min-w-0 bg-white ${
+        panel.mode === "empty" ? "hidden md:flex" : "flex"
+      }`}>
+        {panel.mode !== "empty" && (
+          <button onClick={() => setPanel({ mode: "empty" })}
+            className="md:hidden flex items-center gap-1.5 px-4 py-3 border-b text-sm font-medium text-blue-600 hover:bg-blue-50 shrink-0">
+            <ChevronRight className="w-4 h-4 rotate-180" /> Back to list
+          </button>
+        )}
         {panel.mode === "empty" && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-gray-300">
