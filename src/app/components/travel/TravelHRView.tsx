@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
-import { useFinance } from "../../contexts/FinanceContext";
+import { useTravelPayableBridge } from "../../hooks/useTravelPayableBridge";
 import { travelReimbursementService, type TravelTrip, type TripStatus } from "../../services/travelReimbursementService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 export function TravelHRView() {
   const { currentUser } = useRole();
   const { city } = useCity();
-  const { createPayable } = useFinance();
+  const { finalizeTravelApproval } = useTravelPayableBridge();
   const [tab, setTab]         = useState<"pending" | "history">("pending");
   const [selected, setSelected] = useState<TravelTrip | null>(null);
   const [comments, setComments] = useState("");
@@ -57,31 +57,7 @@ export function TravelHRView() {
     }
 
     // Bridge: create Finance payable so salary processing picks it up
-    const dueDate = payImmediately
-      ? new Date().toISOString().split("T")[0]
-      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split("T")[0]; // 1st of next month
-
-    createPayable({
-      type: "Salary",
-      employeeId:  selected.employeeId,
-      employeeName: selected.employeeName,
-      description: `Travel Reimbursement — ${selected.tripDate} — ${selected.purposeOfVisit}`,
-      amount:      selected.netPayableAmount || 0,
-      dueDate,
-      status:      "Pending",
-      cityId:      selected.cityId,
-      travelTripId: selected.id,
-      taxAmount:   0,
-      tdsAmount:   0,
-      isAdhoc:     payImmediately,
-    });
-
-    // Mark trip as Added to Payroll
-    travelReimbursementService.markAddedToPayroll(
-      selected.id,
-      new Date().toISOString().slice(0, 7),
-      payImmediately ? `ADHOC-TRAVEL-${selected.id}` : `PAYROLL-TRAVEL-${selected.id}`
-    );
+    finalizeTravelApproval(updatedTrip, { isAdhoc: payImmediately });
 
     toast.success(payImmediately
       ? `Approved for immediate payment. ₹${selected.netPayableAmount?.toLocaleString()} sent to Accounts for urgent processing.`

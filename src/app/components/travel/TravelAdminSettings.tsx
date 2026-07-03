@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useRole } from "../../contexts/RoleContext";
-import { useEmployee } from "../../contexts/EmployeeContext";
+import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { useCity } from "../../contexts/CityContext";
-import { useFinance } from "../../contexts/FinanceContext";
+import { useTravelPayableBridge } from "../../hooks/useTravelPayableBridge";
 import { isFieldTrackingRole, FIELD_TRACKING_ROLES } from "../../services/fieldTrackingService";
 import { travelReimbursementService, CITY_MANAGER_APPROVAL_THRESHOLD, type VehicleType, type TravelExceptionPolicy, type TravelTrip } from "../../services/travelReimbursementService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -26,9 +26,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function TravelAdminSettings({ cityManagerMode = false }: Props) {
   const { currentUser, currentRole } = useRole();
-  const { employees } = useEmployee();
+  const employees = employeeDatabaseService.getAll();
   const { city, availableCities } = useCity();
-  const { createPayable } = useFinance();
+  const { finalizeTravelApproval } = useTravelPayableBridge();
   const isSuperAdmin = currentRole === "Super Admin" || currentRole === "Admin";
 
   const [tab, setTab] = useState<"rates" | "permissions" | "exceptions" | "approvals" | "ledger">(
@@ -42,25 +42,9 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
   const pendingCityManagerApprovals = travelReimbursementService.getPendingCityManagerApproval(cityManagerMode ? city : undefined);
 
   const approveTrip = (trip: TravelTrip) => {
-    travelReimbursementService.cityManagerApprove(trip.id, currentUser?.employeeId || "", currentUser?.name || "City Manager", approvalComments);
+    const updatedTrip = travelReimbursementService.cityManagerApprove(trip.id, currentUser?.employeeId || "", currentUser?.name || "City Manager", approvalComments);
 
-    createPayable({
-      type: "Salary",
-      employeeId:  trip.employeeId,
-      employeeName: trip.employeeName,
-      description: `Travel Reimbursement — ${trip.tripDate} — ${trip.purposeOfVisit}`,
-      amount:      trip.netPayableAmount || 0,
-      dueDate:     new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString().split("T")[0],
-      status:      "Pending",
-      cityId:      trip.cityId,
-      travelTripId: trip.id,
-      taxAmount:   0,
-      tdsAmount:   0,
-    });
-
-    travelReimbursementService.markAddedToPayroll(
-      trip.id, new Date().toISOString().slice(0, 7), `PAYROLL-TRAVEL-${trip.id}`
-    );
+    finalizeTravelApproval(updatedTrip);
 
     toast.success(`Approved. ₹${trip.netPayableAmount?.toLocaleString()} will be added to ${trip.employeeName}'s payroll.`);
     setSelectedForApproval(null); setApprovalComments(""); setRefresh(r => r + 1);
@@ -95,7 +79,7 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
   // ── Permissions state ──
   const permissions = travelReimbursementService.getPermissions(city);
   const cityEmps = employees.filter(e =>
-    e.status === "Active" && (e.workLocation === city || e.cityId === city)
+    e.status === "Active" && e.workLocation === city
   );
 
   const togglePermission = (emp: typeof cityEmps[0]) => {

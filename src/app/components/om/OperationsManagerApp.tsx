@@ -1747,12 +1747,6 @@ export function OperationsManagerApp() {
 
 
 
-              <TabsTrigger value="field-checkin" className="py-4 text-sm font-semibold">
-                Field Check-In
-              </TabsTrigger>
-              <TabsTrigger value="field-checkin" className="py-4 text-sm font-semibold">
-                Field Check-In
-              </TabsTrigger>
               <TabsTrigger value="reports" className="py-4 text-sm font-semibold">
 
 
@@ -2105,12 +2099,6 @@ export function OperationsManagerApp() {
 
 
 
-        <TabsContent value="field-checkin" className="mt-0">
-          <div className="max-w-2xl mx-auto py-6"><FieldCheckIn /></div>
-        </TabsContent>
-        <TabsContent value="field-checkin" className="mt-0">
-          <div className="max-w-2xl mx-auto py-6"><FieldCheckIn /></div>
-        </TabsContent>
         <TabsContent value="reports" className="mt-0">
           {/* Complimentary 2W Marketing Spend Summary */}
           {(() => {
