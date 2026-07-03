@@ -177,7 +177,7 @@ Draft → Pending Manager → Pending HR ─┬─(≤ ₹2,000)─────�
 |---|---|---|
 | `sm/SalesManagerApp.tsx` | line 18 | ✅ line 850 |
 | `sh/SalesHeadApp.tsx` | line 40 | ✅ line 703 |
-| `supervisor/SupervisorAppConnected.tsx` | — | ❌ not present at all |
+| `supervisor/SupervisorAppConnected.tsx` | ✅ added | ✅ "Field Day" tab, `/supervisor-app/field` — see §7.7 |
 | `om/OperationsManagerApp.tsx` | — | ❌ **broken, see §7.5** |
 
 **`/field-tracker`** (`routes.tsx:596`) → `LiveLocationDashboard`, Super Admin only, top-level route (not nested under `/travel`).
@@ -202,7 +202,7 @@ Full detail and file:line references for items 1-6 are in the git history on thi
 
 ## 7. Contradictions / issues — status
 
-All six items flagged in the first pass are now resolved, including §7.1, which turned out to be a different (and smaller) problem than originally diagnosed once actually tested empirically in the browser — see below.
+All six items flagged in the first pass are now resolved, including §7.1, which turned out to be a different (and smaller) problem than originally diagnosed once actually tested empirically in the browser — see below. A seventh item (§7.7) surfaced during a final sign-off pass and is also now resolved.
 
 | # | Issue | Status |
 |---|---|---|
@@ -212,6 +212,7 @@ All six items flagged in the first pass are now resolved, including §7.1, which
 | 7.4 | Payable-creation bridge duplicated in `TravelHRView` and `TravelAdminSettings` | ✅ Resolved — extracted to `useTravelPayableBridge()`, §9.3 |
 | 7.5 | Operations Manager's "Field Check-In" tab referenced `FieldCheckIn` without importing it (`TS2304`, would crash at runtime) | ✅ Resolved — §9.1 |
 | 7.6 | No loggable Sales Manager/Sales Head employee, blocking manual QA of those roles | ✅ Resolved — turned out to be more than a missing-seed-data gap, see §9.4 |
+| 7.7 | Supervisors had no `FieldCheckIn` UI at all — enabled in `TRAVEL_PERMISSIONS` seed data but no tab to check in from | ✅ Resolved — §9.11 (found during final sign-off, wasn't caught in the original 6-item pass) |
 
 ### 7.1 — Two employee ID spaces — corrected diagnosis, see §9.9
 The original diagnosis (below, kept for the record) was based on reading `seedEmployees.ts`/`EmployeeContext.tsx` code in isolation. Testing it empirically in a real browser session revealed it doesn't actually happen in the live app — see §9.9 for what's really going on and what was fixed.
@@ -322,4 +323,25 @@ RoleContext.tsx(125,7): error TS2741: Property '"Marketing Agency"' is missing i
 - `npx vite build` — production build still succeeds.
 - Browser check: `EMPLOYEE_DATABASE_RECORDS` has 5 Sales Head/Sales Manager employees (`EDB-SH-SUR1/2`, `EDB-SMGR-SUR1/2/3`); confirmed they match `HRDataContext.getManagers()`'s updated role filter, zero console errors.
 
-This closes out the last open item from §9.9 and from the original contradictions table (§7). No further known contradictions remain.
+This closed out the last open item from §9.9 and from the original contradictions table (§7) as it stood at the time — but see §9.11 for one more that surfaced during final sign-off.
+
+### 9.11 — §7.7: Supervisors had no way to actually check in
+
+**Found during a final "confirm nothing's pending" pass** — §5's file map (the "`FieldCheckIn` embedding" table) already documented `supervisor/SupervisorAppConnected.tsx` as "❌ not present at all," but that fact was never carried into §7's contradictions table or the §8 backlog, so it was never actually fixed in the earlier rounds.
+
+**Confirmed as a real, live gap, not just stale documentation:**
+- §1's own description of the module lists Supervisor as one of three field-check-in roles (alongside Sales Manager, Sales Head).
+- `seedAllData.ts`'s `TRAVEL_PERMISSIONS` array actively enables two real Supervisors (`EDB-SUP-SUR1` Harish Solanki, `EDB-SUP-SUR2` Bhavesh Modi) for GPS-based travel claims, and seeds demo trips/sessions for them.
+- But `supervisor/SupervisorAppConnected.tsx` and `supervisor/SupervisorLayout.tsx` never imported `FieldCheckIn` or `fieldTrackingService` anywhere — there was no route, tab, or component through which a Supervisor could check in. Sales Manager and Sales Head both had it wired in; Supervisor never did.
+
+**Fixed:**
+- `src/app/components/supervisor/SupervisorAppConnected.tsx` — imported `FieldCheckIn`, added a `"Field Day"` tab (matching `SalesManagerApp.tsx`'s pattern: teal-accented `TabsTrigger` with a `MapPin` icon, `TabsContent` rendering `<FieldCheckIn />`), and added `"field"` to both the `PATH_TO_SCREEN` and `SCREEN_TO_PATH` route-name maps this component uses to sync its `Tabs` state with the URL.
+- `src/app/routes.tsx` — added `{ path: "field", element: <SupervisorAppConnected /> }` under the `/supervisor-app` nested-route block, so `/supervisor-app/field` resolves.
+
+**Verified:**
+- `tsc --noEmit` error count unchanged (3023 → 3023) before/after, confirmed via the same stash-diff method used in §9.10 — zero new errors.
+- `vite build` still succeeds.
+- Browser check: logged in as Harish Solanki (`EDB-SUP-SUR1`, role `Supervisor`), navigated to `/supervisor-app/field` — the "Field Day" tab renders alongside the existing Dashboard/Team/Audit/etc. tabs, and `FieldCheckIn`'s full "Not Checked In" / "Start Field Day" UI (selfie + GPS rules card) displays correctly with zero console errors attributable to this change.
+- Noted, out of scope: the app already logs a pre-existing `"Payroll sync errors: Invalid employeeId for payroll"` console warning and a `PayrollContext`/`ApprovalContext` "Maximum update depth exceeded" React warning on **every** page load (confirmed on a plain root-page load with no navigation) — unrelated to this fix, not part of the field-tracker module, not touched.
+
+This closes §7.7. No further known contradictions or backlog items remain in this document.

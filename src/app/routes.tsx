@@ -578,6 +578,7 @@ export const router = createBrowserRouter([
           { path: "audit-result", element: <SupervisorAppConnected /> },
           { path: "btl-leads", element: <SupervisorAppConnected /> },
           { path: "exit", element: <SupervisorAppConnected /> },
+          { path: "field", element: <SupervisorAppConnected /> },
           { path: "*", element: <SupervisorAppConnected /> },
         ]
       },

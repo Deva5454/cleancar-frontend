@@ -32,7 +32,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Bell } from "lucide-react";
+import { Bell, MapPin } from "lucide-react";
+import { FieldCheckIn } from "../field/FieldCheckIn";
 import { coverRedistributionService } from "../../services/coverRedistributionService";
 import { fieldAuditService } from "../../services/fieldAuditService";
 import { btlLeadService } from "../../services/btlLeadService";
@@ -186,6 +187,7 @@ export function SupervisorAppConnected() {
     "/supervisor-app/kpi-dashboard":"kpi-dashboard",
     "/supervisor-app/schedule":     "schedule",
     "/supervisor-app/exit":         "exit",
+    "/supervisor-app/field":        "field",
   };
   const SCREEN_TO_PATH: Record<string, string> = {
     "dashboard":    "/supervisor-app",
@@ -205,6 +207,7 @@ export function SupervisorAppConnected() {
     "kpi-dashboard":"/supervisor-app/kpi-dashboard",
     "schedule":     "/supervisor-app/schedule",
     "exit":         "/supervisor-app/exit",
+    "field":        "/supervisor-app/field",
   };
   const currentScreen = useMemo(
     () => PATH_TO_SCREEN[location.pathname] ?? "dashboard",
@@ -1396,6 +1399,9 @@ export function SupervisorAppConnected() {
               <TabsTrigger value="alerts" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
                 Alerts
               </TabsTrigger>
+              <TabsTrigger value="field" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer border-l-2 border-teal-300 gap-1">
+                <MapPin className="w-3 h-3 hidden sm:block" />Field Day
+              </TabsTrigger>
             </TabsList>
             <TabsList className="flex flex-wrap h-auto gap-1 p-1 border-t pointer-events-auto">
               <TabsTrigger value="schedule" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
@@ -1833,6 +1839,10 @@ export function SupervisorAppConnected() {
                 );
               })
             )}
+          </TabsContent>
+
+          <TabsContent value="field" className="mt-0">
+            <FieldCheckIn />
           </TabsContent>
         </Tabs>
       </div>
