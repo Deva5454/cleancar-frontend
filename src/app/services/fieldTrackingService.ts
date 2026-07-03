@@ -190,11 +190,24 @@ class FieldTrackingService {
   /** Reload any active session from storage on page load */
   private _rehydrate() {
     const activeId = localStorage.getItem(SK.ACTIVE);
-    if (!activeId) return;
-    const session = loadSessions().find(s => s.id === activeId && !s.checkOutTime);
-    if (session) {
-      this.state.isCheckedIn = true;
-      this.state.session = session;
+    if (activeId) {
+      const active = loadSessions().find(s => s.id === activeId && !s.checkOutTime);
+      if (active) {
+        this.state.isCheckedIn = true;
+        this.state.session = active;
+        return;
+      }
+    }
+    // No active session — restore today's most recently completed session (if any)
+    // so the "Field Day Complete" summary in FieldCheckIn.tsx survives a hard refresh.
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysSessions = loadSessions().filter(s => s.date === today && s.checkOutTime);
+    if (todaysSessions.length > 0) {
+      const latest = todaysSessions.reduce((a, b) =>
+        new Date(b.checkOutTime!).getTime() > new Date(a.checkOutTime!).getTime() ? b : a
+      );
+      this.state.isCheckedIn = false;
+      this.state.session = latest;
     }
   }
 

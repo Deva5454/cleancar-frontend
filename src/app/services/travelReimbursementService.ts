@@ -19,8 +19,15 @@ export type TripStatus =
   | "Rejected"
   | "Added to Payroll";
 
-// Claims above this amount require City Manager approval after HR review
+// Default: claims above this amount require City Manager approval after HR review.
+// Super Admin can override at runtime — see getCityManagerApprovalThreshold()/setCityManagerApprovalThreshold().
 export const CITY_MANAGER_APPROVAL_THRESHOLD = 2000;
+
+export interface CityManagerThresholdSetting {
+  threshold: number;
+  setBy: string;
+  updatedAt: string;
+}
 
 export interface TravelRate {
   vehicleType: VehicleType;
@@ -145,12 +152,13 @@ export interface TravelNotification {
 // ── Keys ──────────────────────────────────────────────────────────────────
 
 const KEYS = {
-  RATES:         "TRAVEL_RATES",
-  EXCEPTIONS:    "TRAVEL_EXCEPTIONS",
-  PERMISSIONS:   "TRAVEL_PERMISSIONS",
-  TRIPS:         "TRAVEL_TRIPS",
-  PHOTOS:        "TRAVEL_PHOTOS",
-  NOTIFICATIONS: "TRAVEL_NOTIFICATIONS",
+  RATES:               "TRAVEL_RATES",
+  EXCEPTIONS:          "TRAVEL_EXCEPTIONS",
+  PERMISSIONS:         "TRAVEL_PERMISSIONS",
+  TRIPS:               "TRAVEL_TRIPS",
+  PHOTOS:              "TRAVEL_PHOTOS",
+  NOTIFICATIONS:       "TRAVEL_NOTIFICATIONS",
+  CITY_MANAGER_THRESHOLD: "TRAVEL_CITY_MANAGER_THRESHOLD",
 };
 
 // ── Default rates ─────────────────────────────────────────────────────────
@@ -187,6 +195,22 @@ class TravelReimbursementService {
     };
     DataService.setAll(KEYS.RATES, [...rates, updated]);
     return updated;
+  }
+
+  // ── City Manager approval threshold ─────────────────────────────────────
+
+  getCityManagerApprovalThreshold(): number {
+    const stored = DataService.get<CityManagerThresholdSetting>(KEYS.CITY_MANAGER_THRESHOLD);
+    return stored[0]?.threshold ?? CITY_MANAGER_APPROVAL_THRESHOLD;
+  }
+
+  // Only Super Admin can call this
+  setCityManagerApprovalThreshold(threshold: number, setBy: string): CityManagerThresholdSetting {
+    const setting: CityManagerThresholdSetting = {
+      threshold, setBy, updatedAt: new Date().toISOString(),
+    };
+    DataService.setAll(KEYS.CITY_MANAGER_THRESHOLD, [setting]);
+    return setting;
   }
 
   // ── Exception Policies ───────────────────────────────────────────────────
@@ -417,7 +441,8 @@ class TravelReimbursementService {
   hrApprove(tripId: string, hrName: string, comments: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
-    const needsCityManager = (trip.netPayableAmount ?? 0) > CITY_MANAGER_APPROVAL_THRESHOLD;
+    const threshold = this.getCityManagerApprovalThreshold();
+    const needsCityManager = (trip.netPayableAmount ?? 0) > threshold;
     const updated = {
       ...trip, status: (needsCityManager ? "Pending City Manager" : "Approved") as TripStatus,
       hrApprovedBy: hrName, hrApprovedAt: new Date().toISOString(),
@@ -426,7 +451,7 @@ class TravelReimbursementService {
     this.saveTrip(updated);
     if (needsCityManager) {
       this.pushNotification(trip.employeeId, "travel_pending_city_manager",
-        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and now needs City Manager approval (above ₹${CITY_MANAGER_APPROVAL_THRESHOLD}).`);
+        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and now needs City Manager approval (above ₹${threshold}).`);
     } else {
       this.pushNotification(trip.employeeId, "travel_hr_approved",
         `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and will be added to your payroll.`);

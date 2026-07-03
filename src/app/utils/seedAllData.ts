@@ -1576,14 +1576,14 @@ export function seedAllData(): void {
           status:"Supervisor Verification Pending", materials: pendingMaterials(),
         },
         {
-          id:"EXT-2026-009", employeeId:"EDB-TSE-SUR1", employeeName:"Priya Sharma",
+          id:"EXT-2026-009", employeeId:"EDB-EXT-SUR009", employeeName:"Priya Sharma",
           empCode:"RSC-PS009", designation:"TSE", verifierRole:"TSM", cityId:"CITY-SURAT",
           resignationDate:"2026-04-10", lastWorkingDate:"2026-05-10",
           noticePeriod:30, reasonForLeaving:"Personal reasons",
           status:"Supervisor Verification Pending", materials: pendingMaterials(),
         },
         {
-          id:"EXT-2026-010", employeeId:"EDB-SM-SUR1", employeeName:"Rahul Desai",
+          id:"EXT-2026-010", employeeId:"EDB-EXT-SUR010", employeeName:"Rahul Desai",
           empCode:"RSC-RD010", designation:"Sales Manager", verifierRole:"Sales Head", cityId:"CITY-SURAT",
           resignationDate:"2026-04-12", lastWorkingDate:"2026-05-12",
           noticePeriod:30, reasonForLeaving:"Better package elsewhere",

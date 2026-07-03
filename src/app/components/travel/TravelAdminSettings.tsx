@@ -4,7 +4,7 @@ import { employeeDatabaseService } from "../../services/employeeDatabaseService"
 import { useCity } from "../../contexts/CityContext";
 import { useTravelPayableBridge } from "../../hooks/useTravelPayableBridge";
 import { isFieldTrackingRole, FIELD_TRACKING_ROLES } from "../../services/fieldTrackingService";
-import { travelReimbursementService, CITY_MANAGER_APPROVAL_THRESHOLD, type VehicleType, type TravelExceptionPolicy, type TravelTrip } from "../../services/travelReimbursementService";
+import { travelReimbursementService, type VehicleType, type TravelExceptionPolicy, type TravelTrip } from "../../services/travelReimbursementService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -73,6 +73,19 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
     toast.success(`${vt} rate updated to ₹${rate}/km`);
     if (vt === "2W") setEditing2W(false);
     else setEditing4W(false);
+    setRefresh(r => r + 1);
+  };
+
+  // ── City Manager approval threshold ──
+  const cityManagerThreshold = travelReimbursementService.getCityManagerApprovalThreshold();
+  const [editingThreshold, setEditingThreshold] = useState(false);
+  const [newThreshold, setNewThreshold] = useState(cityManagerThreshold);
+
+  const saveThreshold = (value: number) => {
+    if (value <= 0) { toast.error("Threshold must be greater than 0"); return; }
+    travelReimbursementService.setCityManagerApprovalThreshold(value, currentUser?.name || "Super Admin");
+    toast.success(`City Manager approval threshold updated to ₹${value.toLocaleString()}`);
+    setEditingThreshold(false);
     setRefresh(r => r + 1);
   };
 
@@ -204,6 +217,42 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
               </Card>
             );
           })}
+          <Card className="col-span-2">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-5 h-5 text-orange-600" />
+                <span className="font-semibold">City Manager Approval Threshold</span>
+              </div>
+              {!editingThreshold ? (
+                <>
+                  <div className="text-3xl font-bold text-gray-900 mb-1">
+                    ₹{cityManagerThreshold.toLocaleString()}<span className="text-sm font-normal text-gray-400"> and above</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Claims above this amount require City Manager approval after HR review.
+                  </p>
+                  {isSuperAdmin && (
+                    <Button size="sm" variant="outline" className="w-full" onClick={() => { setNewThreshold(cityManagerThreshold); setEditingThreshold(true); }}>
+                      Change Threshold
+                    </Button>
+                  )}
+                  {!isSuperAdmin && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      <Shield className="w-3 h-3" /> Only Super Admin can change this
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Input type="number" value={newThreshold} onChange={e => setNewThreshold(Number(e.target.value))} min={1} />
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditingThreshold(false)}>Cancel</Button>
+                    <Button size="sm" className="flex-1" onClick={() => saveThreshold(newThreshold)}>Save</Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -333,7 +382,7 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
       {tab === "approvals" && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            Claims above ₹{CITY_MANAGER_APPROVAL_THRESHOLD.toLocaleString()} require your approval after HR review.
+            Claims above ₹{cityManagerThreshold.toLocaleString()} require your approval after HR review.
           </p>
           {pendingCityManagerApprovals.length === 0 && (
             <p className="text-center text-gray-400 py-8">No claims pending your approval.</p>
