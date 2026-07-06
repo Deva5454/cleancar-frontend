@@ -447,6 +447,24 @@ export function ShiftRosterManager() {
         </div>
       </div>
 
+      {/* Auto-roster activity log */}
+      {(() => {
+        const notifications = shiftRosterService.getNotifications("HR")
+          .filter(n => n.type === "roster_published" && n.message.includes("added to roster"))
+          .slice(0, 3);
+        if (!notifications.length) return null;
+        return (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-green-800 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />Recent auto-roster additions
+            </p>
+            {notifications.map(n => (
+              <p key={n.notifId} className="text-xs text-green-700">• {n.message}</p>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Week navigator */}
       <div className="flex items-center gap-3">
         <Button size="sm" variant="outline" onClick={() => setWeekOffset(w => w - 1)}>← Prev</Button>

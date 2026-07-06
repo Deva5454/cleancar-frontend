@@ -18,6 +18,9 @@ import { DataService } from "../services/DataService";
 import { seedEmployeesIfEmpty } from "../data/seedEmployees";
 import { eventBus } from "../utils/eventBus";
 import { EVENTS } from "../constants/events";
+// Auto-roster sync for new washers/supervisors
+import { shiftRosterService } from "../services/shiftRosterService";
+import { jobRoutingService  } from "../services/jobRoutingService";
 
 // ============================================
 // EMPLOYEE TYPES
@@ -45,6 +48,10 @@ export interface Employee {
   unit?: string;
   status: EmployeeStatus;
   joiningDate: string;
+
+  // Shift assignment (for washers and supervisors)
+  defaultShift?:  "Morning" | "Split" | "Evening";  // which 9-hr shift they work
+  weekOffDay?:    "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 
   // Hierarchy & Geography
   cityId?: string; // Links to city hierarchy
@@ -236,7 +243,7 @@ function initializeEmployees(): Employee[] {
       (emp) => {
         const newEmployee: Employee = {
           ...emp,
-          employeeId: emp.employeeId || `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          employeeId: `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -314,6 +321,47 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
     setEmployees(updated);
     eventBus.publish(EVENTS.EMPLOYEES_UPDATED);
 
+    // ── AUTO-ROSTER: add washer/supervisor to current week's roster immediately ──
+    const rosterRoles = ["Car Washer", "Car Washer Full Time", "Car Washer Part Time", "Supervisor"];
+    if (rosterRoles.includes(newEmployee.role)) {
+      try {
+        const cityId = newEmployee.cityId ?? "CITY-SURAT";
+        const normRole = newEmployee.role === "Supervisor" ? "Supervisor" : "Car Washer";
+
+        // Determine default shift from role:
+        // Supervisors default to Morning; Washers default based on existing team balance
+        const existingRoster = shiftRosterService.getCurrentRoster(cityId);
+        let defaultShift: "Morning" | "Split" | "Evening" = "Morning";
+        if (existingRoster) {
+          // Count how many are on each shift — assign new joiner to least-staffed
+          const shiftCounts = { Morning: 0, Split: 0, Evening: 0 };
+          existingRoster.slots
+            .filter(s => s.role === normRole && !s.isWeekOff && s.date === new Date().toISOString().slice(0,10))
+            .forEach(s => { shiftCounts[s.shiftType] = (shiftCounts[s.shiftType] || 0) + 1; });
+          defaultShift = (Object.entries(shiftCounts).sort((a,b) => a[1]-b[1])[0][0]) as any;
+        }
+
+        jobRoutingService.onboardEmployee({
+          cityId,
+          employeeId:   newEmployee.employeeId,
+          employeeName: `${newEmployee.firstName} ${newEmployee.lastName}`,
+          role:         normRole,
+          supervisorId: (newEmployee as any).reportingManagerId ?? "",
+          zone:         (newEmployee as any).zone ?? (newEmployee as any).area ?? "",
+          joiningDate:  newEmployee.joiningDate ?? new Date().toISOString().slice(0,10),
+          defaultShift,
+          weekOffDay:   (newEmployee as any).weekOffDay ?? "Sun",
+        });
+
+        console.log(
+          `[HRDataContext] Auto-added ${newEmployee.firstName} ${newEmployee.lastName} ` +
+          `to ${defaultShift} shift roster for ${cityId}`
+        );
+      } catch (e) {
+        console.warn("[HRDataContext] Roster auto-add failed (non-fatal):", e);
+      }
+    }
+
     console.log(`[HRDataContext] Added employee: ${newEmployee.employeeId} (${newEmployee.firstName} ${newEmployee.lastName})`);
     return newEmployee;
   };
@@ -324,6 +372,53 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
     const updated = DataService.get<Employee>("EMPLOYEES");
     setEmployees(updated);
     eventBus.publish(EVENTS.EMPLOYEES_UPDATED);
+
+    // ── ROSTER SYNC: handle termination / reactivation ───────────────────────
+    try {
+      const emp = DataService.get<Employee>("EMPLOYEES").find(e => e.employeeId === employeeId);
+      if (!emp) return;
+      const rosterRoles = ["Car Washer", "Car Washer Full Time", "Car Washer Part Time", "Supervisor"];
+      if (!rosterRoles.includes(emp.role)) return;
+
+      const cityId = (emp as any).cityId ?? "CITY-SURAT";
+      const today  = new Date().toISOString().slice(0,10);
+
+      if (updates.status === "Terminated" || updates.status === "Inactive") {
+        // Mark all future slots as week-off so no jobs get routed to this person
+        const allRosters = shiftRosterService.getRosters(cityId);
+        allRosters.forEach(roster => {
+          roster.slots.forEach(slot => {
+            if (slot.employeeId === employeeId && slot.date >= today) {
+              slot.isWeekOff = true;
+            }
+          });
+          shiftRosterService.saveRoster(roster);
+        });
+        // Notify HR
+        shiftRosterService["_pushNotif"]("HR", "HR", "no_show_alert",
+          `${emp.firstName} ${emp.lastName} marked ${updates.status}. All future roster slots cleared. Replacement needed.`,
+          employeeId);
+        console.log(`[HRDataContext] Cleared future roster slots for terminated employee ${employeeId}`);
+      } else if (updates.status === "Active" && emp.status !== "Active") {
+        // Reactivating — add back to current week roster
+        const normRole = emp.role === "Supervisor" ? "Supervisor" : "Car Washer";
+        jobRoutingService.onboardEmployee({
+          cityId,
+          employeeId:   emp.employeeId,
+          employeeName: `${emp.firstName} ${emp.lastName}`,
+          role:         normRole,
+          supervisorId: (emp as any).reportingManagerId ?? "",
+          zone:         (emp as any).zone ?? "",
+          joiningDate:  today,
+          defaultShift: "Morning",
+          weekOffDay:   (emp as any).weekOffDay ?? "Sun",
+        });
+        console.log(`[HRDataContext] Re-added reactivated employee ${employeeId} to roster`);
+      }
+    } catch (e) {
+      console.warn("[HRDataContext] Roster sync on update failed (non-fatal):", e);
+    }
+
     console.log(`[HRDataContext] Updated employee: ${employeeId}`);
   };
 
@@ -373,8 +468,6 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
       "Sr Operations Manager",
       "Operations Manager",
       "Cluster Manager",
-      "Sales Head",
-      "Sales Manager",
     ]);
   };
 
