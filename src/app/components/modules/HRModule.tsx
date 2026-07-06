@@ -27,6 +27,7 @@ import {
   CreditCard, ShieldCheck, BookOpen, Activity, Plus, Shield, Settings
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { ShiftRosterManager } from "../hr/ShiftRosterManager";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 import { BackButton } from "../ui/back-button";
 import { calculateProrateSalary, getLeaveBalance, ANNUAL_LEAVE_QUOTA } from "../../lib/leaveManagement";
@@ -546,6 +547,7 @@ function HRModule() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="payroll">Payroll</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="shift-roster">Shift Roster</TabsTrigger>
           <TabsTrigger value="recruitment">Recruitment</TabsTrigger>
           <TabsTrigger value="training">Training</TabsTrigger>
           <TabsTrigger value="exit">Exit Process</TabsTrigger>
