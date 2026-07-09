@@ -1,6 +1,6 @@
 /**
  * MyAccountPage — Universal account page for ALL roles
- * Tabs: Profile · Leave · Payslip · Travel · Mobile Change
+ * Tabs: Profile · Leave · Payslip · Travel · Claims · Mobile Change
  */
 
 import { useState } from "react";
@@ -14,12 +14,13 @@ import { Textarea } from "../ui/textarea";
 import {
   User, FileText, Calendar, Clock, Phone,
   CheckCircle, AlertTriangle, Building2, Mail,
-  Briefcase, MapPin, Shield, Download, Bell, Car,
+  Briefcase, MapPin, Shield, Download, Bell, Car, Receipt,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { useApprovals } from "../../contexts/AppProvider";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { TravelEmployeeView } from "../travel/TravelEmployeeView";
+import { ClaimEmployeeView } from "../claims/ClaimEmployeeView";
 import { toast } from "sonner";
 
 const roleBadgeColor: Record<string, string> = {
@@ -125,9 +126,9 @@ export function MyAccountPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs — 5 tabs now including Travel */}
+      {/* Tabs — 6 tabs now including Travel and Claims */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           <TabsTrigger value="profile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <User className="w-4 h-4" /><span>Profile</span>
           </TabsTrigger>
@@ -139,6 +140,9 @@ export function MyAccountPage() {
           </TabsTrigger>
           <TabsTrigger value="travel" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <Car className="w-4 h-4" /><span>Travel</span>
+          </TabsTrigger>
+          <TabsTrigger value="claims" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
+            <Receipt className="w-4 h-4" /><span>Claims</span>
           </TabsTrigger>
           <TabsTrigger value="mobile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <Phone className="w-4 h-4" /><span>Mobile</span>
@@ -277,6 +281,12 @@ export function MyAccountPage() {
         {/* TRAVEL — plugs in the full TravelEmployeeView component */}
         <TabsContent value="travel" className="mt-4">
           <TravelEmployeeView />
+        </TabsContent>
+
+        {/* CLAIMS — general expense claims (Food, Internet, Medical, etc.),
+            separate from mileage-based Travel Reimbursement */}
+        <TabsContent value="claims" className="mt-4">
+          <ClaimEmployeeView />
         </TabsContent>
 
         {/* MOBILE CHANGE */}
