@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { EmployeeDatabase } from "./EmployeeDatabase";
+import { LettersDocuments } from "./LettersDocuments";
 import { EmployeeOnboarding } from "./EmployeeOnboarding";
 import { DocumentManagement } from "./DocumentManagement";
 import { IDCardGenerator } from "./IDCardGenerator";
@@ -177,9 +178,10 @@ export function EmployeeLifecycleManagement() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="letters">Letters &amp; Offers</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="id-card">ID Card</TabsTrigger>
@@ -524,6 +526,12 @@ export function EmployeeLifecycleManagement() {
         {/* Employee Database Tab */}
         <TabsContent value="employees">
           <EmployeeDatabase openAddModal={triggerAddEmployee} />
+        </TabsContent>
+
+        {/* Letters & Offers Tab — sits between Employees and Onboarding to reflect
+            the real sequence: Add Employee -> Offer -> Appointment -> Onboarding */}
+        <TabsContent value="letters">
+          <LettersDocuments />
         </TabsContent>
 
         {/* Onboarding Tab */}

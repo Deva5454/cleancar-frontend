@@ -29,6 +29,8 @@ import type { EmployeeDatabaseRecord } from "../../services/employeeDatabaseServ
 import { onboardingChecklistService } from "../../services/onboardingChecklistService";
 import type { OnboardingTask } from "../../services/onboardingChecklistService";
 import { authService } from "../../services/authService";
+import { offerLetterService } from "../../services/offerLetterService";
+import { HiringProgressStepper } from "./HiringProgressStepper";
 import { toast } from "sonner";
 import { logger } from "../../services/logger";
 
@@ -177,6 +179,19 @@ export function EmployeeOnboarding() {
     emp.id === selectedEmployeeId || emp.tempId === selectedEmployeeId
   );
 
+  // Real hiring sequence check: onboarding should normally start only after an
+  // Accepted offer is on file (Add Employee -> Offer -> Onboarding). We surface
+  // this as a non-blocking warning rather than hard-locking the screen, since
+  // employees added before this check existed may not have an offer record.
+  const getLatestOfferStatus = (tempId: string): string => {
+    const offers = offerLetterService.getAll().filter(o => o.employeeTempId === tempId);
+    if (offers.length === 0) return "No Offer";
+    const latest = [...offers].sort((a, b) => (a.issueDate < b.issueDate ? -1 : 1)).pop();
+    return latest?.status ?? "No Offer";
+  };
+
+  const selectedOfferStatus = selectedEmployee ? getLatestOfferStatus(selectedEmployee.tempId) : "No Offer";
+
   // Credentials management handlers
   const handleGenerateResetOTP = (employeeId: string) => {
     const result = authService.initiatePasswordReset(employeeId, "HR_ADMIN");
@@ -278,20 +293,45 @@ export function EmployeeOnboarding() {
                   <SelectValue placeholder="Select employee to view their checklist" />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem
-                      key={emp.tempId || emp.id}
-                      value={emp.tempId || emp.id}
-                    >
-                      {emp.fullName} ({emp.id !== "PENDING" ? emp.id : emp.tempId})
-                    </SelectItem>
-                  ))}
+                  {employees.map((emp) => {
+                    const offerStatus = getLatestOfferStatus(emp.tempId);
+                    return (
+                      <SelectItem
+                        key={emp.tempId || emp.id}
+                        value={emp.tempId || emp.id}
+                      >
+                        {emp.fullName} ({emp.id !== "PENDING" ? emp.id : emp.tempId}) — Offer: {offerStatus}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Hiring sequence: Added -> Offer Sent -> Offer Accepted -> Onboarding -> Permanent */}
+      {selectedEmployeeId && selectedEmployee && (
+        <HiringProgressStepper
+          employee={{
+            id: selectedEmployee.id,
+            tempId: selectedEmployee.tempId,
+            employmentStage: selectedEmployee.employmentStage,
+          }}
+        />
+      )}
+
+      {selectedEmployeeId && selectedOfferStatus !== "Accepted" && (
+        <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            {selectedOfferStatus === "No Offer"
+              ? "No offer letter has been generated for this employee yet. The standard sequence is Add Employee → Generate & Accept Offer (Letters & Documents) → Onboarding Checklist."
+              : `This employee's offer is currently "${selectedOfferStatus}", not Accepted. You can continue, but confirm the offer has been accepted before proceeding with onboarding.`}
+          </span>
+        </div>
+      )}
 
       {/* Main Tabs */}
       {selectedEmployeeId && (
