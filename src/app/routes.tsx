@@ -21,6 +21,7 @@ const ProfessionalLeaveManagement = lazy(() => import("./components/hr/Professio
 const StatutoryFormsOnboarding = lazy(() => import("./components/hr/StatutoryFormsOnboarding"));
 const TravelReimbursementModule = lazy(() => import("./components/travel/TravelReimbursementModule"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
+const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const CreateSalaryStructure = lazy(() => import("./components/payroll/CreateSalaryStructure"));
 const ChartOfAccounts = lazy(() => import("./components/finance/ChartOfAccounts"));
 const AdminPlanManagement = lazy(() => import("./components/subscription/AdminPlanManagement"));
@@ -531,6 +532,7 @@ export const router = createBrowserRouter([
       // Travel Reimbursement
       { path: "travel", element: <TravelReimbursementModule /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
+      { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
 
       // Workflow Control & Incentive Engine
       { path: "workflow-demo", element: <DevOnlyRoute element={<WorkflowControlDemo />} /> },

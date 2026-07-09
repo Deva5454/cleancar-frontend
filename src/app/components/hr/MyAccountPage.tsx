@@ -14,13 +14,14 @@ import { Textarea } from "../ui/textarea";
 import {
   User, FileText, Calendar, Clock, Phone,
   CheckCircle, AlertTriangle, Building2, Mail,
-  Briefcase, MapPin, Shield, Download, Bell, Car, Receipt,
+  Briefcase, MapPin, Shield, Download, Bell, Car, Receipt, Landmark,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { useApprovals } from "../../contexts/AppProvider";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { TravelEmployeeView } from "../travel/TravelEmployeeView";
 import { ClaimEmployeeView } from "../claims/ClaimEmployeeView";
+import { InvestmentDeclarationView } from "./InvestmentDeclarationView";
 import { toast } from "sonner";
 
 const roleBadgeColor: Record<string, string> = {
@@ -126,9 +127,9 @@ export function MyAccountPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs — 6 tabs now including Travel and Claims */}
+      {/* Tabs — 7 tabs now including Travel, Claims, and Tax Declaration */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-7 h-auto">
           <TabsTrigger value="profile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <User className="w-4 h-4" /><span>Profile</span>
           </TabsTrigger>
@@ -143,6 +144,9 @@ export function MyAccountPage() {
           </TabsTrigger>
           <TabsTrigger value="claims" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <Receipt className="w-4 h-4" /><span>Claims</span>
+          </TabsTrigger>
+          <TabsTrigger value="tax" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
+            <Landmark className="w-4 h-4" /><span>Tax Declaration</span>
           </TabsTrigger>
           <TabsTrigger value="mobile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <Phone className="w-4 h-4" /><span>Mobile</span>
@@ -287,6 +291,11 @@ export function MyAccountPage() {
             separate from mileage-based Travel Reimbursement */}
         <TabsContent value="claims" className="mt-4">
           <ClaimEmployeeView />
+        </TabsContent>
+
+        {/* TAX DECLARATION — investment proofs + cutoff, feeds verified TDS deduction */}
+        <TabsContent value="tax" className="mt-4">
+          <InvestmentDeclarationView />
         </TabsContent>
 
         {/* MOBILE CHANGE */}
