@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export function ManagerReviewView() {
   const { currentUser } = useRole();
-  const { employees } = useEmployee();
+  const { getDirectReports } = useEmployee();
   const [refresh, setRefresh] = useState(0);
   const [rejectingGoalId, setRejectingGoalId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -26,10 +26,8 @@ export function ManagerReviewView() {
   const cycle = useMemo(() => performanceManagementService.getActiveCycle(), [refresh]);
 
   const directReports = useMemo(
-    () => employees.filter((e: any) =>
-      e.reportingManager === currentUser?.name || e.reportingManager === currentUser?.employeeId
-    ),
-    [employees, currentUser]
+    () => getDirectReports(currentUser?.employeeId || ""),
+    [getDirectReports, currentUser]
   );
   const teamIds = directReports.map((e: any) => e.id);
 

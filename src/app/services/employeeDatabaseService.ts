@@ -39,7 +39,13 @@ export interface EmployeeDatabaseRecord {
   emergencyContact: string;
   designation: string;
   department: string;
-  reportingManager: string;
+  reportingManager: string; // Display label only (e.g. "Ramesh Vora (Supervisor)" in seed data,
+                             // or plain "Ramesh Vora" from the live Add Employee form) — NOT a
+                             // reliable foreign key. Use reportingManagerId for actual lookups.
+  reportingManagerId?: string; // Resolved employee id/tempId of the reporting manager, when known.
+  cityId?: string;
+  role?: string; // Free-text role/designation code used by some legacy consumers
+  employeeId?: string; // Legacy alias, historically duplicated `id` in some records
   workLocation: string;
   pinCodes: string[];
   bankAccountNumber?: string;
@@ -87,23 +93,50 @@ class EmployeeDatabaseService {
   
   getAll(): EmployeeDatabaseRecord[] {
     const defaults = { onboardingPasswordSet: false, accountStatus: "pending_onboarding" as const, failedLoginAttempts: 0 };
+    let records: EmployeeDatabaseRecord[];
+
     // Prefer in-memory Supabase cache
     if (supabaseCache && supabaseCache.length > 0) {
-      return supabaseCache.map((emp: any) => ({ ...defaults, ...emp }));
-    }
-    // Try localStorage
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const parsed = stored ? JSON.parse(stored) : [];
-      if (parsed.length > 0) {
-        return parsed.map((emp: any) => ({ ...defaults, ...emp }));
+      records = supabaseCache.map((emp: any) => ({ ...defaults, ...emp }));
+    } else {
+      // Try localStorage
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        const parsed = stored ? JSON.parse(stored) : [];
+        if (parsed.length > 0) {
+          records = parsed.map((emp: any) => ({ ...defaults, ...emp }));
+        } else {
+          // Fallback: use seeded demo data (includes Super Admin, all roles)
+          // This ensures login always works even with empty localStorage
+          records = HISTORIC_EMPLOYEE_DB.map((emp: any) => ({ ...defaults, ...emp }));
+        }
+      } catch (error) {
+        console.error("Error loading employees from storage:", error);
+        records = HISTORIC_EMPLOYEE_DB.map((emp: any) => ({ ...defaults, ...emp }));
       }
-    } catch (error) {
-      console.error("Error loading employees from storage:", error);
     }
-    // Fallback: use seeded demo data (includes Super Admin, all roles)
-    // This ensures login always works even with empty localStorage
-    return HISTORIC_EMPLOYEE_DB.map((emp: any) => ({ ...defaults, ...emp }));
+
+    return this.withResolvedManagerIds(records);
+  }
+
+  /**
+   * reportingManager is only ever a display label — never a foreign key —
+   * so it can't be trusted for lookups (seed data uses "Name (Designation)",
+   * the live Add Employee form only stores plain "Name"). This resolves it
+   * against the same batch of records by matching either format, so
+   * consumers get a real reportingManagerId without needing a data
+   * migration on existing records.
+   */
+  private withResolvedManagerIds(records: EmployeeDatabaseRecord[]): EmployeeDatabaseRecord[] {
+    return records.map((emp) => {
+      if (emp.reportingManagerId || !emp.reportingManager) return emp;
+      const manager = records.find((m) => {
+        if (m.id === emp.id) return false;
+        if (!m.fullName) return false;
+        return emp.reportingManager === m.fullName || emp.reportingManager.startsWith(`${m.fullName} (`);
+      });
+      return manager ? { ...emp, reportingManagerId: manager.id } : emp;
+    });
   }
 
   getById(id: string): EmployeeDatabaseRecord | undefined {
@@ -133,19 +166,16 @@ class EmployeeDatabaseService {
 
   private save(employees: EmployeeDatabaseRecord[]): void {
     try {
-      // Slim records before writing — saves ~70% space vs full employee objects
-      const slim = employees.map((e: any) => ({
-        id: e.id, tempId: e.tempId, fullName: e.fullName,
-        mobile: e.mobile, loginMobile: e.loginMobile, email: e.email,
-        designation: e.designation, department: e.department,
-        status: e.status, accountStatus: e.accountStatus,
-        passwordHash: e.passwordHash, tempPin: e.tempPin,
-        failedLoginAttempts: e.failedLoginAttempts || 0,
-        lockedUntil: e.lockedUntil, dateOfJoining: e.dateOfJoining,
-        cityId: e.cityId, role: e.role, employeeId: e.employeeId,
-        firstName: e.firstName, lastName: e.lastName,
-      }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+      // Persist full records. Previously this only kept a hardcoded 20-field
+      // "slim" whitelist and silently dropped the other fields — including
+      // employmentStage (Temporary/Permanent), reportingManager, and the
+      // bank detail fields — from every employee on every single save()
+      // call, since the whole array is re-serialized through the same
+      // filter each time. That meant one HR action (approving a task,
+      // editing any field) could silently erase onboarding/reporting-line/
+      // banking data for the entire company. Full-record persistence trades
+      // a small amount of localStorage space for actually keeping the data.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(employees));
       this.notifySubscribers(employees);
     } catch (error) {
       console.error("Error saving employees to storage:", error);

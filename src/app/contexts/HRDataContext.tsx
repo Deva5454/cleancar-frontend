@@ -18,6 +18,8 @@ import { DataService } from "../services/DataService";
 import { seedEmployeesIfEmpty } from "../data/seedEmployees";
 import { eventBus } from "../utils/eventBus";
 import { EVENTS } from "../constants/events";
+import { employeeDatabaseService, type EmployeeDatabaseRecord } from "../services/employeeDatabaseService";
+import type { EmployeeRole } from "./OrgContext";
 // Auto-roster sync for new washers/supervisors
 import { shiftRosterService } from "../services/shiftRosterService";
 import { jobRoutingService  } from "../services/jobRoutingService";
@@ -230,32 +232,44 @@ interface HRDataContextType {
 const HRDataContext = createContext<HRDataContextType | undefined>(undefined);
 
 /**
- * Initialize employees synchronously using DataService
+ * Adapts an EmployeeDatabaseRecord (the single source of truth) into this
+ * context's Employee shape. Mirrors the adapter in EmployeeContext.tsx —
+ * kept local here since HRDataContext predates that file and several
+ * legacy consumers (UserManagement.tsx) still import useHRData directly.
+ */
+function adaptDatabaseRecord(record: EmployeeDatabaseRecord): Employee {
+  const id = record.id && record.id !== "PENDING" && record.id !== "NOT-CONVERTED" ? record.id : record.tempId;
+  return {
+    employeeId: id,
+    firstName: record.firstName,
+    lastName: record.lastName,
+    email: record.email,
+    phone: record.mobile,
+    role: (record.role || record.designation) as EmployeeRole,
+    department: record.department,
+    city: record.workLocation,
+    status: record.status === "Exited" ? "Terminated" : (record.status as EmployeeStatus),
+    joiningDate: record.dateOfJoining,
+    cityId: record.cityId,
+    assignedPincodes: record.pinCodes,
+    baseSalary: 0,
+    incentiveEligible: false,
+    createdAt: record.tempIdAssignedDate || new Date().toISOString(),
+    updatedAt: record.confirmationDate || record.tempIdAssignedDate || new Date().toISOString(),
+  };
+}
+
+/**
+ * Initialize employees from employeeDatabaseService — the single source of
+ * truth. This used to read/seed a completely separate "EMPLOYEES"
+ * DataService key that no onboarding/offer/exit screen ever wrote to, so
+ * this context's employee list was permanently disconnected from the real
+ * HR data (and vice versa — nothing here was ever visible in Onboarding).
  */
 function initializeEmployees(): Employee[] {
-  let loadedEmployees = DataService.get<Employee>("EMPLOYEES");
-  console.log(`[HRDataContext] Loaded ${loadedEmployees.length} employees from storage`);
-
-  if (loadedEmployees.length === 0) {
-    console.log("[HRDataContext] No employees found. Seeding initial data...");
-    seedEmployeesIfEmpty(
-      () => DataService.count("EMPLOYEES"),
-      (emp) => {
-        const newEmployee: Employee = {
-          ...emp,
-          employeeId: `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        DataService.insert("EMPLOYEES", newEmployee);
-        return newEmployee;
-      }
-    );
-    loadedEmployees = DataService.get<Employee>("EMPLOYEES");
-    console.log(`[HRDataContext] Seeding complete. Loaded ${loadedEmployees.length} employees`);
-  }
-
-  return loadedEmployees;
+  const records = employeeDatabaseService.getAll();
+  console.log(`[HRDataContext] Loaded ${records.length} employees from employeeDatabaseService`);
+  return records.map(adaptDatabaseRecord);
 }
 
 /**
@@ -282,12 +296,21 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => initializeAttendance());
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() => initializePayroll());
 
+  // Re-sync whenever employeeDatabaseService changes — from this context's
+  // own writes, or from onboarding/offer/exit screens writing directly.
+  useEffect(() => {
+    const unsubscribe = employeeDatabaseService.subscribe((records) => {
+      setEmployees(records.map(adaptDatabaseRecord));
+    });
+    return unsubscribe;
+  }, []);
+
   // Re-hydrate from localStorage after Supabase data loads (1s and 3s attempts)
   useEffect(() => {
     const rehydrate = () => {
-      const stored = DataService.get<Employee>("EMPLOYEES");
+      const stored = employeeDatabaseService.getAll().map(adaptDatabaseRecord);
       if (stored.length > employees.length) {
-        console.log(`[HRDataContext] Re-hydrating ${stored.length} employees from localStorage`);
+        console.log(`[HRDataContext] Re-hydrating ${stored.length} employees from employeeDatabaseService`);
         setEmployees(stored);
       }
       const storedAtt = DataService.get<AttendanceRecord>("ATTENDANCE_RECORDS");
@@ -309,15 +332,61 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
   // ============================================
 
   const addEmployee = (employeeData: Omit<Employee, "employeeId" | "createdAt" | "updatedAt">): Employee => {
+    const now = new Date().toISOString();
+    const tempId = `TEMP-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const newEmployee: Employee = {
       ...employeeData,
-      employeeId: `EMP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      employeeId: tempId,
+      createdAt: now,
+      updatedAt: now,
     };
 
-    DataService.insert("EMPLOYEES", newEmployee);
-    const updated = DataService.get<Employee>("EMPLOYEES");
+    // Writes through employeeDatabaseService — the single source of truth
+    // also used by Add Employee, Onboarding, Offer Letters, and Exit
+    // Management. This used to write to a separate DataService "EMPLOYEES"
+    // key that no other part of the HR module ever read, so anything added
+    // here was invisible everywhere else in the app.
+    const record: EmployeeDatabaseRecord = {
+      id: "PENDING",
+      tempId,
+      tempIdAssignedDate: now,
+      conversionDueDate: now,
+      daysInTempStatus: 0,
+      isOverdue: false,
+      employmentStage: "Temporary",
+      skillLevel: "Skilled",
+      firstName: employeeData.firstName,
+      lastName: employeeData.lastName,
+      fullName: `${employeeData.firstName} ${employeeData.lastName}`,
+      fatherFirstName: "",
+      fatherLastName: "",
+      fatherName: "",
+      dob: "",
+      gender: "",
+      mobile: employeeData.phone,
+      email: employeeData.email,
+      permanentAddress: "",
+      currentAddress: "",
+      emergencyContact: "",
+      designation: employeeData.role,
+      department: employeeData.department,
+      reportingManager: "",
+      workLocation: employeeData.city,
+      pinCodes: employeeData.assignedPincodes || [],
+      employeeType: "Full Time",
+      dateOfJoining: employeeData.joiningDate,
+      probationPeriod: "3 months",
+      status: employeeData.status === "Terminated" ? "Exited" : (employeeData.status as any) || "Active",
+      onboardingPasswordSet: false,
+      accountStatus: "pending_onboarding",
+      failedLoginAttempts: 0,
+      cityId: employeeData.cityId,
+      role: employeeData.role,
+      employeeId: tempId,
+    };
+    employeeDatabaseService.add(record);
+
+    const updated = employeeDatabaseService.getAll().map(adaptDatabaseRecord);
     setEmployees(updated);
     eventBus.publish(EVENTS.EMPLOYEES_UPDATED);
 
@@ -367,15 +436,32 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateEmployee = (employeeId: string, updates: Partial<Employee>): void => {
-    const updatedData = { ...updates, updatedAt: new Date().toISOString() };
-    DataService.update("EMPLOYEES", employeeId, updatedData, "employeeId");
-    const updated = DataService.get<Employee>("EMPLOYEES");
+    const recordUpdates: Partial<EmployeeDatabaseRecord> = {};
+    if (updates.firstName !== undefined) recordUpdates.firstName = updates.firstName;
+    if (updates.lastName !== undefined) recordUpdates.lastName = updates.lastName;
+    if (updates.firstName || updates.lastName) {
+      const existing = employeeDatabaseService.getById(employeeId);
+      recordUpdates.fullName = `${updates.firstName ?? existing?.firstName ?? ""} ${updates.lastName ?? existing?.lastName ?? ""}`.trim();
+    }
+    if (updates.email !== undefined) recordUpdates.email = updates.email;
+    if (updates.phone !== undefined) recordUpdates.mobile = updates.phone;
+    if (updates.role !== undefined) { recordUpdates.designation = updates.role; recordUpdates.role = updates.role; }
+    if (updates.department !== undefined) recordUpdates.department = updates.department;
+    if (updates.city !== undefined) recordUpdates.workLocation = updates.city;
+    if (updates.cityId !== undefined) recordUpdates.cityId = updates.cityId;
+    if (updates.assignedPincodes !== undefined) recordUpdates.pinCodes = updates.assignedPincodes;
+    if (updates.status !== undefined) recordUpdates.status = updates.status === "Terminated" ? "Exited" : (updates.status as any);
+    if (updates.joiningDate !== undefined) recordUpdates.dateOfJoining = updates.joiningDate;
+
+    employeeDatabaseService.update(employeeId, recordUpdates);
+
+    const updated = employeeDatabaseService.getAll().map(adaptDatabaseRecord);
     setEmployees(updated);
     eventBus.publish(EVENTS.EMPLOYEES_UPDATED);
 
     // ── ROSTER SYNC: handle termination / reactivation ───────────────────────
     try {
-      const emp = DataService.get<Employee>("EMPLOYEES").find(e => e.employeeId === employeeId);
+      const emp = updated.find(e => e.employeeId === employeeId);
       if (!emp) return;
       const rosterRoles = ["Car Washer", "Car Washer Full Time", "Car Washer Part Time", "Supervisor"];
       if (!rosterRoles.includes(emp.role)) return;

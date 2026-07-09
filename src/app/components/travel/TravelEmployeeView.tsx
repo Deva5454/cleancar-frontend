@@ -15,7 +15,7 @@ type Stage = "start" | "end" | "review";
 
 export function TravelEmployeeView() {
   const { currentUser } = useRole();
-  const { employees } = useEmployee();
+  const { getEmployeeById } = useEmployee();
   const { city, cityInfo } = useCity();
 
   const [tab, setTab] = useState<Tab>("new_trip");
@@ -61,10 +61,8 @@ export function TravelEmployeeView() {
   const startFileRef = useRef<HTMLInputElement>(null);
   const endFileRef   = useRef<HTMLInputElement>(null);
 
-  const emp = employees.find(e => e.id === currentUser?.employeeId);
-  const reportingMgr = employees.find(e =>
-    e.fullName === emp?.reportingManager || e.id === emp?.reportingManager
-  );
+  const emp = getEmployeeById(currentUser?.employeeId || "");
+  const reportingMgr = emp?.reportingManagerId ? getEmployeeById(emp.reportingManagerId) : undefined;
 
   const rate2W = travelReimbursementService.getEffectiveRate(currentUser?.employeeId || "", "2W");
   const rate4W = travelReimbursementService.getEffectiveRate(currentUser?.employeeId || "", "4W");
@@ -165,13 +163,12 @@ export function TravelEmployeeView() {
   );
 
   const STATUS_COLORS: Record<string, string> = {
-    "Draft":                "bg-gray-100 text-gray-700",
-    "Pending Manager":      "bg-amber-100 text-amber-700",
-    "Pending HR":           "bg-blue-100 text-blue-700",
-    "Pending City Manager": "bg-orange-100 text-orange-700",
-    "Approved":             "bg-green-100 text-green-700",
-    "Rejected":             "bg-red-100 text-red-700",
-    "Added to Payroll":     "bg-purple-100 text-purple-700",
+    "Draft":          "bg-gray-100 text-gray-700",
+    "Pending Manager":"bg-amber-100 text-amber-700",
+    "Pending HR":     "bg-blue-100 text-blue-700",
+    "Approved":       "bg-green-100 text-green-700",
+    "Rejected":       "bg-red-100 text-red-700",
+    "Added to Payroll":"bg-purple-100 text-purple-700",
   };
 
   return (

@@ -886,18 +886,15 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
 
     const today = new Date().toISOString().split('T')[0];
 
-    const updatedEmployees = employees.map(emp =>
-      emp.tempId === selectedEmployee.tempId
-        ? {
-            ...emp,
-            id: permanentId,
-            employmentStage: "Permanent" as EmploymentStage,
-            permanentIdAssignedDate: today
-          }
-        : emp
-    );
+    // Persist via the service — this used to only call setEmployees() with
+    // local state, so the conversion (and the permanent ID itself) never
+    // survived a page refresh or reappeared in any other tab/session.
+    employeeDatabaseService.update(selectedEmployee.tempId, {
+      id: permanentId,
+      employmentStage: "Permanent" as EmploymentStage,
+      permanentIdAssignedDate: today,
+    });
 
-    setEmployees(updatedEmployees);
     setShowConvertModal(false);
     setSelectedEmployee(null);
 
@@ -909,23 +906,19 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
       toast.error("⚠️ Please provide a reason for not converting this employee.");
       return;
     }
-    
-    const updatedEmployees = employees.map(emp => 
-      emp.tempId === selectedEmployee.tempId
-        ? { 
-            ...emp, 
-            employmentStage: "Not Converted" as EmploymentStage,
-            nonConversionReason: nonConversionReason,
-            status: "Inactive" as EmployeeStatus
-          }
-        : emp
-    );
-    
-    setEmployees(updatedEmployees);
+
+    // Persist via the service — same fix as handleConvertToPermanent above;
+    // this previously only updated local React state.
+    employeeDatabaseService.update(selectedEmployee.tempId, {
+      employmentStage: "Not Converted" as EmploymentStage,
+      nonConversionReason: nonConversionReason,
+      status: "Inactive" as EmployeeStatus,
+    });
+
     setShowNotConvertModal(false);
     setSelectedEmployee(null);
     setNonConversionReason("");
-    
+
     toast.success(`✅ Employee Marked as Not Converted\n\nTemp ID: ${selectedEmployee.tempId}\nName: ${selectedEmployee.fullName}\nReason: ${nonConversionReason}\n\nRecord archived in Employee Ledger.`);
   };
 

@@ -33,7 +33,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function ClaimEmployeeView() {
   const { currentUser } = useRole();
-  const { employees } = useEmployee();
+  const { getEmployeeById } = useEmployee();
   const { city, cityInfo } = useCity();
   const [tab, setTab] = useState<"new" | "history">("new");
   const [refresh, setRefresh] = useState(0);
@@ -45,11 +45,8 @@ export function ClaimEmployeeView() {
   const [receiptData, setReceiptData] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const emp = employees.find((e: { id: string }) => e.id === currentUser?.employeeId);
-  const reportingMgr = employees.find(
-    (e: { id: string; fullName: string }) =>
-      e.fullName === emp?.reportingManager || e.id === emp?.reportingManager
-  );
+  const emp = getEmployeeById(currentUser?.employeeId || "");
+  const reportingMgr = emp?.reportingManagerId ? getEmployeeById(emp.reportingManagerId) : undefined;
 
   const myClaims = useMemo(
     () => expenseClaimService.getByEmployee(currentUser?.employeeId || ""),
