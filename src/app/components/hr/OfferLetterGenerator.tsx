@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import {
   FileText,
@@ -39,34 +40,11 @@ import { Link } from "react-router-dom";
 import { salaryStructureService } from "../../services/salaryStructureService";
 import type { SalaryStructure, SalaryComponents } from "../../services/salaryStructureService";
 import { SalaryStructureSelector } from "./SalaryStructureSelector";
+import { useRole } from "../../contexts/RoleContext";
+import { buildOfferLetterDefaults } from "../../config/offerLetterPolicyConfig";
 
 type OfferStatus = "Draft" | "Sent" | "Accepted" | "Rejected";
-
-interface OfferLetter {
-  id: string;
-  employeeTempId: string;
-  candidateName: string;
-  email: string;
-  address: string;
-  designation: string;
-  department: string;
-  reportingManager: string;
-  workLocation: string;
-  pinCodes: string[];
-  skillLevel: string;
-  salaryComponents: SalaryComponents;
-  salaryStructureId?: string; // Reference to the salary structure used
-  dateOfJoining: string;
-  probationPeriod: string;
-  workingHours: string;
-  leaveEntitlement: string;
-  issueDate: string;
-  acceptanceDeadline: string;
-  status: OfferStatus;
-  sentOn?: string;
-  acceptedOn?: string;
-  rejectedOn?: string;
-}
+type OfferLetter = OfferLetterRecord;
 
 // Sample employees
 // ✅ FIXED: mockEmployees — use live data from context
@@ -93,6 +71,7 @@ const initialOffers: OfferLetter[] = [
     acceptanceDeadline: "2026-03-22",
     status: "Sent",
     sentOn: "2026-03-15",
+    ...buildOfferLetterDefaults("Car Washer", "Operations", "Surat"),
   },
   {
     id: "OFR-2026-002",
@@ -114,10 +93,13 @@ const initialOffers: OfferLetter[] = [
     issueDate: "2026-03-14",
     acceptanceDeadline: "2026-03-21",
     status: "Draft",
+    ...buildOfferLetterDefaults("Supervisor", "Operations", "Surat"),
   },
 ];
 
 export function OfferLetterGenerator() {
+  const { currentUser, currentRole } = useRole();
+  const canEditContent = currentRole === "HR" || currentRole === "Super Admin";
   const [offers, setOffers] = useState<OfferLetter[]>(() => {
     const stored = offerLetterService.getAll();
     // If no offers in storage, use initial offers
@@ -130,6 +112,9 @@ export function OfferLetterGenerator() {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showEditContentModal, setShowEditContentModal] = useState(false);
+  const [showInternalBreakdown, setShowInternalBreakdown] = useState(false);
+  const [editDraft, setEditDraft] = useState<Partial<OfferLetter> | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<OfferLetter | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -248,6 +233,7 @@ export function OfferLetterGenerator() {
       candidateName: employee.fullName,
       email: employee.email,
       address: employee.permanentAddress,
+      mobile: employee.mobile,
       designation: employee.designation,
       department: employee.department,
       reportingManager: employee.reportingManager,
@@ -263,6 +249,7 @@ export function OfferLetterGenerator() {
       issueDate: today,
       acceptanceDeadline: acceptanceDeadline,
       status: "Draft",
+      ...buildOfferLetterDefaults(employee.designation, employee.department, employee.workLocation || "Surat"),
     };
 
     offerLetterService.add(newOffer as any);
@@ -272,6 +259,43 @@ export function OfferLetterGenerator() {
     setEmployeeSearchTerm("");
 
     toast.success(`✅ Offer Letter Created!\n\n${offerId} - ${employee.fullName}\nStructure: ${selectedStructure.id} (${selectedStructure.roleName})\nGross: ₹${(newOffer?.salaryComponents?.monthlyGross ?? 0).toLocaleString()} | Net: ₹${(newOffer?.salaryComponents?.netTakeHome ?? 0).toLocaleString()}`);
+  };
+
+  const handleOpenEditContent = (offer: OfferLetter) => {
+    if (!canEditContent) { toast.error("Only HR or Super Admin can edit offer letter content"); return; }
+    setSelectedOffer(offer);
+    setEditDraft({
+      employmentType: offer.employmentType,
+      probationMonths: offer.probationMonths,
+      noticeDuringProbationMonths: offer.noticeDuringProbationMonths,
+      noticeAfterConfirmationMonths: offer.noticeAfterConfirmationMonths,
+      acceptanceDeadlineDays: offer.acceptanceDeadlineDays,
+      introText: offer.introText,
+      conditionalNote: offer.conditionalNote,
+      placeOfPostingText: offer.placeOfPostingText,
+      probationText: offer.probationText,
+      conditionsOfOffer: [...offer.conditionsOfOffer],
+      acceptanceText: offer.acceptanceText,
+      closingText: offer.closingText,
+      signeeName: offer.signeeName,
+      signeeTitle: offer.signeeTitle,
+      signeeEmail: offer.signeeEmail,
+      signeePhone: offer.signeePhone,
+    });
+    setShowEditContentModal(true);
+  };
+
+  const handleSaveEditContent = () => {
+    if (!selectedOffer || !editDraft) return;
+    offerLetterService.updateContent(
+      selectedOffer.id,
+      editDraft as any,
+      currentUser?.name || currentRole,
+      currentRole
+    );
+    toast.success("Offer letter content updated");
+    setShowEditContentModal(false);
+    setEditDraft(null);
   };
 
   const handleSendOffer = (offer: OfferLetter) => {
@@ -562,6 +586,15 @@ export function OfferLetterGenerator() {
                         >
                           <Eye className="w-3 h-3" />
                         </Button>
+                        {offer.status === "Draft" && canEditContent && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEditContent(offer)}
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                        )}
                         {offer.status === "Draft" && (
                           <Button
                             size="sm"
@@ -763,27 +796,25 @@ export function OfferLetterGenerator() {
               <div className="flex items-center justify-between">
                 <CardTitle>Offer Letter Preview - {selectedOffer.id}</CardTitle>
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.info("Print dialog opened")}
-                  >
+                  {selectedOffer.status === "Draft" && canEditContent && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setShowPreviewModal(false); handleOpenEditContent(selectedOffer); }}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Content
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => window.print()}>
                     <Printer className="w-4 h-4 mr-2" />
                     Print
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.info("Download started")}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => toast.info("Download started")}>
                     <Download className="w-4 h-4 mr-2" />
                     Download
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPreviewModal(false)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setShowPreviewModal(false)}>
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
@@ -793,240 +824,377 @@ export function OfferLetterGenerator() {
               <div className="bg-white p-8 border border-gray-300">
                 {/* Letterhead */}
                 <div className="border-b-2 border-blue-600 pb-4 mb-6">
-                  <h1 className="text-3xl font-bold text-blue-600">CleanCar 360°</h1>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Car Washing & Detailing Services
-                  </p>
+                  <h1 className="text-2xl font-bold text-blue-600">{selectedOffer.companyName}</h1>
+                  <p className="text-sm text-gray-600 mt-1">Professional Car Care | Subscription-Based Home Wash</p>
                   <p className="text-xs text-gray-500">
-                    Head Office: Ring Road, Surat, Gujarat - 395002 | CIN:
-                    U74999GJ2020PTC115959
+                    Mobile: {selectedOffer.companyPhone} | Email: {selectedOffer.companyEmail}
                   </p>
                 </div>
 
                 {/* Date */}
                 <div className="text-right text-sm text-gray-700 mb-6">
-                  <strong>Date:</strong>{" "}
-                  {new Date(selectedOffer.issueDate).toLocaleDateString("en-IN")}
+                  <strong>
+                    {new Date(selectedOffer.issueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                  </strong>
                 </div>
 
                 {/* Candidate Address */}
                 <div className="mb-6 text-sm">
                   <p className="font-semibold">{selectedOffer.candidateName}</p>
                   <p className="text-gray-600">{selectedOffer.address}</p>
+                  <p className="text-gray-600">
+                    {selectedOffer.mobile && <>Mobile: {selectedOffer.mobile} | </>}Email: {selectedOffer.email}
+                  </p>
                 </div>
 
-                {/* Subject */}
-                <div className="mb-6">
-                  <p className="font-bold">
-                    Subject: <span className="font-normal">Offer of Employment</span>
+                <p className="text-sm mb-4">Dear {selectedOffer.candidateName},</p>
+
+                {/* Offer banner */}
+                <div className="bg-blue-50 border border-blue-200 rounded px-4 py-3 mb-6">
+                  <p className="font-bold text-blue-900 text-sm">
+                    Letter of Offer — {selectedOffer.designation}, with effective date{" "}
+                    {new Date(selectedOffer.dateOfJoining).toLocaleDateString("en-IN")}
                   </p>
                 </div>
 
                 {/* Body */}
                 <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
-                  <p>Dear {selectedOffer.candidateName},</p>
+                  <p>{selectedOffer.introText}</p>
 
-                  <p>
-                    We are pleased to offer you the position of{" "}
-                    <strong>{selectedOffer.designation}</strong> with CleanCar 360°. We
-                    believe your skills and experience will be a valuable addition to our
-                    team.
-                  </p>
+                  <p className="italic text-gray-500">{selectedOffer.conditionalNote}</p>
 
-                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                    <h4 className="font-semibold text-gray-900">Position Details:</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <strong>Position:</strong> {selectedOffer.designation}
-                      </div>
-                      <div>
-                        <strong>Department:</strong> {selectedOffer.department}
-                      </div>
-                      <div>
-                        <strong>Reporting Manager:</strong>{" "}
-                        {selectedOffer.reportingManager}
-                      </div>
-                      <div>
-                        <strong>Work Location:</strong> {selectedOffer.workLocation}
-                      </div>
-                      <div>
-                        <strong>Date of Joining:</strong>{" "}
-                        {new Date(selectedOffer.dateOfJoining).toLocaleDateString(
-                          "en-IN"
-                        )}
-                      </div>
-                      <div>
-                        <strong>Probation Period:</strong> {selectedOffer.probationPeriod}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-semibold text-blue-900 mb-3">
-                      Compensation Details (Monthly):
-                    </h4>
-                    <table className="w-full text-sm">
+                  {/* 1. Position Details */}
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-2">1. Position Details</h4>
+                    <table className="w-full text-sm border border-gray-300">
                       <tbody>
-                        <tr className="border-b">
-                          <td className="py-1">Basic Salary</td>
-                          <td className="text-right py-1">
-                            ₹{(selectedOffer?.salaryComponents?.basic ?? 0).toLocaleString()}
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50 w-1/3">Designation</td>
+                          <td className="py-2 px-3">{selectedOffer.designation}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Department / Function</td>
+                          <td className="py-2 px-3">{selectedOffer.department}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Reporting To</td>
+                          <td className="py-2 px-3">{selectedOffer.reportingManager}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Place of Posting</td>
+                          <td className="py-2 px-3">{selectedOffer.placeOfPostingText}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Date of Joining</td>
+                          <td className="py-2 px-3">
+                            {new Date(selectedOffer.dateOfJoining).toLocaleDateString("en-IN")}
                           </td>
                         </tr>
-                        <tr className="border-b">
-                          <td className="py-1">House Rent Allowance (HRA)</td>
-                          <td className="text-right py-1">
-                            ₹{(selectedOffer?.salaryComponents?.hra ?? 0).toLocaleString()}
-                          </td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-1">Conveyance Allowance</td>
-                          <td className="text-right py-1">
-                            ₹{(selectedOffer?.salaryComponents?.conveyance ?? 0).toLocaleString()}
-                          </td>
-                        </tr>
-                        {selectedOffer.salaryComponents.medical > 0 && (
-                          <tr className="border-b">
-                            <td className="py-1">Medical Allowance</td>
-                            <td className="text-right py-1">
-                              ₹{(selectedOffer?.salaryComponents?.medical ?? 0).toLocaleString()}
-                            </td>
-                          </tr>
-                        )}
-                        {selectedOffer.salaryComponents.specialAllowance > 0 && (
-                          <tr className="border-b">
-                            <td className="py-1">Special Allowance</td>
-                            <td className="text-right py-1">
-                              ₹{(selectedOffer?.salaryComponents?.specialAllowance ?? 0).toLocaleString()}
-                            </td>
-                          </tr>
-                        )}
-                        <tr className="border-b border-t-2 border-gray-400 font-semibold">
-                          <td className="py-1">Gross Salary</td>
-                          <td className="text-right py-1">
-                            ₹{(selectedOffer?.salaryComponents?.monthlyGross ?? 0).toLocaleString()}
-                          </td>
-                        </tr>
-                        <tr className="border-b text-red-600">
-                          <td className="py-1">Provident Fund (PF) - 12%</td>
-                          <td className="text-right py-1">
-                            -₹{(selectedOffer?.salaryComponents?.employeePF ?? 0).toLocaleString()}
-                          </td>
-                        </tr>
-                        {selectedOffer.salaryComponents.employeeESIC > 0 && (
-                          <tr className="border-b text-red-600">
-                            <td className="py-1">ESIC - 0.75%</td>
-                            <td className="text-right py-1">
-                              -₹{(selectedOffer?.salaryComponents?.employeeESIC ?? 0).toLocaleString()}
-                            </td>
-                          </tr>
-                        )}
-                        <tr className="border-b text-red-600">
-                          <td className="py-1">Professional Tax</td>
-                          <td className="text-right py-1">
-                            -₹{(selectedOffer?.salaryComponents?.professionalTax ?? 0).toLocaleString()}
-                          </td>
-                        </tr>
-                        <tr className="border-t-2 border-gray-400 font-bold text-green-700">
-                          <td className="py-2">Net Take Home</td>
-                          <td className="text-right py-2">
-                            ₹{(selectedOffer?.salaryComponents?.netTakeHome ?? 0).toLocaleString()}
-                          </td>
+                        <tr>
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Employment Type</td>
+                          <td className="py-2 px-3">{selectedOffer.employmentType}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
+                  {/* 2. Compensation & Benefits */}
                   <div>
-                    <p>
-                      <strong>Working Hours:</strong> {selectedOffer.workingHours}
-                    </p>
-                    <p>
-                      <strong>Leave Entitlement:</strong>{" "}
-                      {selectedOffer.leaveEntitlement}
-                    </p>
-                  </div>
-
-                  <div className="bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
-                    <h4 className="font-semibold text-yellow-900 mb-2">
-                      ⚠️ Leave Policy During Probation Period:
-                    </h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-yellow-800">
-                      <li><strong>Casual Leave (CL):</strong> Up to 6 days (pro-rata basis during probation)</li>
-                      <li><strong>Sick Leave (SL):</strong> Up to 3 days (with medical certificate)</li>
-                      <li><strong>Earned Leave (EL):</strong> Not applicable during probation period</li>
-                      <li><strong>National Holidays:</strong> As per company calendar</li>
-                      <li><strong>Weekly Off:</strong> 1 day per week (rotational basis)</li>
-                    </ul>
-                    <p className="text-xs text-yellow-700 mt-2 font-semibold">
-                      Note: Full leave entitlement (as mentioned above) will be applicable ONLY after successful completion of probation period and issuance of confirmation letter.
-                    </p>
-                  </div>
-
-                  <div className="bg-green-50 p-4 rounded-lg border-2 border-green-300">
-                    <h4 className="font-semibold text-green-900 mb-2">
-                      ✅ Leave Policy After Confirmation:
-                    </h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-green-800">
-                      <li><strong>Casual Leave (CL):</strong> 12 days per year</li>
-                      <li><strong>Sick Leave (SL):</strong> 6 days per year</li>
-                      <li><strong>Earned Leave (EL):</strong> 15 days per year (Accrued after 1 year of continuous service)</li>
-                      <li><strong>National Holidays:</strong> As per company calendar</li>
-                      <li><strong>Weekly Off:</strong> 1 day per week (rotational basis)</li>
-                    </ul>
-                    <p className="text-xs text-green-700 mt-2">
-                      This enhanced leave policy will be applicable after your confirmation, which will be evaluated upon successful completion of your probation period ({selectedOffer.probationPeriod}).
+                    <h4 className="font-semibold text-blue-900 mb-2">2. Compensation &amp; Benefits</h4>
+                    <table className="w-full text-sm border border-gray-300">
+                      <tbody>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50 w-1/3">Fixed Annual CTC</td>
+                          <td className="py-2 px-3 font-semibold">
+                            ₹{(selectedOffer?.salaryComponents?.annualCTC ?? 0).toLocaleString("en-IN")}/- Annually
+                          </td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Variable / Incentive</td>
+                          <td className="py-2 px-3">As per Incentive Policy</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Provident Fund (PF)</td>
+                          <td className="py-2 px-3">As per the EPF Act.</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">ESIC</td>
+                          <td className="py-2 px-3">Applicable as per statutory limits under the ESI Act, 1948.</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Annual Leave</td>
+                          <td className="py-2 px-3">As per Leave Policy</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 px-3 font-semibold bg-gray-50">Working Hours</td>
+                          <td className="py-2 px-3">{selectedOffer.workingHours}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p className="italic text-xs text-gray-500 mt-2">
+                      Note: Compensation is strictly confidential. Disclosure to any third party other than immediate family constitutes a breach of this offer and may result in disciplinary action.
                     </p>
                   </div>
 
-                  <p>
-                    This offer is valid until{" "}
-                    <strong>
-                      {new Date(selectedOffer.acceptanceDeadline).toLocaleDateString(
-                        "en-IN"
+                  {/* HR-only detailed breakdown — not part of the printed/sent letter */}
+                  {canEditContent && (
+                    <div className="print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowInternalBreakdown((v) => !v)}
+                        className="text-xs font-semibold text-purple-700 hover:underline"
+                      >
+                        {showInternalBreakdown ? "▾" : "▸"} Internal View Only — Detailed Monthly Breakdown (not shown to candidate)
+                      </button>
+                      {showInternalBreakdown && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mt-2">
+                          <table className="w-full text-sm">
+                            <tbody>
+                              <tr className="border-b"><td className="py-1">Basic Salary</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.basic ?? 0).toLocaleString()}</td></tr>
+                              <tr className="border-b"><td className="py-1">HRA</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.hra ?? 0).toLocaleString()}</td></tr>
+                              <tr className="border-b"><td className="py-1">Conveyance Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.conveyance ?? 0).toLocaleString()}</td></tr>
+                              {selectedOffer.salaryComponents.medical > 0 && (
+                                <tr className="border-b"><td className="py-1">Medical Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.medical ?? 0).toLocaleString()}</td></tr>
+                              )}
+                              {selectedOffer.salaryComponents.specialAllowance > 0 && (
+                                <tr className="border-b"><td className="py-1">Special Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.specialAllowance ?? 0).toLocaleString()}</td></tr>
+                              )}
+                              <tr className="border-b border-t-2 border-gray-400 font-semibold"><td className="py-1">Gross Salary (Monthly)</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.monthlyGross ?? 0).toLocaleString()}</td></tr>
+                              <tr className="border-b text-red-600"><td className="py-1">PF (Employee)</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.employeePF ?? 0).toLocaleString()}</td></tr>
+                              {selectedOffer.salaryComponents.employeeESIC > 0 && (
+                                <tr className="border-b text-red-600"><td className="py-1">ESIC (Employee)</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.employeeESIC ?? 0).toLocaleString()}</td></tr>
+                              )}
+                              <tr className="border-b text-red-600"><td className="py-1">Professional Tax</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.professionalTax ?? 0).toLocaleString()}</td></tr>
+                              <tr className="border-t-2 border-gray-400 font-bold text-green-700"><td className="py-2">Net Take Home (Monthly)</td><td className="text-right py-2">₹{(selectedOffer?.salaryComponents?.netTakeHome ?? 0).toLocaleString()}</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
                       )}
-                    </strong>
-                    . Please confirm your acceptance by signing and returning this
-                    letter.
-                  </p>
+                    </div>
+                  )}
 
-                  <p>We look forward to welcoming you to the CleanCar 360° team!</p>
+                  {/* 3. Probation & Confirmation */}
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-2">3. Probation &amp; Confirmation</h4>
+                    <p>{selectedOffer.probationText}</p>
+                  </div>
+
+                  {/* 4. Conditions of This Offer */}
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-2">4. Conditions of This Offer</h4>
+                    <ul className="list-disc list-inside space-y-1">
+                      {selectedOffer.conditionsOfOffer.map((c, idx) => (
+                        <li key={idx}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* 5. Acceptance */}
+                  <div>
+                    <h4 className="font-semibold text-blue-900 mb-2">5. Acceptance</h4>
+                    <p>{selectedOffer.acceptanceText}</p>
+                  </div>
+
+                  <p>{selectedOffer.closingText}</p>
 
                   <div className="mt-8">
-                    <p>Sincerely,</p>
+                    <p>Warm regards,</p>
                     <div className="mt-8">
-                      <p className="font-semibold">Neeta Sharma</p>
-                      <p className="text-sm">HR Manager</p>
-                      <p className="text-sm">CleanCar 360°</p>
+                      <p className="font-semibold">{selectedOffer.signeeName}</p>
+                      <p className="text-sm">{selectedOffer.signeeTitle} | {selectedOffer.companyName}</p>
+                      <p className="text-sm">Email: {selectedOffer.signeeEmail} | Phone: {selectedOffer.signeePhone}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Acceptance Section */}
                 <div className="mt-12 pt-8 border-t-2 border-gray-300">
-                  <h4 className="font-semibold mb-4">CANDIDATE ACKNOWLEDGEMENT</h4>
+                  <h4 className="font-semibold mb-4">ACCEPTANCE</h4>
                   <p className="text-sm mb-4">
-                    I, {selectedOffer.candidateName}, hereby accept the above offer of
-                    employment:
+                    I, {selectedOffer.candidateName}, accept the above offer of employment on the terms and conditions
+                    stated, and confirm that I have read and understood all clauses.
                   </p>
-                  <div className="grid grid-cols-3 gap-8 mt-8">
-                    <div>
-                      <div className="border-t border-gray-400 pt-2">
-                        <p className="text-sm text-gray-600">Name</p>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="border-t border-gray-400 pt-2">
-                        <p className="text-sm text-gray-600">Signature</p>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="border-t border-gray-400 pt-2">
-                        <p className="text-sm text-gray-600">Date</p>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 gap-4 mt-6 text-sm">
+                    <div className="border-t border-gray-400 pt-2 w-64">Signature</div>
+                    <div className="border-t border-gray-400 pt-2 w-64">Date</div>
+                    <div className="border-t border-gray-400 pt-2 w-64">Expected Date of Joining</div>
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Content Modal — HR / Super Admin only */}
+      {showEditContentModal && selectedOffer && editDraft && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-3xl my-8">
+            <CardHeader className="border-b sticky top-0 bg-white z-10">
+              <div className="flex items-center justify-between">
+                <CardTitle>Edit Offer Letter Content - {selectedOffer.id}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => { setShowEditContentModal(false); setEditDraft(null); }}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <p className="text-xs text-gray-500">
+                Every field below was auto-filled from the employee's data and company policy. Edit anything here to
+                customize this specific letter — it won't affect the template for future offers.
+              </p>
+
+              <div>
+                <Label>Introduction Paragraph</Label>
+                <Textarea
+                  value={editDraft.introText || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, introText: e.target.value })}
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label>Conditional Offer Note</Label>
+                <Textarea
+                  value={editDraft.conditionalNote || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, conditionalNote: e.target.value })}
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <Label>Employment Type</Label>
+                <Input
+                  value={editDraft.employmentType || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, employmentType: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>Place of Posting</Label>
+                <Textarea
+                  value={editDraft.placeOfPostingText || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, placeOfPostingText: e.target.value })}
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs">Probation (months)</Label>
+                  <Input
+                    type="number" min={0}
+                    value={editDraft.probationMonths ?? 0}
+                    onChange={(e) => setEditDraft({ ...editDraft, probationMonths: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Notice — During Probation (months)</Label>
+                  <Input
+                    type="number" min={0}
+                    value={editDraft.noticeDuringProbationMonths ?? 0}
+                    onChange={(e) => setEditDraft({ ...editDraft, noticeDuringProbationMonths: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Notice — After Confirmation (months)</Label>
+                  <Input
+                    type="number" min={0}
+                    value={editDraft.noticeAfterConfirmationMonths ?? 0}
+                    onChange={(e) => setEditDraft({ ...editDraft, noticeAfterConfirmationMonths: Number(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Probation &amp; Confirmation Clause Text</Label>
+                <Textarea
+                  value={editDraft.probationText || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, probationText: e.target.value })}
+                  rows={4}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  This text doesn't auto-update from the numbers above — edit it directly if you change the terms.
+                </p>
+              </div>
+
+              <div>
+                <Label>Conditions of This Offer</Label>
+                <div className="space-y-2">
+                  {(editDraft.conditionsOfOffer || []).map((cond, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <Textarea
+                        value={cond}
+                        rows={2}
+                        onChange={(e) => {
+                          const updated = [...(editDraft.conditionsOfOffer || [])];
+                          updated[idx] = e.target.value;
+                          setEditDraft({ ...editDraft, conditionsOfOffer: updated });
+                        }}
+                      />
+                      <Button
+                        size="sm" variant="ghost"
+                        onClick={() => {
+                          const updated = (editDraft.conditionsOfOffer || []).filter((_, i) => i !== idx);
+                          setEditDraft({ ...editDraft, conditionsOfOffer: updated });
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => setEditDraft({ ...editDraft, conditionsOfOffer: [...(editDraft.conditionsOfOffer || []), ""] })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add Condition
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label>Acceptance Paragraph</Label>
+                <Textarea
+                  value={editDraft.acceptanceText || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, acceptanceText: e.target.value })}
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <Label>Closing Paragraph</Label>
+                <Textarea
+                  value={editDraft.closingText || ""}
+                  onChange={(e) => setEditDraft({ ...editDraft, closingText: e.target.value })}
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Signee Name</Label>
+                  <Input value={editDraft.signeeName || ""} onChange={(e) => setEditDraft({ ...editDraft, signeeName: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Signee Title</Label>
+                  <Input value={editDraft.signeeTitle || ""} onChange={(e) => setEditDraft({ ...editDraft, signeeTitle: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Signee Email</Label>
+                  <Input value={editDraft.signeeEmail || ""} onChange={(e) => setEditDraft({ ...editDraft, signeeEmail: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-xs">Signee Phone</Label>
+                  <Input value={editDraft.signeePhone || ""} onChange={(e) => setEditDraft({ ...editDraft, signeePhone: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button onClick={handleSaveEditContent} className="bg-purple-600 hover:bg-purple-700">
+                  Save Content
+                </Button>
+                <Button variant="outline" onClick={() => { setShowEditContentModal(false); setEditDraft(null); }}>
+                  Cancel
+                </Button>
               </div>
             </CardContent>
           </Card>

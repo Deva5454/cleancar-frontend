@@ -11,6 +11,7 @@ export interface OfferLetterRecord {
   candidateName: string;
   email: string;
   address: string;
+  mobile?: string;
   designation: string;
   department: string;
   reportingManager: string;
@@ -46,6 +47,42 @@ export interface OfferLetterRecord {
   rejectedOn?: string;
   convertedToAppointment?: boolean; // Track if already converted
   appointmentId?: string; // Link to appointment letter
+
+  // ── Fields matching the reference letter template ──────────────────
+  employmentType: string;
+  probationMonths: number;
+  noticeDuringProbationMonths: number;
+  noticeAfterConfirmationMonths: number;
+  acceptanceDeadlineDays: number;
+
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  signeeName: string;
+  signeeTitle: string;
+  signeeEmail: string;
+  signeePhone: string;
+
+  // ── Editable content — auto-generated from the above at creation
+  // time, then freely editable by HR/Super Admin per offer before
+  // sending. Editing these does not change the template for future
+  // offers, only this one. ──────────────────────────────────────────
+  introText: string;
+  conditionalNote: string;
+  placeOfPostingText: string;
+  probationText: string;
+  conditionsOfOffer: string[];
+  acceptanceText: string;
+  closingText: string;
+
+  /** Audit trail of manual content edits (who/when/what changed). */
+  contentEditLog?: Array<{
+    field: string;
+    editedBy: string;
+    editedByRole: string;
+    editedAt: string;
+  }>;
 }
 
 const STORAGE_KEY = "OFFER_LETTERS";
@@ -93,6 +130,40 @@ class OfferLetterService {
   add(offer: OfferLetterRecord): void {
     const offers = this.getAll();
     offers.push(offer);
+    this.save(offers);
+  }
+
+  /**
+   * Update editable content fields on an offer letter, logging who
+   * changed what. Used by the HR/Super Admin content-edit screen.
+   */
+  updateContent(
+    id: string,
+    updates: Partial<Pick<OfferLetterRecord,
+      "introText" | "conditionalNote" | "placeOfPostingText" | "probationText" |
+      "conditionsOfOffer" | "acceptanceText" | "closingText" |
+      "employmentType" | "probationMonths" | "noticeDuringProbationMonths" |
+      "noticeAfterConfirmationMonths" | "acceptanceDeadlineDays" |
+      "signeeName" | "signeeTitle" | "signeeEmail" | "signeePhone"
+    >>,
+    editedBy: string,
+    editedByRole: string
+  ): void {
+    const offers = this.getAll();
+    const index = offers.findIndex(offer => offer.id === id);
+    if (index === -1) return;
+
+    const now = new Date().toISOString();
+    const editLog = offers[index].contentEditLog || [];
+    const newEntries = Object.keys(updates).map((field) => ({
+      field, editedBy, editedByRole, editedAt: now,
+    }));
+
+    offers[index] = {
+      ...offers[index],
+      ...updates,
+      contentEditLog: [...editLog, ...newEntries],
+    };
     this.save(offers);
   }
 
