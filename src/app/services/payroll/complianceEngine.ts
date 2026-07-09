@@ -75,12 +75,18 @@ export interface ComplianceStatus {
  * @param state - Employee's state
  * @param salary - Salary structure
  * @param annualCtc - Optional: For TDS calculation (defaults to monthly * 12)
+ * @param verifiedDeductionAmount - Optional: HR-verified investment declaration
+ *   total (Section 80C/80D/NPS/etc.) to subtract from taxable income before
+ *   computing TDS. Defaults to 0 so existing callers are unaffected. Only
+ *   pass this for employees who have chosen the Old Tax Regime and have a
+ *   Verified declaration on file — see investmentDeclarationService.
  * @returns Complete compliance status with deductions
  */
 export function calculateStatutoryDeductions(
   state: IndianState,
   salary: SalaryStructure,
-  annualCtc?: number
+  annualCtc?: number,
+  verifiedDeductionAmount: number = 0
 ): ComplianceStatus {
   const rules = getStateRules(state);
   const errors: string[] = [];
@@ -112,7 +118,7 @@ export function calculateStatutoryDeductions(
 
   // Calculate TDS
   const annual = annualCtc || grossSalary * 12;
-  const tds = calculateTDS(rules, annual);
+  const tds = calculateTDS(rules, annual, verifiedDeductionAmount);
 
   // Validation checks
   if (pf.applicable && esi.applicable) {
@@ -305,10 +311,13 @@ function calculatePT(
  * Calculate TDS (Tax Deducted at Source)
  *
  * Rule: Progressive slabs on annual income after deductions
+ * @param verifiedDeductionAmount - HR-verified Section 80C/80D/NPS/etc. total
+ *   (Old Regime only). Defaults to 0.
  */
 function calculateTDS(
   rules: ComplianceRules,
-  annualGross: number
+  annualGross: number,
+  verifiedDeductionAmount: number = 0
 ): StatutoryDeductions["tds"] {
   if (!rules.tds.enabled) {
     return {
@@ -319,8 +328,9 @@ function calculateTDS(
     };
   }
 
-  // Apply standard deduction
-  const taxableIncome = annualGross - rules.tds.standardDeduction;
+  // Apply standard deduction + any HR-verified investment declaration
+  const taxableIncome =
+    annualGross - rules.tds.standardDeduction - Math.max(0, verifiedDeductionAmount);
 
   if (taxableIncome <= rules.tds.threshold) {
     return {
