@@ -18,6 +18,7 @@ import {
   Clock,
   ShieldAlert,
   Download,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,11 +29,13 @@ import {
 } from "../../services/seedAttendanceData";
 import { ATTENDANCE_TYPE_LABELS, ATTENDANCE_TYPE_COLORS } from "../../constants/payrollConstants";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
+import { AttendanceDetailModal } from "./AttendanceDetailModal";
 
 export function AttendanceDataManager() {
   const [seededData, setSeededData] = useState<EmployeeAttendanceRecord[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [viewingEmployee, setViewingEmployee] = useState<EmployeeAttendanceRecord | null>(null);
 
   const [confirmState, setConfirmState] = useState<{
     open: boolean; title: string; description: string; onConfirm: () => void;
@@ -224,6 +227,14 @@ export function AttendanceDataManager() {
                           {emp.salaryHoldStatus === "ON_HOLD" ? "🔒 BLOCKED" : "⏳ PENDING"}
                         </Badge>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setViewingEmployee(emp)}
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1" />
+                        View
+                      </Button>
                     </div>
                   </div>
 
@@ -413,6 +424,13 @@ export function AttendanceDataManager() {
         onCancel={() => setConfirmState(s => ({ ...s, open: false }))}
         variant="destructive"
       />
+
+      {viewingEmployee && (
+        <AttendanceDetailModal
+          employee={viewingEmployee}
+          onClose={() => setViewingEmployee(null)}
+        />
+      )}
     </div>
   );
 }
