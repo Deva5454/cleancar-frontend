@@ -2,12 +2,17 @@
  * Statutory Payables Screen - Compliance payments view
  *
  * Shows statutory liabilities (PF, ESIC, PT, TDS, LWF) awaiting payment to authorities
- * Combines employee deductions + employer contributions per statutory type
+ * Combines employee deductions + employer contributions per statutory type.
+ *
+ * Real aggregation + payment recording + challan generation via
+ * statutoryChallanService — this used to compute everything from fields
+ * that don't exist on PayrollRun and always render zeros; see that
+ * service's header comment for the specifics of what was broken.
  *
  * @component
  */
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { formatCurrency } from "../../lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -37,50 +42,36 @@ import {
   DollarSign,
   Download,
   Calendar,
-  Search,
-  RefreshCw,
-  FileText,
   Building,
-  ArrowRight,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePayroll } from "../../contexts/PayrollContext";
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface StatutoryPayable {
-  statutoryType: "PF" | "ESIC" | "PT" | "TDS" | "LWF";
-  employeeContribution: number;
-  employerContribution: number;
-  totalAmount: number;
-  dueDate: string;
-  status: "pending" | "paid" | "overdue";
-  payrollMonth: string;
-  payrollYear: string;
-  paymentReference?: string;
-  paidDate?: string;
-  challanNumber?: string;
-}
-
-interface StatutorySummary {
-  totalPending: number;
-  totalPaid: number;
-  totalOverdue: number;
-  nearestDueDate: string;
-  daysUntilDue: number;
-}
+import { useCity, CITIES } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
+import {
+  statutoryChallanService,
+  type StatutoryPayable,
+  type StatutoryType,
+} from "../../services/statutoryChallanService";
+import { RecordPaymentModal } from "./RecordPaymentModal";
+import { ChallanDocument } from "./ChallanDocument";
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 function formatDate(dateString: string): string {
+  if (!dateString) return "—";
   return new Date(dateString).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
+}
+
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 // ============================================================================
@@ -89,55 +80,51 @@ function formatDate(dateString: string): string {
 
 export function StatutoryPayablesScreen() {
   const { payrollRuns } = usePayroll();
-
-  const payables = payrollRuns.map(run => ({ month:run.month, employeeId:run.employeeId, employeePF:run.deductions?.pf_employee||0, employerPF:run.employerPF||0, totalPF:(run.deductions?.pf_employee||0)+(run.employerPF||0), esic:run.deductions?.esic||0, pt:run.deductions?.pt||0, lwf:0, totalStatutory:(run.deductions?.pf_employee||0)+(run.employerPF||0)+(run.deductions?.esic||0)+(run.deductions?.pt||0), status:run.status==="Disbursed"?"paid":"due" }));
-
-  const [summary, setSummary] = useState<StatutorySummary>({
-    totalPending: 0,
-    totalPaid: 0,
-    totalOverdue: 0,
-    nearestDueDate: "",
-    daysUntilDue: 0,
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const { currentUser } = useRole();
+  const [refresh, setRefresh] = useState(0);
 
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState("04");
-  const [selectedYear, setSelectedYear] = useState("2026");
+  const [selectedMonth, setSelectedMonth] = useState(() => currentMonthKey().split("-")[1]);
+  const [selectedYear, setSelectedYear] = useState(() => currentMonthKey().split("-")[0]);
+  const [selectedCity, setSelectedCity] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [selectedType, setSelectedType] = useState("ALL");
 
-  useEffect(() => {
-    loadStatutoryPayables();
-  }, [selectedMonth, selectedYear, selectedStatus, selectedType]);
+  const [payingFor, setPayingFor] = useState<StatutoryPayable | null>(null);
+  const [viewingChallanFor, setViewingChallanFor] = useState<StatutoryPayable | null>(null);
+  const [showAddLWF, setShowAddLWF] = useState(false);
+  const [lwfPeriod, setLwfPeriod] = useState(`${selectedYear}-H1`);
+  const [lwfEmployee, setLwfEmployee] = useState<number | "">("");
+  const [lwfEmployer, setLwfEmployer] = useState<number | "">("");
 
-  async function loadStatutoryPayables() {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+  const monthKey = `${selectedYear}-${selectedMonth}`;
 
-      // In production:
-      // const data = await payrollEngine.getStatutoryPayables({
-      //   month: selectedMonth,
-      //   year: selectedYear,
-      //   status: selectedStatus,
-      //   type: selectedType
-      // });
+  const payables: StatutoryPayable[] = useMemo(() => {
+    const monthly = statutoryChallanService.getPayablesForMonth(payrollRuns, monthKey, selectedCity);
+    const lwfCities = selectedCity === "ALL" ? Object.keys(CITIES) : [selectedCity];
+    const lwfEntries = lwfCities
+      .map((c) => statutoryChallanService.getLWFPayable(`${selectedYear}-H1`, c) || statutoryChallanService.getLWFPayable(`${selectedYear}-H2`, c))
+      .filter((p): p is StatutoryPayable => !!p);
+    return [...monthly, ...lwfEntries];
+  }, [payrollRuns, monthKey, selectedCity, selectedYear, refresh]);
 
-      // Data now loaded from PayrollContext
-    } catch (error) {
-      toast.error("Failed to load statutory payables");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const filteredPayables = payables.filter((payable) => {
-    const statusMatch = selectedStatus === "ALL" || payable.status === selectedStatus;
-    const typeMatch = selectedType === "ALL" || payable.statutoryType === selectedType;
-    const monthMatch = payable.payrollMonth === selectedMonth && payable.payrollYear === selectedYear;
-    return statusMatch && typeMatch && monthMatch;
+  const filteredPayables = payables.filter((p) => {
+    const statusMatch = selectedStatus === "ALL" || p.status === selectedStatus;
+    const typeMatch = selectedType === "ALL" || p.statutoryType === selectedType;
+    return statusMatch && typeMatch;
   });
+
+  const summary = useMemo(() => {
+    const totalPending = payables.filter((p) => p.status === "pending").reduce((s, p) => s + p.totalAmount, 0);
+    const totalOverdue = payables.filter((p) => p.status === "overdue").reduce((s, p) => s + p.totalAmount, 0);
+    const totalPaid = payables.filter((p) => p.status === "paid").reduce((s, p) => s + p.totalAmount, 0);
+    const outstanding = payables.filter((p) => p.status !== "paid").sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const nearestDueDate = outstanding[0]?.dueDate || "";
+    const daysUntilDue = nearestDueDate
+      ? Math.ceil((new Date(nearestDueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      : 0;
+    return { totalPending, totalOverdue, totalPaid, nearestDueDate, daysUntilDue };
+  }, [payables]);
 
   const getStatusBadge = (status: StatutoryPayable["status"]) => {
     const styles = {
@@ -145,22 +132,12 @@ export function StatutoryPayablesScreen() {
       paid: "bg-green-100 text-green-700 border-green-300",
       overdue: "bg-red-100 text-red-700 border-red-300",
     };
-
-    const labels = {
-      pending: "Pending",
-      paid: "Paid",
-      overdue: "Overdue",
-    };
-
-    return (
-      <Badge className={`${styles[status]} border`}>
-        {labels[status]}
-      </Badge>
-    );
+    const labels = { pending: "Pending", paid: "Paid", overdue: "Overdue" };
+    return <Badge className={`${styles[status]} border`}>{labels[status]}</Badge>;
   };
 
   const getStatutoryTypeLabel = (type: StatutoryPayable["statutoryType"]) => {
-    const labels = {
+    const labels: Record<StatutoryType, string> = {
       PF: "Provident Fund",
       ESIC: "Employee State Insurance",
       PT: "Professional Tax",
@@ -170,14 +147,19 @@ export function StatutoryPayablesScreen() {
     return labels[type];
   };
 
-  const handleRecordPayment = (payable: StatutoryPayable) => {
-    toast.info(`Opening payment form for ${payable.statutoryType}`);
-    // In production: Navigate to payment recording screen
-  };
-
-  const handleDownloadChallan = (payable: StatutoryPayable) => {
-    toast.success(`Downloading challan for ${payable.statutoryType}`);
-    // In production: Generate and download challan
+  const handleAddLWF = () => {
+    if (lwfEmployee === "" && lwfEmployer === "") { toast.error("Enter at least one amount"); return; }
+    statutoryChallanService.addLWFEntry({
+      period: lwfPeriod,
+      cityId: selectedCity === "ALL" ? "CITY-SURAT" : selectedCity,
+      employeeContribution: Number(lwfEmployee) || 0,
+      employerContribution: Number(lwfEmployer) || 0,
+      addedBy: currentUser?.name || "HR",
+    });
+    toast.success("LWF liability recorded");
+    setShowAddLWF(false);
+    setLwfEmployee(""); setLwfEmployer("");
+    setRefresh((r) => r + 1);
   };
 
   return (
@@ -192,9 +174,9 @@ export function StatutoryPayablesScreen() {
             Compliance payments to government authorities (PF, ESIC, PT, TDS, LWF)
           </p>
         </div>
-        <Button className="bg-purple-600 hover:bg-purple-700">
-          <Building className="w-4 h-4 mr-2" />
-          Bulk Payment
+        <Button className="bg-purple-600 hover:bg-purple-700" onClick={() => setShowAddLWF(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add LWF Entry
         </Button>
       </div>
 
@@ -205,9 +187,7 @@ export function StatutoryPayablesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-700">
-                  {formatCurrency(summary.totalPending)}
-                </p>
+                <p className="text-2xl font-bold text-yellow-700">{formatCurrency(summary.totalPending)}</p>
               </div>
               <Clock className="w-8 h-8 text-yellow-600" />
             </div>
@@ -219,9 +199,7 @@ export function StatutoryPayablesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Overdue</p>
-                <p className="text-2xl font-bold text-red-700">
-                  {formatCurrency(summary.totalOverdue)}
-                </p>
+                <p className="text-2xl font-bold text-red-700">{formatCurrency(summary.totalOverdue)}</p>
               </div>
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
@@ -233,9 +211,7 @@ export function StatutoryPayablesScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Paid (This Period)</p>
-                <p className="text-2xl font-bold text-green-700">
-                  {formatCurrency(summary.totalPaid)}
-                </p>
+                <p className="text-2xl font-bold text-green-700">{formatCurrency(summary.totalPaid)}</p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
@@ -248,9 +224,9 @@ export function StatutoryPayablesScreen() {
               <div>
                 <p className="text-sm text-gray-600">Next Due Date</p>
                 <p className="text-lg font-bold text-blue-700">
-                  {formatDate(summary.nearestDueDate)}
+                  {summary.nearestDueDate ? formatDate(summary.nearestDueDate) : "—"}
                 </p>
-                <p className="text-xs text-blue-600">{summary.daysUntilDue} days</p>
+                {summary.nearestDueDate && <p className="text-xs text-blue-600">{summary.daysUntilDue} days</p>}
               </div>
               <Calendar className="w-8 h-8 text-blue-600" />
             </div>
@@ -276,24 +252,56 @@ export function StatutoryPayablesScreen() {
         </Card>
       )}
 
+      {/* Add LWF Entry */}
+      {showAddLWF && (
+        <Card className="border-purple-300 bg-purple-50">
+          <CardHeader><CardTitle className="text-base">Add LWF Liability</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-gray-500">
+              LWF isn't tracked per payroll run (it's a small half-yearly flat contribution), so it's recorded here manually per period.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label>Period</Label>
+                <Select value={lwfPeriod} onValueChange={setLwfPeriod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={`${selectedYear}-H1`}>{selectedYear} H1 (Jun 30)</SelectItem>
+                    <SelectItem value={`${selectedYear}-H2`}>{selectedYear} H2 (Dec 31)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Employee Contribution (₹)</Label>
+                <Input type="number" value={lwfEmployee} onChange={(e) => setLwfEmployee(e.target.value === "" ? "" : Number(e.target.value))} />
+              </div>
+              <div>
+                <Label>Employer Contribution (₹)</Label>
+                <Input type="number" value={lwfEmployer} onChange={(e) => setLwfEmployer(e.target.value === "" ? "" : Number(e.target.value))} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleAddLWF}>Save</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddLWF(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Month</Label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((month, idx) => (
-                    <SelectItem key={month} value={String(idx + 1).padStart(2, "0")}>
-                      {month}
-                    </SelectItem>
+                    <SelectItem key={month} value={String(idx + 1).padStart(2, "0")}>{month}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -302,9 +310,7 @@ export function StatutoryPayablesScreen() {
             <div className="space-y-2">
               <Label>Year</Label>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="2024">2024</SelectItem>
                   <SelectItem value="2025">2025</SelectItem>
@@ -314,11 +320,22 @@ export function StatutoryPayablesScreen() {
             </div>
 
             <div className="space-y-2">
+              <Label>City</Label>
+              <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Cities</SelectItem>
+                  {Object.values(CITIES).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.displayName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Statutory Type</Label>
               <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Types</SelectItem>
                   <SelectItem value="PF">PF - Provident Fund</SelectItem>
@@ -333,9 +350,7 @@ export function StatutoryPayablesScreen() {
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
@@ -351,20 +366,13 @@ export function StatutoryPayablesScreen() {
       {/* Statutory Payables Table */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Statutory Compliance Payments</CardTitle>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export Report
-            </Button>
-          </div>
+          <CardTitle>Statutory Compliance Payments</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="text-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600">Loading statutory payables...</p>
-            </div>
+          {filteredPayables.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-12">
+              No statutory liability for this period — either no approved/disbursed payroll runs exist for {monthKey}, or filters are excluding everything.
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -385,28 +393,14 @@ export function StatutoryPayablesScreen() {
                   <TableRow key={index} className={payable.status === "overdue" ? "bg-red-50" : ""}>
                     <TableCell>
                       <div className="font-medium">{payable.statutoryType}</div>
-                      <div className="text-xs text-gray-500">
-                        {getStatutoryTypeLabel(payable.statutoryType)}
-                      </div>
+                      <div className="text-xs text-gray-500">{getStatutoryTypeLabel(payable.statutoryType)}</div>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {payable.payrollMonth}/{payable.payrollYear}
-                    </TableCell>
-                    <TableCell className="text-right text-blue-600">
-                      {formatCurrency(payable.employeeContribution)}
-                    </TableCell>
-                    <TableCell className="text-right text-orange-600">
-                      {formatCurrency(payable.employerContribution)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-purple-600">
-                      {formatCurrency(payable.totalAmount)}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatDate(payable.dueDate)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getStatusBadge(payable.status)}
-                    </TableCell>
+                    <TableCell className="text-sm">{payable.month}</TableCell>
+                    <TableCell className="text-right text-blue-600">{formatCurrency(payable.employeeContribution)}</TableCell>
+                    <TableCell className="text-right text-orange-600">{formatCurrency(payable.employerContribution)}</TableCell>
+                    <TableCell className="text-right font-semibold text-purple-600">{formatCurrency(payable.totalAmount)}</TableCell>
+                    <TableCell className="text-sm">{formatDate(payable.dueDate)}</TableCell>
+                    <TableCell className="text-center">{getStatusBadge(payable.status)}</TableCell>
                     <TableCell className="text-xs text-gray-500">
                       {payable.status === "paid" ? (
                         <div>
@@ -414,29 +408,18 @@ export function StatutoryPayablesScreen() {
                           <div>Paid: {payable.paidDate && formatDate(payable.paidDate)}</div>
                           <div>Challan: {payable.challanNumber}</div>
                         </div>
-                      ) : (
-                        "—"
-                      )}
+                      ) : "—"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center gap-2">
-                        {payable.status === "pending" || payable.status === "overdue" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRecordPayment(payable)}
-                          >
+                      <div className="flex items-center gap-1 justify-center">
+                        {payable.status !== "paid" ? (
+                          <Button variant="ghost" size="sm" onClick={() => setPayingFor(payable)} title="Record Payment">
                             <DollarSign className="w-4 h-4" />
                           </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadChallan(payable)}
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        )}
+                        ) : null}
+                        <Button variant="ghost" size="sm" onClick={() => setViewingChallanFor(payable)} title="View / Print Challan">
+                          <Download className="w-4 h-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -461,12 +444,23 @@ export function StatutoryPayablesScreen() {
                 <li><strong>LWF:</strong> Due half-yearly (Jun 30 & Dec 31)</li>
               </ul>
               <p className="mt-2">
-                Recording payment will update ledger: Dr: Statutory Payable, Cr: Bank Account
+                Amounts here are computed from Approved/Disbursed payroll runs for the selected period. Recording a payment generates an internal challan number for your records — you must still file directly with each authority's official portal.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {payingFor && (
+        <RecordPaymentModal
+          payable={payingFor}
+          onClose={() => setPayingFor(null)}
+          onRecorded={() => setRefresh((r) => r + 1)}
+        />
+      )}
+      {viewingChallanFor && (
+        <ChallanDocument payable={viewingChallanFor} onClose={() => setViewingChallanFor(null)} />
+      )}
     </div>
   );
 }
