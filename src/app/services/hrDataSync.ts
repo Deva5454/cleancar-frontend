@@ -12,6 +12,7 @@ import { incentiveLedgerService, IncentiveAdapter } from "./incentiveLedger";
 import { hrMasterValidator } from "./hrMasterValidator";
 import { logger } from "./logger";
 import { DataService } from "./DataService";
+import { employeeDatabaseService } from "./employeeDatabaseService";
 
 // ========== SYNC RESULTS ==========
 
@@ -49,7 +50,13 @@ class HRDataSyncService {
   }
 
   /**
-   * Sync employees from legacy EmployeeDatabase to EmployeeMaster
+   * Sync employees from employeeDatabaseService (the single source of
+   * truth) to EmployeeMaster.
+   *
+   * This used to read DataService.get("EMPLOYEE_DATABASE") — a key nothing
+   * in the app ever wrote to (the real store is employeeDatabaseService,
+   * under the key "EMPLOYEE_DATABASE_RECORDS") — so this sync always found
+   * zero legacy employees and silently did nothing, every time it ran.
    */
   syncEmployees(): SyncResult {
     const errors: string[] = [];
@@ -58,9 +65,28 @@ class HRDataSyncService {
     let skipped = 0;
 
     try {
-      // Get legacy employees
-      const legacyEmployees = DataService.get<any>("EMPLOYEE_DATABASE") || [];
-      logger.log(`HRDataSync: Found ${legacyEmployees.length} legacy employees`);
+      // Get real employees from the single source of truth, adapted into
+      // the shape EmployeeAdapter.toMaster() expects.
+      const legacyEmployees = employeeDatabaseService.getAll().map((record) => {
+        const id = record.id && record.id !== "PENDING" && record.id !== "NOT-CONVERTED" ? record.id : record.tempId;
+        const statusMap: Record<string, "Active" | "On Leave" | "Inactive" | "Terminated"> = {
+          "Active": "Active", "On Leave": "On Leave", "Inactive": "Inactive", "Exited": "Terminated",
+        };
+        return {
+          employeeId: id,
+          firstName: record.firstName,
+          lastName: record.lastName,
+          email: record.email,
+          phone: record.mobile,
+          role: (record.role || record.designation) as any,
+          status: statusMap[record.status] || "Active",
+          joiningDate: record.dateOfJoining,
+          department: record.department,
+          city: record.workLocation,
+          cityId: record.cityId,
+        };
+      });
+      logger.log(`HRDataSync: Found ${legacyEmployees.length} employees in employeeDatabaseService`);
 
       // Get existing master records
       const existingMaster = employeeMasterService.getAll();
