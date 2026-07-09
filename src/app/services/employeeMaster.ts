@@ -1,12 +1,22 @@
 /**
  * Employee Master - Unified Employee Structure
  *
- * Single source of truth for employee data across HR, Payroll, and Attendance
- * Replaces scattered employee definitions with a unified structure
+ * Single source of truth for employee data across HR, Payroll, and Attendance.
+ *
+ * ⚠️ This is a live adapter over employeeDatabaseService (the real single
+ * source of truth), not a separate store. It used to keep its own
+ * "EMPLOYEE_MASTER" snapshot, populated ONCE per browser by hrDataSync on
+ * first app load (gated by a "HR_MASTER_INITIALIZED" flag) and never
+ * refreshed again — so exitWorkflowService, PayrollAutomationEngine,
+ * DataExportService, and EmployeeService (all real, live consumers) were
+ * reading an increasingly stale snapshot that never reflected new hires,
+ * onboarding changes, or exits after that first sync. Reading/writing
+ * through employeeDatabaseService directly means every consumer here now
+ * always sees current data, with no separate sync step required.
  */
 
-import { DataService } from "./DataService";
 import { logger } from "./logger";
+import { employeeDatabaseService, type EmployeeDatabaseRecord } from "./employeeDatabaseService";
 import type { EmployeeRole } from "../contexts/OrgContext";
 
 // ========== TYPES ==========
@@ -24,7 +34,7 @@ export interface EmployeeMaster {
   phone: string;                // Contact number
 
   // Organizational
-  roleId: string;               // References role in role master
+  roleId: string;               // Designation/role text (see note on EmployeeDatabaseRecord.designation)
   cityId: string;               // References city in city master
 
   // Employment Status
@@ -58,24 +68,58 @@ export interface LegacyEmployee {
   clusterId?: string;
 }
 
+// ========== STATUS MAPPING ==========
+
+function masterStatusToDbStatus(status: EmployeeStatus): EmployeeDatabaseRecord["status"] {
+  switch (status) {
+    case "Draft": return "Inactive";
+    case "Active": return "Active";
+    case "Exit": return "Exited";
+  }
+}
+
+function dbStatusToMasterStatus(status: EmployeeDatabaseRecord["status"]): EmployeeStatus {
+  switch (status) {
+    case "Active": return "Active";
+    case "On Leave": return "Active";
+    case "Inactive": return "Draft";
+    case "Exited": return "Exit";
+    default: return "Draft";
+  }
+}
+
+function recordToMaster(record: EmployeeDatabaseRecord): EmployeeMaster {
+  const id = record.id && record.id !== "PENDING" && record.id !== "NOT-CONVERTED" ? record.id : record.tempId;
+  return {
+    employeeId: id,
+    name: record.fullName,
+    phone: record.mobile,
+    roleId: record.designation,
+    cityId: record.cityId || "",
+    status: dbStatusToMasterStatus(record.status),
+    joiningDate: record.dateOfJoining,
+    exitDate: record.status === "Exited" ? record.confirmationDate : undefined,
+    createdAt: record.tempIdAssignedDate || new Date().toISOString(),
+    updatedAt: record.confirmationDate || record.tempIdAssignedDate || new Date().toISOString(),
+  };
+}
+
 // ========== SERVICE ==========
 
 class EmployeeMasterService {
-  private readonly STORAGE_KEY = "EMPLOYEE_MASTER";
-
   /**
    * Get all employee master records
    */
   getAll(): EmployeeMaster[] {
-    return DataService.get<EmployeeMaster>(this.STORAGE_KEY);
+    return employeeDatabaseService.getAll().map(recordToMaster);
   }
 
   /**
    * Get employee by ID
    */
   getById(employeeId: string): EmployeeMaster | null {
-    const employees = this.getAll();
-    return employees.find(emp => emp.employeeId === employeeId) || null;
+    const record = employeeDatabaseService.getById(employeeId);
+    return record ? recordToMaster(record) : null;
   }
 
   /**
@@ -100,49 +144,81 @@ class EmployeeMasterService {
   }
 
   /**
-   * Create new employee master record
+   * Create new employee master record — writes through to
+   * employeeDatabaseService, the real source of truth.
    */
   create(data: Omit<EmployeeMaster, "employeeId" | "createdAt" | "updatedAt">): EmployeeMaster {
     const now = new Date().toISOString();
-    const newEmployee: EmployeeMaster = {
-      ...data,
-      employeeId: this.generateEmployeeId(),
-      createdAt: now,
-      updatedAt: now,
+    const tempId = `TEMP-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const [firstName, ...rest] = data.name.split(" ");
+    const record: EmployeeDatabaseRecord = {
+      id: "PENDING",
+      tempId,
+      tempIdAssignedDate: now,
+      conversionDueDate: now,
+      daysInTempStatus: 0,
+      isOverdue: false,
+      employmentStage: "Temporary",
+      skillLevel: "Skilled",
+      firstName: firstName || data.name,
+      lastName: rest.join(" "),
+      fullName: data.name,
+      fatherFirstName: "", fatherLastName: "", fatherName: "",
+      dob: "", gender: "",
+      mobile: data.phone,
+      email: "",
+      permanentAddress: "", currentAddress: "", emergencyContact: "",
+      designation: data.roleId,
+      department: "",
+      reportingManager: "",
+      workLocation: "",
+      pinCodes: [],
+      employeeType: "Full Time",
+      dateOfJoining: data.joiningDate,
+      probationPeriod: "3 months",
+      status: masterStatusToDbStatus(data.status),
+      onboardingPasswordSet: false,
+      accountStatus: "pending_onboarding",
+      failedLoginAttempts: 0,
+      cityId: data.cityId,
+      role: data.roleId,
+      employeeId: tempId,
     };
-
-    const employees = this.getAll();
-    DataService.setAll(this.STORAGE_KEY, [...employees, newEmployee]);
-
-    logger.log("EmployeeMaster: Created employee", { employeeId: newEmployee.employeeId });
-    return newEmployee;
+    employeeDatabaseService.add(record);
+    logger.log("EmployeeMaster: Created employee", { employeeId: tempId });
+    return recordToMaster(record);
   }
 
   /**
-   * Update employee master record
+   * Update employee master record — writes through to
+   * employeeDatabaseService, the real source of truth.
    */
   update(employeeId: string, updates: Partial<Omit<EmployeeMaster, "employeeId" | "createdAt">>): EmployeeMaster | null {
-    const employees = this.getAll();
-    const index = employees.findIndex(emp => emp.employeeId === employeeId);
-
-    if (index === -1) {
+    const existing = employeeDatabaseService.getById(employeeId);
+    if (!existing) {
       logger.error("EmployeeMaster: Employee not found", { employeeId });
       return null;
     }
 
-    const updatedEmployee: EmployeeMaster = {
-      ...employees[index],
-      ...updates,
-      employeeId, // Prevent ID change
-      createdAt: employees[index].createdAt, // Preserve creation time
-      updatedAt: new Date().toISOString(),
-    };
+    const recordUpdates: Partial<EmployeeDatabaseRecord> = {};
+    if (updates.name !== undefined) {
+      recordUpdates.fullName = updates.name;
+      const [firstName, ...rest] = updates.name.split(" ");
+      recordUpdates.firstName = firstName || updates.name;
+      recordUpdates.lastName = rest.join(" ");
+    }
+    if (updates.phone !== undefined) recordUpdates.mobile = updates.phone;
+    if (updates.roleId !== undefined) { recordUpdates.designation = updates.roleId; recordUpdates.role = updates.roleId; }
+    if (updates.cityId !== undefined) recordUpdates.cityId = updates.cityId;
+    if (updates.status !== undefined) recordUpdates.status = masterStatusToDbStatus(updates.status);
+    if (updates.joiningDate !== undefined) recordUpdates.dateOfJoining = updates.joiningDate;
+    if (updates.exitDate !== undefined) recordUpdates.confirmationDate = updates.exitDate;
 
-    employees[index] = updatedEmployee;
-    DataService.setAll(this.STORAGE_KEY, employees);
-
+    employeeDatabaseService.update(employeeId, recordUpdates);
     logger.log("EmployeeMaster: Updated employee", { employeeId });
-    return updatedEmployee;
+
+    const updated = employeeDatabaseService.getById(employeeId);
+    return updated ? recordToMaster(updated) : null;
   }
 
   /**
@@ -172,16 +248,6 @@ class EmployeeMasterService {
   }
 
   /**
-   * Generate unique employee ID
-   */
-  private generateEmployeeId(): string {
-    const employees = this.getAll();
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substr(2, 6).toUpperCase();
-    return `EMP-${timestamp}-${random}`;
-  }
-
-  /**
    * Count employees by status
    */
   getStatusCounts(): Record<EmployeeStatus, number> {
@@ -197,7 +263,11 @@ class EmployeeMasterService {
 // ========== ADAPTER LAYER ==========
 
 /**
- * Adapter to convert legacy employee format to EmployeeMaster
+ * Adapter to convert legacy employee format to EmployeeMaster.
+ * Kept for backward compatibility with hrDataSync.ts and any other code
+ * still constructing LegacyEmployee-shaped objects — no longer load-bearing
+ * for the master service itself, which now reads/writes employeeDatabaseService
+ * directly, but harmless to keep for existing callers.
  */
 export class EmployeeAdapter {
   /**
