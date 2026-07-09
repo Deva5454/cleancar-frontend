@@ -542,7 +542,7 @@ function HRModule() {
       </Card>
 
       <Tabs defaultValue="employees" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="employees">Employees</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="payroll">Payroll</TabsTrigger>
@@ -1340,6 +1340,14 @@ function HRModule() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Shift Roster Tab — the tab button existed but had no matching
+            TabsContent, so it silently showed nothing when clicked.
+            ShiftRosterManager itself was already fully built (Excel
+            upload/preview/apply, swap approvals, absence review). */}
+        <TabsContent value="shift-roster" className="space-y-4">
+          <ShiftRosterManager />
         </TabsContent>
 
         {/* Recruitment Tab */}

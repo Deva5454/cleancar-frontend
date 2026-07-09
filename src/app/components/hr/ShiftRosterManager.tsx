@@ -274,7 +274,11 @@ function ShiftCell({ slot, onUpdate, locked }: { slot: ShiftSlot; onUpdate: (s: 
 export function ShiftRosterManager() {
   const { currentUser } = useRole();
   const { city }        = useCity();
-  const cityId = "CITY-SURAT";
+  // Previously hardcoded to "CITY-SURAT" regardless of the app's selected
+  // city — meant this screen always showed Surat's roster even for HR
+  // users working in Gujarat/Mumbai/etc. `city` from useCity() is already
+  // the correct CityId ("CITY-SURAT", "CITY-AHMEDABAD", ...).
+  const cityId = city;
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [roster, setRoster]         = useState<WeeklyRoster | null>(null);
