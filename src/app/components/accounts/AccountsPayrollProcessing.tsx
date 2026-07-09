@@ -287,13 +287,12 @@ export function AccountsPayrollProcessing() {
       updatePayrollStatus(latestRun.id, "disbursed");
     }
 
-    // ── Mark snapshot as paid ────────────────────────────────────────────────
-    setSnapshot({
-      ...snapshot,
-      status: "paid",
-      paidAt: new Date().toLocaleString(),
-      paidBy: currentUser?.name || "Accounts Manager",
-    });
+    // Note: `snapshot` is a derived value recomputed from `payrollRuns` each
+    // render (see its definition above), not React state — there was a
+    // setSnapshot(...) call here that could never have worked (no such
+    // setter exists). The real status update already happened via
+    // updatePayrollStatus() above, which flows back through usePayroll()
+    // and causes `snapshot` to recompute with the new status on next render.
 
     toast.success(
       `Payroll of ₹${totalNet.toLocaleString()} posted to ledger and marked as paid. ` +

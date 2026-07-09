@@ -15,7 +15,7 @@ import {
 } from "../ui/select";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { getPricingSummary, getPlanPrice, getOneTimeWashPrice, type VehicleCategory } from "../../data/subscriptionPlans";
+import { getPricingSummary, getPlanPrice, getOneTimeWashPrice, getAllOneTimeWashOptions, type VehicleCategory, PLAN_TYPES, CURRENT_PLAN_VERSION, formatPrice } from "../../data/subscriptionPlans";
 import { usePlanDefinitions } from "../../contexts/PlanDefinitionContext";
 import {
   Car,
@@ -32,7 +32,15 @@ export function PricingOverview() {
   const [selectedVehicle, setSelectedVehicle] =
     useState<VehicleCategory>("Hatchback / Compact Sedan");
 
-  const pricingSummary = getPricingSummary(selectedVehicle);
+  // Built locally rather than via getPricingSummary(), which returns a
+  // single plan's summary (needs a planType arg) — this screen needs counts
+  // across all plans/options for the selected vehicle category.
+  const pricingSummary = {
+    subscriptionPrices: PLAN_TYPES.filter((p) => !p.includes("One-Time")).map((plan) => ({
+      plan, price: getPlanPrice(selectedVehicle, plan),
+    })),
+    oneTimeWashes: getAllOneTimeWashOptions(selectedVehicle),
+  };
   const is4W = !selectedVehicle.includes("2W");
 
   return (
@@ -85,14 +93,13 @@ export function PricingOverview() {
                   (plan) => !plan.includes("One-Time")
                 ).map((plan) => {
                   const price = getPlanPrice(
-                    CURRENT_PLAN_VERSION,
                     selectedVehicle,
                     plan
                   );
                   const deliverables =
                     CURRENT_PLAN_VERSION.deliverables[plan];
 
-                  if (price === "NA") return null;
+                  if (price === 0) return null;
 
                   return (
                     <Card key={plan} className="border-2">
@@ -164,36 +171,25 @@ export function PricingOverview() {
             {/* One-Time Wash */}
             <TabsContent value="onetime">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {["EXPRESS_WASH", "Premium", "Elite"].map((washType) => {
-                  const memberPrice = getOneTimeWashPrice(
-                    selectedVehicle,
-                    washType as "EXPRESS_WASH" | "Premium" | "Elite",
-                    true
-                  );
-                  const nonMemberPrice = getOneTimeWashPrice(
-                    selectedVehicle,
-                    washType as "EXPRESS_WASH" | "Premium" | "Elite",
-                    false
-                  );
-
+                {getAllOneTimeWashOptions(selectedVehicle).map((option) => {
                   const getIcon = () => {
-                    switch (washType) {
+                    switch (option.label) {
                       case "EXPRESS_WASH":
                         return <Droplet className="h-6 w-6 text-blue-600" />;
-                      case "ELITE_WASH":
+                      case "SMART_WASH":
                         return <Sparkles className="h-6 w-6 text-purple-600" />;
-                      case "Elite":
+                      case "ELITE_WASH":
                         return <Star className="h-6 w-6 text-amber-600" />;
                     }
                   };
 
                   return (
-                    <Card key={washType} className="border-2">
+                    <Card key={option.type} className="border-2">
                       <CardHeader>
                         <div className="flex items-center gap-2">
                           {getIcon()}
                           <CardTitle className="text-lg">
-                            {washType} Wash
+                            {option.label} Wash
                           </CardTitle>
                         </div>
                         <CardDescription className="text-xs">
@@ -201,37 +197,8 @@ export function PricingOverview() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-3">
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">
-                              Member Price
-                            </div>
-                            <div className="text-2xl font-bold text-green-600">
-                              {formatPrice(memberPrice)}
-                            </div>
-                          </div>
-
-                          <div>
-                            <div className="text-xs text-gray-600 mb-1">
-                              Non-Member Price
-                            </div>
-                            <div className="text-xl font-semibold">
-                              {formatPrice(nonMemberPrice)}
-                            </div>
-                          </div>
-
-                          <Badge
-                            variant="outline"
-                            className="bg-green-50 text-green-700 w-full justify-center"
-                          >
-                            Save{" "}
-                            {(
-                              ((nonMemberPrice - memberPrice) /
-                                nonMemberPrice) *
-                              100
-                            ).toFixed(0)}
-                            % as member
-                          </Badge>
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatPrice(option.price)}
                         </div>
                       </CardContent>
                     </Card>
@@ -358,7 +325,7 @@ export function PricingOverview() {
                 <CardTitle className="text-2xl">
                   {
                     pricingSummary.subscriptionPrices.filter(
-                      (p) => p.price !== "NA"
+                      (p) => p.price !== 0
                     ).length
                   }
                 </CardTitle>

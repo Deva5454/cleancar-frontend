@@ -157,7 +157,7 @@ export function SendPlanPricePanel({
         <div className="p-4 bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-lg">
           <Label className="text-sm text-gray-600">Monthly Price</Label>
           <p className="text-3xl font-bold text-teal-700 mt-1">
-            ₹{priceVersion === "current" ? currentPrice : oldPrice}
+            ₹{currentPrice}
             <span className="text-sm font-normal text-gray-600">/month</span>
           </p>
         </div>

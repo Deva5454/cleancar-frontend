@@ -6,6 +6,7 @@
  */
 
 import { DataService } from "./DataService";
+import { sendWhatsApp } from "./whatsappService";
 
 const REMINDED_KEY = "FIRST_WASH_REMINDERS_SENT";
 

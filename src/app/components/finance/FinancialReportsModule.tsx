@@ -14,6 +14,9 @@
  */
 
 import { useState } from "react";
+import { toast } from "sonner";
+import { useCity } from "../../contexts/CityContext";
+import { useFinance } from "../../contexts/FinanceContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { BackButton } from "../ui/back-button";
@@ -60,6 +63,8 @@ export interface ReportFilters {
 // ============================================================================
 
 export function FinancialReportsModule() {
+  const { cityInfo } = useCity();
+  const { getRevenueByCity, getPayablesByCity } = useFinance();
   const [activeTab, setActiveTab] = useState("profit-loss");
   const [isLoading, setIsLoading] = useState(false);
 

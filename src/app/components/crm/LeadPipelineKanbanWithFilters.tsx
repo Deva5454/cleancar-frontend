@@ -240,7 +240,7 @@ export function LeadPipelineKanbanWithFilters() {
   const [searchParams] = useSearchParams();
   const { city: cityContextId } = useCity();
   // Use CityContext as primary source — URL param as fallback for deep links
-  const { leads: contextLeads } = useCustomers();
+  const { leads: contextLeads, updateLead } = useCustomers();
 
   // Get selected city from URL
   // Derive city name from CityContext (primary) or URL param (fallback)
@@ -459,10 +459,7 @@ export function LeadPipelineKanbanWithFilters() {
 
     const formattedDateTime = `${scheduleDate} ${scheduleTime}`;
 
-    const updatedLeads = leads.map((lead) =>
-      lead.id === scheduleLeadId ? { ...lead, nextFollowUp: formattedDateTime } : lead
-    );
-    setLeads(updatedLeads);
+    updateLead(scheduleLeadId, { nextFollowUp: formattedDateTime });
 
     toast.info(
       `${scheduleType === "call" ? "Call" : scheduleType === "whatsapp" ? "WhatsApp" : "Demo"} scheduled with ${scheduleLeadName} for ${formattedDateTime}.\n\nNotes: ${scheduleNotes || "None"}\n\nReminder will be sent 1 hour before.`

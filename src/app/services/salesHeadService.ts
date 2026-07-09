@@ -101,6 +101,18 @@ export interface SHAlert {
 
 // ── Management visibility types (Section 12) ──────────────────────────────────
 
+export interface AllTCESummary {
+  id: string;
+  name: string;
+  teamOwner: "TSM" | "CCE" | string;
+  closuresMTD: number;
+  slaCompliancePct: number;
+  planMixPct: number;
+  churnCount30d: number;
+  incentiveForecast: number;
+  health: "GREEN" | "AMBER" | "RED";
+}
+
 export interface TSMSummary {
   id: string;
   name: string;
@@ -113,11 +125,7 @@ export interface TSMSummary {
   slaBreaches: number;
   // Team (TSEs under TSM)
   tseCount: number;
-  tsePerformance: Array<{
-    id: string; name: string; status: string;
-    closuresMTD: number; slaCompliancePct: number; planMixPct: number;
-    incentiveForecast: number; health: "GREEN" | "AMBER" | "RED";
-  }>;
+  tsePerformance: AllTCESummary[];
   // Incentive
   incentiveForecast: number;
   // Tranche exposure

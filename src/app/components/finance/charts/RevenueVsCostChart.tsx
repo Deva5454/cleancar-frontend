@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../ui/select";
+} from "../../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
 import { Table as TableIcon, Download, DollarSign } from "lucide-react";
 import {

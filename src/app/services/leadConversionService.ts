@@ -130,6 +130,21 @@ export interface SubscriptionPlan {
 }
 
 /**
+ * Represents a created/active subscription record (as opposed to
+ * SubscriptionPlan, which is the plan/tier definition it was created from).
+ * This type was referenced throughout this file (Subscription["frequency"],
+ * Subscription["billingCycle"], subscription.subscriptionId) but never
+ * actually defined anywhere in the codebase — every usage below was a
+ * silent compile error. Defined here to match exactly how it's used.
+ */
+export interface Subscription extends SubscriptionPlan {
+  subscriptionId: string;
+  customerId: string;
+  createdAt: string;
+  status: "Active" | "Paused" | "Cancelled" | "Exhausted";
+}
+
+/**
  * PRODUCTION-SAFE LEAD CONVERSION SERVICE
  *
  * Flow:

@@ -89,6 +89,7 @@ interface EmployeePayroll {
 }
 
 export function PayrollProcessingAdvanced() {
+  const navigate = useNavigate();
   // CRITICAL: Use Business Flows for orchestrated payroll processing
   const { processPayrollWithPayable } = useBusinessFlows();
   const { payrollRuns } = usePayroll();

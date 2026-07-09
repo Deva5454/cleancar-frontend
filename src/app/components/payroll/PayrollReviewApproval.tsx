@@ -159,15 +159,23 @@ function StatusTracker({ currentStatus }: StatusTrackerProps) {
 // ============================================================================
 
 export function PayrollReviewApproval() {
+  const navigate = useNavigate();
   const dbEmps = employeeDatabaseService.getAll();
+  // Note: EmployeeDatabaseRecord has no salary field — real figures live in
+  // employeeSalaryService. This mock default (18000) is what every one of
+  // these rows already evaluated to at runtime before this fix (accessing
+  // a nonexistent property just returns undefined, which `|| 18000` then
+  // fell back to) — making that explicit rather than pretending a
+  // `baseSalary` field exists on the employee record.
+  const MOCK_BASE_SALARY = 18000;
   const [employees, setEmployees] = useState(dbEmps.slice(0,25).map(emp => ({
     employeeId: emp.employeeId,
     employeeName: emp.firstName+" "+emp.lastName,
     role: emp.role, department: emp.department||"Operations",
-    baseSalary: emp.baseSalary||18000, incentive: 0,
-    grossSalary: emp.baseSalary||18000,
-    deductions: Math.round((emp.baseSalary||18000)*0.12),
-    netPay: Math.round((emp.baseSalary||18000)*0.88),
+    baseSalary: MOCK_BASE_SALARY, incentive: 0,
+    grossSalary: MOCK_BASE_SALARY,
+    deductions: Math.round(MOCK_BASE_SALARY*0.12),
+    netPay: Math.round(MOCK_BASE_SALARY*0.88),
     hasAnomaly: false,
   })));
   const [summary, setSummary] = useState<PayrollSummary>({

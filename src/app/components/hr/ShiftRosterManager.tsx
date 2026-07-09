@@ -69,15 +69,42 @@ async function parseRosterExcel(file: File): Promise<{
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        // Dynamically import xlsx (SheetJS) for browser parsing
-        import("xlsx").then(XLSX => {
-          const data  = new Uint8Array(e.target?.result as ArrayBuffer);
-          const wb    = XLSX.read(data, { type: "array" });
-          const ws    = wb.Sheets["Duty Roster"];
-          if (!ws) { resolve({ weekStart:"", weekEnd:"", employees:[], errors:["Sheet 'Duty Roster' not found"] }); return; }
+      (async () => {
+        try {
+          // Dynamically import exceljs for browser parsing. Previously used
+          // "xlsx" (SheetJS npm package), which carries two unpatched high-
+          // severity advisories (prototype pollution, ReDoS) that npm's
+          // registry copy has never received a fix for — exploitable via a
+          // crafted file, which is exactly what this feature parses.
+          // exceljs has no equivalent advisory against the actual parsing
+          // path used here.
+          const ExcelJS = await import("exceljs");
+          const workbook = new ExcelJS.Workbook();
+          const data = e.target?.result as ArrayBuffer;
+          await workbook.xlsx.load(data);
 
-          const raw = XLSX.utils.sheet_to_json(ws, { header:1, raw:false }) as string[][];
+          const ws = workbook.getWorksheet("Duty Roster");
+          if (!ws) { resolve({ weekStart: "", weekEnd: "", employees: [], errors: ["Sheet 'Duty Roster' not found"] }); return; }
+
+          // Build the same 0-indexed raw[][] shape the original SheetJS-based
+          // parser produced (header:1, raw:false) so the logic below is
+          // unchanged. exceljs rows/columns are 1-indexed with row/col 1
+          // being the first — row.values[0] is unused/undefined.
+          const raw: string[][] = [];
+          ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+            const values = row.values as any[];
+            const line: string[] = [];
+            for (let c = 1; c < values.length; c++) {
+              const v = values[c];
+              line[c - 1] = v === null || v === undefined ? "" : String(
+                typeof v === "object" && v !== null && "text" in v ? v.text
+                : typeof v === "object" && v !== null && "result" in v ? v.result
+                : v
+              );
+            }
+            raw[rowNumber - 1] = line;
+          });
+
           const errors: string[] = [];
 
           // Find header row (row with "Name" in col A)
@@ -86,12 +113,12 @@ async function parseRosterExcel(file: File): Promise<{
           for (let i = 0; i < raw.length; i++) {
             if (raw[i]?.[0]?.toString().trim() === "Name") { headerRow = i; dateRow = i + 1; break; }
           }
-          if (headerRow === -1) { resolve({ weekStart:"", weekEnd:"", employees:[], errors:["Could not find 'Name' header row"] }); return; }
+          if (headerRow === -1) { resolve({ weekStart: "", weekEnd: "", employees: [], errors: ["Could not find 'Name' header row"] }); return; }
 
           // Parse date columns
           const dateRow2 = raw[dateRow] ?? [];
           const colDates: Array<{ col: number; label: string; iso: string }> = [];
-          const MONTH_MAP: Record<string,number> = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+          const MONTH_MAP: Record<string, number> = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
 
           for (let c = 2; c < dateRow2.length; c++) {
             const raw_d = dateRow2[c]?.toString().trim() ?? "";
@@ -107,11 +134,10 @@ async function parseRosterExcel(file: File): Promise<{
             }
           }
 
-          if (colDates.length === 0) { resolve({ weekStart:"", weekEnd:"", employees:[], errors:["No valid date columns found in row 5"] }); return; }
+          if (colDates.length === 0) { resolve({ weekStart: "", weekEnd: "", employees: [], errors: ["No valid date columns found in row 5"] }); return; }
 
           const weekStart = colDates[0].iso;
           const weekEnd   = colDates[colDates.length - 1].iso;
-          const VALID_CODES = new Set(["5-2","1-10","1-10(b)","off","","5-2 (backup)","1-10 (backup)"]);
 
           const employees: Array<{ name: string; role: string; shifts: Record<string,string> }> = [];
 
@@ -123,7 +149,6 @@ async function parseRosterExcel(file: File): Promise<{
 
             const normRole = role.toLowerCase().includes("supervisor") ? "Supervisor" : "Car Washer";
             const shifts: Record<string,string> = {};
-            let rowErrors = 0;
 
             for (const cd of colDates) {
               const raw_shift = row[cd.col]?.toString().trim() ?? "";
@@ -134,7 +159,7 @@ async function parseRosterExcel(file: File): Promise<{
               else if (norm === "1-10")    code = "1-10";
               else if (norm.includes("backup") || norm === "1-10(b)") code = "1-10(B)";
               else if (norm === "off" || norm === "") code = norm === "" ? "" : "OFF";
-              else { errors.push(`Row ${r+1} (${name}): unknown code "${raw_shift}" on ${cd.label}`); rowErrors++; code = ""; }
+              else { errors.push(`Row ${r+1} (${name}): unknown code "${raw_shift}" on ${cd.label}`); code = ""; }
               shifts[cd.iso] = code;
             }
 
@@ -142,10 +167,10 @@ async function parseRosterExcel(file: File): Promise<{
           }
 
           resolve({ weekStart, weekEnd, employees, errors });
-        }).catch(err => resolve({ weekStart:"", weekEnd:"", employees:[], errors:[`XLSX library error: ${err.message}`] }));
-      } catch (err: any) {
-        resolve({ weekStart:"", weekEnd:"", employees:[], errors:[`Parse error: ${err.message}`] });
-      }
+        } catch (err: any) {
+          resolve({ weekStart: "", weekEnd: "", employees: [], errors: [`Parse error: ${err.message}`] });
+        }
+      })();
     };
     reader.readAsArrayBuffer(file);
   });

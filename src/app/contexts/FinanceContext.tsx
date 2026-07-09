@@ -383,7 +383,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const d = (e as CustomEvent).detail;
       if (!d?.amount) return;
       try {
-        addPayable({
+        createPayable({
           type: "Salary" as any,
           employeeId: d.employeeId,
           employeeName: d.employeeName,
@@ -413,7 +413,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const handleMRRRemove = (e: Event) => {
       const d = (e as CustomEvent).detail;
       if (!d?.subscriptionId) return;
-      try { updateMRRForCancellation(d.subscriptionId, new Date().toISOString()); } catch { /* ignore */ }
+      try { removeMRREntry(d.subscriptionId); } catch { /* ignore */ }
     };
     // Listener: accounting entries (Expense/Purchase) → create payable in FinanceContext
     const handleAccountingEntry = (e: Event) => {
@@ -570,7 +570,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const esicER  = payableData.esicEmployer ?? 0;
       const ptAmt   = payableData.pt ?? 0;
       const tdsAmt  = payableData.tdsDeducted ?? 0;
-      const entries: Parameters<typeof setLedgerEntries>[0] extends (prev: infer P) => P ? never : any[] = [];
+      const entries: LedgerEntry[] = [];
       // Debits — Expense side
       entries.push({ ...entryBase, ledgerEntryId: `LED-${Date.now()}-SAL-DR`, accountCode: "5100", accountName: deptLabel, entryType: "DEBIT" as const, amount: gross, description: `${deptLabel} — ${payableData.description}` });
       if (pfER > 0)   entries.push({ ...entryBase, ledgerEntryId: `LED-${Date.now()}-PFER-DR`, accountCode: "5200", accountName: "PF Employer Contribution (12% of Basic)", entryType: "DEBIT" as const, amount: pfER, description: `PF Employer — ${payableData.description}` });

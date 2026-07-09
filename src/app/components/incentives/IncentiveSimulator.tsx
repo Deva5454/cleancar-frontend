@@ -53,6 +53,7 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
+  AlertCircle,
   CheckCircle,
   Copy,
   Download,

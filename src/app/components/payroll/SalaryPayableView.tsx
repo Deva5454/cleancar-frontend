@@ -93,6 +93,7 @@ function formatDate(dateString: string): string {
 // ============================================================================
 
 export function SalaryPayableView() {
+  const navigate = useNavigate();
   const { payrollRuns } = usePayroll();
   const { employees } = useEmployee();
 

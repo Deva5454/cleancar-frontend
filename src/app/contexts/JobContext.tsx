@@ -11,6 +11,7 @@ import { useSync } from "../hooks/useSync";
 import { recordFirstWashDate } from "../services/firstWashReminderService";
 import { getBundleBySubscriptionId, recordBundleVisit, recordBundleFirstWash } from "../services/multiMonthBundleService";
 import { markOfferCompleted } from "../services/complimentary2WService";
+import { createUpsellTask, createPackUpsellTask } from "../services/tatTrackingService";
 import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow, sendBeforeAfterPhotos } from "../services/whatsappService";
 
 // Types

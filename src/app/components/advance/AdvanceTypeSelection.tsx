@@ -23,6 +23,11 @@ import {
 export function AdvanceTypeSelection() {
   const navigate = useNavigate();
   const { currentRole } = useRole();
+  // No real "Super Admin enabled long-term advances for this role" settings
+  // mechanism exists yet in the codebase — defaulting to hidden rather than
+  // fabricating an enabled state. Wire this to a real settings/permission
+  // source once one exists.
+  const longTermAllowed = false;
 
   const handleBack = () => {
     // Navigate based on role - washers go back to car washer module, others to home

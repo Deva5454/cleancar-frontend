@@ -123,7 +123,7 @@ export function TrialBalance() {
           closingDr: acc.closingDr + ledger.closingDr,
           closingCr: acc.closingCr + ledger.closingCr,
         }),
-        { accountHead: head, accountHeadLabel: headInfo?.label || head, nature: ledger.nature, openingDr: 0, openingCr: 0, periodDr: 0, periodCr: 0, closingDr: 0, closingCr: 0 }
+        { accountHead: head, accountHeadLabel: headInfo?.label || head, nature: ledgers[0]?.nature, openingDr: 0, openingCr: 0, periodDr: 0, periodCr: 0, closingDr: 0, closingCr: 0 }
       );
     });
 

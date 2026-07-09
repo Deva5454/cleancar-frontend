@@ -9,6 +9,7 @@
  */
 
 import { computePeriodicFlagsB } from "./periodicScheduleService";
+import type { PeriodicService } from "./periodicScheduleService";
 
 export interface CustomerJob {
   id: string;

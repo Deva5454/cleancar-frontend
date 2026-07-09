@@ -29,7 +29,7 @@ export interface ScoringResult {
 }
 
 const HIGH_VALUE_THRESHOLD = 100000;
-import { COMPANY_GST_CONFIG } from "./gstComplianceService";
+import { COMPANY_GST_CONFIG, gstComplianceService } from "./gstComplianceService";
 const COMPANY_STATE = COMPANY_GST_CONFIG.stateName;
 
 export function calculateRiskScore(factors: RiskFactors): number {

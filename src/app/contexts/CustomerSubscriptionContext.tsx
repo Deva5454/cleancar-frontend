@@ -28,6 +28,8 @@ import { useSync } from "../hooks/useSync";
 // REMOVED: circular import useFinance from FinanceContext
 import { useCity } from "./CityContext";
 import { periodicScheduleService } from "../services/periodicScheduleService";
+import { sendBookingPending, sendTeamAlert } from "../services/whatsappService";
+import { determineBookingWindow } from "../services/tatTrackingService";
 
 // Types
 export interface CustomerSubscription {

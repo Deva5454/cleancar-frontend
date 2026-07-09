@@ -61,6 +61,7 @@ import {
   OVERHEAD_ITEMS,
   AVG_WASHES_PER_MONTH,
   type Material,
+  getPackageCostBreakdown,
 } from "../../data/costData";
 import {
   CURRENT_PLAN_VERSION,
@@ -92,6 +93,12 @@ export function CostPerWashCompany() {
   const [selectedPackage, setSelectedPackage] = useState<PlanType>("Shampoo Wash");
   const [selectedVehicleCategory, setSelectedVehicleCategory] =
     useState<VehicleCategory>("Hatchback / Compact Sedan");
+  // "Include Incentive Costs" toggle — referenced by the checkbox below but
+  // never had backing state. No per-wash incentive cost data exists yet in
+  // costData.ts (MANPOWER_ROLES has no incentive field), so this currently
+  // has no numeric effect on the breakdown — it's wired up honestly rather
+  // than inventing an incentive percentage that isn't backed by real data.
+  const [withIncentive, setWithIncentive] = useState(false);
   const [selectedWasher, setSelectedWasher] = useState<string>("Average");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("This Month");
   const [selectedZones, setSelectedZones] = useState<string[]>(["All Zones"]);
@@ -207,6 +214,19 @@ export function CostPerWashCompany() {
     );
   };
 
+
+  // Cost breakdown for the selected package/vehicle category — uses the
+  // real calculation logic in costData.ts (material + consumable + manpower
+  // + overhead), not a placeholder. This function was called throughout the
+  // component but was missing entirely.
+  const getCostBreakdown = () => {
+    const allPackages = getPackageCostBreakdown(selectedVehicleCategory);
+    const match = allPackages.find((p) => p.package === selectedPackage) || allPackages[0];
+    return {
+      ...match,
+      totalCost: match.totalCompanyCost,
+    };
+  };
 
   // Mock data for trend chart (last 6 months)
   const getTrendData = () => {

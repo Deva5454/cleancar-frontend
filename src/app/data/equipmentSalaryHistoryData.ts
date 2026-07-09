@@ -7,6 +7,7 @@ import {
   type Equipment,
   type SalaryHistoryRecord,
   type IdealParameterHistory,
+  type IdealParameterType,
   type WorkingDaysCalendar,
 } from "./costData";
 
