@@ -22,7 +22,8 @@ import {
   TableRow,
 } from "../ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Save, Trash2, Eye, Edit, AlertCircle, Calculator, FileText, Settings, Plus, X, Database, Award, Download } from "lucide-react";
+import { Save, Trash2, Eye, Edit, AlertCircle, Calculator, FileText, Settings, Plus, X, Database, Award, Download, Sparkles } from "lucide-react";
+import { SlabStructureBuilder } from "./SlabStructureBuilder";
 import { toast } from "sonner";
 import { salaryStructureService, SalaryStructure } from "../../services/salaryStructureService";
 import type { SalaryComponents } from "../../services/salaryStructureService";
@@ -782,13 +783,28 @@ export function CreateSalaryStructure() {
         <TabsList>
           <TabsTrigger value="create">
             <Calculator className="w-4 h-4 mr-2" />
-            Create Structure
+            Percentage-Based Template
+          </TabsTrigger>
+          <TabsTrigger value="slab">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Statutory Slab Table
           </TabsTrigger>
           <TabsTrigger value="saved">
             <FileText className="w-4 h-4 mr-2" />
             Saved Structures ({savedStructures.length})
           </TabsTrigger>
         </TabsList>
+
+        {/* SLAB TABLE TAB — Gross-to-structure auto-fill from HR/Finance's
+            validated statutory slab tables (MH/Gujarat 8.33% & 20% bonus
+            schemes). Additive alongside the existing percentage method;
+            nothing below in the "create" tab changes. */}
+        <TabsContent value="slab">
+          <SlabStructureBuilder
+            roles={ROLES.map(r => ({ id: r.id, label: r.name }))}
+            onSaved={() => setSavedStructures(salaryStructureService.getAll())}
+          />
+        </TabsContent>
 
         {/* CREATE TAB */}
         <TabsContent value="create">
