@@ -53,6 +53,7 @@ import {
   Shield, ToggleLeft
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { leaveBalanceService } from "../../services/leaveBalanceService";
 import { MASTER_EMPLOYEES } from "../../data/employeeData";
 import {
   LEAVE_GLOBAL_SETTINGS,
@@ -199,14 +200,85 @@ function ProfessionalLeaveManagement() {
   
   // Get current employee
   const employee = employeeScenarios.find(emp => emp.id === selectedEmployeeId) || employeeScenarios[0];
-  
-  // Leave balances based on selected employee
-  const [leavesTaken, setLeavesTaken] = useState(leaveScenarios[selectedEmployeeId] || { CL: 0, PL: 0, SL: 0, UL: 0 });
+
+  // ── Real leave requests (submit/approve/reject) ─────────────────────────
+  // Previously this whole screen displayed a static hardcoded object
+  // (allLeaveHistory below) — the "Apply for Leave" form already correctly
+  // persisted to DataService.insert("LEAVE_REQUESTS", ...), but nothing ever
+  // read it back, so submitted requests were invisible and unapprovable.
+  const [realLeaveRequests, setRealLeaveRequests] = useState<any[]>(() => DataService.get("LEAVE_REQUESTS" as any));
+
+  const realHistoryByEmployee: Record<string, LeaveApplication[]> = {};
+  realLeaveRequests.forEach((r: any) => {
+    const emp = employeeScenarios.find(e => e.id === r.employeeId);
+    const fromMs = new Date(r.fromDate).getTime();
+    const toMs = new Date(r.toDate || r.fromDate).getTime();
+    const days = Math.max(1, Math.round((toMs - fromMs) / 86400000) + 1);
+    const entry: LeaveApplication = {
+      id: r.id, employeeId: r.employeeId, employeeName: emp?.name || r.employeeId,
+      leaveType: r.leaveType, fromDate: r.fromDate, toDate: r.toDate || r.fromDate,
+      days, reason: r.reason || "", status: r.status,
+      appliedOn: r.appliedAt || r.appliedOn || "", approvedBy: r.approvedBy, approvedOn: r.approvedOn,
+    };
+    (realHistoryByEmployee[r.employeeId] ||= []).push(entry);
+  });
+
+  // Leave balances based on selected employee — derived from real approved
+  // leave requests (this year), not the hardcoded leaveScenarios lookup.
+  const currentYear = new Date().getFullYear();
+  const leavesTaken = (realHistoryByEmployee[selectedEmployeeId] || [])
+    .filter(l => l.status === "Approved" && new Date(l.fromDate).getFullYear() === currentYear)
+    .reduce((acc, l) => {
+      const key = l.leaveType as LeaveType;
+      if (key === "CL" || key === "PL" || key === "SL" || key === "UL") {
+        acc[key] = (acc[key] || 0) + l.days;
+      }
+      return acc;
+    }, { CL: 0, PL: 0, SL: 0, UL: 0 } as { CL: number; PL: number; SL: number; UL: number });
 
   // Update leaves when employee changes
   const handleEmployeeChange = (empId: string) => {
     setSelectedEmployeeId(empId);
-    setLeavesTaken(leaveScenarios[empId] || { CL: 0, PL: 0, SL: 0, UL: 0 });
+  };
+
+  // Maps this screen's local 4-type taxonomy (CL/PL/SL/UL) to leaveBalanceService's
+  // canonical types (CSL/PL/LWP/UPL) — see leavePolicyConfiguration.ts's note
+  // that CL was merged into CSL. CL and SL both draw from the same CSL bucket.
+  const toCanonicalLeaveType = (t: string): ConfigLeaveType | null => {
+    if (t === "CL" || t === "SL" || t === "CSL") return "CSL";
+    if (t === "PL") return "PL";
+    if (t === "UL" || t === "UPL") return "UPL";
+    if (t === "LWP") return "LWP";
+    return null;
+  };
+
+  const canReviewLeave = ["HR", "Super Admin", "Operations Manager", "Supervisor"].includes(currentRole);
+
+  const handleApproveLeave = (leave: LeaveApplication) => {
+    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can approve leave"); return; }
+    const canonicalType = toCanonicalLeaveType(leave.leaveType);
+    if (canonicalType && canonicalType !== "LWP") {
+      const result = leaveBalanceService.deductLeave(leave.employeeId, canonicalType, leave.days, leave.reason);
+      if (!result.success) {
+        toast.warning(`Approved, but leave balance wasn't updated: ${result.error}`);
+      }
+    }
+    const updated = realLeaveRequests.map((r: any) => r.id === leave.id
+      ? { ...r, status: "Approved", approvedBy: currentUser?.name || "HR", approvedOn: new Date().toISOString() }
+      : r);
+    DataService.setAll("LEAVE_REQUESTS" as any, updated);
+    setRealLeaveRequests(updated);
+    toast.success(`${leave.leaveType} leave approved for ${leave.employeeName}`);
+  };
+
+  const handleRejectLeave = (leave: LeaveApplication) => {
+    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can reject leave"); return; }
+    const updated = realLeaveRequests.map((r: any) => r.id === leave.id
+      ? { ...r, status: "Rejected", approvedBy: currentUser?.name || "HR", approvedOn: new Date().toISOString() }
+      : r);
+    DataService.setAll("LEAVE_REQUESTS" as any, updated);
+    setRealLeaveRequests(updated);
+    toast.success(`${leave.leaveType} leave rejected for ${leave.employeeName}`);
   };
 
   // Comprehensive leave history for all employees
@@ -499,7 +571,7 @@ function ProfessionalLeaveManagement() {
   };
   
   // Get leave history for selected employee
-  const leaveHistory = allLeaveHistory[selectedEmployeeId] || [];
+  const leaveHistory = realHistoryByEmployee[selectedEmployeeId] || [];
 
   // Calculate probation data
   const probationData = employee.confirmationDate 
@@ -1575,8 +1647,9 @@ function ProfessionalLeaveManagement() {
                     <Input
                       type="number"
                       value={leavesTaken.CL}
-                      onChange={(e) => setLeavesTaken({ ...leavesTaken, CL: Number(e.target.value) })}
-                      className="font-bold"
+                      disabled
+                      className="font-bold bg-gray-50"
+                      title="Auto-calculated from approved leave requests this year"
                     />
                   </div>
                   <div>
@@ -1616,8 +1689,9 @@ function ProfessionalLeaveManagement() {
                     <Input
                       type="number"
                       value={leavesTaken.PL}
-                      onChange={(e) => setLeavesTaken({ ...leavesTaken, PL: Number(e.target.value) })}
-                      className="font-bold"
+                      disabled
+                      className="font-bold bg-gray-50"
+                      title="Auto-calculated from approved leave requests this year"
                     />
                   </div>
                   <div>
@@ -1665,8 +1739,9 @@ function ProfessionalLeaveManagement() {
                     <Input
                       type="number"
                       value={leavesTaken.SL}
-                      onChange={(e) => setLeavesTaken({ ...leavesTaken, SL: Number(e.target.value) })}
-                      className="font-bold"
+                      disabled
+                      className="font-bold bg-gray-50"
+                      title="Auto-calculated from approved leave requests this year"
                     />
                   </div>
                   <div>
@@ -1706,8 +1781,9 @@ function ProfessionalLeaveManagement() {
                     <Input
                       type="number"
                       value={leavesTaken.UL}
-                      onChange={(e) => setLeavesTaken({ ...leavesTaken, UL: Number(e.target.value) })}
-                      className="font-bold"
+                      disabled
+                      className="font-bold bg-gray-50"
+                      title="Auto-calculated from approved leave requests this year"
                     />
                   </div>
                   <div>
@@ -1872,6 +1948,7 @@ function ProfessionalLeaveManagement() {
                         <th className="px-6 py-4 text-left">Reason</th>
                         <th className="px-6 py-4 text-center">Status</th>
                         <th className="px-6 py-4 text-left">Approved By</th>
+                        <th className="px-6 py-4 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -1934,6 +2011,18 @@ function ProfessionalLeaveManagement() {
                                 <p className="text-slate-500 text-xs">
                                   {leave.approvedOn && new Date(leave.approvedOn).toLocaleDateString('en-IN')}
                                 </p>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {leave.status === "Pending" && canReviewLeave && (
+                              <div className="flex gap-1.5 justify-center">
+                                <Button size="sm" className="bg-green-600 hover:bg-green-700 h-7 px-2" onClick={() => handleApproveLeave(leave)}>
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50 h-7 px-2" onClick={() => handleRejectLeave(leave)}>
+                                  <XCircle className="w-3.5 h-3.5" />
+                                </Button>
                               </div>
                             )}
                           </td>
@@ -2396,7 +2485,7 @@ function ProfessionalLeaveManagement() {
                 <div className="space-y-6">
                   {employeeScenarios.map((emp) => {
                     const empLeaves = leaveScenarios[emp.id] || { CL: 0, PL: 0, SL: 0, UL: 0 };
-                    const empHistory = allLeaveHistory[emp.id] || [];
+                    const empHistory = realHistoryByEmployee[emp.id] || [];
                     const probation = emp.confirmationDate
                       ? calculateProbationCredits(emp.joiningDate, emp.confirmationDate)
                       : null;
