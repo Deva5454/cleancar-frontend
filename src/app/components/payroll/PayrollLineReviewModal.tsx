@@ -95,6 +95,27 @@ export function PayrollLineReviewModal({
   const attCounts: Partial<Record<CanonicalCode, number>> = {};
   displayRows.forEach((r) => { attCounts[r.code] = (attCounts[r.code] || 0) + 1; });
 
+  // Monthly summary + type counts + fix/earning proration — same formula
+  // as the Attendance View, verified against the reference example.
+  const totalDaysAtt = displayRows.length;
+  const leaveWithoutPayDays = (attCounts.LWP || 0) + 0.5 * (attCounts.HLWP || 0);
+  const absentDaysAtt = attCounts.A || 0;
+  const daysToDeductAtt = absentDaysAtt + leaveWithoutPayDays;
+  const paidDaysAtt = totalDaysAtt - leaveWithoutPayDays - absentDaysAtt;
+  const paidRatioAtt = totalDaysAtt > 0 ? paidDaysAtt / totalDaysAtt : 1;
+  const typeCounts = {
+    fullCSL: attCounts.CSL || 0, halfCSL: attCounts.HCSL || 0,
+    fullPL: attCounts.PL || 0, halfHPL: attCounts.HPL || 0,
+    fullCOFF: attCounts.COFF || 0, halfCOFF: attCounts.HCOFF || 0,
+    publicHoliday: attCounts.PH || 0,
+    fullLWP: attCounts.LWP || 0, halfLWP: attCounts.HLWP || 0,
+  };
+  // Base Salary here is treated as the fix monthly gross; earning = fix
+  // prorated by paid days, matching the reference's Basic/HRA proration.
+  const earningBaseSalary = Math.round(employee.baseSalary * paidRatioAtt);
+  const perDayBase = totalDaysAtt > 0 ? employee.baseSalary / totalDaysAtt : 0;
+  const attendanceDeductionAmt = Math.round(perDayBase * daysToDeductAtt);
+
   const handleDownloadAttendanceExcel = async () => {
     if (!canReview) { toast.error("Only Super Admin or HR can download attendance data"); return; }
     try {
@@ -112,6 +133,13 @@ export function PayrollLineReviewModal({
       displayRows.forEach((r, idx) => {
         ws.addRow([idx + 1, r.date, r.code, r.checkIn || "", r.checkOut || "", computeWorkingHours(r.checkIn, r.checkOut), r.code === "WOFF" || r.code === "PH" ? "YES" : "NO"]);
       });
+      ws.addRow([]);
+      ws.addRow(["TOTAL DAYS", totalDaysAtt, "PAID DAYS", paidDaysAtt, "ATTENDANCE - DAYS TO BE DEDUCT", daysToDeductAtt]);
+      ws.addRow([]);
+      ws.addRow(["FULL CSL", "HALF CSL", "FULL PL", "HALF HPL", "FULL COFF", "HALF COFF", "PUBLIC HOLIDAY", "FULL LWP", "HALF LWP"]);
+      ws.addRow([typeCounts.fullCSL, typeCounts.halfCSL, typeCounts.fullPL, typeCounts.halfHPL, typeCounts.fullCOFF, typeCounts.halfCOFF, typeCounts.publicHoliday, typeCounts.fullLWP, typeCounts.halfLWP]);
+      ws.addRow([]);
+      ws.addRow(["Base Salary (Fix)", employee.baseSalary, "Base Salary (Earning)", earningBaseSalary, "Attendance Deduction", attendanceDeductionAmt]);
       ws.columns.forEach((c) => { c.width = 16; });
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -264,6 +292,35 @@ export function PayrollLineReviewModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Attendance-driven pay reference — informational, matches the
+              reference Excel's type-count and fix/earning columns. The
+              actual numbers HR approves/corrects are in the editable panel
+              below (which can differ if HR overrides). */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs space-y-2">
+            <p className="font-semibold text-blue-900">Attendance-Based Pay Reference</p>
+            <table className="w-full text-center">
+              <thead className="text-gray-500">
+                <tr>
+                  <th className="font-normal">Full CSL</th><th className="font-normal">Half CSL</th><th className="font-normal">Full PL</th>
+                  <th className="font-normal">Half HPL</th><th className="font-normal">Full COFF</th><th className="font-normal">Half COFF</th>
+                  <th className="font-normal">PH</th><th className="font-normal">Full LWP</th><th className="font-normal">Half LWP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="font-semibold border-t">
+                  <td>{typeCounts.fullCSL}</td><td>{typeCounts.halfCSL}</td><td>{typeCounts.fullPL}</td>
+                  <td>{typeCounts.halfHPL}</td><td>{typeCounts.fullCOFF}</td><td>{typeCounts.halfCOFF}</td>
+                  <td>{typeCounts.publicHoliday}</td><td>{typeCounts.fullLWP}</td><td>{typeCounts.halfLWP}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-gray-600">
+              Base Salary fix {formatCurrency(employee.baseSalary)} prorated by paid days ({paidDaysAtt}/{totalDaysAtt}) = earning{" "}
+              <strong>{formatCurrency(earningBaseSalary)}</strong>. Attendance deduction for {daysToDeductAtt} unpaid day(s):{" "}
+              <strong className="text-red-600">-{formatCurrency(attendanceDeductionAmt)}</strong>.
+            </p>
           </div>
 
           {!editing ? (

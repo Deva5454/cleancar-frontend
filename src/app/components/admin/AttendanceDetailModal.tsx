@@ -213,22 +213,53 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
   const leaveAdjusted = (counts.PLRG || 0) + 0.5 * (counts.HPLRG || 0);
   const daysToDeduct = absentDays + leaveWithoutPay;
 
+  // Attendance type counts — matches the reference's "FULL CSL / HALF CSL /
+  // FULL PL / HALF HPL / FULL COFF / HALF COFF / PUBLIC HOLIDAY / FULL LWP /
+  // HALF LWP" row (counts of each code's occurrences this month).
+  const typeCounts = {
+    fullCSL: counts.CSL || 0, halfCSL: counts.HCSL || 0,
+    fullPL: counts.PL || 0, halfHPL: counts.HPL || 0,
+    fullCOFF: counts.COFF || 0, halfCOFF: counts.HCOFF || 0,
+    publicHoliday: counts.PH || 0,
+    fullLWP: counts.LWP || 0, halfLWP: counts.HLWP || 0,
+  };
+
   // ── Salary & Deduction breakdown (Part B) — see file header note ───
+  // Reverse-engineered and verified against a real reference example
+  // (Gross 17000, Paid Days 22.5/31 → Basic 12000 fix, 8710 earning; EPF
+  // 1045; ESIC 93; EPS 726; employer EPF 319; ESIC employer 402;
+  // attendance deduction 823 — all confirmed to match this formula).
   const gross = illustrativeGrossForRole(employee.role);
-  const salary = calculateCTCFromGross(gross);
+  const fix = calculateCTCFromGross(gross); // the "ACTUAL FIX AMOUNT" pay heads
+  const paidRatio = totalDays > 0 ? paidDays / totalDays : 1;
+
+  // Each pay head's "EARNING AMOUNT" = its fix amount prorated by paid days.
+  const earnBasic = Math.round(fix.basic * paidRatio);
+  const earnHRA = Math.round(fix.hra * paidRatio);
+  const earnConveyance = Math.round(fix.conveyance * paidRatio);
+  const earnMedical = Math.round(fix.medical * paidRatio);
+  const earnSpecial = Math.round(fix.specialAllowance * paidRatio);
+  const totalEarning = earnBasic + earnHRA + earnConveyance + earnMedical + earnSpecial;
+
   const state = detectStateFromCity("surat"); // this admin tool is Surat-scoped (?city=surat)
+  // Statutory deductions are computed off the PRORATED (earning) amounts,
+  // not the fix amounts — confirmed by the reference (EPF = 12% of prorated
+  // Basic 8710 = 1045, not 12% of fix Basic 12000 = 1440).
   const compliance = calculateStatutoryDeductions(
     state,
-    {
-      basic: salary.basic, hra: salary.hra, conveyance: salary.conveyance,
-      medicalAllowance: salary.medical, specialAllowance: salary.specialAllowance, otherAllowances: 0,
-    },
-    salary.annualCTC
+    { basic: earnBasic, hra: earnHRA, conveyance: earnConveyance, medicalAllowance: earnMedical, specialAllowance: earnSpecial, otherAllowances: 0 },
+    totalEarning * 12
   );
-  const perDayGross = gross / 30;
+  const employeePF = Math.round(earnBasic * 0.12);
+  const employeeESIC = Math.round(totalEarning * 0.0075);
+  const employerEPS = Math.round(earnBasic * 0.0833);
+  const employerEPFResidual = Math.round(earnBasic * 0.0367);
+  const employerESIC = Math.round(totalEarning * 0.0325);
+
+  const perDayGross = totalDays > 0 ? gross / totalDays : 0;
   const attendanceDeduction = Math.round(perDayGross * daysToDeduct);
-  const totalDeduction = salary.employeePF + salary.employeeESIC + salary.professionalTax + compliance.deductions.tds.monthly + compliance.deductions.lwf.employee;
-  const netPayable = gross - totalDeduction - attendanceDeduction;
+  const totalDeduction = employeePF + employeeESIC + compliance.deductions.pt.amount + compliance.deductions.tds.monthly + compliance.deductions.lwf.employee + attendanceDeduction;
+  const netPayable = totalEarning - totalDeduction;
 
   const handleDownloadExcel = async () => {
     if (!canDownload) { toast.error("Only Super Admin or HR can download attendance data"); return; }
@@ -255,6 +286,10 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
       ws.addRow(["PRESENT DAYS", presentDays, "ABSENT DAYS", absentDays, "LEAVE WITH SALARY", leaveWithSalary, "LEAVE WITHOUT PAY", leaveWithoutPay]);
       ws.addRow([]);
       ws.addRow(["MATERNITY LEAVE", maternityLeave, "LATE COMING COUNT", lateComingCount, "AUTO LOGOUT COUNT", autoLogoutCount, "ATTENDANCE - DAYS TO BE DEDUCT", daysToDeduct, "LEAVE ADJUSTED", leaveAdjusted]);
+      ws.addRow(["ATTENDANCE - DAYS DEDUCTED", daysToDeduct]);
+      ws.addRow([]);
+      ws.addRow(["FULL CSL", "HALF CSL", "FULL PL", "HALF HPL", "FULL COFF", "HALF COFF", "PUBLIC HOLIDAY", "FULL LWP", "HALF LWP"]);
+      ws.addRow([typeCounts.fullCSL, typeCounts.halfCSL, typeCounts.fullPL, typeCounts.halfHPL, typeCounts.fullCOFF, typeCounts.halfCOFF, typeCounts.publicHoliday, typeCounts.fullLWP, typeCounts.halfLWP]);
       ws.columns.forEach((c) => { c.width = 16; });
 
       // ── Sheet 2: Salary & Deduction (Part B) ──
@@ -264,19 +299,19 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
       ws2.addRow(["EMPLOYEE NAME", employee.employeeName, "ACTUAL GROSS", gross, "EMPLOYEE CATEGORY", "ATTENDANCE FIX", "GENDER", "Not on file"]);
       ws2.addRow([]);
       ws2.addRow(["PAY HEAD", "ACTUAL FIX AMOUNT", "EARNING AMOUNT", "VARIABLE PAY HEAD", "EARNING AMOUNT", "DEDUCTION HEAD", "AMOUNT", "COMPANY'S PART", "AMOUNT"]);
-      ws2.addRow(["Basic", salary.basic, salary.basic, "Traveling & Misc Expenses Reimbursement", 0, "EPF", salary.employeePF, "PF GROSS", salary.basic]);
-      ws2.addRow(["HRA", salary.hra, salary.hra, "Sales Incentive", 0, "ESIC", salary.employeeESIC, "EPS", Math.round(salary.employerPF * 0.6389)]);
-      ws2.addRow(["Conveyance Allowance", salary.conveyance, salary.conveyance, "Performance / Production Incentive", 0, "PT", salary.professionalTax, "EPF", Math.round(salary.employerPF * 0.3611)]);
-      ws2.addRow(["Medical Allowance", salary.medical, salary.medical, "Overtime", 0, "LWF", compliance.deductions.lwf.employee, "ESIC GROSS", gross]);
-      ws2.addRow(["Special Allowance", salary.specialAllowance, salary.specialAllowance, "Commission", 0, "TDS", compliance.deductions.tds.monthly, "ESIC (Employer)", salary.employerESIC]);
-      ws2.addRow(["Uniform Allowance", 0, 0, "", "", "", "", "LWF (Employer)", compliance.deductions.lwf.employer]);
-      ws2.addRow(["Washing Allowance", 0, 0]);
-      ws2.addRow(["Helper Allowance", 0, 0]);
-      ws2.addRow(["LTA", 0, 0]);
+      ws2.addRow(["Basic", fix.basic, earnBasic, "Traveling & Misc Expenses Reimbursement", 0, "EPF", employeePF, "PF GROSS", earnBasic, "IN CASE EMPLOYEE'S PF FLAG IS YES"]);
+      ws2.addRow(["HRA", fix.hra, earnHRA, "Sales Incentive", 0, "ESIC", employeeESIC, "EPS", employerEPS]);
+      ws2.addRow(["Uniform Allowance", 0, 0, "Performance / Production Incentive", 0, "PT", compliance.deductions.pt.amount, "EPF", employerEPFResidual]);
+      ws2.addRow(["Washing Allowance", 0, 0, "Overtime", 0, "LWF", compliance.deductions.lwf.employee, "ESIC GROSS", totalEarning, "IN CASE EMPLOYEE'S ESIC FLAG IS YES"]);
+      ws2.addRow(["Conveyance Allowance", fix.conveyance, earnConveyance, "Commission", 0, "TDS", compliance.deductions.tds.monthly, "ESIC", employerESIC]);
+      ws2.addRow(["Medical Allowance", fix.medical, earnMedical, "OTHER DEDUCTION", 0, "SUR CHARGE", 0, "LWF", compliance.deductions.lwf.employer]);
+      ws2.addRow(["Special Allowance", fix.specialAllowance, earnSpecial, "", "", "EDU CESS", 0]);
+      ws2.addRow(["Helper Allowance", 0, 0, "", "", "LOAN", 0]);
+      ws2.addRow(["LTA", 0, 0, "", "", "ADVANCE", 0]);
       ws2.addRow(["Education Allowance", 0, 0]);
       ws2.addRow(["STIPEND", 0, 0, "", "", "ATTENDANCE DEDUCTION", attendanceDeduction]);
       ws2.addRow([]);
-      ws2.addRow(["EARNING", gross, "TOTAL EARNING", gross, "TOTAL DEDUCTION", totalDeduction + attendanceDeduction, "NET PAYABLE", netPayable]);
+      ws2.addRow(["EARNING", totalEarning, "TOTAL EARNING", totalEarning, "TOTAL DEDUCTION", totalDeduction, "NET PAYABLE", netPayable]);
       ws2.addRow([]);
       ws2.addRow(["Note: Uniform/Washing/Helper Allowance, LTA, Education Allowance, Stipend, and variable pay (Incentive/Overtime/Commission)"]);
       ws2.addRow(["are not tracked as separate components in the current salary structure for this employee — shown as 0, not fabricated."]);
@@ -423,23 +458,49 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
                   Figures below are computed with the app's real payroll formulas from a role-based example gross
                   (₹{gross.toLocaleString("en-IN")}/month), the same way the reference template uses a fictional
                   "Mr. ABC". Bank details, incentives, and overtime show as blank/0 since there's nothing to pull.
+                  Earning amounts are the fix amount prorated by paid days ({paidDays}/{totalDays}).
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div><p className="text-gray-500">Basic</p><p className="font-semibold">₹{salary.basic.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">HRA</p><p className="font-semibold">₹{salary.hra.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Conveyance</p><p className="font-semibold">₹{salary.conveyance.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Medical</p><p className="font-semibold">₹{salary.medical.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Special Allowance</p><p className="font-semibold">₹{salary.specialAllowance.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">EPF (Employee)</p><p className="font-semibold text-red-600">-₹{salary.employeePF.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">ESIC (Employee)</p><p className="font-semibold text-red-600">-₹{salary.employeeESIC.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Professional Tax</p><p className="font-semibold text-red-600">-₹{salary.professionalTax.toLocaleString("en-IN")}</p></div>
+                <table className="w-full text-xs">
+                  <thead><tr className="text-gray-500"><th className="text-left font-normal">Pay Head</th><th className="text-right font-normal">Fix Amount</th><th className="text-right font-normal">Earning Amount</th></tr></thead>
+                  <tbody>
+                    <tr className="border-t"><td className="py-1">Basic</td><td className="text-right">₹{fix.basic.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnBasic.toLocaleString("en-IN")}</td></tr>
+                    <tr className="border-t"><td className="py-1">HRA</td><td className="text-right">₹{fix.hra.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnHRA.toLocaleString("en-IN")}</td></tr>
+                    <tr className="border-t"><td className="py-1">Conveyance</td><td className="text-right">₹{fix.conveyance.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnConveyance.toLocaleString("en-IN")}</td></tr>
+                    <tr className="border-t"><td className="py-1">Medical</td><td className="text-right">₹{fix.medical.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnMedical.toLocaleString("en-IN")}</td></tr>
+                    <tr className="border-t"><td className="py-1">Special Allowance</td><td className="text-right">₹{fix.specialAllowance.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnSpecial.toLocaleString("en-IN")}</td></tr>
+                    <tr className="border-t font-bold"><td className="py-1">Total Earning</td><td></td><td className="text-right">₹{totalEarning.toLocaleString("en-IN")}</td></tr>
+                  </tbody>
+                </table>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-purple-200 pt-2">
+                  <div><p className="text-gray-500">EPF (Employee)</p><p className="font-semibold text-red-600">-₹{employeePF.toLocaleString("en-IN")}</p></div>
+                  <div><p className="text-gray-500">ESIC (Employee)</p><p className="font-semibold text-red-600">-₹{employeeESIC.toLocaleString("en-IN")}</p></div>
+                  <div><p className="text-gray-500">Professional Tax</p><p className="font-semibold text-red-600">-₹{compliance.deductions.pt.amount.toLocaleString("en-IN")}</p></div>
                   <div><p className="text-gray-500">TDS</p><p className="font-semibold text-red-600">-₹{compliance.deductions.tds.monthly.toLocaleString("en-IN")}</p></div>
                   <div><p className="text-gray-500">LWF (Employee)</p><p className="font-semibold text-red-600">-₹{compliance.deductions.lwf.employee.toLocaleString("en-IN")}</p></div>
                   <div><p className="text-gray-500">Attendance Deduction</p><p className="font-semibold text-red-600">-₹{attendanceDeduction.toLocaleString("en-IN")} ({daysToDeduct} days)</p></div>
-                  <div className="col-span-2 sm:col-span-1"><p className="text-gray-500">Net Payable</p><p className="font-bold text-green-700">₹{netPayable.toLocaleString("en-IN")}</p></div>
+                  <div className="col-span-2 sm:col-span-2"><p className="text-gray-500">Net Payable</p><p className="font-bold text-green-700">₹{netPayable.toLocaleString("en-IN")}</p></div>
                 </div>
                 <div className="border-t border-purple-200 pt-2 text-xs text-gray-500">
-                  <p><strong>Employer's Part (not deducted from employee):</strong> EPF ₹{salary.employerPF.toLocaleString("en-IN")} · ESIC ₹{salary.employerESIC.toLocaleString("en-IN")} · LWF ₹{compliance.deductions.lwf.employer.toLocaleString("en-IN")}</p>
+                  <p><strong>Employer's Part (not deducted from employee):</strong> EPS ₹{employerEPS.toLocaleString("en-IN")} · EPF ₹{employerEPFResidual.toLocaleString("en-IN")} · ESIC ₹{employerESIC.toLocaleString("en-IN")} · LWF ₹{compliance.deductions.lwf.employer.toLocaleString("en-IN")}</p>
+                </div>
+                <div className="border-t border-purple-200 pt-2">
+                  <p className="text-xs font-semibold text-purple-800 mb-1">Attendance Type Counts (this month)</p>
+                  <table className="w-full text-xs text-center">
+                    <thead className="text-gray-500">
+                      <tr>
+                        <th className="font-normal">Full CSL</th><th className="font-normal">Half CSL</th><th className="font-normal">Full PL</th>
+                        <th className="font-normal">Half HPL</th><th className="font-normal">Full COFF</th><th className="font-normal">Half COFF</th>
+                        <th className="font-normal">Public Holiday</th><th className="font-normal">Full LWP</th><th className="font-normal">Half LWP</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="font-semibold border-t">
+                        <td>{typeCounts.fullCSL}</td><td>{typeCounts.halfCSL}</td><td>{typeCounts.fullPL}</td>
+                        <td>{typeCounts.halfHPL}</td><td>{typeCounts.fullCOFF}</td><td>{typeCounts.halfCOFF}</td>
+                        <td>{typeCounts.publicHoliday}</td><td>{typeCounts.fullLWP}</td><td>{typeCounts.halfLWP}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
