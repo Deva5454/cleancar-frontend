@@ -12,6 +12,7 @@ import { Badge } from "../ui/badge";
 import { Textarea } from "../ui/textarea";
 import { BackButton } from "../ui/back-button";
 import { useRole } from "../../contexts/RoleContext";
+import { usePayroll } from "../../contexts/PayrollContext";
 import {
   LogOut, CheckCircle, X, Clock, DollarSign, FileText,
   AlertCircle, User, Package, Shield, Calendar, Bell
@@ -86,6 +87,7 @@ const returnableMaterials: Omit<MaterialItem, "id" | "condition">[] = [
 
 export function ExitFFSettlement() {
   const { currentRole, currentUser } = useRole();
+  const { getPayrollByEmployee } = usePayroll();
 
   // Helper: safely extract a name string from a value that might be an object
   const safeName = (v: any): string => {
@@ -693,7 +695,27 @@ export function ExitFFSettlement() {
                   <Button 
                     size="sm" 
                     className="bg-purple-600 hover:bg-purple-700"
-                    onClick={() => setSelectedExit(exit)}
+                    onClick={() => {
+                      // Pre-fill pending salary from the employee's real most
+                      // recent payroll run, instead of leaving HR to type in
+                      // a number from memory. Still fully editable — this is
+                      // a starting point, not a locked figure.
+                      const history = getPayrollByEmployee(exit.employeeId);
+                      const mostRecent = history.slice().sort((a: { month: string }, b: { month: string }) => b.month.localeCompare(a.month))[0];
+                      setFFForm({
+                        pendingSalary: mostRecent?.netSalary || 0,
+                        leaveEncashment: 0,
+                        bonus: 0,
+                        reimbursements: 0,
+                        noticePeriodRecovery: 0,
+                        equipmentDamage: 0,
+                        advanceRecovery: 0,
+                      });
+                      if (!mostRecent) {
+                        toast.warning("No payroll history found for this employee — pending salary starts at ₹0, enter manually.");
+                      }
+                      setSelectedExit(exit);
+                    }}
                   >
                     <DollarSign className="w-4 h-4 mr-2" />
                     Calculate F&F Settlement
