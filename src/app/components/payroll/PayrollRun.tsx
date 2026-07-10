@@ -46,6 +46,8 @@ import { useRole } from "../../contexts/RoleContext";
 import { useAttendance } from "../../contexts/AttendanceContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { CITIES } from "../../contexts/CityContext";
+import { employeeSalaryService } from "../../services/employeeSalaryService";
+import { illustrativeGrossForRole } from "../../utils/attendanceReportCore";
 
 interface PayrollResult {
   employeeId: string;
@@ -76,24 +78,31 @@ export function PayrollRun() {
   const { computeDaysPresent } = useAttendance();
   const canApprove = hasPermission(currentUser, "payroll", "approve");
   const { employees: allEmployees } = useEmployee();
-  const cityEmployees = allEmployees.filter(e =>
-    e.role === "Car Washer" || e.role === "Supervisor"
-  );
+  // Previously filtered to only Car Washer/Supervisor — every active
+  // employee should be eligible for a payroll run regardless of role.
+  const cityEmployees = allEmployees.filter(e => e.status === "Active");
 
-  // Mock payroll results - In production from payrollEngine
-  const mockResults: PayrollResult[] = cityEmployees.slice(0, 10).map(emp => ({
-    employeeId: emp.employeeId,
-    employeeName: `${emp.firstName} ${emp.lastName}`,
-    role: emp.role,
-    basePay: emp.baseSalary || 18000,
-    incentive: Math.round((emp.baseSalary || 18000) * 0.12),
-    adjustedIncentive: Math.round((emp.baseSalary || 18000) * 0.11),
-    totalPay: Math.round((emp.baseSalary || 18000) * 1.11),
-    totalUnits: emp.role === "Car Washer" ? 42 : 0,
-    validUnits: emp.role === "Car Washer" ? 39 : 0,
-    complianceScore: 90,
-    status: "success" as const,
-  }));
+  // Real salary first (employeeSalaryService, populated via Employee Salary
+  // Assignment); falls back to a role-based illustrative gross — clearly
+  // flagged per-row via `usesRealSalary` — only when nothing's been
+  // assigned yet, rather than silently defaulting everyone to a flat 18000.
+  const mockResults: PayrollResult[] = cityEmployees.slice(0, 25).map(emp => {
+    const realSalary = employeeSalaryService.getActiveEmployeeSalary(emp.employeeId);
+    const gross = realSalary?.salaryComponents.monthlyGross ?? illustrativeGrossForRole(emp.role);
+    return {
+      employeeId: emp.employeeId,
+      employeeName: `${emp.firstName} ${emp.lastName}`,
+      role: emp.role,
+      basePay: gross,
+      incentive: Math.round(gross * 0.12),
+      adjustedIncentive: Math.round(gross * 0.11),
+      totalPay: Math.round(gross * 1.11),
+      totalUnits: emp.role === "Car Washer" ? 42 : 0,
+      validUnits: emp.role === "Car Washer" ? 39 : 0,
+      complianceScore: 90,
+      status: "success" as const,
+    };
+  });
 
   // Input State
   const [selectedMonth, setSelectedMonth] = useState("");

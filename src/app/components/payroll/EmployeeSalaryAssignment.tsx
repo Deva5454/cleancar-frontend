@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -13,6 +13,9 @@ import {
 } from "../ui/select";
 import { Calendar, Check, ChevronDown, ChevronUp, Lock, User, Database } from "lucide-react";
 import { toast } from "sonner";
+import { useEmployee, type Employee } from "../../contexts/EmployeeContext";
+import { salaryStructureService, type SalaryStructure } from "../../services/salaryStructureService";
+import { employeeSalaryService } from "../../services/employeeSalaryService";
 
 const SALARY_LOG_KEY = "cleancar_salary_change_log";
 
@@ -26,17 +29,30 @@ interface SalaryChange {
   reason: string;
 }
 
-const SALARY_STRUCTURES = [
-  { id: "struct-1", name: "Car Washer - Entry Level", basic: 15000 },
-  { id: "struct-2", name: "Car Washer - Experienced", basic: 18000 },
-  { id: "struct-3", name: "Supervisor - Standard", basic: 25000 },
-  { id: "struct-4", name: "Operations Manager", basic: 45000 },
-];
-
 export function EmployeeSalaryAssignment() {
-  const [selectedStructure, setSelectedStructure] = useState("struct-2");
-  const [effectiveDate, setEffectiveDate] = useState("2026-05-01");
+  const { employees } = useEmployee();
+  const activeEmployees = useMemo(() => employees.filter((e: Employee) => e.status === "Active"), [employees]);
+
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [structures, setStructures] = useState<SalaryStructure[]>([]);
+  const [selectedStructure, setSelectedStructure] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split("T")[0]);
   const [showIncentiveBreakdown, setShowIncentiveBreakdown] = useState(false);
+  const [hasExistingSalary, setHasExistingSalary] = useState(false);
+
+  useEffect(() => {
+    setStructures(salaryStructureService.getAll());
+    return salaryStructureService.subscribe((all) => setStructures(all));
+  }, []);
+
+  // Structures matching this employee's role, so HR isn't picking from an
+  // unrelated designation's structure.
+  const selectedEmployee = activeEmployees.find((e: Employee) => e.employeeId === selectedEmployeeId);
+  const relevantStructures = useMemo(() => {
+    if (!selectedEmployee) return structures;
+    const matching = structures.filter(s => s.roleId === selectedEmployee.role || s.roleName === selectedEmployee.role);
+    return matching.length > 0 ? matching : structures; // fall back to all if none match this role yet
+  }, [structures, selectedEmployee]);
 
   // Editable salary components
   const [basicSalary, setBasicSalary] = useState(18000);
@@ -45,8 +61,26 @@ export function EmployeeSalaryAssignment() {
   const [medical, setMedical] = useState(1250);
   const [special, setSpecial] = useState(3600);
 
-  // System-driven (non-editable)
-  const incentive = 1200; // System-driven from washer performance
+  // Pre-fill from the employee's existing active salary (if any) when selected.
+  useEffect(() => {
+    if (!selectedEmployeeId) return;
+    const existing = employeeSalaryService.getActiveEmployeeSalary(selectedEmployeeId);
+    if (existing) {
+      setHasExistingSalary(true);
+      setSelectedStructure(existing.salaryStructureId);
+      setBasicSalary(existing.salaryComponents.basic);
+      setHra(existing.salaryComponents.hra);
+      setConveyance(existing.salaryComponents.conveyance);
+      setMedical(existing.salaryComponents.medical);
+      setSpecial(existing.salaryComponents.specialAllowance);
+    } else {
+      setHasExistingSalary(false);
+    }
+  }, [selectedEmployeeId]);
+
+  // System-driven (non-editable) — see note near the incentive card: this
+  // isn't wired to real washer performance data yet, shown as illustrative.
+  const incentive = 1200;
 
   // Calculations
   const grossEarnings = basicSalary + hra + conveyance + medical + special + incentive;
@@ -60,7 +94,8 @@ export function EmployeeSalaryAssignment() {
   const employerPf = Math.round(basicSalary * 0.12);
   const employerEsic = Math.round(grossEarnings * 0.0325);
 
-  // Incentive breakdown
+  // Incentive breakdown — illustrative, not yet connected to real washer
+  // performance data (see file header note).
   const incentiveBreakdown = {
     cars: 22,
     twoWheelers: 14,
@@ -76,19 +111,62 @@ export function EmployeeSalaryAssignment() {
   };
 
   const handleSave = () => {
+    if (!selectedEmployee) { toast.error("Select an employee first"); return; }
+    if (!selectedStructure) { toast.error("Select a salary structure first"); return; }
+
+    const monthlyGross = basicSalary + hra + conveyance + medical + special;
+    employeeSalaryService.createOrUpdateEmployeeSalary({
+      employeeId: selectedEmployee.employeeId,
+      employeeCode: selectedEmployee.employeeId,
+      employeeName: selectedEmployee.fullName || `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+      designation: selectedEmployee.role,
+      department: selectedEmployee.department,
+      dateOfJoining: selectedEmployee.joiningDate,
+      salaryStructureId: selectedStructure,
+      salaryComponents: {
+        monthlyGross,
+        annualCTC: monthlyGross * 12,
+        basic: basicSalary,
+        hra,
+        conveyance,
+        medical,
+        specialAllowance: special,
+        employeePF: pfDeduction,
+        employerPF: employerPf,
+        employeeESIC: esicDeduction,
+        employerESIC: employerEsic,
+        professionalTax: ptDeduction,
+        totalDeductions,
+        netTakeHome: netSalary,
+        totalEmployerCost: employerPf + employerEsic,
+        totalCTC: monthlyGross + employerPf + employerEsic,
+      },
+      effectiveFrom: effectiveDate,
+      isActive: true,
+      createdBy: "HR",
+    });
+
+    const structureName = relevantStructures.find(s => s.id === selectedStructure)?.structureName || selectedStructure;
     const log = JSON.parse(localStorage.getItem(SALARY_LOG_KEY) || "[]");
-    log.unshift({ date: new Date().toISOString(), previousStructure: selectedStructure, newStructure: selectedStructure, changedBy: "HR" });
+    log.unshift({
+      id: `LOG-${Date.now()}`, date: new Date().toISOString(), structure: structureName,
+      basicSalary, netSalary, changedBy: "HR",
+      reason: hasExistingSalary ? "Salary revision" : "Initial salary assignment",
+    });
     localStorage.setItem(SALARY_LOG_KEY, JSON.stringify(log));
-    toast.success("Salary assignment updated successfully");
+    setHasExistingSalary(true);
+    toast.success(`Salary assignment saved for ${selectedEmployee.fullName || selectedEmployee.firstName}`);
   };
 
   const handleStructureChange = (structureId: string) => {
     setSelectedStructure(structureId);
-    const structure = SALARY_STRUCTURES.find((s) => s.id === structureId);
+    const structure = relevantStructures.find((s) => s.id === structureId);
     if (structure) {
-      setBasicSalary(structure.basic);
-      setHra(Math.round(structure.basic * 0.5));
-      setSpecial(Math.round(structure.basic * 0.2));
+      setBasicSalary(structure.components.basic);
+      setHra(structure.components.hra);
+      setConveyance(structure.components.conveyance);
+      setMedical(structure.components.medical);
+      setSpecial(structure.components.specialAllowance);
     }
   };
 
@@ -108,30 +186,45 @@ export function EmployeeSalaryAssignment() {
         <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <Database className="w-5 h-5 text-blue-600" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-blue-900">Data Source: payrollEngine</p>
+            <p className="text-sm font-medium text-blue-900">Data Source: employeeSalaryService</p>
             <p className="text-xs text-blue-700">
-              Employee salary assignment • Calculations performed by payrollEngine
+              Assigns a real salary record to this employee — read by Payroll Run and everything downstream
             </p>
           </div>
         </div>
 
-        {/* Employee Info */}
+        {/* Employee Selector */}
         <Card>
           <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <User className="w-6 h-6 text-blue-600" />
+            <Label htmlFor="employee-select" className="mb-2 block">Employee</Label>
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger id="employee-select">
+                <SelectValue placeholder="Select an employee..." />
+              </SelectTrigger>
+              <SelectContent>
+                {activeEmployees.map((emp: Employee) => (
+                  <SelectItem key={emp.employeeId} value={emp.employeeId}>
+                    {emp.fullName || `${emp.firstName} ${emp.lastName}`} — {emp.employeeId} · {emp.role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedEmployee && (
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <User className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">{selectedEmployee.fullName || `${selectedEmployee.firstName} ${selectedEmployee.lastName}`}</div>
+                  <div className="text-sm text-gray-500">{selectedEmployee.employeeId} • {selectedEmployee.role}</div>
+                </div>
+                <div className="ml-auto">
+                  <Badge className={hasExistingSalary ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-600 border-gray-200"}>
+                    {hasExistingSalary ? "Has Active Salary" : "No Salary Assigned Yet"}
+                  </Badge>
+                </div>
               </div>
-              <div>
-                <div className="font-semibold text-gray-900">Ramesh Kumar</div>
-                <div className="text-sm text-gray-500">EMP-2024-0042 • Car Washer</div>
-              </div>
-              <div className="ml-auto">
-                <Badge className="bg-green-100 text-green-700 border-green-200">
-                  Active
-                </Badge>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
@@ -144,18 +237,23 @@ export function EmployeeSalaryAssignment() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="structure">Salary Structure</Label>
-                <Select value={selectedStructure} onValueChange={handleStructureChange}>
+                <Select value={selectedStructure} onValueChange={handleStructureChange} disabled={!selectedEmployee}>
                   <SelectTrigger id="structure">
-                    <SelectValue />
+                    <SelectValue placeholder={relevantStructures.length === 0 ? "No structures created yet" : "Select a structure..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    {SALARY_STRUCTURES.map((structure) => (
+                    {relevantStructures.map((structure) => (
                       <SelectItem key={structure.id} value={structure.id}>
-                        {structure.name}
+                        {structure.structureName || structure.roleName} — ₹{structure.monthlyGross.toLocaleString("en-IN")}/mo
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {relevantStructures.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    No salary structures exist yet — create one first in Create Salary Structure.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="effective-date">Effective Date</Label>
@@ -271,7 +369,7 @@ export function EmployeeSalaryAssignment() {
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                  Auto-calculated from performance
+                  Illustrative — not yet wired to real performance data
                 </Badge>
               </div>
             </div>
