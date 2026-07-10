@@ -30,12 +30,14 @@ import {
 import { ATTENDANCE_TYPE_LABELS, ATTENDANCE_TYPE_COLORS } from "../../constants/payrollConstants";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
 import { AttendanceDetailModal } from "./AttendanceDetailModal";
+import { AttendanceMusterRollModal } from "./AttendanceMusterRollModal";
 
 export function AttendanceDataManager() {
   const [seededData, setSeededData] = useState<EmployeeAttendanceRecord[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState<EmployeeAttendanceRecord | null>(null);
+  const [showMusterRoll, setShowMusterRoll] = useState(false);
 
   const [confirmState, setConfirmState] = useState<{
     open: boolean; title: string; description: string; onConfirm: () => void;
@@ -93,9 +95,17 @@ export function AttendanceDataManager() {
             Seed and manage dummy attendance data for testing
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
-          Admin Tool
-        </Badge>
+        <div className="flex items-center gap-2">
+          {seededData.length > 0 && (
+            <Button onClick={() => setShowMusterRoll(true)} className="bg-blue-600 hover:bg-blue-700">
+              <Eye className="w-4 h-4 mr-2" />
+              View All Employees
+            </Button>
+          )}
+          <Badge variant="outline" className="text-sm">
+            Admin Tool
+          </Badge>
+        </div>
       </div>
 
       {/* Action Buttons */}
@@ -429,6 +439,13 @@ export function AttendanceDataManager() {
         <AttendanceDetailModal
           employee={viewingEmployee}
           onClose={() => setViewingEmployee(null)}
+        />
+      )}
+
+      {showMusterRoll && (
+        <AttendanceMusterRollModal
+          employees={seededData}
+          onClose={() => setShowMusterRoll(false)}
         />
       )}
     </div>
