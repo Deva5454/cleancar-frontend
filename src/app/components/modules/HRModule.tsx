@@ -10,6 +10,7 @@ import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Input } from "../ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import {
   Table,
   TableBody,
@@ -27,6 +28,7 @@ import {
   CreditCard, ShieldCheck, BookOpen, Activity, Plus, Shield, Settings
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { ShiftRosterManager } from "../hr/ShiftRosterManager";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 import { BackButton } from "../ui/back-button";
@@ -176,7 +178,14 @@ const mockTraining: Training[] = [
 ];
 
 function HRModule() {
-  const { payrollRuns = [] } = useEmployeeData(); // default [] prevents undefined crash
+  const {
+    payrollRuns = [],
+    employees: attendanceEmployees = [],
+    addAttendanceRecord,
+    updateAttendance,
+    getEmployeeAttendance,
+  } = useEmployeeData(); // default [] prevents undefined crash
+  const { city: currentCityId } = useCity();
   const { currentRole, roleConfig } = useRole();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
@@ -199,6 +208,7 @@ function HRModule() {
   
   // State for attendance drill-down
   const [showAttendanceDrillDown, setShowAttendanceDrillDown] = useState(false);
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedEmployeeForDrillDown, setSelectedEmployeeForDrillDown] = useState<{
     id: string;
     name: string;
@@ -1192,152 +1202,167 @@ function HRModule() {
         <TabsContent value="attendance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Attendance & Time Management</CardTitle>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <CardTitle className="text-base">Attendance & Time Management</CardTitle>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Date:</label>
+                  <Input
+                    type="date"
+                    value={selectedAttendanceDate}
+                    onChange={(e) => setSelectedAttendanceDate(e.target.value)}
+                    className="w-40"
+                    max={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Present Today</p>
-                  <p className="text-2xl font-bold text-green-600">42</p>
-                  <p className="text-xs text-gray-500">94% attendance</p>
-                </div>
-                <div className="p-4 bg-orange-50 rounded-lg">
-                  <p className="text-sm text-gray-600">On Leave</p>
-                  <p className="text-2xl font-bold text-orange-600">2</p>
-                  <p className="text-xs text-gray-500">Approved leaves</p>
-                </div>
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Absent</p>
-                  <p className="text-2xl font-bold text-red-600">1</p>
-                  <p className="text-xs text-gray-500">Without notice</p>
-                </div>
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Late Arrivals</p>
-                  <p className="text-2xl font-bold text-blue-600">3</p>
-                  <p className="text-xs text-gray-500">Today</p>
-                </div>
-              </div>
+              {(() => {
+                const activeAttEmployees = attendanceEmployees.filter((e: any) => e.status === "Active");
+                const todaysRecords = getEmployeeAttendance ? getEmployeeAttendance(selectedAttendanceDate) : [];
+                const recordFor = (employeeId: string) => todaysRecords.find((r: any) => r.employeeId === employeeId);
 
-              <div className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg mb-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-yellow-900">Late Reporting Alerts (Today)</p>
-                    <div className="mt-2 space-y-2">
-                      <div className="text-sm">
-                        <p className="font-medium">Ramesh Singh (Car Washer) - Absent without notice</p>
-                        <p className="text-xs text-gray-600">Expected: 04:00 AM | No check-in recorded</p>
-                        <Badge variant="destructive" className="mt-1">Escalated to entire chain</Badge>
+                const presentCount = todaysRecords.filter((r: any) => r.status === "Present" || r.status === "Late").length;
+                const leaveCount = todaysRecords.filter((r: any) => r.status === "Leave").length;
+                const absentCount = todaysRecords.filter((r: any) => r.status === "Absent").length;
+                const lateCount = todaysRecords.filter((r: any) => r.status === "Late").length;
+                const unmarkedCount = activeAttEmployees.length - todaysRecords.length;
+
+                const STATUS_OPTIONS = ["Present", "Absent", "Late", "Half Day", "Leave", "Week Off"];
+
+                const handleStatusChange = (employeeId: string, newStatus: string) => {
+                  const existing = recordFor(employeeId);
+                  if (existing) {
+                    updateAttendance?.(existing.attendanceId, { status: newStatus as any });
+                  } else {
+                    addAttendanceRecord?.({
+                      employeeId,
+                      cityId: currentCityId,
+                      date: selectedAttendanceDate,
+                      status: newStatus as any,
+                      checkInTime: (newStatus === "Present" || newStatus === "Late") ? new Date().toTimeString().slice(0, 8) : undefined,
+                    });
+                  }
+                };
+
+                const handleTimeChange = (employeeId: string, field: "checkInTime" | "checkOutTime", value: string) => {
+                  const existing = recordFor(employeeId);
+                  if (existing) {
+                    updateAttendance?.(existing.attendanceId, { [field]: value || undefined });
+                  } else {
+                    addAttendanceRecord?.({ employeeId, cityId: currentCityId, date: selectedAttendanceDate, status: "Present", [field]: value || undefined } as any);
+                  }
+                };
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Present Today</p>
+                        <p className="text-2xl font-bold text-green-600">{presentCount}</p>
+                        <p className="text-xs text-gray-500">
+                          {activeAttEmployees.length > 0 ? Math.round((presentCount / activeAttEmployees.length) * 100) : 0}% attendance
+                        </p>
+                      </div>
+                      <div className="p-4 bg-orange-50 rounded-lg">
+                        <p className="text-sm text-gray-600">On Leave</p>
+                        <p className="text-2xl font-bold text-orange-600">{leaveCount}</p>
+                        <p className="text-xs text-gray-500">Marked leave</p>
+                      </div>
+                      <div className="p-4 bg-red-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Absent</p>
+                        <p className="text-2xl font-bold text-red-600">{absentCount}</p>
+                        <p className="text-xs text-gray-500">Marked absent</p>
+                      </div>
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Late Arrivals</p>
+                        <p className="text-2xl font-bold text-blue-600">{lateCount}</p>
+                        <p className="text-xs text-gray-500">Today</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Not Yet Marked</p>
+                        <p className="text-2xl font-bold text-gray-600">{unmarkedCount}</p>
+                        <p className="text-xs text-gray-500">Needs attention</p>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <div className="flex items-center gap-1">
-                        Employee
-                        <span className="text-xs text-blue-600 font-normal">(Click for drill-down)</span>
+                    {unmarkedCount > 0 && (
+                      <div className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg mb-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-yellow-900">
+                              {unmarkedCount} employee{unmarkedCount === 1 ? "" : "s"} not yet marked for {selectedAttendanceDate}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1">Mark each employee's status in the table below.</p>
+                          </div>
+                        </div>
                       </div>
-                    </TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Scheduled Time</TableHead>
-                    <TableHead>Check In</TableHead>
-                    <TableHead>Check Out</TableHead>
-                    <TableHead>Working Hours</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell 
-                      className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
-                      onClick={() => {
-                        setSelectedEmployeeForDrillDown({
-                          id: "CW-101",
-                          name: "Rahul Verma",
-                        });
-                        setShowAttendanceDrillDown(true);
-                      }}
-                      title="Click to view detailed attendance report"
-                    >
-                      Rahul Verma
-                    </TableCell>
-                    <TableCell><Badge variant="outline">Car Washer</Badge></TableCell>
-                    <TableCell>04:00-09:00</TableCell>
-                    <TableCell className="text-green-600">04:02 AM</TableCell>
-                    <TableCell className="text-green-600">09:05 AM</TableCell>
-                    <TableCell>5h 3m</TableCell>
-                    <TableCell><Badge variant="secondary">Present</Badge></TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell 
-                      className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
-                      onClick={() => {
-                        setSelectedEmployeeForDrillDown({
-                          id: "SUP-201",
-                          name: "Suresh Yadav",
-                        });
-                        setShowAttendanceDrillDown(true);
-                      }}
-                      title="Click to view detailed attendance report"
-                    >
-                      Suresh Yadav
-                    </TableCell>
-                    <TableCell><Badge variant="outline">Supervisor</Badge></TableCell>
-                    <TableCell>04:00-09:00</TableCell>
-                    <TableCell className="text-orange-600">04:12 AM</TableCell>
-                    <TableCell className="text-green-600">09:00 AM</TableCell>
-                    <TableCell>4h 48m</TableCell>
-                    <TableCell><Badge variant="default">Late (12 min)</Badge></TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell 
-                      className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
-                      onClick={() => {
-                        setSelectedEmployeeForDrillDown({
-                          id: "TSE-301",
-                          name: "Neha Singh",
-                        });
-                        setShowAttendanceDrillDown(true);
-                      }}
-                      title="Click to view detailed attendance report"
-                    >
-                      Neha Singh
-                    </TableCell>
-                    <TableCell><Badge variant="outline">TSE</Badge></TableCell>
-                    <TableCell>10:00-19:00</TableCell>
-                    <TableCell className="text-green-600">09:58 AM</TableCell>
-                    <TableCell className="text-gray-400">—</TableCell>
-                    <TableCell className="text-blue-600">Working</TableCell>
-                    <TableCell><Badge variant="secondary">Present</Badge></TableCell>
-                  </TableRow>
-                  <TableRow className="bg-red-50">
-                    <TableCell 
-                      className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
-                      onClick={() => {
-                        setSelectedEmployeeForDrillDown({
-                          id: "CW-102",
-                          name: "Ramesh Singh",
-                        });
-                        setShowAttendanceDrillDown(true);
-                      }}
-                      title="Click to view detailed attendance report"
-                    >
-                      Ramesh Singh
-                    </TableCell>
-                    <TableCell><Badge variant="outline">Car Washer</Badge></TableCell>
-                    <TableCell>04:00-09:00</TableCell>
-                    <TableCell className="text-red-600">—</TableCell>
-                    <TableCell className="text-red-600">—</TableCell>
-                    <TableCell>—</TableCell>
-                    <TableCell><Badge variant="destructive">Absent</Badge></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+                    )}
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Check In</TableHead>
+                          <TableHead>Check Out</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {activeAttEmployees.map((emp: any) => {
+                          const record = recordFor(emp.employeeId);
+                          const displayName = emp.fullName || `${emp.firstName} ${emp.lastName}`;
+                          return (
+                            <TableRow key={emp.employeeId} className={!record ? "bg-gray-50" : record.status === "Absent" ? "bg-red-50" : ""}>
+                              <TableCell
+                                className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
+                                onClick={() => {
+                                  setSelectedEmployeeForDrillDown({ id: emp.employeeId, name: displayName });
+                                  setShowAttendanceDrillDown(true);
+                                }}
+                                title="Click to view detailed attendance report"
+                              >
+                                {displayName}
+                              </TableCell>
+                              <TableCell><Badge variant="outline">{emp.role}</Badge></TableCell>
+                              <TableCell>
+                                <Input
+                                  type="time"
+                                  value={record?.checkInTime?.slice(0, 5) || ""}
+                                  onChange={(e) => handleTimeChange(emp.employeeId, "checkInTime", e.target.value ? `${e.target.value}:00` : "")}
+                                  className="w-28 h-8 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="time"
+                                  value={record?.checkOutTime?.slice(0, 5) || ""}
+                                  onChange={(e) => handleTimeChange(emp.employeeId, "checkOutTime", e.target.value ? `${e.target.value}:00` : "")}
+                                  className="w-28 h-8 text-xs"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Select value={record?.status || ""} onValueChange={(v) => handleStatusChange(emp.employeeId, v)}>
+                                  <SelectTrigger className="w-32 h-8 text-xs">
+                                    <SelectValue placeholder="Not Marked" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {STATUS_OPTIONS.map((s) => (
+                                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
