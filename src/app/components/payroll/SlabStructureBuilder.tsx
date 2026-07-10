@@ -65,6 +65,7 @@ export function SlabStructureBuilder({
   const [result, setResult] = useState<SlabStructureResult | null>(null);
   const [savedRecord, setSavedRecord] = useState<SlabSalaryStructureRecord | null>(null);
   const [manualMode, setManualMode] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const roleName = roles.find((r) => r.id === roleId)?.label || roleId;
   const range = useMemo(() => getSchemeRange(scheme), [scheme]);
@@ -130,122 +131,133 @@ export function SlabStructureBuilder({
     const isComputed = result.computedFields.includes(key as string);
     const value = result[key] as unknown as number;
     return (
-      <div key={key} className="space-y-1">
-        <div className="flex items-center gap-1.5">
-          <Label className="text-xs">{label}</Label>
+      <div key={key} className="space-y-0.5">
+        <div className="flex items-center gap-1">
+          <Label className="text-[11px] text-gray-600">{label}</Label>
           {isComputed && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-600 border-blue-200">computed</Badge>
+            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50 text-blue-600 border-blue-200">computed</Badge>
           )}
         </div>
         <Input
           type="number" value={value} disabled={!canEdit}
           onChange={(e) => updateField(key, Number(e.target.value) || 0)}
           onBlur={(e) => handleFieldCommit(key, Number(e.target.value) || 0)}
-          className={!canEdit ? "bg-gray-50" : ""}
+          className={`h-7 text-sm ${!canEdit ? "bg-gray-50" : ""}`}
         />
       </div>
     );
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {!canEdit && (
-        <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+        <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 p-2.5 text-sm text-amber-800">
           <Lock className="w-4 h-4 flex-shrink-0" />
           Only HR and Super Admin can create or edit statutory slab structures. You can view but not save.
         </div>
       )}
 
+      {/* Setup — single compact row */}
       <Card>
-        <CardHeader><CardTitle className="text-base">1. Setup</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label>Structure Name</Label>
-            <Input value={structureName} onChange={(e) => setStructureName(e.target.value)} placeholder="e.g., Car Washer — Slab FY26-27" disabled={!canEdit} />
+        <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Structure Name</Label>
+            <Input value={structureName} onChange={(e) => setStructureName(e.target.value)} placeholder="e.g., Car Washer — Slab FY26-27" disabled={!canEdit} className="h-8" />
           </div>
-          <div className="space-y-1.5">
-            <Label>Role</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Role</Label>
             <Select value={roleId} onValueChange={setRoleId} disabled={!canEdit}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {roles.map((r) => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Statutory Scheme</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Statutory Scheme</Label>
             <Select value={scheme} onValueChange={(v) => { setScheme(v as SlabScheme); setResult(null); setSavedRecord(null); }} disabled={!canEdit}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SCHEMES.map((s) => <SelectItem key={s} value={s}>{SLAB_SCHEME_LABELS[s]}</SelectItem>)}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-400">Covers ₹{range.min.toLocaleString("en-IN")} – ₹{range.max.toLocaleString("en-IN")} Gross</p>
+            <p className="text-[10px] text-gray-400">₹{range.min.toLocaleString("en-IN")}–₹{range.max.toLocaleString("en-IN")}</p>
           </div>
-          <div className="space-y-1.5">
-            <Label>Gross Monthly Salary</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Gross Monthly Salary</Label>
             <div className="flex gap-2">
-              <Input type="number" value={grossInput} onChange={(e) => setGrossInput(e.target.value)} placeholder="e.g., 20000" disabled={!canEdit} />
-              <Button onClick={handleLookup} disabled={!canEdit}><Sparkles className="w-4 h-4 mr-1" /> Auto-Fill</Button>
+              <Input type="number" value={grossInput} onChange={(e) => setGrossInput(e.target.value)} placeholder="e.g., 20000" disabled={!canEdit} className="h-8" />
+              <Button size="sm" onClick={handleLookup} disabled={!canEdit} className="h-8 flex-shrink-0"><Sparkles className="w-3.5 h-3.5 mr-1" /> Fill</Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {result && manualMode && (
-        <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+        <div className="rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
           No slab band covers this Gross for the selected scheme — every field below starts at 0 for fully manual entry.
         </div>
       )}
 
       {result && (
         <>
+          {/* Earnings | Deductions | Employer — three columns, one card */}
           <Card>
-            <CardHeader><CardTitle className="text-base">2. Earnings</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {EARNING_FIELDS.map((f) => renderField(f.key, f.label))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-base">3. Employee Deductions</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {DEDUCTION_FIELDS.map((f) => renderField(f.key, f.label))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-base">4. Employer Contributions</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {EMPLOYER_FIELDS.map((f) => renderField(f.key, f.label))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-purple-300 bg-purple-50">
-            <CardHeader><CardTitle className="text-base">Summary (always computed — not directly editable)</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-              <div><p className="text-gray-500">Gross</p><p className="font-semibold flex items-center gap-1"><IndianRupee className="w-3.5 h-3.5" />{fmt(result.gross)}</p></div>
-              <div><p className="text-gray-500">Total Deductions</p><p className="font-semibold">{fmt(result.deductionTotal)}</p></div>
-              <div><p className="text-gray-500">Net Pay</p><p className="font-semibold text-green-700">{fmt(result.netPay)}</p></div>
-              <div><p className="text-gray-500">Monthly CTC</p><p className="font-semibold text-purple-700">{fmt(result.ctcMonthly)}</p></div>
-              <div className="col-span-2 sm:col-span-1"><p className="text-gray-500">Annual CTC</p><p className="font-semibold text-purple-700">{fmt(result.ctcYearly)}</p></div>
-            </CardContent>
-          </Card>
-
-          {!savedRecord ? (
-            <Button onClick={handleSave} disabled={!canEdit} className="bg-purple-600 hover:bg-purple-700">
-              <Save className="w-4 h-4 mr-2" /> Save Structure
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-green-700">
-              <Save className="w-4 h-4" /> Saved. Further edits above are saved automatically as overrides.
+            <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+              <div className="lg:col-span-6 p-3">
+                <p className="text-xs font-semibold text-gray-500 mb-2">EARNINGS</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {EARNING_FIELDS.map((f) => renderField(f.key, f.label))}
+                </div>
+              </div>
+              <div className="lg:col-span-3 p-3">
+                <p className="text-xs font-semibold text-gray-500 mb-2">DEDUCTIONS</p>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {DEDUCTION_FIELDS.map((f) => renderField(f.key, f.label))}
+                </div>
+              </div>
+              <div className="lg:col-span-3 p-3">
+                <p className="text-xs font-semibold text-gray-500 mb-2">EMPLOYER</p>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {EMPLOYER_FIELDS.map((f) => renderField(f.key, f.label))}
+                </div>
+              </div>
             </div>
-          )}
+          </Card>
 
-          {savedRecord && savedRecord.overrides.length > 0 && (
+          {/* Summary — compact strip */}
+          <div className="bg-purple-700 text-white rounded-lg px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-1"><IndianRupee className="w-3.5 h-3.5" /><span className="text-purple-200 text-xs">Gross</span> {fmt(result.gross)}</div>
+            <div><span className="text-purple-200 text-xs">Deductions</span> {fmt(result.deductionTotal)}</div>
+            <div><span className="text-purple-200 text-xs">Net Pay</span> {fmt(result.netPay)}</div>
+            <div><span className="text-purple-200 text-xs">Monthly CTC</span> {fmt(result.ctcMonthly)}</div>
+            <div className="font-bold"><span className="text-purple-200 text-xs font-normal">Annual CTC</span> {fmt(result.ctcYearly)}</div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            {!savedRecord ? (
+              <Button onClick={handleSave} disabled={!canEdit} size="sm" className="bg-purple-600 hover:bg-purple-700">
+                <Save className="w-4 h-4 mr-2" /> Save Structure
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-green-700">
+                <Save className="w-3.5 h-3.5" /> Saved. Further edits above save automatically as overrides.
+              </div>
+            )}
+            {savedRecord && savedRecord.overrides.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHistory((v) => !v)}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:underline"
+              >
+                <History className="w-3.5 h-3.5" /> {showHistory ? "Hide" : "Show"} Override History ({savedRecord.overrides.length})
+              </button>
+            )}
+          </div>
+
+          {savedRecord && showHistory && savedRecord.overrides.length > 0 && (
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><History className="w-4 h-4" /> Override History ({savedRecord.overrides.length})</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="p-3 space-y-1.5 max-h-32 overflow-y-auto">
                 {savedRecord.overrides.slice().reverse().map((o, idx) => (
                   <div key={idx} className="text-xs text-gray-600 border-b pb-1.5 last:border-0">
                     <span className="font-medium">{o.field}</span>: {o.fromValue} → {o.toValue}
