@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -1218,7 +1219,8 @@ function HRModule() {
             </CardHeader>
             <CardContent>
               {(() => {
-                const activeAttEmployees = attendanceEmployees.filter((e: any) => e.status === "Active");
+                const activeAttEmployees = attendanceEmployees.filter((e: any) => e.status === "Active" && (e.cityId === currentCityId || !e.cityId));
+                const canMarkAttendance = currentRole === "Supervisor" || currentRole === "HR" || currentRole === "Super Admin" || currentRole === "Operations Manager";
                 const todaysRecords = getEmployeeAttendance ? getEmployeeAttendance(selectedAttendanceDate) : [];
                 const recordFor = (employeeId: string) => todaysRecords.find((r: any) => r.employeeId === employeeId);
 
@@ -1231,6 +1233,7 @@ function HRModule() {
                 const STATUS_OPTIONS = ["Present", "Absent", "Late", "Half Day", "Leave", "Week Off"];
 
                 const handleStatusChange = (employeeId: string, newStatus: string) => {
+                  if (!canMarkAttendance) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can mark attendance"); return; }
                   const existing = recordFor(employeeId);
                   if (existing) {
                     updateAttendance?.(existing.attendanceId, { status: newStatus as any });
@@ -1246,6 +1249,7 @@ function HRModule() {
                 };
 
                 const handleTimeChange = (employeeId: string, field: "checkInTime" | "checkOutTime", value: string) => {
+                  if (!canMarkAttendance) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can mark attendance"); return; }
                   const existing = recordFor(employeeId);
                   if (existing) {
                     updateAttendance?.(existing.attendanceId, { [field]: value || undefined });
@@ -1256,6 +1260,11 @@ function HRModule() {
 
                 return (
                   <>
+                    {!canMarkAttendance && (
+                      <div className="p-3 mb-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                        View only — Supervisors, HR, Operations Managers, and Super Admin can mark attendance.
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                       <div className="p-4 bg-green-50 rounded-lg">
                         <p className="text-sm text-gray-600">Present Today</p>
@@ -1333,6 +1342,7 @@ function HRModule() {
                                   value={record?.checkInTime?.slice(0, 5) || ""}
                                   onChange={(e) => handleTimeChange(emp.employeeId, "checkInTime", e.target.value ? `${e.target.value}:00` : "")}
                                   className="w-28 h-8 text-xs"
+                                  disabled={!canMarkAttendance}
                                 />
                               </TableCell>
                               <TableCell>
@@ -1341,10 +1351,11 @@ function HRModule() {
                                   value={record?.checkOutTime?.slice(0, 5) || ""}
                                   onChange={(e) => handleTimeChange(emp.employeeId, "checkOutTime", e.target.value ? `${e.target.value}:00` : "")}
                                   className="w-28 h-8 text-xs"
+                                  disabled={!canMarkAttendance}
                                 />
                               </TableCell>
                               <TableCell>
-                                <Select value={record?.status || ""} onValueChange={(v) => handleStatusChange(emp.employeeId, v)}>
+                                <Select value={record?.status || ""} onValueChange={(v) => handleStatusChange(emp.employeeId, v)} disabled={!canMarkAttendance}>
                                   <SelectTrigger className="w-32 h-8 text-xs">
                                     <SelectValue placeholder="Not Marked" />
                                   </SelectTrigger>
