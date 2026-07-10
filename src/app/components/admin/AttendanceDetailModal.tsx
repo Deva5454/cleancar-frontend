@@ -442,7 +442,7 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
             </div>
           </div>
 
-          {/* Salary & Deduction breakdown (Part B) */}
+          {/* Salary & Deduction breakdown (Part B) — compact payslip layout */}
           <div>
             <button
               type="button"
@@ -452,55 +452,66 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
               {showSalary ? "▾" : "▸"} Salary &amp; Deduction Breakdown
             </button>
             {showSalary && (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
-                <p className="text-xs text-purple-700">
-                  Illustrative — this admin tool's seeded demo employees have no real salary/bank record on file.
-                  Figures below are computed with the app's real payroll formulas from a role-based example gross
-                  (₹{gross.toLocaleString("en-IN")}/month), the same way the reference template uses a fictional
-                  "Mr. ABC". Bank details, incentives, and overtime show as blank/0 since there's nothing to pull.
-                  Earning amounts are the fix amount prorated by paid days ({paidDays}/{totalDays}).
-                </p>
-                <table className="w-full text-xs">
-                  <thead><tr className="text-gray-500"><th className="text-left font-normal">Pay Head</th><th className="text-right font-normal">Fix Amount</th><th className="text-right font-normal">Earning Amount</th></tr></thead>
-                  <tbody>
-                    <tr className="border-t"><td className="py-1">Basic</td><td className="text-right">₹{fix.basic.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnBasic.toLocaleString("en-IN")}</td></tr>
-                    <tr className="border-t"><td className="py-1">HRA</td><td className="text-right">₹{fix.hra.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnHRA.toLocaleString("en-IN")}</td></tr>
-                    <tr className="border-t"><td className="py-1">Conveyance</td><td className="text-right">₹{fix.conveyance.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnConveyance.toLocaleString("en-IN")}</td></tr>
-                    <tr className="border-t"><td className="py-1">Medical</td><td className="text-right">₹{fix.medical.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnMedical.toLocaleString("en-IN")}</td></tr>
-                    <tr className="border-t"><td className="py-1">Special Allowance</td><td className="text-right">₹{fix.specialAllowance.toLocaleString("en-IN")}</td><td className="text-right font-semibold">₹{earnSpecial.toLocaleString("en-IN")}</td></tr>
-                    <tr className="border-t font-bold"><td className="py-1">Total Earning</td><td></td><td className="text-right">₹{totalEarning.toLocaleString("en-IN")}</td></tr>
-                  </tbody>
-                </table>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-purple-200 pt-2">
-                  <div><p className="text-gray-500">EPF (Employee)</p><p className="font-semibold text-red-600">-₹{employeePF.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">ESIC (Employee)</p><p className="font-semibold text-red-600">-₹{employeeESIC.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Professional Tax</p><p className="font-semibold text-red-600">-₹{compliance.deductions.pt.amount.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">TDS</p><p className="font-semibold text-red-600">-₹{compliance.deductions.tds.monthly.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">LWF (Employee)</p><p className="font-semibold text-red-600">-₹{compliance.deductions.lwf.employee.toLocaleString("en-IN")}</p></div>
-                  <div><p className="text-gray-500">Attendance Deduction</p><p className="font-semibold text-red-600">-₹{attendanceDeduction.toLocaleString("en-IN")} ({daysToDeduct} days)</p></div>
-                  <div className="col-span-2 sm:col-span-2"><p className="text-gray-500">Net Payable</p><p className="font-bold text-green-700">₹{netPayable.toLocaleString("en-IN")}</p></div>
+              <div className="border-2 border-gray-300 rounded-lg overflow-hidden text-xs">
+                {/* Payslip header strip */}
+                <div className="bg-gray-800 text-white px-4 py-2 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">{employee.employeeName} ({employee.empCode})</p>
+                    <p className="text-gray-300">{employee.role} · {monthLabel}</p>
+                  </div>
+                  <div className="text-right text-gray-300">
+                    <p>Paid Days: {paidDays}/{totalDays}</p>
+                    <p title="Illustrative example gross — no real salary record on file for this seeded demo employee">
+                      Gross (Fix): ₹{gross.toLocaleString("en-IN")} ⓘ
+                    </p>
+                  </div>
                 </div>
-                <div className="border-t border-purple-200 pt-2 text-xs text-gray-500">
-                  <p><strong>Employer's Part (not deducted from employee):</strong> EPS ₹{employerEPS.toLocaleString("en-IN")} · EPF ₹{employerEPFResidual.toLocaleString("en-IN")} · ESIC ₹{employerESIC.toLocaleString("en-IN")} · LWF ₹{compliance.deductions.lwf.employer.toLocaleString("en-IN")}</p>
+
+                {/* Earnings | Deductions side by side */}
+                <div className="grid grid-cols-2 divide-x divide-gray-300">
+                  <div>
+                    <div className="bg-green-50 px-3 py-1 font-semibold text-green-800 border-b border-gray-300">EARNINGS</div>
+                    <table className="w-full">
+                      <tbody>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">Basic</td><td className="px-3 py-1 text-right">₹{earnBasic.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">HRA</td><td className="px-3 py-1 text-right">₹{earnHRA.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">Conveyance</td><td className="px-3 py-1 text-right">₹{earnConveyance.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">Medical</td><td className="px-3 py-1 text-right">₹{earnMedical.toLocaleString("en-IN")}</td></tr>
+                        <tr><td className="px-3 py-1">Special Allowance</td><td className="px-3 py-1 text-right">₹{earnSpecial.toLocaleString("en-IN")}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <div className="bg-red-50 px-3 py-1 font-semibold text-red-800 border-b border-gray-300">DEDUCTIONS</div>
+                    <table className="w-full">
+                      <tbody>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">EPF</td><td className="px-3 py-1 text-right">₹{employeePF.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">ESIC</td><td className="px-3 py-1 text-right">₹{employeeESIC.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">Professional Tax</td><td className="px-3 py-1 text-right">₹{compliance.deductions.pt.amount.toLocaleString("en-IN")}</td></tr>
+                        <tr className="border-b border-gray-100"><td className="px-3 py-1">TDS / LWF</td><td className="px-3 py-1 text-right">₹{(compliance.deductions.tds.monthly + compliance.deductions.lwf.employee).toLocaleString("en-IN")}</td></tr>
+                        <tr><td className="px-3 py-1">Attendance Ded. ({daysToDeduct}d)</td><td className="px-3 py-1 text-right">₹{attendanceDeduction.toLocaleString("en-IN")}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="border-t border-purple-200 pt-2">
-                  <p className="text-xs font-semibold text-purple-800 mb-1">Attendance Type Counts (this month)</p>
-                  <table className="w-full text-xs text-center">
-                    <thead className="text-gray-500">
-                      <tr>
-                        <th className="font-normal">Full CSL</th><th className="font-normal">Half CSL</th><th className="font-normal">Full PL</th>
-                        <th className="font-normal">Half HPL</th><th className="font-normal">Full COFF</th><th className="font-normal">Half COFF</th>
-                        <th className="font-normal">Public Holiday</th><th className="font-normal">Full LWP</th><th className="font-normal">Half LWP</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="font-semibold border-t">
-                        <td>{typeCounts.fullCSL}</td><td>{typeCounts.halfCSL}</td><td>{typeCounts.fullPL}</td>
-                        <td>{typeCounts.halfHPL}</td><td>{typeCounts.fullCOFF}</td><td>{typeCounts.halfCOFF}</td>
-                        <td>{typeCounts.publicHoliday}</td><td>{typeCounts.fullLWP}</td><td>{typeCounts.halfLWP}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+
+                {/* Gross / Total Deduction subtotal strip */}
+                <div className="grid grid-cols-2 divide-x divide-gray-300 border-t-2 border-gray-300 font-semibold bg-gray-50">
+                  <div className="px-3 py-1.5 flex justify-between"><span>Gross Earnings</span><span>₹{totalEarning.toLocaleString("en-IN")}</span></div>
+                  <div className="px-3 py-1.5 flex justify-between"><span>Total Deductions</span><span>₹{totalDeduction.toLocaleString("en-IN")}</span></div>
+                </div>
+
+                {/* Net pay bar */}
+                <div className="bg-purple-700 text-white px-4 py-2 flex items-center justify-between">
+                  <span className="font-semibold">NET PAY</span>
+                  <span className="text-lg font-bold">₹{netPayable.toLocaleString("en-IN")}</span>
+                </div>
+
+                {/* Compact footnotes */}
+                <div className="px-3 py-1.5 text-[10px] text-gray-500 bg-gray-50 border-t border-gray-200 space-y-0.5">
+                  <p>Employer's part (not deducted): EPS ₹{employerEPS.toLocaleString("en-IN")} · EPF ₹{employerEPFResidual.toLocaleString("en-IN")} · ESIC ₹{employerESIC.toLocaleString("en-IN")} · LWF ₹{compliance.deductions.lwf.employer.toLocaleString("en-IN")}</p>
+                  <p>Type counts — CSL {typeCounts.fullCSL}F/{typeCounts.halfCSL}H · PL {typeCounts.fullPL}F/{typeCounts.halfHPL}H · COFF {typeCounts.fullCOFF}F/{typeCounts.halfCOFF}H · PH {typeCounts.publicHoliday} · LWP {typeCounts.fullLWP}F/{typeCounts.halfLWP}H</p>
+                  <p>Illustrative demo figures — no real salary/bank record on file for this seeded employee.</p>
                 </div>
               </div>
             )}

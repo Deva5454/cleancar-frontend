@@ -70,7 +70,7 @@ export function PayrollLineReviewModal({
   const [draftIncentive, setDraftIncentive] = useState(employee.incentive);
   const [draftDeductions, setDraftDeductions] = useState(employee.deductions);
   const [note, setNote] = useState("");
-  const [showAttendance, setShowAttendance] = useState(true);
+  const [showAttendance, setShowAttendance] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
 
   // Real attendance first (ATTENDANCE_RECORDS, via HRDataContext); falls
@@ -294,42 +294,31 @@ export function PayrollLineReviewModal({
             )}
           </div>
 
-          {/* Attendance-driven pay reference — informational, matches the
-              reference Excel's type-count and fix/earning columns. The
-              actual numbers HR approves/corrects are in the editable panel
-              below (which can differ if HR overrides). */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs space-y-2">
-            <p className="font-semibold text-blue-900">Attendance-Based Pay Reference</p>
-            <table className="w-full text-center">
-              <thead className="text-gray-500">
-                <tr>
-                  <th className="font-normal">Full CSL</th><th className="font-normal">Half CSL</th><th className="font-normal">Full PL</th>
-                  <th className="font-normal">Half HPL</th><th className="font-normal">Full COFF</th><th className="font-normal">Half COFF</th>
-                  <th className="font-normal">PH</th><th className="font-normal">Full LWP</th><th className="font-normal">Half LWP</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="font-semibold border-t">
-                  <td>{typeCounts.fullCSL}</td><td>{typeCounts.halfCSL}</td><td>{typeCounts.fullPL}</td>
-                  <td>{typeCounts.halfHPL}</td><td>{typeCounts.fullCOFF}</td><td>{typeCounts.halfCOFF}</td>
-                  <td>{typeCounts.publicHoliday}</td><td>{typeCounts.fullLWP}</td><td>{typeCounts.halfLWP}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="text-gray-600">
-              Base Salary fix {formatCurrency(employee.baseSalary)} prorated by paid days ({paidDaysAtt}/{totalDaysAtt}) = earning{" "}
-              <strong>{formatCurrency(earningBaseSalary)}</strong>. Attendance deduction for {daysToDeductAtt} unpaid day(s):{" "}
-              <strong className="text-red-600">-{formatCurrency(attendanceDeductionAmt)}</strong>.
+          {/* Attendance-driven pay reference — compact single line */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+            <p className="text-gray-700">
+              <span className="font-semibold text-blue-900">Attendance:</span>{" "}
+              CSL {typeCounts.fullCSL}F/{typeCounts.halfCSL}H · PL {typeCounts.fullPL}F/{typeCounts.halfHPL}H ·
+              COFF {typeCounts.fullCOFF}F/{typeCounts.halfCOFF}H · PH {typeCounts.publicHoliday} · LWP {typeCounts.fullLWP}F/{typeCounts.halfLWP}H
+              {" — "}Base {formatCurrency(employee.baseSalary)} × {paidDaysAtt}/{totalDaysAtt} paid days = earning{" "}
+              <strong>{formatCurrency(earningBaseSalary)}</strong>, attendance deduction{" "}
+              <strong className="text-red-600">-{formatCurrency(attendanceDeductionAmt)}</strong>
             </p>
           </div>
 
           {!editing ? (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-gray-500">Base Salary</p><p className="font-semibold">{formatCurrency(employee.baseSalary)}</p></div>
-              <div><p className="text-gray-500">Incentives</p><p className="font-semibold text-green-600">{formatCurrency(employee.incentive)}</p></div>
-              <div><p className="text-gray-500">Gross Salary</p><p className="font-semibold">{formatCurrency(employee.grossSalary)}</p></div>
-              <div><p className="text-gray-500">Deductions</p><p className="font-semibold text-red-600">-{formatCurrency(employee.deductions)}</p></div>
-              <div className="col-span-2 border-t pt-3"><p className="text-gray-500">Net Pay</p><p className="text-xl font-bold text-blue-600">{formatCurrency(employee.netPay)}</p></div>
+            <div className="border-2 border-gray-300 rounded-lg overflow-hidden text-sm">
+              <div className="bg-gray-800 text-white px-3 py-1.5 text-xs font-semibold">PAYROLL SUMMARY</div>
+              <div className="grid grid-cols-4 divide-x divide-gray-200">
+                <div className="px-3 py-2"><p className="text-gray-500 text-xs">Base Salary</p><p className="font-semibold">{formatCurrency(employee.baseSalary)}</p></div>
+                <div className="px-3 py-2"><p className="text-gray-500 text-xs">Incentives</p><p className="font-semibold text-green-600">{formatCurrency(employee.incentive)}</p></div>
+                <div className="px-3 py-2"><p className="text-gray-500 text-xs">Gross Salary</p><p className="font-semibold">{formatCurrency(employee.grossSalary)}</p></div>
+                <div className="px-3 py-2"><p className="text-gray-500 text-xs">Deductions</p><p className="font-semibold text-red-600">-{formatCurrency(employee.deductions)}</p></div>
+              </div>
+              <div className="bg-purple-700 text-white px-4 py-2 flex items-center justify-between border-t-2 border-gray-300">
+                <span className="font-semibold text-sm">NET PAY</span>
+                <span className="text-lg font-bold">{formatCurrency(employee.netPay)}</span>
+              </div>
             </div>
           ) : (
             <div className="space-y-3 bg-red-50 border border-red-200 rounded-lg p-4">
