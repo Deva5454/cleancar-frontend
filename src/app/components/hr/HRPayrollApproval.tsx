@@ -221,6 +221,19 @@ export function HRPayrollApproval() {
   return (
     <div className="space-y-6 p-6">
       <BackButton />
+
+      <div className="flex items-start gap-3 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
+        <Database className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="font-semibold text-amber-900">This screen shows illustrative snapshot data, not real payroll runs</p>
+          <p className="text-sm text-amber-700 mt-1">
+            Actions taken here don't affect real payroll. For actually approving payroll, use{" "}
+            <a href="/payroll/review-approval" className="underline font-medium">Payroll → Review &amp; Approval</a>,
+            which reads and writes the real payroll data and includes per-employee Approve/Reject with correction tracking.
+          </p>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
