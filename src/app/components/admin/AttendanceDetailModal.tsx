@@ -58,7 +58,7 @@ export const CODE_LABELS: Record<CanonicalCode, string> = {
   PLRG: "Full Day Privilege Leave Adjusted Against Late Coming / Miss Punch",
 };
 
-const CODE_COLORS: Record<CanonicalCode, string> = {
+export const CODE_COLORS: Record<CanonicalCode, string> = {
   P: "bg-green-100 text-green-800 border-green-300",
   WOFF: "bg-green-100 text-green-800 border-green-300",
   PH: "bg-green-100 text-green-800 border-green-300",
@@ -77,7 +77,7 @@ const CODE_COLORS: Record<CanonicalCode, string> = {
   PLRG: "bg-purple-100 text-purple-800 border-purple-300",
 };
 
-function normalizeCode(rawStatus: string): CanonicalCode {
+export function normalizeCode(rawStatus: string): CanonicalCode {
   const map: Record<string, CanonicalCode> = {
     "P": "P", "A": "A", "WOFF": "WOFF", "PH": "PH", "LWP": "LWP",
     "PL": "PL", "CSL": "CSL", "SL": "CSL", "MTL": "MTL",
@@ -92,12 +92,12 @@ function normalizeCode(rawStatus: string): CanonicalCode {
   return map[rawStatus] || "P";
 }
 
-function dayOfWeekName(dateStr: string): string {
+export function dayOfWeekName(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-IN", { weekday: "short" });
 }
 
 /** Working hours as HH:MM:SS from check-in/check-out, matching the reference format. */
-function computeWorkingHours(checkIn?: string, checkOut?: string): string {
+export function computeWorkingHours(checkIn?: string, checkOut?: string): string {
   if (!checkIn || !checkOut) return "00:00:00";
   const parse = (t: string) => {
     const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
