@@ -20,6 +20,64 @@
 const DEFAULT_CITY = "CITY-SURAT";
 
 /**
+ * One-time migration: LEAVE_REQUESTS was used as a DataService entityType
+ * before it was registered in STORAGE_KEYS below, so every read/write
+ * silently built keys like "cleancar_CITY-SURAT_undefined" (baseKey
+ * resolved to JS's literal `undefined`). Once LEAVE_REQUESTS gets a proper
+ * "leave_requests" key, any data already saved under the broken key
+ * (including anything submitted on the live site before this fix) would
+ * become invisible. This runs once, copies that data to the correct key,
+ * and removes the broken one — safe to run repeatedly, it's a no-op once
+ * the broken keys are gone.
+ */
+function migrateLeaveRequestsFromBrokenKey() {
+  const MIGRATION_FLAG = "cleancar_migration_leave_requests_v1_done";
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    const cityIds = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
+    for (const cityId of cityIds) {
+      const brokenKey = `cleancar_${cityId}_undefined`;
+      const properKey = `cleancar_${cityId}_leave_requests`;
+      const broken = localStorage.getItem(brokenKey);
+      if (broken) {
+        const existing = localStorage.getItem(properKey);
+        if (existing) {
+          // Merge rather than overwrite, in case both somehow have data
+          try {
+            const merged = [...JSON.parse(existing), ...JSON.parse(broken)];
+            localStorage.setItem(properKey, JSON.stringify(merged));
+          } catch { /* corrupt data on either side — keep the proper key as-is */ }
+        } else {
+          localStorage.setItem(properKey, broken);
+        }
+        localStorage.removeItem(brokenKey);
+      }
+    }
+
+    // Legacy (non-city-namespaced) broken key
+    const legacyBroken = localStorage.getItem("cleancar_undefined");
+    if (legacyBroken) {
+      const legacyProper = localStorage.getItem("cleancar_leave_requests");
+      if (legacyProper) {
+        try {
+          const merged = [...JSON.parse(legacyProper), ...JSON.parse(legacyBroken)];
+          localStorage.setItem("cleancar_leave_requests", JSON.stringify(merged));
+        } catch { /* keep proper key as-is */ }
+      } else {
+        localStorage.setItem("cleancar_leave_requests", legacyBroken);
+      }
+      localStorage.removeItem("cleancar_undefined");
+    }
+
+    localStorage.setItem(MIGRATION_FLAG, "true");
+  } catch (e) {
+    console.warn("[DataService] LEAVE_REQUESTS migration skipped:", e);
+  }
+}
+migrateLeaveRequestsFromBrokenKey();
+
+/**
  * Build city-namespaced storage key
  * @param baseKey - Base key name (e.g., "employees")
  * @param cityId - City identifier (e.g., "CITY-SURAT", "CITY-MUMBAI")
@@ -88,6 +146,7 @@ const STORAGE_KEYS = {
   TDS_PAYMENTS:             "tds_payments",
   EXIT_SETTLEMENTS:         "exit_settlements",  // Exit & F&F Settlement module
   EXIT_WORKFLOWS:           "exit_workflows",    // Exit workflow service (employee lock/status)
+  LEAVE_REQUESTS:           "leave_requests",    // Leave request submit/approve/reject workflow
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

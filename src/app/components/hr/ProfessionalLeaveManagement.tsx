@@ -206,7 +206,7 @@ function ProfessionalLeaveManagement() {
   // (allLeaveHistory below) — the "Apply for Leave" form already correctly
   // persisted to DataService.insert("LEAVE_REQUESTS", ...), but nothing ever
   // read it back, so submitted requests were invisible and unapprovable.
-  const [realLeaveRequests, setRealLeaveRequests] = useState<any[]>(() => DataService.get("LEAVE_REQUESTS" as any));
+  const [realLeaveRequests, setRealLeaveRequests] = useState<any[]>(() => DataService.get("LEAVE_REQUESTS"));
 
   const realHistoryByEmployee: Record<string, LeaveApplication[]> = {};
   realLeaveRequests.forEach((r: any) => {
@@ -266,7 +266,7 @@ function ProfessionalLeaveManagement() {
     const updated = realLeaveRequests.map((r: any) => r.id === leave.id
       ? { ...r, status: "Approved", approvedBy: currentUser?.name || "HR", approvedOn: new Date().toISOString() }
       : r);
-    DataService.setAll("LEAVE_REQUESTS" as any, updated);
+    DataService.setAll("LEAVE_REQUESTS", updated);
     setRealLeaveRequests(updated);
     toast.success(`${leave.leaveType} leave approved for ${leave.employeeName}`);
   };
@@ -276,7 +276,7 @@ function ProfessionalLeaveManagement() {
     const updated = realLeaveRequests.map((r: any) => r.id === leave.id
       ? { ...r, status: "Rejected", approvedBy: currentUser?.name || "HR", approvedOn: new Date().toISOString() }
       : r);
-    DataService.setAll("LEAVE_REQUESTS" as any, updated);
+    DataService.setAll("LEAVE_REQUESTS", updated);
     setRealLeaveRequests(updated);
     toast.success(`${leave.leaveType} leave rejected for ${leave.employeeName}`);
   };
