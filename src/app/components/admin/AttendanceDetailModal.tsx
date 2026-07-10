@@ -34,6 +34,7 @@ import type { EmployeeAttendanceRecord } from "../../services/seedAttendanceData
 import { calculateCTCFromGross } from "../../config/salaryComponentConfiguration";
 import { calculateStatutoryDeductions } from "../../services/payroll/complianceEngine";
 import { detectStateFromCity } from "../../services/payroll/complianceRules";
+import { buildAttendanceExcelBlob } from "../../utils/attendanceExcelBuilder";
 
 export type CanonicalCode =
   | "P" | "A" | "H" | "WOFF" | "PH" | "LWP" | "HLWP" | "PL" | "HPL"
@@ -119,7 +120,7 @@ export function computeWorkingHours(checkIn?: string, checkOut?: string): string
 
 /** Illustrative monthly gross by role, for this admin/demo tool's seeded
  *  employees only — see the file header note on data honesty. */
-function illustrativeGrossForRole(role: string): number {
+export function illustrativeGrossForRole(role: string): number {
   const map: Record<string, number> = {
     "Sales Executive": 18000,
     "Finance Manager": 45000,
@@ -133,7 +134,7 @@ function illustrativeGrossForRole(role: string): number {
   return map[role] || 15000;
 }
 
-function remarksFor(code: CanonicalCode): string {
+export function remarksFor(code: CanonicalCode): string {
   switch (code) {
     case "A": return "IN CASE NO PUNCH OR NO LEAVE APPLIED";
     case "H": return "IF LEAVE NOT APPLIED IT WILL BE CONSIDERED AS HALF DAY";
@@ -264,65 +265,11 @@ export function AttendanceDetailModal({ employee, onClose }: Props) {
   const handleDownloadExcel = async () => {
     if (!canDownload) { toast.error("Only Super Admin or HR can download attendance data"); return; }
     try {
-      const ExcelJS = await import("exceljs");
-      const wb = new ExcelJS.Workbook();
-
-      // ── Sheet 1: Attendance Report (Part A) ──
-      const ws = wb.addWorksheet("Attendance Report");
-      ws.addRow(["24/9 CAR WASHING PRIVATE LIMITED"]);
-      ws.addRow(["132, Silver Plaza, Near Kim Chokdi, Olpad, Surat."]);
-      ws.addRow([`ATTENDANCE REPORT FOR THE MONTH OF ${monthLabel}`]);
-      ws.addRow(["EMPLOYEE CODE:", employee.empCode]);
-      ws.addRow(["EMPLOYEE NAME:", employee.employeeName]);
-      ws.addRow(["EMPLOYEE DEPARTMENT:", employee.role, "FROM DATE", fromDate, "TO DATE", toDate, "REPORT DATE:", new Date().toISOString().split("T")[0]]);
-      ws.addRow([]);
-      ws.addRow(["SR NO.", "DATE", "ATTENDANCE TYPE", "IN TIME", "OUT TIME", "WORKING HOURS", "LATE COMING COUNT", "AUTO LOGOUT COUNT", "SUNDAY / PH", "REMARKS"]);
-      displayRows.forEach((r) => {
-        ws.addRow([r.sr, r.date, r.code, r.checkIn, r.checkOut, r.workingHours, r.lateCount ?? "", r.autoLogoutCount ?? "", r.sundayPH, r.remarks]);
-      });
-      ws.addRow([]);
-      ws.addRow(["TOTAL DAYS", totalDays, "PAID DAYS", paidDays, "WEEKLY OFF", weeklyOff, "PUBLIC HOLIDAY", publicHoliday]);
-      ws.addRow(["WORKING DAYS", workingDays]);
-      ws.addRow(["PRESENT DAYS", presentDays, "ABSENT DAYS", absentDays, "LEAVE WITH SALARY", leaveWithSalary, "LEAVE WITHOUT PAY", leaveWithoutPay]);
-      ws.addRow([]);
-      ws.addRow(["MATERNITY LEAVE", maternityLeave, "LATE COMING COUNT", lateComingCount, "AUTO LOGOUT COUNT", autoLogoutCount, "ATTENDANCE - DAYS TO BE DEDUCT", daysToDeduct, "LEAVE ADJUSTED", leaveAdjusted]);
-      ws.addRow(["ATTENDANCE - DAYS DEDUCTED", daysToDeduct]);
-      ws.addRow([]);
-      ws.addRow(["FULL CSL", "HALF CSL", "FULL PL", "HALF HPL", "FULL COFF", "HALF COFF", "PUBLIC HOLIDAY", "FULL LWP", "HALF LWP"]);
-      ws.addRow([typeCounts.fullCSL, typeCounts.halfCSL, typeCounts.fullPL, typeCounts.halfHPL, typeCounts.fullCOFF, typeCounts.halfCOFF, typeCounts.publicHoliday, typeCounts.fullLWP, typeCounts.halfLWP]);
-      ws.columns.forEach((c) => { c.width = 16; });
-
-      // ── Sheet 2: Salary & Deduction (Part B) ──
-      const ws2 = wb.addWorksheet("Salary Breakdown");
-      ws2.addRow(["YEAR", new Date(fromDate || Date.now()).getFullYear(), "MONTH", monthLabel, "BANK NAME", "Not on file", "BANK ACC NUMBER", "Not on file"]);
-      ws2.addRow(["EMPLOYEE CODE", employee.empCode, "BRANCH", "Surat", "DEPARTMENT", employee.role, "DESIGNATION", employee.role]);
-      ws2.addRow(["EMPLOYEE NAME", employee.employeeName, "ACTUAL GROSS", gross, "EMPLOYEE CATEGORY", "ATTENDANCE FIX", "GENDER", "Not on file"]);
-      ws2.addRow([]);
-      ws2.addRow(["PAY HEAD", "ACTUAL FIX AMOUNT", "EARNING AMOUNT", "VARIABLE PAY HEAD", "EARNING AMOUNT", "DEDUCTION HEAD", "AMOUNT", "COMPANY'S PART", "AMOUNT"]);
-      ws2.addRow(["Basic", fix.basic, earnBasic, "Traveling & Misc Expenses Reimbursement", 0, "EPF", employeePF, "PF GROSS", earnBasic, "IN CASE EMPLOYEE'S PF FLAG IS YES"]);
-      ws2.addRow(["HRA", fix.hra, earnHRA, "Sales Incentive", 0, "ESIC", employeeESIC, "EPS", employerEPS]);
-      ws2.addRow(["Uniform Allowance", 0, 0, "Performance / Production Incentive", 0, "PT", compliance.deductions.pt.amount, "EPF", employerEPFResidual]);
-      ws2.addRow(["Washing Allowance", 0, 0, "Overtime", 0, "LWF", compliance.deductions.lwf.employee, "ESIC GROSS", totalEarning, "IN CASE EMPLOYEE'S ESIC FLAG IS YES"]);
-      ws2.addRow(["Conveyance Allowance", fix.conveyance, earnConveyance, "Commission", 0, "TDS", compliance.deductions.tds.monthly, "ESIC", employerESIC]);
-      ws2.addRow(["Medical Allowance", fix.medical, earnMedical, "OTHER DEDUCTION", 0, "SUR CHARGE", 0, "LWF", compliance.deductions.lwf.employer]);
-      ws2.addRow(["Special Allowance", fix.specialAllowance, earnSpecial, "", "", "EDU CESS", 0]);
-      ws2.addRow(["Helper Allowance", 0, 0, "", "", "LOAN", 0]);
-      ws2.addRow(["LTA", 0, 0, "", "", "ADVANCE", 0]);
-      ws2.addRow(["Education Allowance", 0, 0]);
-      ws2.addRow(["STIPEND", 0, 0, "", "", "ATTENDANCE DEDUCTION", attendanceDeduction]);
-      ws2.addRow([]);
-      ws2.addRow(["EARNING", totalEarning, "TOTAL EARNING", totalEarning, "TOTAL DEDUCTION", totalDeduction, "NET PAYABLE", netPayable]);
-      ws2.addRow([]);
-      ws2.addRow(["Note: Uniform/Washing/Helper Allowance, LTA, Education Allowance, Stipend, and variable pay (Incentive/Overtime/Commission)"]);
-      ws2.addRow(["are not tracked as separate components in the current salary structure for this employee — shown as 0, not fabricated."]);
-      ws2.columns.forEach((c) => { c.width = 22; });
-
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const { blob, filename } = await buildAttendanceExcelBlob(employee);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Attendance_${employee.empCode}_${monthLabel.replace(" ", "_")}.xlsx`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Attendance & salary report exported to Excel");

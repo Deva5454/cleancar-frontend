@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Download,
   Eye,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -31,13 +32,78 @@ import { ATTENDANCE_TYPE_LABELS, ATTENDANCE_TYPE_COLORS } from "../../constants/
 import { ConfirmDialog } from "../shared/ConfirmDialog";
 import { AttendanceDetailModal } from "./AttendanceDetailModal";
 import { AttendanceMusterRollModal } from "./AttendanceMusterRollModal";
+import { buildAttendanceExcelBlob } from "../../utils/attendanceExcelBuilder";
+import { useRole } from "../../contexts/RoleContext";
 
 export function AttendanceDataManager() {
+  const { currentRole } = useRole();
+  const canSend = currentRole === "HR" || currentRole === "Super Admin";
   const [seededData, setSeededData] = useState<EmployeeAttendanceRecord[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState<EmployeeAttendanceRecord | null>(null);
   const [showMusterRoll, setShowMusterRoll] = useState(false);
+  const [sendingEmployeeId, setSendingEmployeeId] = useState<string | null>(null);
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
+
+  const canShareFiles = typeof navigator !== "undefined" && !!navigator.share && !!navigator.canShare;
+
+  const handleSendEmployee = async (emp: EmployeeAttendanceRecord) => {
+    if (!canSend) { toast.error("Only HR or Super Admin can send attendance reports"); return; }
+    setSendingEmployeeId(emp.employeeId);
+    try {
+      const { blob, filename } = await buildAttendanceExcelBlob(emp);
+      const file = new File([blob], filename, { type: blob.type });
+
+      if (canShareFiles && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Attendance Report — ${emp.employeeName}`,
+          text: `Attendance & salary report for ${emp.employeeName} (${emp.empCode})`,
+        });
+        toast.success(`Share sheet opened for ${emp.employeeName} — pick WhatsApp, Email, or any app`);
+      } else {
+        // No file-sharing support on this browser/device — fall back to a
+        // plain download so the file is at least obtained, rather than
+        // silently failing or faking a "sent" state.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+        toast.warning(`This browser can't share files directly — downloaded "${filename}" instead. Attach it manually to WhatsApp/Email.`);
+      }
+    } catch (err: any) {
+      if (err?.name !== "AbortError") { // user closing the share sheet isn't an error
+        toast.error(`Couldn't prepare report for ${emp.employeeName}: ${err.message}`);
+      }
+    } finally {
+      setSendingEmployeeId(null);
+    }
+  };
+
+  const handleToggleBulkSelect = (employeeId: string) => {
+    setSelectedForBulk((prev) => {
+      const next = new Set(prev);
+      if (next.has(employeeId)) next.delete(employeeId); else next.add(employeeId);
+      return next;
+    });
+  };
+
+  const handleBulkSend = async () => {
+    if (!canSend) { toast.error("Only HR or Super Admin can send attendance reports"); return; }
+    const targets = seededData.filter((e) => selectedForBulk.has(e.employeeId));
+    if (targets.length === 0) { toast.error("Select at least one employee first"); return; }
+    setBulkSending(true);
+    for (const emp of targets) {
+      // Sequential and awaited — each share sheet only ever contains that
+      // one employee's own file, so there's no risk of cross-delivery even
+      // when sending to many people in one batch.
+      await handleSendEmployee(emp);
+    }
+    setBulkSending(false);
+    setSelectedForBulk(new Set());
+  };
 
   const [confirmState, setConfirmState] = useState<{
     open: boolean; title: string; description: string; onConfirm: () => void;
@@ -198,7 +264,25 @@ export function AttendanceDataManager() {
       {seededData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Seeded Employee Data</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Seeded Employee Data</CardTitle>
+              {canSend && (
+                <Button
+                  size="sm"
+                  onClick={handleBulkSend}
+                  disabled={selectedForBulk.size === 0 || bulkSending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {bulkSending ? "Sending…" : `Send Selected (${selectedForBulk.size})`}
+                </Button>
+              )}
+            </div>
+            {canSend && !canShareFiles && (
+              <p className="text-xs text-amber-600 mt-1">
+                This browser doesn't support sharing files directly — Send will download each report instead, for you to attach manually.
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -210,14 +294,25 @@ export function AttendanceDataManager() {
                   }`}
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">
-                        {emp.employeeName}{" "}
-                        <span className="text-sm font-normal text-gray-600">
-                          ({emp.empCode})
-                        </span>
-                      </h4>
-                      <p className="text-sm text-gray-600">{emp.role}</p>
+                    <div className="flex items-start gap-3">
+                      {canSend && (
+                        <input
+                          type="checkbox"
+                          checked={selectedForBulk.has(emp.employeeId)}
+                          onChange={() => handleToggleBulkSelect(emp.employeeId)}
+                          className="mt-1.5 w-4 h-4"
+                          aria-label={`Select ${emp.employeeName} for bulk send`}
+                        />
+                      )}
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {emp.employeeName}{" "}
+                          <span className="text-sm font-normal text-gray-600">
+                            ({emp.empCode})
+                          </span>
+                        </h4>
+                        <p className="text-sm text-gray-600">{emp.role}</p>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Badge
@@ -245,6 +340,17 @@ export function AttendanceDataManager() {
                         <Eye className="w-3.5 h-3.5 mr-1" />
                         View
                       </Button>
+                      {canSend && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendEmployee(emp)}
+                          disabled={sendingEmployeeId === emp.employeeId || bulkSending}
+                        >
+                          <Send className="w-3.5 h-3.5 mr-1" />
+                          {sendingEmployeeId === emp.employeeId ? "Sending…" : "Send"}
+                        </Button>
+                      )}
                     </div>
                   </div>
 
