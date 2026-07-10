@@ -41,6 +41,7 @@ import { employeeDatabaseService } from "../../services/employeeDatabaseService"
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useRole } from "../../contexts/RoleContext";
 import { getStatusDisplay } from "../../utils/payrollWorkflow";
+import { PayrollLineReviewModal, type ReviewStatus, type ReviewLogEntry } from "./PayrollLineReviewModal";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -60,6 +61,8 @@ interface EmployeePayroll {
   netPay: number;
   hasAnomaly: boolean;
   anomalyReason?: string;
+  reviewStatus: ReviewStatus;
+  reviewLog: ReviewLogEntry[];
 }
 
 interface PayrollSummary {
@@ -168,26 +171,34 @@ export function PayrollReviewApproval() {
   // fell back to) — making that explicit rather than pretending a
   // `baseSalary` field exists on the employee record.
   const MOCK_BASE_SALARY = 18000;
-  const [employees, setEmployees] = useState(dbEmps.slice(0,25).map(emp => ({
-    employeeId: emp.employeeId,
+  const [employees, setEmployees] = useState<EmployeePayroll[]>(dbEmps.slice(0,25).map(emp => ({
+    employeeId: emp.employeeId || emp.id || emp.tempId,
     employeeName: emp.firstName+" "+emp.lastName,
-    role: emp.role, department: emp.department||"Operations",
+    role: emp.role || emp.designation || "Employee", department: emp.department||"Operations",
     baseSalary: MOCK_BASE_SALARY, incentive: 0,
     grossSalary: MOCK_BASE_SALARY,
     deductions: Math.round(MOCK_BASE_SALARY*0.12),
     netPay: Math.round(MOCK_BASE_SALARY*0.88),
     hasAnomaly: false,
+    reviewStatus: "Pending",
+    reviewLog: [],
   })));
-  const [summary, setSummary] = useState<PayrollSummary>({
-    totalEmployees: 0,
-    totalGrossSalary: 0,
-    totalDeductions: 0,
-    totalNetPayable: 0,
-    totalEmployerContributions: 0,
+  const [viewingEmployee, setViewingEmployee] = useState<EmployeePayroll | null>(null);
+  // Summary used to be a separate useState that was initialized once and
+  // never updated — every card permanently showed ₹0.00 / 0 employees
+  // regardless of the real employee rows in the table below. Now derived
+  // live from `employees` so it always reflects what's actually shown.
+  const summary: PayrollSummary = {
+    totalEmployees: employees.length,
+    totalGrossSalary: employees.reduce((s, e) => s + e.grossSalary, 0),
+    totalDeductions: employees.reduce((s, e) => s + e.deductions, 0),
+    totalNetPayable: employees.reduce((s, e) => s + e.netPay, 0),
+    totalEmployerContributions: Math.round(employees.reduce((s, e) => s + e.grossSalary, 0) * 0.0975), // PF+ESIC+LWF employer share, matching the existing 12% employee-side approximation used above
     totalExpense: 0,
     month: "04",
     year: "2026",
-  });
+  };
+  summary.totalExpense = summary.totalNetPayable + summary.totalEmployerContributions;
   const [statutory, setStatutory] = useState<StatutoryBreakdown>({
     employeePF: 0,
     employeeESIC: 0,
@@ -198,7 +209,7 @@ export function PayrollReviewApproval() {
     employerLWF: 0,
   });
   const { payrollRuns, getPayrollForMonth, sendToReview, approvePayroll } = usePayroll();
-  const { currentUser } = useRole();
+  const { currentUser, currentRole } = useRole();
   const currentMonthKey = "2026-04";
   const monthRuns = getPayrollForMonth ? getPayrollForMonth(currentMonthKey) : [];
   const activeRun = monthRuns && monthRuns.length > 0 ? monthRuns[0] : null;
@@ -216,8 +227,53 @@ export function PayrollReviewApproval() {
   const anomalyCount = employees.filter((e) => e.hasAnomaly).length;
 
   const handleHRApproval = () => {
+    const pendingOrRejected = employees.filter(e => e.reviewStatus !== "Approved");
+    if (pendingOrRejected.length > 0) {
+      toast.error(`${pendingOrRejected.length} of ${employees.length} employees still need individual review before this run can go to HR Approval. Open each one via "View" first.`);
+      return;
+    }
     setConfirmAction("hr");
     setConfirmModalOpen(true);
+  };
+
+  const handleApproveLine = (employeeId: string) => {
+    setEmployees(prev => prev.map(e => e.employeeId === employeeId ? {
+      ...e,
+      reviewStatus: "Approved",
+      reviewLog: [...e.reviewLog, {
+        action: "Approved", by: currentUser?.name || "HR", byRole: currentRole,
+        at: new Date().toISOString(),
+      }],
+    } : e));
+  };
+
+  const handleRejectLine = (
+    employeeId: string,
+    corrections: { baseSalary: number; incentive: number; deductions: number },
+    note: string
+  ) => {
+    setEmployees(prev => prev.map(e => {
+      if (e.employeeId !== employeeId) return e;
+      const changes: ReviewLogEntry["changes"] = [];
+      if (corrections.baseSalary !== e.baseSalary) changes.push({ field: "Base Salary", from: e.baseSalary, to: corrections.baseSalary });
+      if (corrections.incentive !== e.incentive) changes.push({ field: "Incentive", from: e.incentive, to: corrections.incentive });
+      if (corrections.deductions !== e.deductions) changes.push({ field: "Deductions", from: e.deductions, to: corrections.deductions });
+      const newGross = corrections.baseSalary + corrections.incentive;
+      const newNet = newGross - corrections.deductions;
+      return {
+        ...e,
+        baseSalary: corrections.baseSalary,
+        incentive: corrections.incentive,
+        deductions: corrections.deductions,
+        grossSalary: newGross,
+        netPay: newNet,
+        reviewStatus: "Rejected",
+        reviewLog: [...e.reviewLog, {
+          action: "Rejected", by: currentUser?.name || "HR", byRole: currentRole,
+          at: new Date().toISOString(), note, changes,
+        }],
+      };
+    }));
   };
 
   const confirmHRApproval = async () => {
@@ -298,6 +354,19 @@ export function PayrollReviewApproval() {
           <p className="text-gray-600">
             April 2026 • {summary.totalEmployees} Employees
           </p>
+          <div className="flex gap-2 mt-1">
+            <Badge className="bg-green-100 text-green-700 border-green-300">
+              {employees.filter(e => e.reviewStatus === "Approved").length} Approved
+            </Badge>
+            <Badge className="bg-gray-100 text-gray-700 border-gray-300">
+              {employees.filter(e => e.reviewStatus === "Pending").length} Pending Review
+            </Badge>
+            {employees.filter(e => e.reviewStatus === "Rejected").length > 0 && (
+              <Badge className="bg-red-100 text-red-700 border-red-300">
+                {employees.filter(e => e.reviewStatus === "Rejected").length} Rejected
+              </Badge>
+            )}
+          </div>
         </div>
         <Button variant="outline">
           <Download className="w-4 h-4 mr-2" />
@@ -412,6 +481,7 @@ export function PayrollReviewApproval() {
                 <TableHead className="text-right">Deductions</TableHead>
                 <TableHead className="text-right">Net Pay</TableHead>
                 <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -450,15 +520,24 @@ export function PayrollReviewApproval() {
                     {formatCurrency(employee.netPay)}
                   </TableCell>
                   <TableCell className="text-center">
-                    {employee.hasAnomaly ? (
-                      <Badge className="bg-red-100 text-red-700">
+                    {employee.reviewStatus === "Approved" ? (
+                      <Badge className="bg-green-100 text-green-700 border-green-300">Approved</Badge>
+                    ) : employee.reviewStatus === "Rejected" ? (
+                      <Badge className="bg-red-100 text-red-700 border-red-300">Rejected</Badge>
+                    ) : employee.hasAnomaly ? (
+                      <Badge className="bg-amber-100 text-amber-700 border-amber-300">
                         Review
                       </Badge>
                     ) : (
-                      <Badge className="bg-green-100 text-green-700">
-                        OK
+                      <Badge className="bg-gray-100 text-gray-700 border-gray-300">
+                        Pending
                       </Badge>
                     )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button size="sm" variant="outline" onClick={() => setViewingEmployee(employee)}>
+                      View
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -683,6 +762,15 @@ export function PayrollReviewApproval() {
           { label: "Pay Period", value: `${summary.month} ${summary.year}` },
         ]}
       />
+
+      {viewingEmployee && (
+        <PayrollLineReviewModal
+          employee={viewingEmployee}
+          onClose={() => setViewingEmployee(null)}
+          onApprove={handleApproveLine}
+          onReject={handleRejectLine}
+        />
+      )}
     </div>
   );
 }
