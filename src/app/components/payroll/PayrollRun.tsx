@@ -45,9 +45,12 @@ import { hasPermission } from "../../utils/permissionEngine";
 import { useRole } from "../../contexts/RoleContext";
 import { useAttendance } from "../../contexts/AttendanceContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
-import { CITIES } from "../../contexts/CityContext";
+import { CITIES, useCity } from "../../contexts/CityContext";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
 import { illustrativeGrossForRole } from "../../utils/attendanceReportCore";
+import { calculateStatutoryDeductions } from "../../services/payroll/complianceEngine";
+import { detectStateFromCity } from "../../services/payroll/complianceRules";
+import { investmentDeclarationService } from "../../services/investmentDeclarationService";
 
 interface PayrollResult {
   employeeId: string;
@@ -75,6 +78,7 @@ export function PayrollRun() {
   // PHASE 2: Migrated to useEmployeeData
   const { payrollRuns, employees, getEmployeeById, getPayrollForMonth, processPayroll } = useEmployeeData();
   const { currentUser } = useRole();
+  const { city: currentCityId } = useCity();
   const { computeDaysPresent } = useAttendance();
   const canApprove = hasPermission(currentUser, "payroll", "approve");
   const { employees: allEmployees } = useEmployee();
@@ -86,24 +90,6 @@ export function PayrollRun() {
   // Assignment); falls back to a role-based illustrative gross — clearly
   // flagged per-row via `usesRealSalary` — only when nothing's been
   // assigned yet, rather than silently defaulting everyone to a flat 18000.
-  const mockResults: PayrollResult[] = cityEmployees.slice(0, 25).map(emp => {
-    const realSalary = employeeSalaryService.getActiveEmployeeSalary(emp.employeeId);
-    const gross = realSalary?.salaryComponents.monthlyGross ?? illustrativeGrossForRole(emp.role);
-    return {
-      employeeId: emp.employeeId,
-      employeeName: `${emp.firstName} ${emp.lastName}`,
-      role: emp.role,
-      basePay: gross,
-      incentive: Math.round(gross * 0.12),
-      adjustedIncentive: Math.round(gross * 0.11),
-      totalPay: Math.round(gross * 1.11),
-      totalUnits: emp.role === "Car Washer" ? 42 : 0,
-      validUnits: emp.role === "Car Washer" ? 39 : 0,
-      complianceScore: 90,
-      status: "success" as const,
-    };
-  });
-
   // Input State
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
@@ -181,6 +167,110 @@ export function PayrollRun() {
     setHasRun(false);
 
     try {
+      // ── Generate initial payroll records ──────────────────────────────
+      // This is the step that was missing entirely: nothing anywhere in
+      // the app created a PayrollRun record with real salary/deduction
+      // data for a real employee. Pulls the real assigned salary
+      // (employeeSalaryService), real attendance days, real approved
+      // unpaid leave, verified investment declarations (for TDS), and
+      // computes real PF/ESIC/PT/TDS via the compliance engine.
+      const daysInMonth = new Date(Number(selectedYear), monthIndex + 1, 0).getDate();
+      const totalWorkingDays = 26; // matches PayrollContext.processPayroll()'s own default/convention
+      const financialYearStart = monthIndex >= 3 ? Number(selectedYear) : Number(selectedYear) - 1;
+      const financialYear = `${financialYearStart}-${String((financialYearStart + 1) % 100).padStart(2, "0")}`;
+      const periodStart = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-01`;
+      const periodEnd = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+
+      let generated = 0;
+      let skippedNoSalary = 0;
+
+      for (const emp of cityEmployees) {
+        const realSalary = employeeSalaryService.getActiveEmployeeSalary(emp.employeeId);
+        if (!realSalary) {
+          // No salary assigned yet (via Payroll → Salary Assignment) — can't
+          // honestly generate a payslip with no real numbers to base it on.
+          skippedNoSalary++;
+          continue;
+        }
+        const components = realSalary.salaryComponents;
+        const empCityId = emp.cityId || currentCityId;
+        const state = detectStateFromCity(CITIES[empCityId as keyof typeof CITIES]?.name || "surat");
+
+        const verifiedDeduction = investmentDeclarationService.getVerifiedDeductionTotal(emp.employeeId, financialYear);
+        const compliance = calculateStatutoryDeductions(
+          state,
+          {
+            basic: components.basic, hra: components.hra, conveyance: components.conveyance,
+            medicalAllowance: components.medical, specialAllowance: components.specialAllowance, otherAllowances: 0,
+          },
+          components.annualCTC,
+          verifiedDeduction
+        );
+
+        const daysPresent = computeDaysPresent(emp.employeeId, monthStr);
+
+        // Approved unpaid leave (UL/LWP) this month, same source used by
+        // the existing refinement loop below, kept consistent here.
+        const leaveRequests = DataService.get<{
+          employeeId: string; leaveType: string; status: string; fromDate: string; toDate: string;
+        }>("LEAVE_REQUESTS");
+        const unpaidLeaveDays = leaveRequests
+          .filter(l => l.employeeId === emp.employeeId && l.status === "Approved" &&
+            (l.leaveType === "UL" || l.leaveType === "LWP") && l.fromDate?.startsWith(monthStr))
+          .reduce((total, l) => {
+            const from = new Date(l.fromDate);
+            const to = new Date(l.toDate || l.fromDate);
+            return total + Math.ceil((to.getTime() - from.getTime()) / 86400000) + 1;
+          }, 0);
+
+        const totalDeductions = compliance.deductions.pf.employee + compliance.deductions.esi.employee
+          + compliance.deductions.pt.amount + compliance.deductions.tds.monthly;
+
+        const daysWorked = Math.max(0, daysPresent - unpaidLeaveDays);
+        // Mirrors processPayroll()'s own attendance-proration formula exactly,
+        // so the netSalary stored here stays consistent with the grossSalary
+        // processPayroll will compute internally — not double-prorated, not
+        // silently inconsistent between the two fields.
+        const hasAttendanceData = daysWorked > 0;
+        const attendanceFactor = (hasAttendanceData && daysWorked < totalWorkingDays) ? daysWorked / totalWorkingDays : 1;
+        const adjustedGross = hasAttendanceData ? Math.round(components.monthlyGross * attendanceFactor) : components.monthlyGross;
+
+        processPayroll({
+          employeeId: emp.employeeId,
+          month: monthStr,
+          period: { startDate: periodStart, endDate: periodEnd },
+          cityId: empCityId,
+          stateCode: state,
+          baseSalary: components.basic,
+          incentiveAmount: 0, // Not yet wired to a real incentive ledger — see audit note
+          addOnEarnings: 0,
+          allowances: components.hra + components.conveyance + components.medical + components.specialAllowance,
+          grossSalary: components.monthlyGross,
+          pf: compliance.deductions.pf.employee,
+          esic: compliance.deductions.esi.employee,
+          pt: compliance.deductions.pt.amount,
+          tds: compliance.deductions.tds.monthly,
+          advances: 0,
+          penalties: 0,
+          totalDeductions,
+          daysWorked,
+          totalDays: totalWorkingDays,
+          netSalary: adjustedGross - totalDeductions,
+          status: "draft",
+          createdBy: currentUser?.name || "Payroll Run",
+        });
+        generated++;
+      }
+
+      if (skippedNoSalary > 0) {
+        toast.warning(`${skippedNoSalary} employee(s) skipped — no salary assigned yet. Use Payroll → Salary Assignment first.`);
+      }
+      if (generated === 0) {
+        toast.error("No payroll records generated — assign salaries to employees first.");
+        setIsRunning(false);
+        return;
+      }
+
       // ✅ H09 FIX: Real payroll run — reads attendance for each employee
       // computeDaysPresent uses AttendanceContext (Present=1, Late=1, HalfDay=0.5)
       let processed = 0;
