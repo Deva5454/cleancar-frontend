@@ -15,7 +15,8 @@ import { detectHalts, enrichHalts, type DayTimeline, type Halt, type Drive } fro
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { MapPin, Navigation, Clock, Footprints, RefreshCw, Play, Pause, Users, AlertTriangle, ChevronDown, ChevronRight, Camera } from "lucide-react";
+import { MapPin, Navigation, Clock, Footprints, RefreshCw, Play, Pause, Users, AlertTriangle, ChevronDown, ChevronRight, Camera, Lock } from "lucide-react";
+import { useRole } from "../../contexts/RoleContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,8 @@ function TimelineRow({
 }
 
 export function SuperAdminFieldTracker() {
+  const { currentRole } = useRole();
+  const hasAccess = currentRole === "Super Admin" || currentRole === "Operations Manager";
   const [selectedEmp, setSelectedEmp]     = useState<string>("all");
   const [selectedDate, setSelectedDate]   = useState(today());
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([]);
@@ -809,6 +812,20 @@ export function SuperAdminFieldTracker() {
     );
   };
 
+  if (!hasAccess) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 p-6 bg-white border rounded-lg shadow-sm max-w-md">
+          <Lock className="w-6 h-6 text-gray-400 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-900">Restricted</p>
+            <p className="text-sm text-gray-500">Field Tracker is available to Super Admin and Operations Manager only.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-slate-50">
       {/* Header */}
@@ -831,6 +848,12 @@ export function SuperAdminFieldTracker() {
           </Button>
         </div>
       </div>
+
+      {liveLocations.length === 0 && allSessions.length === 0 && (
+        <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+          No field sessions on file yet — this screen reads real GPS/session data from fieldTrackingService, but nothing in the field-facing apps currently writes to it. Once a real location-tracking flow starts logging sessions, they'll appear here automatically.
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="bg-white border-b px-6 flex gap-0 shrink-0">

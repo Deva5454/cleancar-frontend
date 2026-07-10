@@ -36,6 +36,7 @@ import { TSELeadQueue } from "./TSELeadQueue";
 import { TSEActiveCall } from "./TSEActiveCall";
 import { TSECRMUpdate } from "./TSECRMUpdate";
 import { TSEIncentiveTracker } from "./TSEIncentiveTracker";
+import { TSEDoorstepConfirmations } from "./TSEDoorstepConfirmations";
 import { TSEComplimentary2W } from "./TSEComplimentary2W";
 import { teleSalesExecutiveService } from "../../services/teleSalesExecutiveService";
 import type {
@@ -48,7 +49,7 @@ import type {
 import { DAILY_CALL_TARGET, CONVERSION_TARGETS } from "../../constants/teleSalesExecutive.constants";
 import { logger } from "../../services/logger";
 
-type ScreenType = "LEAD_QUEUE" | "ACTIVE_CALL" | "CRM_UPDATE" | "INCENTIVE_TRACKER" | "COMP_2W";
+type ScreenType = "LEAD_QUEUE" | "ACTIVE_CALL" | "CRM_UPDATE" | "INCENTIVE_TRACKER" | "COMP_2W" | "DOORSTEP_CONFIRMATIONS";
 type TabType = "leads" | "incentives";
 
 interface ActiveCallSession {
@@ -425,6 +426,14 @@ export function TeleSalesExecutiveApp() {
                 My Incentives
               </Button>
               <Button
+                variant={currentScreen === "DOORSTEP_CONFIRMATIONS" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentScreen("DOORSTEP_CONFIRMATIONS")}
+                disabled={currentScreen === "ACTIVE_CALL" || currentScreen === "CRM_UPDATE"}
+              >
+                Doorstep Confirmations
+              </Button>
+              <Button
                 variant={currentScreen === "COMP_2W" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setCurrentScreen("COMP_2W")}
@@ -500,6 +509,7 @@ export function TeleSalesExecutiveApp() {
         )}
 
         {currentScreen === "INCENTIVE_TRACKER" && <TSEIncentiveTracker />}
+        {currentScreen === "DOORSTEP_CONFIRMATIONS" && <TSEDoorstepConfirmations />}
         {currentScreen === "COMP_2W" && (
           <div className="p-4">
             {activeCallSession ? (
