@@ -25,6 +25,8 @@ import {
 import {
   AlertCircle,
   CheckCircle,
+  CheckCircle2,
+  XCircle,
   Clock,
   DollarSign,
   FileText,
@@ -184,6 +186,7 @@ export function PayrollReviewApproval() {
     reviewLog: [],
   })));
   const [viewingEmployee, setViewingEmployee] = useState<EmployeePayroll | null>(null);
+  const [openViewInEditMode, setOpenViewInEditMode] = useState(false);
   // Summary used to be a separate useState that was initialized once and
   // never updated — every card permanently showed ₹0.00 / 0 employees
   // regardless of the real employee rows in the table below. Now derived
@@ -210,6 +213,7 @@ export function PayrollReviewApproval() {
   });
   const { payrollRuns, getPayrollForMonth, sendToReview, approvePayroll } = usePayroll();
   const { currentUser, currentRole } = useRole();
+  const canReview = currentRole === "HR" || currentRole === "Super Admin";
   const currentMonthKey = "2026-04";
   const monthRuns = getPayrollForMonth ? getPayrollForMonth(currentMonthKey) : [];
   const activeRun = monthRuns && monthRuns.length > 0 ? monthRuns[0] : null;
@@ -237,6 +241,7 @@ export function PayrollReviewApproval() {
   };
 
   const handleApproveLine = (employeeId: string) => {
+    if (!canReview) { toast.error("Only HR or Super Admin can approve payroll"); return; }
     setEmployees(prev => prev.map(e => e.employeeId === employeeId ? {
       ...e,
       reviewStatus: "Approved",
@@ -252,6 +257,7 @@ export function PayrollReviewApproval() {
     corrections: { baseSalary: number; incentive: number; deductions: number },
     note: string
   ) => {
+    if (!canReview) { toast.error("Only HR or Super Admin can reject/correct payroll"); return; }
     setEmployees(prev => prev.map(e => {
       if (e.employeeId !== employeeId) return e;
       const changes: ReviewLogEntry["changes"] = [];
@@ -535,9 +541,32 @@ export function PayrollReviewApproval() {
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button size="sm" variant="outline" onClick={() => setViewingEmployee(employee)}>
-                      View
-                    </Button>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => { setViewingEmployee(employee); setOpenViewInEditMode(false); }}>
+                        View
+                      </Button>
+                      {canReview && employee.reviewStatus !== "Approved" && (
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => handleApproveLine(employee.employeeId)}
+                          title="Approve as-is"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {canReview && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-300 text-red-700 hover:bg-red-50"
+                          onClick={() => { setViewingEmployee(employee); setOpenViewInEditMode(true); }}
+                          title="Reject & correct"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -766,9 +795,10 @@ export function PayrollReviewApproval() {
       {viewingEmployee && (
         <PayrollLineReviewModal
           employee={viewingEmployee}
-          onClose={() => setViewingEmployee(null)}
+          onClose={() => { setViewingEmployee(null); setOpenViewInEditMode(false); }}
           onApprove={handleApproveLine}
           onReject={handleRejectLine}
+          startInEditMode={openViewInEditMode}
         />
       )}
     </div>

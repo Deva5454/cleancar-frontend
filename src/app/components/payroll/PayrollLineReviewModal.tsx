@@ -58,18 +58,20 @@ export interface ReviewableEmployeePayroll {
 }
 
 export function PayrollLineReviewModal({
-  employee, onClose, onApprove, onReject,
+  employee, onClose, onApprove, onReject, startInEditMode,
 }: {
   employee: ReviewableEmployeePayroll;
   onClose: () => void;
   onApprove: (employeeId: string) => void;
   onReject: (employeeId: string, corrections: { baseSalary: number; incentive: number; deductions: number }, note: string) => void;
+  /** Opens straight into the correction form (used by the table's quick "Reject" button, skipping the summary view). */
+  startInEditMode?: boolean;
 }) {
   const { currentUser, currentRole } = useRole();
   const canReview = currentRole === "HR" || currentRole === "Super Admin";
   const { getAttendanceByEmployeeId } = useHRData();
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(!!startInEditMode);
   const [draftBase, setDraftBase] = useState(employee.baseSalary);
   const [draftIncentive, setDraftIncentive] = useState(employee.incentive);
   const [draftDeductions, setDraftDeductions] = useState(employee.deductions);
