@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { useCity } from "../../contexts/CityContext";
+import { useFinance, type LedgerEntry as RealLedgerEntry } from "../../contexts/FinanceContext";
 import {
   Dialog,
   DialogContent,
@@ -82,120 +83,64 @@ interface TransactionWithEntries {
   notes?: string;
 }
 
-// Mock transaction data - In production, this comes from financeEngine
-const getMockTransaction = (cityName: string): TransactionWithEntries => ({
-  transactionId: "TXN-2026-04-001",
-  transactionDate: "2026-04-20",
-  transactionType: "REVENUE",
-  referenceId: "UNIT-395001-2026-04-20-001",
-  description: "Car wash service revenue - 4W Premium Package",
-  totalAmount: 499,
-  sourceEngine: "operationsEngine",
-  postedBy: "System Auto-Post",
-  city: cityName,
-  cluster: "Adajan",
-  status: "posted",
-  postedAt: "2026-04-20 14:35:22",
-  notes: "Auto-posted from completed unit. Customer: CUST-1023. Washer: CW-395001-001 (Rajesh Kumar).",
-  ledgerEntries: [
-    {
-      id: "LE-001-DR",
-      accountCode: "1200",
-      accountName: "Accounts Receivable",
-      accountCategory: "Assets",
-      debit: 499,
-      credit: 0,
-    },
-    {
-      id: "LE-001-CR",
-      accountCode: "4000",
-      accountName: "Service Revenue",
-      accountCategory: "Income",
-      debit: 0,
-      credit: 499,
-    },
-  ],
-});
+// Derives the account category from the real chart-of-accounts numbering
+// convention already used throughout FinanceContext (see LedgerEntry comment
+// there): 1000s Assets, 2000s Liabilities, 3000s Equity, 4000s Income, 5000s Expenses.
+function categoryFromAccountCode(code: string): LedgerEntry["accountCategory"] {
+  const n = parseInt(code, 10);
+  if (n >= 1000 && n < 2000) return "Assets";
+  if (n >= 2000 && n < 3000) return "Liabilities";
+  if (n >= 3000 && n < 4000) return "Equity";
+  if (n >= 4000 && n < 5000) return "Income";
+  return "Expenses";
+}
 
-const getMockSalaryTransaction = (cityName: string): TransactionWithEntries => ({
-  transactionId: "TXN-2026-04-002",
-  transactionDate: "2026-04-20",
-  transactionType: "SALARY",
-  referenceId: "PAYROLL-FEB-2026-WASHERS",
-  description: "February 2026 Payroll - Car Washers",
-  totalAmount: 285000,
-  sourceEngine: "payrollEngine",
-  postedBy: "Payroll Processing Engine",
-  city: cityName,
-  status: "posted",
-  postedAt: "2026-04-20 16:12:45",
-  notes: "Auto-posted from payroll processing. Total employees: 15. Snapshot ID: SNAP-2026-04-001.",
-  ledgerEntries: [
-    {
-      id: "LE-002-DR-1",
-      accountCode: "5200",
-      accountName: "Wage Expense",
-      accountCategory: "Expenses",
-      debit: 285000,
-      credit: 0,
-    },
-    {
-      id: "LE-002-CR-1",
-      accountCode: "2100",
-      accountName: "Salary Payable",
-      accountCategory: "Liabilities",
-      debit: 0,
-      credit: 285000,
-    },
-  ],
-});
+const SOURCE_LABELS: Record<string, string> = {
+  Invoice: "Revenue Engine", Payment: "Payment Engine", Payroll: "Payroll Engine",
+  Expense: "Expense Engine", Adjustment: "Adjustment Engine",
+};
 
-const getMockExpenseTransaction = (cityName: string): TransactionWithEntries => ({
-  transactionId: "TXN-2026-04-003",
-  transactionDate: "2026-04-19",
-  transactionType: "EXPENSE",
-  referenceId: "PO-2026-045",
-  description: "Cleaning supplies purchase - CleanPro Supplies",
-  totalAmount: 17700,
-  sourceEngine: "manualEntry",
-  postedBy: "Accounts Manager - Sarah",
-  city: cityName,
-  status: "posted",
-  postedAt: "2026-04-19 11:28:15",
-  notes: "Invoice: INV-CP-2026-045. GST: 18%. Base: ₹15,000 + GST: ₹2,700 = ₹17,700.",
-  ledgerEntries: [
-    {
-      id: "LE-003-DR-1",
-      accountCode: "5100",
-      accountName: "Materials Expense",
-      accountCategory: "Expenses",
-      debit: 15000,
-      credit: 0,
-    },
-    {
-      id: "LE-003-DR-2",
-      accountCode: "1310",
-      accountName: "GST Input Credit",
-      accountCategory: "Assets",
-      debit: 2700,
-      credit: 0,
-    },
-    {
-      id: "LE-003-CR-1",
-      accountCode: "2000",
-      accountName: "Accounts Payable",
-      accountCategory: "Liabilities",
-      debit: 0,
-      credit: 17700,
-    },
-  ],
-});
+// Groups the real flat ledger entries (FinanceContext) into the
+// transaction-with-paired-entries shape this screen renders. Real entries
+// created together share a referenceId (see FinanceContext's ledger-posting
+// functions) — that's the natural grouping key; entries with no referenceId
+// each stand alone as their own transaction rather than being silently merged.
+function groupIntoTransactions(entries: RealLedgerEntry[], cityDisplayName: string): TransactionWithEntries[] {
+  const groups = new Map<string, RealLedgerEntry[]>();
+  entries.forEach((e, idx) => {
+    const key = e.referenceId || `__standalone_${e.ledgerEntryId || idx}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(e);
+  });
 
-const getAllMockTransactions = (cityName: string) => [
-  getMockTransaction(cityName),
-  getMockSalaryTransaction(cityName),
-  getMockExpenseTransaction(cityName),
-];
+  return Array.from(groups.entries())
+    .map(([referenceId, group]): TransactionWithEntries => {
+      const first = group[0];
+      const totalDebit = group.filter(e => e.entryType === "DEBIT").reduce((s, e) => s + e.amount, 0);
+      return {
+        transactionId: referenceId,
+        transactionDate: first.entryDate,
+        transactionType: (first.referenceType || "GENERAL").toUpperCase(),
+        referenceId,
+        description: first.description,
+        totalAmount: totalDebit,
+        sourceEngine: first.referenceType ? (SOURCE_LABELS[first.referenceType] || "financeEngine") : "financeEngine",
+        postedBy: "System",
+        city: cityDisplayName,
+        ledgerEntries: group.map((e): LedgerEntry => ({
+          id: e.ledgerEntryId,
+          accountCode: e.accountCode,
+          accountName: e.accountName,
+          accountCategory: categoryFromAccountCode(e.accountCode),
+          debit: e.entryType === "DEBIT" ? e.amount : 0,
+          credit: e.entryType === "CREDIT" ? e.amount : 0,
+        })),
+        status: "posted",
+        postedAt: first.createdAt,
+      };
+    })
+    .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
+}
 
 interface LedgerEntriesViewProps {
   transactionId?: string;
@@ -207,9 +152,11 @@ export function LedgerEntriesView({
   isDialog = false
 }: LedgerEntriesViewProps) {
   const { city, cityInfo } = useCity();
-  const ALL_MOCK_TRANSACTIONS = getAllMockTransactions(cityInfo.displayName);
+  const { getLedgerEntriesByCity } = useFinance();
+  const realEntries = getLedgerEntriesByCity(city);
+  const REAL_TRANSACTIONS = groupIntoTransactions(realEntries, cityInfo.displayName);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithEntries | null>(
-    transactionId ? ALL_MOCK_TRANSACTIONS[0] : null
+    transactionId ? REAL_TRANSACTIONS[0] || null : null
   );
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
@@ -523,8 +470,13 @@ export function LedgerEntriesView({
             <CardTitle>Recent Transactions</CardTitle>
           </CardHeader>
           <CardContent>
+            {REAL_TRANSACTIONS.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-500">
+                No ledger entries yet for {cityInfo.displayName}. Entries appear here automatically once invoices, payments, payroll, or expenses are posted.
+              </div>
+            ) : (
             <div className="space-y-2">
-              {ALL_MOCK_TRANSACTIONS.map((txn) => (
+              {REAL_TRANSACTIONS.map((txn) => (
                 <div
                   key={txn.transactionId}
                   onClick={() => viewTransactionDetail(txn)}
@@ -567,6 +519,7 @@ export function LedgerEntriesView({
                 </div>
               ))}
             </div>
+            )}
           </CardContent>
         </Card>
 
