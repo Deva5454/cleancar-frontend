@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -13,6 +13,9 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import { useCustomers } from "../../contexts/CustomerContext";
+import type { Lead } from "../../services/leadConversionService";
+import { SLA_THRESHOLDS } from "../../services/teleSalesExecutive.constants";
 
 type ResponseLead = {
   id: string;
@@ -27,30 +30,45 @@ type ResponseLead = {
   status: "within-sla" | "approaching-sla" | "delayed";
 };
 
-const mockResponseLeads: ResponseLead = []; // ✅ No mock data
-
 export function ResponseTimerDashboard() {
-  const [leads, setLeads] = useState<ResponseLead[]>(mockResponseLeads);
+  const { leads: contextLeads, updateLead } = useCustomers();
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Update timer every minute
+  // "Awaiting response" = assigned to a rep but not yet contacted. Time
+  // elapsed is derived live from createdAt on every render/tick — not
+  // stored state that needs a separate increment step, so it can never
+  // drift out of sync with the real lead record.
+  const leads: ResponseLead[] = useMemo(() => {
+    return contextLeads
+      .filter((l: Lead) => l.status === "New" && l.assignedTo)
+      .map((l: Lead): ResponseLead => {
+        const assignedAt = l.createdAt;
+        const timeElapsed = Math.max(0, Math.floor((currentTime.getTime() - new Date(assignedAt).getTime()) / 60000));
+        const slaRemaining = SLA_THRESHOLDS.FIRST_CALL_MINUTES - timeElapsed;
+        const status: ResponseLead["status"] =
+          timeElapsed >= SLA_THRESHOLDS.FIRST_CALL_MINUTES ? "delayed" :
+          timeElapsed >= SLA_THRESHOLDS.AT_RISK_MINUTES ? "approaching-sla" : "within-sla";
+        return {
+          id: l.leadId,
+          name: `${l.firstName} ${l.lastName}`,
+          mobile: l.phone,
+          society: l.address?.area || "",
+          source: l.leadSource,
+          assignedTo: l.assignedTo || "",
+          assignedAt,
+          timeElapsed,
+          slaRemaining,
+          status,
+        };
+      });
+  }, [contextLeads, currentTime]);
+
+  // Update timer every minute — ticking currentTime re-runs the leads
+  // useMemo above, recomputing timeElapsed/slaRemaining/status live from
+  // each lead's real createdAt rather than mutating stored numbers.
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
-      // Update time elapsed for all leads
-      setLeads((prevLeads) =>
-        prevLeads.map((lead) => ({
-          ...lead,
-          timeElapsed: lead.timeElapsed + 1,
-          slaRemaining: lead.slaRemaining - 1,
-          status:
-            lead.slaRemaining - 1 <= 0
-              ? "delayed"
-              : lead.slaRemaining - 1 <= 2
-              ? "approaching-sla"
-              : "within-sla",
-        }))
-      );
     }, 60000); // Every 1 minute
 
     return () => clearInterval(interval);
@@ -93,15 +111,7 @@ export function ResponseTimerDashboard() {
   const handleCallNow = (lead: ResponseLead) => {
     // Open phone dialer
     window.location.href = `tel:${lead.mobile}`;
-    
-    // Update lead status
-    const updatedLeads = leads.map(l => 
-      l.id === lead.id 
-        ? { ...l, status: "contacted" as const, responseTime: Math.floor(Date.now() / 60000) % 5 } 
-        : l
-    );
-    setLeads(updatedLeads);
-    
+    updateLead(lead.id, { status: "Contacted", lastContact: new Date().toISOString() });
     toast.info(`Calling ${lead.name} at ${lead.mobile}...`);
   };
 
@@ -109,23 +119,11 @@ export function ResponseTimerDashboard() {
     // Open WhatsApp with pre-filled message
     const message = encodeURIComponent(`Hi ${lead.name}, I'm reaching out from our car washing service. Would you like to learn more about our subscription plans?`);
     window.open(`https://wa.me/${lead.mobile.replace(/\D/g, '')}?text=${message}`, '_blank');
-    
-    // Update lead status
-    const updatedLeads = leads.map(l => 
-      l.id === lead.id 
-        ? { ...l, status: "contacted" as const, responseTime: Math.floor(Date.now() / 60000) % 5 } 
-        : l
-    );
-    setLeads(updatedLeads);
+    updateLead(lead.id, { status: "Contacted", lastContact: new Date().toISOString() });
   };
 
   const handleMarkContacted = (leadId: string) => {
-    const updatedLeads = leads.map(l => 
-      l.id === leadId 
-        ? { ...l, status: "contacted" as const, responseTime: Math.floor(Date.now() / 60000) % 5 } 
-        : l
-    );
-    setLeads(updatedLeads);
+    updateLead(leadId, { status: "Contacted", lastContact: new Date().toISOString() });
     toast.success(`Lead ${leadId} marked as contacted!`);
   };
 
