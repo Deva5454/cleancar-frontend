@@ -107,7 +107,15 @@ export function OfferLetterGenerator() {
       initialOffers.forEach(offer => offerLetterService.add(offer as any));
       return initialOffers;
     }
-    return stored as any[];
+    // Records created before the offer-letter content rewrite (conditionsOfOffer,
+    // introText, probationText, etc.) won't have these fields at all — backfill
+    // with role-appropriate defaults rather than showing blank/missing content
+    // (and, for conditionsOfOffer specifically, rather than crashing on .map()).
+    const normalized = stored.map((offer: any) => ({
+      ...buildOfferLetterDefaults(offer.designation, offer.department, offer.workLocation || "Surat"),
+      ...offer,
+    }));
+    return normalized as any[];
   });
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -983,7 +991,7 @@ export function OfferLetterGenerator() {
                   <div>
                     <h4 className="font-semibold text-blue-900 mb-2">4. Conditions of This Offer</h4>
                     <ul className="list-disc list-inside space-y-1">
-                      {selectedOffer.conditionsOfOffer.map((c, idx) => (
+                      {(selectedOffer.conditionsOfOffer || []).map((c, idx) => (
                         <li key={idx}>{c}</li>
                       ))}
                     </ul>
