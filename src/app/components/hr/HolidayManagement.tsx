@@ -213,10 +213,10 @@ export function HolidayManagement() {
     };
 
     setHolidays((prev) => {
-    const next = [...prev, newHoliday];
-    localStorage.setItem("cleancar_holidays", JSON.stringify(next));
-    return next;
-  });
+      const next = [...prev, newHoliday];
+      DataService.setAll("PUBLIC_HOLIDAYS", next);
+      return next;
+    });
     setShowAddModal(false);
     setFormData({ type: "National", applicableLocation: ["All Locations"] });
     toast.success("Holiday added successfully");
@@ -245,6 +245,7 @@ export function HolidayManagement() {
     );
 
     setHolidays(updated);
+    DataService.setAll("PUBLIC_HOLIDAYS", updated);
     setEditingHoliday(null);
     setFormData({ type: "National", applicableLocation: ["All Locations"] });
     toast.success("Holiday updated successfully");
@@ -344,7 +345,7 @@ export function HolidayManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {holiday.applicableLocation.join(", ")}
+                      {(holiday.applicableLocation || []).join(", ")}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">

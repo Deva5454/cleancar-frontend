@@ -1099,7 +1099,7 @@ function migrateDesignations(oldDesignations: any[]): any[] {
  * Transform old holiday structure to new OrgContext structure
  */
 function migrateHolidays(oldHolidays: any[]): any[] {
-  return oldHolidays.map((holiday) => {
+  return oldHolidays.map((holiday, idx) => {
     // Convert DD-MM-YYYY to YYYY-MM-DD if needed
     let date = holiday.date;
     if (date && date.includes("-")) {
@@ -1111,9 +1111,15 @@ function migrateHolidays(oldHolidays: any[]): any[] {
     }
 
     return {
+      id: holiday.id || `HOL-MIGRATED-${idx + 1}`,
       date: date || holiday.holidayDate || "",
+      day: holiday.day || (date ? new Date(date).toLocaleDateString("en-IN", { weekday: "long" }) : ""),
       name: holiday.name || "Unknown Holiday",
       type: holiday.type || "National",
+      // Previously dropped entirely during migration, which meant every
+      // migrated holiday crashed HolidayManagement.tsx's list view the
+      // moment it tried to render (.join() on undefined).
+      applicableLocation: holiday.applicableLocation || ["All Locations"],
     };
   });
 }
