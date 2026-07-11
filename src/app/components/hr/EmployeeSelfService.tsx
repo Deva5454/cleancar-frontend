@@ -46,6 +46,8 @@ import { gracePeriodService } from "../../services/gracePeriodService";
 import { salaryHoldService } from "../../services/salaryHoldService";
 import { useRole } from "../../contexts/RoleContext";
 import { generateEmployeeId, generateEmployeeCode, getEmployeeStatusFromRole } from "../../utils/employeeUtils";
+import { useEmployee, type Employee } from "../../contexts/EmployeeContext";
+import { usePayroll } from "../../contexts/PayrollContext";
 import { leaveBalanceService, type EmployeeLeaveBalance } from "../../services/leaveBalanceService";
 import { MASTER_EMPLOYEES } from "../../data/employeeData";
 
@@ -60,6 +62,7 @@ interface MonthlyPayslipData {
   perDayRate: number;
   netPayable: number;
   grossSalary: number;
+  notGenerated?: boolean; // true when no real PayrollRun exists for this month yet
   attendanceSummary: {
     totalDays: number;
     presentDays: number;
@@ -79,7 +82,17 @@ interface MonthlyPayslipData {
 }
 
 // Generate mock historical data from joining date to current month
-const generateHistoricalPayslipData = (employeeName: string, joiningDate: string): MonthlyPayslipData[] => {
+// Builds payslip history from real PayrollRun records (per employeeId) —
+// previously this generated every number with Math.random() on every page
+// load, including a hardcoded ₹18,000 gross for every employee regardless
+// of role, so a real employee's real payslip page showed different random
+// fake numbers each time they opened it. Months with no real payroll run
+// on file yet show an honest "not generated yet" state instead of a guess.
+const buildHistoricalPayslipData = (
+  employeeId: string,
+  joiningDate: string,
+  realPayrollRuns: any[]
+): MonthlyPayslipData[] => {
   const history: MonthlyPayslipData[] = [];
   const startDate = new Date(joiningDate);
   const currentDate = new Date("2026-04-08"); // Current date in the system
@@ -88,50 +101,48 @@ const generateHistoricalPayslipData = (employeeName: string, joiningDate: string
 
   while (date <= currentDate) {
     const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const monthNum = date.getMonth();
+    const realRun = realPayrollRuns.find(pr => pr.month === monthStr);
 
-    // Varying deduction patterns based on month
-    const hasDeduction = Math.random() > 0.6; // 40% chance of having deduction
-    const lateComingCount = hasDeduction ? Math.floor(Math.random() * 5) + 1 : 0;
-    const autoLogoutCount = hasDeduction ? Math.floor(Math.random() * 3) : 0;
-    const deductionDays = hasDeduction ? parseFloat((lateComingCount * 0.5 + autoLogoutCount * 0.5).toFixed(1)) : 0;
-    const perDayRate = 215;
-    const deductionAmount = Math.round(deductionDays * perDayRate);
-    const grossSalary = 18000;
-    const netPayable = grossSalary - deductionAmount;
-
-    const totalDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    const absentDays = Math.floor(Math.random() * 2);
-    const paidLeaveDays = Math.floor(Math.random() * 3);
-    const weeklyOffs = Math.floor(totalDays / 7) * 1; // Assuming 1 weekly off
-    const presentDays = totalDays - absentDays - paidLeaveDays - weeklyOffs;
-
-    history.push({
-      month: monthStr,
-      hasDeduction,
-      deductionAmount,
-      deductionDays,
-      lateComingCount,
-      autoLogoutCount,
-      perDayRate,
-      netPayable,
-      grossSalary,
-      attendanceSummary: {
-        totalDays,
-        presentDays,
-        absentDays,
-        paidLeaveDays,
-        weeklyOffs,
-      },
-      adjustmentRequest: hasDeduction && Math.random() > 0.7 ? {
-        status: ["pending", "approved", "rejected"][Math.floor(Math.random() * 3)] as any,
-        plDaysRequested: deductionDays,
-        deductionAmount,
-        requestedAt: `${monthStr}-15`,
-        approvedBy: hasDeduction ? "HR Manager" : undefined,
-        approvedAt: hasDeduction ? `${monthStr}-20` : undefined,
-      } : undefined,
-    });
+    if (realRun) {
+      const totalDays = realRun.totalDays || new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      const presentDays = realRun.daysWorked ?? totalDays;
+      const attendanceLOP = Math.max(0, Math.round((realRun.grossSalary || 0) - (realRun.netSalary || 0) - (realRun.totalDeductions || 0)));
+      history.push({
+        month: monthStr,
+        hasDeduction: attendanceLOP > 0,
+        deductionAmount: attendanceLOP,
+        deductionDays: totalDays > 0 ? Math.round(((totalDays - presentDays) / totalDays) * totalDays * 10) / 10 : 0,
+        lateComingCount: 0, // not tracked at the payroll-record granularity — see note below
+        autoLogoutCount: 0, // same
+        perDayRate: totalDays > 0 ? Math.round((realRun.grossSalary || 0) / totalDays) : 0,
+        netPayable: realRun.netSalary || 0,
+        grossSalary: realRun.grossSalary || 0,
+        attendanceSummary: {
+          totalDays,
+          presentDays,
+          absentDays: Math.max(0, totalDays - presentDays),
+          paidLeaveDays: 0,
+          weeklyOffs: 0,
+        },
+      });
+    } else {
+      // No real payroll run generated for this month yet — shown as an
+      // honest empty state in the UI (see notGenerated flag), not guessed.
+      const totalDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      history.push({
+        month: monthStr,
+        hasDeduction: false,
+        deductionAmount: 0,
+        deductionDays: 0,
+        lateComingCount: 0,
+        autoLogoutCount: 0,
+        perDayRate: 0,
+        netPayable: 0,
+        grossSalary: 0,
+        attendanceSummary: { totalDays, presentDays: 0, absentDays: 0, paidLeaveDays: 0, weeklyOffs: 0 },
+        notGenerated: true,
+      } as MonthlyPayslipData & { notGenerated: boolean });
+    }
 
     // Move to next month
     date.setMonth(date.getMonth() + 1);
@@ -146,14 +157,23 @@ export function EmployeeSelfService() {
   // ✅ MC-23: Strict access control - Only HR/Admin can view other employees
   const isHR = currentRole === "HR" || currentRole === "Super Admin" || currentRole === "Admin";
 
-  // Generate employee ID from current user context
+  // Real employee ID and real employee record — previously this derived a
+  // fake ID from the person's name+role (generateEmployeeId), which meant
+  // this whole screen operated on an ID that matched nothing in the real
+  // employee/payroll/leave records, so nothing shown here could ever be
+  // real regardless of how the rest of the screen was built.
+  const { getEmployeeById, employees } = useEmployee();
+  const { getPayrollByEmployee } = usePayroll();
+  const realEmployeeId = currentUser.employeeId || "";
+  const realEmployee = realEmployeeId ? getEmployeeById(realEmployeeId) : undefined;
+
   const currentEmployee = {
-    id: generateEmployeeId(currentUser.name, currentRole),
-    empCode: generateEmployeeCode(currentUser.name, currentRole),
+    id: realEmployeeId || generateEmployeeId(currentUser.name, currentRole),
+    empCode: realEmployeeId || generateEmployeeCode(currentUser.name, currentRole),
     name: currentUser.name,
     role: currentRole,
     department: currentUser.city,
-    joiningDate: "2024-01-15", // Mock joining date
+    joiningDate: realEmployee?.joiningDate || "2024-01-15", // falls back only if no real employee record is linked
   };
 
   const [graceStats, setGraceStats] = useState<any>(null);
@@ -185,23 +205,26 @@ export function EmployeeSelfService() {
     deductionAmount: 0,
   });
 
-  // Get payslip data for selected month
+  // Get payslip data for selected month — an honest "not generated yet"
+  // state if there's no real payroll run on file, not a plausible-looking
+  // fake number (previously: hardcoded ₹17,678 net pay for anyone/anything).
   const selectedMonthData = historicalData.find(d => d.month === selectedMonth);
   const mockPayslip = selectedMonthData || {
-    hasDeduction: true,
-    deductionAmount: 322,
-    deductionDays: 1.5,
-    lateComingCount: 3,
-    autoLogoutCount: 2,
-    perDayRate: 215,
-    netPayable: 17678,
-    grossSalary: 18000,
+    hasDeduction: false,
+    deductionAmount: 0,
+    deductionDays: 0,
+    lateComingCount: 0,
+    autoLogoutCount: 0,
+    perDayRate: 0,
+    netPayable: 0,
+    grossSalary: 0,
+    notGenerated: true,
     attendanceSummary: {
-      totalDays: 30,
-      presentDays: 26,
-      absentDays: 1,
-      paidLeaveDays: 2,
-      weeklyOffs: 4,
+      totalDays: new Date(new Date(`${selectedMonth}-01`).getFullYear(), new Date(`${selectedMonth}-01`).getMonth() + 1, 0).getDate(),
+      presentDays: 0,
+      absentDays: 0,
+      paidLeaveDays: 0,
+      weeklyOffs: 0,
     },
   };
 
@@ -284,8 +307,18 @@ export function EmployeeSelfService() {
       }
       setEmployeeBalance(balance);
 
-      // Load historical payslip data
-      const history = generateHistoricalPayslipData(employeeToLoad, currentEmployee.joiningDate);
+      // Load historical payslip data from real PayrollRun records. For the
+      // logged-in employee viewing their own payslip (the common case),
+      // employeeId is already their real ID (see currentEmployee.id above).
+      // For HR looking up someone else by typed name, try to resolve a
+      // real employee record so their real payroll shows too, rather than
+      // falling back to the fake derived ID.
+      const realLookupEmployee = isHR && employeeToLoad !== currentEmployee.name
+        ? employees.find((e: Employee) => `${e.firstName} ${e.lastName}` === employeeToLoad)
+        : undefined;
+      const realLookupId = realLookupEmployee?.employeeId || (employeeToLoad === currentEmployee.name ? currentEmployee.id : employeeId);
+      const employeePayrollRuns = getPayrollByEmployee(realLookupId);
+      const history = buildHistoricalPayslipData(realLookupId, currentEmployee.joiningDate, employeePayrollRuns);
       setHistoricalData(history);
 
       // Subscribe to updates
@@ -460,6 +493,13 @@ export function EmployeeSelfService() {
       {/* Current Month View - Only show when in current view mode */}
       {viewMode === "current" && (
         <>
+          {(mockPayslip as any).notGenerated && (
+            <Card className="border-amber-300 bg-amber-50">
+              <CardContent className="p-4 text-sm text-amber-800">
+                Payroll hasn't been generated for this month yet — the figures below will show once HR/Payroll runs it.
+              </CardContent>
+            </Card>
+          )}
           {/* Salary Hold Alert (if applicable) */}
           {salaryHoldRecord &&
             salaryHoldRecord.status !== SALARY_HOLD_STATUS.RELEASED &&
@@ -1039,7 +1079,11 @@ export function EmployeeSelfService() {
                         )}
                       </td>
                       <td className="p-3 text-sm text-right">
-                        <span className="font-semibold text-gray-900">₹{(record?.netPayable ?? 0).toLocaleString()}</span>
+                        {(record as any).notGenerated ? (
+                          <span className="text-xs text-gray-400 italic">Not generated</span>
+                        ) : (
+                          <span className="font-semibold text-gray-900">₹{(record?.netPayable ?? 0).toLocaleString()}</span>
+                        )}
                       </td>
                       <td className="p-3 text-sm text-center">
                         {record.adjustmentRequest ? (
