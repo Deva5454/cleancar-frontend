@@ -125,6 +125,8 @@ import { TSMReportsAnalytics } from "./TSMReportsAnalytics";
 
 
 import { TSMAlertSystem } from "./TSMAlertSystem";
+import { TSMPaymentConfirmations } from "./TSMPaymentConfirmations";
+import { doorstepPaymentService } from "../../services/doorstepPaymentService";
 import { TSMLeadPoolAssignment } from "./TSMLeadPoolAssignment";
 import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
 import { TSMReschedulePanel } from "./TSMReschedulePanel";
@@ -258,6 +260,7 @@ export function TeleSalesManagerApp() {
 
   const { leads } = useCustomers();
   const { city } = useCity();
+  const pendingPaymentConfirmations = doorstepPaymentService.getTSEPendingConfirmations(city).length;
   const poolLeadCount = leads.filter((l: any) =>
     (!l.assignedTo || l.assignedTo.trim() === "") &&
     (l.cityId === city || !l.cityId) &&
@@ -1158,6 +1161,15 @@ export function TeleSalesManagerApp() {
 
 
 
+            <TabsTrigger value="payment-confirmations" className="gap-2 relative">
+              <span>💰</span>
+              <span className="hidden sm:inline">Payments</span>
+              {pendingPaymentConfirmations > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold leading-none">
+                  {pendingPaymentConfirmations}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="retention" className="gap-2">
               <span>📞</span>Upsell
             </TabsTrigger>
@@ -1475,6 +1487,9 @@ export function TeleSalesManagerApp() {
 
           </TabsContent>
 
+          <TabsContent value="payment-confirmations" className="mt-0">
+            <TSMPaymentConfirmations />
+          </TabsContent>
 
 
           <TabsContent value="retention" className="mt-0">

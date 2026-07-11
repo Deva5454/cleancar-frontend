@@ -1,5 +1,9 @@
 ﻿import React from "react";
 import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
+import { useCustomers } from "../../contexts/CustomerContext";
+import { useJobs } from "../../contexts/JobContext";
+import { useEvents } from "../../contexts/EventSystem";
 /**
  * Tele Sales Executive (TSE) - Main Application
  * Web-only interface for sales execution and lead conversion
@@ -116,6 +120,10 @@ function Comp2WCustomerLookup({ onSelect, onCancel }: { onSelect: (c: any) => vo
 export function TeleSalesExecutiveApp() {
   const [searchParams] = useSearchParams();
   const { city: currentCityId } = useCity();
+  const { currentUser } = useRole();
+  const { leads: contextLeads, updateLead, customers, addCustomer } = useCustomers();
+  const { createJob } = useJobs();
+  const { emit } = useEvents();
 
   // Initialize screen based on URL tab parameter
   const getInitialScreen = (): ScreenType => {
@@ -217,36 +225,105 @@ export function TeleSalesExecutiveApp() {
 
   // Handle CRM update submission
   const handleCRMSubmit = (crmUpdate: CRMUpdate) => {
-    if (activeCallSession) {
-      // Persist the outcome to the lead cache
-      const updates: Partial<TSELead> = {
-        status: crmUpdate.outcome as any,
-        notes: crmUpdate.notes,
-        tags: crmUpdate.tags || [],
-      };
-      // A1 FIX: followUpDate (Date object) not callbackTime (field doesn't exist on CRMUpdate)
-      if (crmUpdate.outcome === "CALLBACK" && crmUpdate.followUpDate) {
-        (updates as any).nextFollowUpAt = crmUpdate.followUpDate;
-      }
-      teleSalesExecutiveService.updateLeadCRM(activeCallSession.lead.id, updates);
-      if (crmUpdate.outcome === "CONVERTED") {
-        // A2 FIX: finalPrice and dealType come from pricingData, not CRMUpdate (those fields don't exist)
-        const finalPrice = activeCallSession.pricingData?.finalPrice ?? 0;
-        const dealType   = activeCallSession.pricingData?.dealType   ?? "BASE";
-        teleSalesExecutiveService.convertLead(
-          activeCallSession.lead.id,
-          finalPrice,
-          dealType
-        );
-      } else if (crmUpdate.outcome === "LOST") {
-        teleSalesExecutiveService.markLeadLost(
-          activeCallSession.lead.id,
-          crmUpdate.lostReason || "Not interested"
-        );
-      }
+    if (!activeCallSession) return;
+
+    const realLead = contextLeads.find((l: any) => l.leadId === activeCallSession.lead.id);
+    if (!realLead) {
+      logger.log("CRM Update: could not find real lead record", { leadId: activeCallSession.lead.id });
+      setActiveCallSession(null);
+      setCurrentScreen("LEAD_QUEUE");
+      return;
     }
+
+    if (crmUpdate.outcome === "CONVERTED") {
+      // Previously this called teleSalesExecutiveService.convertLead(), which
+      // only changed a label on an in-memory cache — no job was ever created,
+      // nothing was persisted, and a page refresh undid it entirely.
+      //
+      // This is a one-time/walk-in booking (pay at the door), not a
+      // subscription — the TSE's own pricing tool is subscription-focused
+      // and doesn't have a "collect payment later" concept, so subscription
+      // sales with payment already taken should still go through the real,
+      // separate LeadConversionService flow (CRM → Leads → Convert). This
+      // path specifically covers "book now, customer pays washer at the door."
+      const finalPrice = activeCallSession.pricingData?.finalPrice ?? 0;
+
+      // Find or create the real customer this lead becomes
+      let customer = customers.find((c: any) =>
+        c.phone === realLead.phone || (c.firstName + " " + c.lastName).trim() === `${realLead.firstName} ${realLead.lastName}`.trim()
+      );
+      if (!customer) {
+        customer = addCustomer({
+          firstName: realLead.firstName,
+          lastName: realLead.lastName || "",
+          email: realLead.email || "",
+          phone: realLead.phone,
+          address: {
+            line1: realLead.address?.line1 || "",
+            area: realLead.address?.area || "",
+            city: currentCityId,
+            pinCode: realLead.address?.pinCode || "",
+          },
+          vehicleDetails: realLead.vehicleDetails,
+          leadSource: realLead.leadSource,
+          status: "Lead",
+        });
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const job = createJob({
+        customerId: customer.customerId,
+        customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+        customerPhone: customer.phone,
+        scheduledDate: today,
+        timeSlot: "10:00 AM - 12:00 PM",
+        status: "Unassigned",
+        jobType: "One-Time Demo",
+        packageName: activeCallSession.pricingData?.basePlan?.name || "One-Time Wash",
+        vehicleDetails: {
+          category: customer.vehicleDetails?.category || "Unknown",
+          color: customer.vehicleDetails?.color || "Unknown",
+          brand: customer.vehicleDetails?.brand || "Unknown",
+          registration: customer.vehicleDetails?.registrationNumber || "Unknown",
+        },
+        location: {
+          addressLine1: realLead.address?.line1 || "",
+          area: realLead.address?.area || "",
+          city: currentCityId,
+          pinCode: realLead.address?.pinCode || "",
+        },
+        serviceDetails: { specialInstructions: crmUpdate.notes || "" },
+        cityId: currentCityId,
+        amount: finalPrice,
+        ...({ paymentStatus: "Pending" } as any),
+      } as any);
+
+      // Lead isn't "Converted" yet — that only happens once TSM confirms
+      // the washer actually collected the payment. Until then it's
+      // genuinely "Payment Pending", a real status this Lead type already
+      // supports.
+      updateLead(realLead.leadId, {
+        status: "Payment Pending",
+        notes: `${crmUpdate.notes || ""} — Job ${job.jobId} booked, ₹${finalPrice} due at doorstep.`.trim(),
+      } as any);
+
+      emit("LEAD_BOOKED_PENDING_PAYMENT", { leadId: realLead.leadId, jobId: job.jobId, customerId: customer.customerId, amount: finalPrice }, "TeleSalesExecutiveApp");
+      toast.success(`Job booked — ₹${finalPrice} payment pending at doorstep`);
+    } else if (crmUpdate.outcome === "LOST") {
+      updateLead(realLead.leadId, {
+        status: "Rejected",
+        notes: crmUpdate.lostReason || crmUpdate.notes || "Not interested",
+      } as any);
+    } else {
+      const updates: any = { notes: crmUpdate.notes };
+      if (crmUpdate.outcome === "CALLBACK" && crmUpdate.followUpDate) {
+        updates.lastContact = new Date().toISOString();
+      }
+      updateLead(realLead.leadId, updates);
+    }
+
     logger.log("CRM Update:", crmUpdate);
-    // Reset call session and return to lead queue â€” queue auto-refreshes via interval
+    // Reset call session and return to lead queue — queue auto-refreshes via interval
     setActiveCallSession(null);
     setCurrentScreen("LEAD_QUEUE");
     toast.success("CRM updated successfully!");
