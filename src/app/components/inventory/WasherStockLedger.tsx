@@ -22,6 +22,7 @@ import { ArrowLeft, TrendingUp, TrendingDown, AlertTriangle, FileText } from "lu
 import { Link, useSearchParams } from "react-router-dom";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
 
 // Mock ledger data for a washer
 const ledgerTransactions = [
@@ -108,19 +109,26 @@ const ledgerTransactions = [
   },
 ];
 
-const washerInfo = {
-  name: "Ramesh Kumar",
-  pinCode: "395005",
-  zone: "Adajan",
-  employeeId: "EMP-1024"
-};
-
 export function WasherStockLedger() {
   const { stockTransactions, getWasherStock, inventory } = useInventory();
+  const { getEmployeeById } = useEmployee();
   const { city } = useCity();
   const [searchParams] = useSearchParams();
   const selectedWasherId = searchParams.get("washerId") || "";
   const [selectedMaterial, setSelectedMaterial] = useState("shampoo");
+
+  // Previously this header always showed a hardcoded "Ramesh Kumar" no
+  // matter which washer was actually selected — the ledger transactions
+  // below it were correctly filtered by the real selected washer, but the
+  // name/ID at the top never matched. Now derived from the real employee
+  // record for whichever washer is actually selected.
+  const selectedEmployee = selectedWasherId ? getEmployeeById(selectedWasherId) : undefined;
+  const washerInfo = {
+    name: selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : "Select a washer",
+    pinCode: selectedEmployee?.assignedPincodes?.[0] || "—",
+    zone: selectedEmployee?.clusterId || "—",
+    employeeId: selectedWasherId || "—",
+  };
 
   // Build ledger from real stock transactions
   const washerTxns = stockTransactions
@@ -144,7 +152,9 @@ export function WasherStockLedger() {
     };
   });
 
-  const displayLedger = liveLedger.length > 0 ? liveLedger : ledgerTransactions;
+  // Previously fell back to fake ledger entries when the real store was
+  // empty for this washer, which would show fabricated stock movements.
+  const displayLedger = liveLedger;
 
   // Calculate summary
   const totalIssued = displayLedger

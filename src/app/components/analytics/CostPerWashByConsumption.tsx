@@ -248,12 +248,13 @@ function CostPerWashByConsumption() {
     });
   }, [city, employees, allJobs, inventory, stockTransactions, cityInfo.displayName]);
 
-  // Fallback to mock if no real data
-  const displayWasherData = WASHER_CONSUMPTION_DATA.length > 0
-    ? WASHER_CONSUMPTION_DATA : MOCK_WASHER_CONSUMPTION_DATA;
+  // Previously fell back to fake washer consumption data when the real
+  // computation was empty, which would show fabricated cost figures for
+  // washers who don't exist. An empty list is the honest state.
+  const displayWasherData = WASHER_CONSUMPTION_DATA;
 
   const [selectedLevel, setSelectedLevel] = useState<"washer" | "supervisor" | "city">("washer");
-  const [selectedWasher, setSelectedWasher] = useState(displayWasherData[0].washerId);
+  const [selectedWasher, setSelectedWasher] = useState(displayWasherData[0]?.washerId || "");
   const [selectedSupervisor, setSelectedSupervisor] = useState(SUPERVISOR_TEAMS[0].supervisorId);
   const [selectedCity, setSelectedCity] = useState(() => cityInfo.displayName);
 

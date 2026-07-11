@@ -183,8 +183,10 @@ export function WasherIssuances() {
       .sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0]?.createdAt || "Never",
   }));
 
-  // Use live data — fallback to mock if no employees loaded yet
-  const displayWashers = washers.length > 0 ? washers : washersData;
+  // Previously fell back to fake washer data when the real employee list
+  // was empty, which would show fabricated stock-in-hand figures for
+  // people who don't exist. An empty list is the honest state.
+  const displayWashers = washers;
 
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [showBulkIssueDialog, setShowBulkIssueDialog] = useState(false);
@@ -352,7 +354,7 @@ export function WasherIssuances() {
                           variant="ghost" 
                           size="sm"
                           onClick={() => {
-                            const washer = washersData.find(w => w.name === record.washer);
+                            const washer = displayWashers.find((w: any) => w.name === record.washer);
                             if (washer) setSelectedWasher(washer);
                           }}
                         >

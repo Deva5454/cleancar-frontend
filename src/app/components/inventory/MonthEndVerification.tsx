@@ -96,7 +96,7 @@ export function MonthEndVerification() {
   const { employees } = useEmployee();
   const [selectedWasherId, setSelectedWasherId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
-  const [worksheetData, setWorksheetData] = useState(verificationWorksheet);
+  const [worksheetData, setWorksheetData] = useState<typeof verificationWorksheet>([]);
   const [showWorksheet, setShowWorksheet] = useState(false);
 
   const washers = employees.filter(e =>

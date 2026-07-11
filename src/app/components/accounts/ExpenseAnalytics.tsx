@@ -105,6 +105,9 @@ export function ExpenseAnalytics() {
     { id: 5, date: "2026-03-04", vendor: "DEF Solutions", category: "Operations", amount: 18000, region: cityInfo.displayName, pinCode: "395007", areaName: "Althan", document: "payment_proof.jpg", status: "Approved" }
   ];
 
+  // Previously fell back to fake expense entries when the real store was
+  // empty, which would show fabricated vendor payments. An empty list is
+  // the honest state.
   const expenseData = savedTransactions.length > 0
     ? savedTransactions.map(t => ({
         id: t.id,
@@ -118,7 +121,7 @@ export function ExpenseAnalytics() {
         document: t.invoiceNumber,
         status: t.status === "Validated" ? "Approved" : "Pending",
       }))
-    : mockExpenses;
+    : [];
 
   const exportToExcel = () => {
     // Export logic here

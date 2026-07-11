@@ -31,8 +31,10 @@ export function MaterialRequisition() {
     };
   });
 
-  // Use live MRFs — fall back to mock only if empty (for demo)
-  const displayMRFs = liveMRFs.length > 0 ? liveMRFs : mockMRFs;
+  // Previously fell back to mockMRFs when empty, which would make a city
+  // with no real requisitions yet look like it had them. An empty list is
+  // the honest state; the UI shows a proper "no requisitions yet" message.
+  const displayMRFs = liveMRFs;
   
   const canCreateMRF = ["Supervisor", "Operations Manager", "Store Manager"].includes(currentRole);
   const canApproveMRF = ["Store Manager"].includes(currentRole);
@@ -63,6 +65,9 @@ export function MaterialRequisition() {
             Material Requisition Forms (MRF)
           </h3>
           <div className="space-y-3">
+            {displayMRFs.length === 0 && (
+              <p className="text-sm text-gray-400 italic py-4 text-center">No requisitions yet.</p>
+            )}
             {displayMRFs.map((mrf) => (
               <div 
                 key={mrf.id} 
@@ -141,11 +146,15 @@ export function MaterialRequisition() {
               )}
             </div>
             <div className="space-y-3">
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">
+                Purchase Request tracking isn't connected to real data yet — the list below and the "New Purchase Request" button don't create or show anything real. This needs a real backend before it's usable.
+              </div>
               {mockPurchaseRequests.map((pr) => (
                 <div 
                   key={pr.id} 
-                  className="p-4 bg-purple-50 border-2 border-purple-200 rounded-lg"
+                  className="p-4 bg-purple-50 border-2 border-purple-200 rounded-lg opacity-60"
                 >
+                  <div className="text-xs text-purple-600 font-medium mb-1">EXAMPLE — not real data</div>
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -205,18 +214,18 @@ export function MaterialRequisition() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-gray-600">This Month</p>
-              <p className="text-2xl font-bold text-blue-600">₹45K</p>
+              <p className="text-2xl font-bold text-gray-400">Not tracked yet</p>
               <p className="text-xs text-gray-500 mt-1">Material consumed</p>
             </div>
             <div className="p-4 bg-green-50 rounded-lg">
               <p className="text-sm text-gray-600">Pending MRFs</p>
-              <p className="text-2xl font-bold text-green-600">{mockMRFs.filter(m => m.status === "Pending").length}</p>
+              <p className="text-2xl font-bold text-green-600">{displayMRFs.filter((m: any) => m.status === "Pending").length}</p>
               <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
             </div>
             <div className="p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-gray-600">Active POs</p>
-              <p className="text-2xl font-bold text-purple-600">2</p>
-              <p className="text-xs text-gray-500 mt-1">In progress</p>
+              <p className="text-2xl font-bold text-gray-400">Not tracked yet</p>
+              <p className="text-xs text-gray-500 mt-1">Purchase order tracking not yet built</p>
             </div>
           </div>
         </CardContent>
