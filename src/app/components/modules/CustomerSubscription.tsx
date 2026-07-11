@@ -52,7 +52,7 @@ export function CustomerSubscription() {
           model: customer?.vehicleDetails?.category || "Unknown",
         },
         vehicleCategory: customer?.address?.area || "Unknown Location",
-        monthlyPrice: sub.pricing.finalPrice,
+        monthlyPrice: sub.pricing?.finalPrice ?? 0,
         nextBillingDate: sub.renewalDate || "N/A",
         status: sub.status,
         subscriptionId: sub.subscriptionId,
@@ -165,7 +165,7 @@ export function CustomerSubscription() {
                   key: "monthlyPrice",
                   label: "MRR",
                   align: "right",
-                  render: (price) => `₹${price.toLocaleString()}`,
+                  render: (price) => `₹${(price ?? 0).toLocaleString()}`,
                 },
                 { key: "nextBillingDate", label: "Next Wash" },
                 {
