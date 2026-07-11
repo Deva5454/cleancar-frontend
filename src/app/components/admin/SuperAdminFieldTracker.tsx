@@ -209,7 +209,7 @@ export function SuperAdminFieldTracker() {
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([]);
   const [allSessions, setAllSessions]     = useState<FieldSession[]>([]);
   const [timeline, setTimeline]           = useState<DayTimeline | null>(null);
-  const [activeTab, setActiveTab]         = useState<"live" | "timeline" | "dashboard">("live");
+  const [activeTab, setActiveTab]         = useState<"live" | "timeline" | "dashboard" | "attendance">("live");
   const [loading, setLoading]             = useState(false);
   const [activeEvent, setActiveEvent]     = useState<number | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());

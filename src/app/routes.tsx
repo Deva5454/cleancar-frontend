@@ -235,6 +235,7 @@ import { AttendanceFraudAlertsPage } from "./components/admin/AttendanceFraudAle
 import { PermissionManagementPage } from "./components/admin/PermissionManagementPage"; // MC-11
 const RolePermissionManager = lazy(() => import("./components/admin/RolePermissionManager")); // MC-11 Enhanced
 const IncentiveVisibilityAdmin = lazy(() => import("./components/admin/IncentiveVisibilityAdmin")); // Super Admin incentive screen control
+const SuperAdminFieldTracker = lazy(() => import("./components/admin/SuperAdminFieldTracker"));
 import { RoleSuggestionsPage } from "./components/hr/RoleSuggestionsPage"; // MC-12
 const HRIntelligenceDashboard = lazy(() => import("./components/hr/HRIntelligenceDashboard"));
 const AccountsPayrollProcessing = lazy(() => import("./components/accounts/AccountsPayrollProcessing"));
@@ -442,6 +443,7 @@ export const router = createBrowserRouter([
       { path: "admin/permissions", element: <PermissionManagementPage /> }, // MC-11
       { path: "admin/role-permissions", element: <RolePermissionManager /> }, // MC-11 Enhanced: Base role overrides + custom sub-roles
       { path: "admin/incentive-visibility", element: <IncentiveVisibilityAdmin /> }, // Super Admin: show/hide incentive tab per role/employee
+      { path: "admin/field-tracker", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminFieldTracker /></Suspense></ErrorBoundary> },
       { path: "hr/role-suggestions", element: <RoleSuggestionsPage /> }, // MC-12
       { path: "hr/intelligence-dashboard", element: <HRIntelligenceDashboard /> },
       { path: "store-manager", element: <StoreManagerModule /> },

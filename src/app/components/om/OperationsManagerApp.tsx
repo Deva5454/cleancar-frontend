@@ -59,6 +59,7 @@ import { useState, useEffect } from "react";
 
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { FieldCheckIn } from "../field/FieldCheckIn";
 
 
 
@@ -1747,11 +1748,24 @@ export function OperationsManagerApp() {
 
 
 
+              <TabsTrigger value="field" className="py-4 text-sm font-semibold">
+
+
+
+                📍 Field Check-In
+
+
+
+              </TabsTrigger>
+
+
+
               <TabsTrigger value="reports" className="py-4 text-sm font-semibold">
 
 
 
                 📊 Analytics
+
 
 
 
@@ -2047,6 +2061,11 @@ export function OperationsManagerApp() {
 
 
 
+        </TabsContent>
+
+        {/* Field Check-In — GPS tracking, auto-starts on check-in, stops on check-out */}
+        <TabsContent value="field" className="mt-0">
+          <FieldCheckIn />
         </TabsContent>
 
 

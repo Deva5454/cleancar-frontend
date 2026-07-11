@@ -1,4 +1,5 @@
-﻿export interface GeoPoint { lat: number; lng: number; ts: string; accuracy: number; speed?: number; }
+﻿import type { GeoPoint } from "./fieldTrackingService";
+export type { GeoPoint };
 export interface Halt { type: "halt"; lat: number; lng: number; startTime: string; endTime: string; durationMins: number; address?: string; radiusMetres: number; }
 export interface Drive { type: "drive"; startTime: string; endTime: string; durationMins: number; distanceKm: number; }
 export type TimelineEvent = Halt | Drive;

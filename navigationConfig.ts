@@ -185,6 +185,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Washer Jobs", path: "/washer-jobs", icon: Users, module: "jobs", match: "prefix" },
       { label: "Service Zones", path: "/service-zones", icon: MapPin, module: "jobs", match: "prefix" },
       { label: "Complaints", path: "/complaints", icon: AlertCircle, module: "complaints", match: "prefix" },
+      { label: "Field Tracker", path: "/admin/field-tracker", icon: MapPin, module: "jobs", match: "prefix" },
     ]
   },
 

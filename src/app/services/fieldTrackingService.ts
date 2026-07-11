@@ -38,7 +38,7 @@ export interface FieldSession {
   id: string;
   employeeId: string;
   employeeName: string;
-  role: "Sales Head" | "Sales Manager" | "Supervisor";
+  role: "Sales Head" | "Sales Manager" | "Supervisor" | "Operations Manager";
   date: string;                // YYYY-MM-DD
   checkInTime: string;         // ISO
   checkInSelfieBase64: string; // data:image/jpeg;base64,...
@@ -126,7 +126,7 @@ function saveOfflineQueue(q: OfflineGeoPoint[]): void {
   localStorage.setItem(SK.OFFLINE_QUEUE, JSON.stringify(q));
 }
 
-function loadSessions(): FieldSession[] {
+export function loadSessions(): FieldSession[] {
   try { return JSON.parse(localStorage.getItem(SK.SESSIONS) || "[]"); } catch { return []; }
 }
 
@@ -145,12 +145,113 @@ export const FIELD_TRACKING_ROLES = [
   "Sales Head",
   "Sales Manager",
   "Supervisor",
+  "Operations Manager",
 ] as const;
 
 export type FieldTrackingRole = typeof FIELD_TRACKING_ROLES[number];
 
 export function isFieldTrackingRole(role: string): role is FieldTrackingRole {
   return FIELD_TRACKING_ROLES.includes(role as FieldTrackingRole);
+}
+
+// ── Per-role display colors, for the Super Admin map/attendance views ─────────
+export const ROLE_COLORS: Record<string, { pin: string; badge: string; text: string }> = {
+  "Sales Head":         { pin: "#7c3aed", badge: "bg-violet-100",  text: "text-violet-800" },
+  "Sales Manager":      { pin: "#2563eb", badge: "bg-blue-100",    text: "text-blue-800" },
+  "Supervisor":         { pin: "#059669", badge: "bg-emerald-100", text: "text-emerald-800" },
+  "Operations Manager": { pin: "#d97706", badge: "bg-amber-100",   text: "text-amber-800" },
+};
+
+// ── Attendance derived from real check-in/out sessions ─────────────────────────
+export interface DailyAttendance {
+  employeeId: string;
+  employeeName: string;
+  role: string;
+  date: string;
+  status: "Present" | "Late" | "Half Day" | "Absent" | "Weekend" | "Holiday";
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  totalHoursWorked: number;
+  requiredHours: number;
+  gpsLat: number | null;
+  gpsLng: number | null;
+}
+
+const REQUIRED_HOURS = FIELD_HOURS.SUGGESTED_CHECKOUT - FIELD_HOURS.CHECK_IN_HOUR; // 9h, scheduled 10am-7pm
+
+/** Builds one employee's attendance for one day from their real session record (or the lack of one). */
+export function calcAttendance(
+  session: FieldSession | null,
+  date: string,
+  employeeId: string,
+  employeeName: string,
+  role: string
+): DailyAttendance {
+  const dayOfWeek = new Date(date).getDay();
+  if (dayOfWeek === 0) { // Sunday
+    return { employeeId, employeeName, role, date, status: "Weekend", checkInTime: null, checkOutTime: null, lateMinutes: 0, earlyLeaveMinutes: 0, totalHoursWorked: 0, requiredHours: REQUIRED_HOURS, gpsLat: null, gpsLng: null };
+  }
+  if (!session) {
+    return { employeeId, employeeName, role, date, status: "Absent", checkInTime: null, checkOutTime: null, lateMinutes: 0, earlyLeaveMinutes: 0, totalHoursWorked: 0, requiredHours: REQUIRED_HOURS, gpsLat: null, gpsLng: null };
+  }
+
+  const checkIn = new Date(session.checkInTime);
+  const scheduledCheckIn = new Date(checkIn);
+  scheduledCheckIn.setHours(FIELD_HOURS.CHECK_IN_HOUR, 0, 0, 0);
+  const lateMinutes = Math.max(0, Math.round((checkIn.getTime() - scheduledCheckIn.getTime()) / 60000));
+
+  let totalHoursWorked = 0;
+  let earlyLeaveMinutes = 0;
+  if (session.checkOutTime) {
+    const checkOut = new Date(session.checkOutTime);
+    totalHoursWorked = Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 3600000);
+    const scheduledCheckOut = new Date(checkOut);
+    scheduledCheckOut.setHours(FIELD_HOURS.SUGGESTED_CHECKOUT, 0, 0, 0);
+    earlyLeaveMinutes = Math.max(0, Math.round((scheduledCheckOut.getTime() - checkOut.getTime()) / 60000));
+  }
+
+  const status: DailyAttendance["status"] =
+    !session.checkOutTime && totalHoursWorked === 0 ? "Present" // still checked in
+      : totalHoursWorked > 0 && totalHoursWorked < REQUIRED_HOURS * 0.5 ? "Half Day"
+      : lateMinutes > 30 ? "Late"
+      : "Present";
+
+  return {
+    employeeId, employeeName, role, date, status,
+    checkInTime: session.checkInTime, checkOutTime: session.checkOutTime,
+    gpsLat: session.checkInLocation?.lat ?? null, gpsLng: session.checkInLocation?.lng ?? null,
+    lateMinutes, earlyLeaveMinutes, totalHoursWorked, requiredHours: REQUIRED_HOURS,
+  };
+}
+
+/** Attendance for every tracked employee across a date range, one row per employee per day. */
+export function getAttendanceForDateRange(
+  employeeIds: string[],
+  employeeMap: Record<string, { name: string; role: string }>,
+  startDate: string,
+  endDate: string
+): DailyAttendance[] {
+  const sessions = loadSessions();
+  const dates: string[] = [];
+  const cursor = new Date(startDate);
+  const end = new Date(endDate);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const records: DailyAttendance[] = [];
+  for (const date of dates) {
+    for (const id of employeeIds) {
+      const emp = employeeMap[id];
+      if (!emp) continue;
+      const session = sessions.find(s => s.employeeId === id && s.date === date) || null;
+      records.push(calcAttendance(session, date, id, emp.name, emp.role));
+    }
+  }
+  return records;
 }
 
 // ── Live location snapshot (for Super Admin view) ──────────────────────────────
@@ -229,7 +330,7 @@ class FieldTrackingService {
   async checkIn(params: {
     employeeId: string;
     employeeName: string;
-    role: "Sales Head" | "Sales Manager" | "Supervisor";
+    role: "Sales Head" | "Sales Manager" | "Supervisor" | "Operations Manager";
     selfieBase64: string;
   }): Promise<{ ok: boolean; error?: string }> {
 
