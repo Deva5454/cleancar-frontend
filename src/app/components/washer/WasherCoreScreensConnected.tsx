@@ -350,6 +350,8 @@ export function WasherCoreScreensConnected() {
       sequenceNumber: index + 1,
       scheduledTime: job.timeSlot.split(" - ")[0],
       completedTime: job.status === "Completed" ? "Completed" : undefined,
+      paymentDue: !isPaymentCleared(job),
+      paymentAmount: (job as any).amount,
     }));
 
   const mapDayStatus = (): DayStatus => {

@@ -43,6 +43,11 @@ export interface JobCard {
   // Timing
   scheduledTime?: string;
   completedTime?: string;
+
+  // Payment — shown here so a washer knows BEFORE starting the job, not
+  // only after tapping "Start Job" and reaching the active-job screen.
+  paymentDue?: boolean;
+  paymentAmount?: number;
 }
 
 export interface WasherMyScheduleProps {
@@ -212,6 +217,16 @@ export function WasherMySchedule({
                         </p>
                       </div>
                     </div>
+
+                    {job.paymentDue && (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                        <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <span className="text-sm text-amber-800">
+                          <span className="font-semibold">Payment Pending</span>
+                          {job.paymentAmount ? ` — collect ₹${job.paymentAmount} from customer` : " — collect from customer"}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Location */}
                     <div className="flex items-start gap-2 mb-3 p-2 bg-gray-50 rounded">
