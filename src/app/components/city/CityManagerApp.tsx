@@ -46,6 +46,8 @@ import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { organizationHierarchyService } from "../../services/organizationHierarchyService";
 import { CityManagerPincodeManagement } from "./CityManagerPincodeManagement";
+import { WasherGpsApprovals } from "./WasherGpsApprovals";
+import { washerGpsViolationService } from "../../services/washerGpsViolationService";
 import { DataService } from "../../services/DataService";
 
 type Screen =
@@ -59,7 +61,8 @@ type Screen =
   | "ALERTS"
   | "REPORTS"
   | "INCENTIVE"
-  | "EXIT_VERIFY";
+  | "EXIT_VERIFY"
+  | "WASHER_GPS_APPROVALS";
 
 export function CityManagerApp() {
   const { currentUser, currentRole } = useRole();
@@ -100,6 +103,7 @@ export function CityManagerApp() {
     e => (e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated")
       && e.verifierRole === "City Manager"
   );
+  const pendingWasherGpsApprovals = washerGpsViolationService.getPendingForCity(city).filter(v => v.requestedAt).length;
   const _persistExits = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
     try {
@@ -160,6 +164,8 @@ export function CityManagerApp() {
         return <ReportsAnalytics />;
       case "INCENTIVE":
         return <IncentiveTracker />;
+      case "WASHER_GPS_APPROVALS":
+        return <WasherGpsApprovals />;
       case "EXIT_VERIFY":
         return (
           <div className="space-y-4">
@@ -301,6 +307,7 @@ export function CityManagerApp() {
             { id: "ALERTS", label: "Alerts", icon: AlertTriangle, badge: criticalAlerts },
             { id: "REPORTS", label: "Reports", icon: FileText },
             { id: "INCENTIVE", label: "Incentive", icon: Award },
+            { id: "WASHER_GPS_APPROVALS", label: "Washer Re-Check-In", icon: MapPin, badge: pendingWasherGpsApprovals },
             { id: "EXIT_VERIFY", label: "Exit Verify", icon: LogOut, badge: pendingCMExits.length },
           ].map((tab) => {
             const Icon = tab.icon;

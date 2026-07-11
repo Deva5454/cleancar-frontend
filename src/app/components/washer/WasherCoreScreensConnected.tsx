@@ -6,8 +6,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { Button } from "../ui/button";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
+import { washerGpsViolationService, type WasherGpsViolation } from "../../services/washerGpsViolationService";
 import { DoorstepPaymentCollector } from "./DoorstepPaymentCollector";
 import { isPaymentRequired, canCompleteWithoutPayment, doorstepPaymentService } from "../../services/doorstepPaymentService";
 
@@ -28,7 +32,13 @@ export function WasherCoreScreensConnected() {
   // Context â€" used for profile/stats display only
   const { profile, stats, refreshData } = useWasher();
   const { completedJobs } = useWasherJobs();
-  const { currentUser } = useRole();
+  const { currentUser, currentRole } = useRole();
+  const { city: currentCityId } = useCity();
+  const washerId = (currentUser as any)?.employeeId || "";
+  const today = new Date().toISOString().split("T")[0];
+  const [gpsViolation, setGpsViolation] = useState<WasherGpsViolation | null>(() =>
+    washerId ? washerGpsViolationService.getActiveViolationForToday(washerId, currentCityId, today) : null
+  );
 
   // â"€â"€ LOCAL FLOW STATE â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const [screen, setScreen]           = useState<Screen>("dashboard");
@@ -53,6 +63,32 @@ export function WasherCoreScreensConnected() {
   const [checkOutValidations, setCheckOutValidations] = useState<{
     face: ValidationState; gps: ValidationState;
   }>({ face: "PENDING", gps: "PENDING" });
+
+  // ── MANDATORY GPS: auto-checkout the moment location is turned off ─────────
+  // washerLocationService already dispatches this event when GPS goes off
+  // mid-shift, but nothing was listening for it — meaning GPS being turned
+  // off during the day previously had no consequence at all. Now it forces
+  // an immediate checkout and records a violation that blocks the washer
+  // from checking in again until a City Manager approves it.
+  useEffect(() => {
+    const handleLocationOff = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { washerId: string } | undefined;
+      const offWasherId = detail?.washerId || washerId;
+      if (!offWasherId) return;
+
+      setCheckedIn(false);
+      setCheckedOut(true);
+      const violation = washerGpsViolationService.recordAutoCheckout(
+        offWasherId,
+        (currentUser as any)?.employeeName || (currentUser as any)?.name || offWasherId,
+        currentCityId
+      );
+      setGpsViolation(violation);
+      toast.error("Location was turned off — you've been automatically checked out for the day. You'll need your City Manager's approval to check in again today.", { duration: 10000 });
+    };
+    window.addEventListener("cc360:location_off_auto_checkout", handleLocationOff);
+    return () => window.removeEventListener("cc360:location_off_auto_checkout", handleLocationOff);
+  }, [washerId, currentCityId, currentUser]);
 
   // ── SEED + LOAD JOBS ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -335,6 +371,53 @@ export function WasherCoreScreensConnected() {
     switch (screen) {
 
       case "checkin":
+        if (gpsViolation && gpsViolation.status !== "Approved") {
+          return (
+            <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+              <div className="max-w-md w-full bg-white rounded-xl border-2 border-red-200 p-6 text-center space-y-4">
+                <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                  <span className="text-2xl">📍</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Check-In Blocked</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Your location was turned off earlier today, so you were automatically checked out.
+                    You need your City Manager's approval before you can check in again today.
+                  </p>
+                </div>
+                {gpsViolation.status === "Rejected" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 text-left">
+                    <p className="font-semibold">Your last request was declined.</p>
+                    {gpsViolation.reviewNote && <p className="mt-1">"{gpsViolation.reviewNote}"</p>}
+                  </div>
+                )}
+                {gpsViolation.requestedAt ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                    Approval request sent — waiting on your City Manager to review it.
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      const result = washerGpsViolationService.requestReinstatement(
+                        gpsViolation.id, currentCityId,
+                        "Requesting approval to check in again after GPS was turned off."
+                      );
+                      if (result.success) {
+                        setGpsViolation({ ...gpsViolation, requestedAt: new Date().toISOString() });
+                        toast.success("Request sent to your City Manager.");
+                      } else {
+                        toast.error(result.error || "Couldn't send the request — please try again.");
+                      }
+                    }}
+                  >
+                    Request City Manager Approval
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        }
         return jobs.length > 0 ? (
           <WasherCheckIn
             checkInWindow="WITHIN"
