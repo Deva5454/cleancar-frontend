@@ -1,4 +1,5 @@
 ﻿import React from "react";
+import { useCity } from "../../contexts/CityContext";
 /**
  * Tele Sales Executive (TSE) - Main Application
  * Web-only interface for sales execution and lead conversion
@@ -114,6 +115,7 @@ function Comp2WCustomerLookup({ onSelect, onCancel }: { onSelect: (c: any) => vo
 
 export function TeleSalesExecutiveApp() {
   const [searchParams] = useSearchParams();
+  const { city: currentCityId } = useCity();
 
   // Initialize screen based on URL tab parameter
   const getInitialScreen = (): ScreenType => {
@@ -509,7 +511,7 @@ export function TeleSalesExecutiveApp() {
         )}
 
         {currentScreen === "INCENTIVE_TRACKER" && <TSEIncentiveTracker />}
-        {currentScreen === "DOORSTEP_CONFIRMATIONS" && <TSEDoorstepConfirmations />}
+        {currentScreen === "DOORSTEP_CONFIRMATIONS" && <TSEDoorstepConfirmations cityId={currentCityId} />}
         {currentScreen === "COMP_2W" && (
           <div className="p-4">
             {activeCallSession ? (

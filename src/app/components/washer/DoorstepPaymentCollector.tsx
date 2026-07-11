@@ -45,6 +45,7 @@ interface Props {
 // ── UPI QR display ────────────────────────────────────────────────────────────
 function UPIQRDisplay({ amount, packageName }: { amount: number; packageName: string }) {
   const upiString = `upi://pay?pa=${BUSINESS_UPI.id}&pn=${encodeURIComponent(BUSINESS_UPI.name)}&am=${amount}&cu=INR&tn=${encodeURIComponent("249 CarWash - " + packageName)}`;
+  const isPlaceholderUpi = BUSINESS_UPI.id === "249carwash@upi";
 
   const copyUPI = () => {
     navigator.clipboard?.writeText(BUSINESS_UPI.id).then(() =>
@@ -76,6 +77,12 @@ function UPIQRDisplay({ amount, packageName }: { amount: number; packageName: st
         <p className="text-xs text-gray-500 text-center">Customer scans with any UPI app</p>
         <p className="text-sm font-bold text-gray-900 mt-1">{BUSINESS_UPI.name}</p>
       </div>
+
+      {isPlaceholderUpi && (
+        <div className="bg-red-50 border border-red-300 rounded-lg px-3 py-2 text-xs text-red-700">
+          ⚠ This UPI ID is a placeholder, not a real business account. Contact your admin before accepting real payments this way.
+        </div>
+      )}
 
       {/* UPI ID copy */}
       <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">

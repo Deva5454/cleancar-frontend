@@ -60,6 +60,7 @@ export function WasherCoreScreensConnected() {
 
   // Check-out camera state
   const [checkOutPhoto, setCheckOutPhoto]             = useState<string | null>(null);
+  const [pendingPaymentJob, setPendingPaymentJob]     = useState<any>(null);
   const [checkOutValidations, setCheckOutValidations] = useState<{
     face: ValidationState; gps: ValidationState;
   }>({ face: "PENDING", gps: "PENDING" });
@@ -291,8 +292,24 @@ export function WasherCoreScreensConnected() {
   };
 
   const handleCompleteJob = () => {
+    if (!activeJobId) return;
+    // Previously this completed the job unconditionally, regardless of
+    // whether payment had actually been collected — isPaymentCleared()
+    // existed and was correctly written, but nothing ever called it.
+    if (activeJob && !isPaymentCleared(activeJob)) {
+      setPendingPaymentJob(activeJob);
+      return;
+    }
+    updateJobStatus(activeJobId, "Completed");
+    setActiveJobId(null);
+    setScreen("schedule");
+    refreshData();
+  };
+
+  const finishCompleteJob = () => {
     if (activeJobId) updateJobStatus(activeJobId, "Completed");
     setActiveJobId(null);
+    setPendingPaymentJob(null);
     setScreen("schedule");
     refreshData();
   };
@@ -461,17 +478,26 @@ export function WasherCoreScreensConnected() {
         const currentJob = activeJob
           ? { ...activeJob, status: "In Progress" as const }
           : null;
+        const jobPaymentRequired = currentJob ? !isPaymentCleared(currentJob) : false;
         return currentJob ? (
-          <WasherJobDetail
-            job={currentJob}
-            forceInProgress={true}
-            onBack={() => setScreen("schedule")}
-            onStartJob={() => {
-              updateJobStatus(currentJob.id, "In Progress");
-              setActiveJobId(currentJob.id);
-            }}
-            onCompleteJob={handleCompleteJob}
-          />
+          <div>
+            {jobPaymentRequired && (
+              <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 flex items-center gap-2">
+                <span className="font-semibold">⚠ Payment Pending</span>
+                <span>— ₹{(currentJob as any).amount ?? 0} due at completion</span>
+              </div>
+            )}
+            <WasherJobDetail
+              job={currentJob}
+              forceInProgress={true}
+              onBack={() => setScreen("schedule")}
+              onStartJob={() => {
+                updateJobStatus(currentJob.id, "In Progress");
+                setActiveJobId(currentJob.id);
+              }}
+              onCompleteJob={handleCompleteJob}
+            />
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 p-6 text-center">
             <p className="text-lg font-medium">No active job</p>
@@ -580,6 +606,41 @@ export function WasherCoreScreensConnected() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <div className="min-h-screen">{renderScreen()}</div>
+
+      {/* Payment required before completing this job — previously the
+          "Complete Job" button skipped this entirely; DoorstepPaymentCollector
+          was fully built and connected to a real service, it just was never
+          shown to a real washer. */}
+      {pendingPaymentJob && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-4">
+            <h3 className="font-bold text-gray-900 mb-1">Collect Payment to Complete</h3>
+            <p className="text-sm text-gray-500 mb-3">This job needs payment collected before it can be marked complete.</p>
+            <DoorstepPaymentCollector
+              job={{
+                jobId: pendingPaymentJob.id ?? pendingPaymentJob.jobId,
+                jobType: pendingPaymentJob.jobType,
+                subscriptionId: pendingPaymentJob.subscriptionId,
+                customerId: pendingPaymentJob.customerId,
+                customerName: pendingPaymentJob.customerName,
+                customerPhone: pendingPaymentJob.customerPhone,
+                packageName: pendingPaymentJob.packageName,
+                amount: pendingPaymentJob.amount,
+                paymentStatus: pendingPaymentJob.paymentStatus,
+                isComplimentary: pendingPaymentJob.isComplimentary,
+                supervisorId: pendingPaymentJob.supervisorId,
+                cityId: pendingPaymentJob.cityId || currentCityId,
+              }}
+              onPaymentComplete={finishCompleteJob}
+              onSkip={canCompleteWithoutPayment({ jobType: pendingPaymentJob.jobType, subscriptionId: pendingPaymentJob.subscriptionId }) ? finishCompleteJob : undefined}
+              compact
+            />
+            <Button variant="outline" className="w-full mt-2" onClick={() => setPendingPaymentJob(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">

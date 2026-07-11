@@ -74,8 +74,14 @@ export interface ShiftCashRegister {
 }
 
 // ── Business UPI config (replace with real values) ───────────────────────────
+// ⚠️⚠️⚠️ PLACEHOLDER — NOT A REAL BUSINESS UPI ACCOUNT ⚠️⚠️⚠️
+// This ID is shown directly to real customers on the doorstep-payment QR
+// code and copy-to-clipboard field. Now that the doorstep payment screen
+// is actually wired into the washer's job-completion flow, this WILL be
+// shown to real customers unless replaced with your real, monitored
+// business UPI ID before this goes live.
 export const BUSINESS_UPI = {
-  id:   "249carwash@upi",
+  id:   "249carwash@upi", // ← REPLACE with real UPI ID before deploying
   name: "249 Car Wash Services",
   // For QR code generation in the UI, use:
   // `upi://pay?pa=${BUSINESS_UPI.id}&pn=${encodeURIComponent(BUSINESS_UPI.name)}&am=${amount}&cu=INR`
@@ -163,7 +169,7 @@ class DoorstepPaymentService {
     };
     this.save(payment);
     this._addToRegister(payment);
-    this._updateJobPaymentStatus(params.jobId, "Collected", "UPI", payment.paymentId);
+    this._updateJobPaymentStatus(params.jobId, "Collected", "UPI", payment.paymentId, params.cityId);
     console.log(`[DoorstepPayment] UPI collected ₹${params.amount} for job ${params.jobId} UTR:****${params.utrLast4}`);
     return payment;
   }
@@ -197,7 +203,7 @@ class DoorstepPaymentService {
     };
     this.save(payment);
     this._addToRegister(payment);
-    this._updateJobPaymentStatus(params.jobId, "Collected", "Cash", payment.paymentId);
+    this._updateJobPaymentStatus(params.jobId, "Collected", "Cash", payment.paymentId, params.cityId);
     console.log(`[DoorstepPayment] Cash collected ₹${params.cashAmount} for job ${params.jobId}`);
     return payment;
   }
@@ -256,7 +262,7 @@ class DoorstepPaymentService {
       createdAt:     new Date().toISOString(),
     };
     this.save(payment);
-    this._updateJobPaymentStatus(params.jobId, "LinkSent", "Link", payment.paymentId);
+    this._updateJobPaymentStatus(params.jobId, "LinkSent", "Link", payment.paymentId, params.cityId);
     console.log(`[DoorstepPayment] Link sent for job ${params.jobId} by ${params.sentByName} (${params.sentByRole})`);
     return payment;
   }
@@ -270,7 +276,7 @@ class DoorstepPaymentService {
     p.linkPaidAt = new Date().toISOString();
     if (upiRef) p.upiRef = upiRef;
     DataService.setAll(SK, all);
-    this._updateJobPaymentStatus(p.jobId, "Collected", "Link", paymentId);
+    this._updateJobPaymentStatus(p.jobId, "Collected", "Link", paymentId, p.cityId);
   }
 
   // ── Shift Cash Register ─────────────────────────────────────────────────────
@@ -367,14 +373,18 @@ class DoorstepPaymentService {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  private _updateJobPaymentStatus(jobId: string, status: PaymentStatus, mode: PaymentMode, paymentId: string) {
+  private _updateJobPaymentStatus(jobId: string, status: PaymentStatus, mode: PaymentMode, paymentId: string, cityId: string) {
     try {
-      const jobs = JSON.parse(localStorage.getItem(`cleancar_CITY-SURAT_jobs`) || "[]");
+      // Previously hardcoded to Surat regardless of which city the payment
+      // actually happened in — Mumbai/Ahmedabad payments were silently
+      // updating the wrong city's job list.
+      const jobsKey = `cleancar_${cityId}_jobs`;
+      const jobs = JSON.parse(localStorage.getItem(jobsKey) || "[]");
       const updated = jobs.map((j: any) => j.jobId === jobId
         ? { ...j, paymentStatus: status, collectionMode: mode, paymentId, updatedAt: new Date().toISOString() }
         : j
       );
-      localStorage.setItem(`cleancar_CITY-SURAT_jobs`, JSON.stringify(updated));
+      localStorage.setItem(jobsKey, JSON.stringify(updated));
     } catch {}
   }
 }
