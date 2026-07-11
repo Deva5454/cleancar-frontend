@@ -25,7 +25,7 @@
  * ============================================================================
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { BackButton } from "../ui/back-button";
 import { Button } from "../ui/button";
@@ -53,6 +53,9 @@ import { CostTrackingReports } from "./CostTrackingReports";
 import { CostTrendsDashboard } from "./CostTrendsDashboard";
 import { RecommendationsEngine } from "./RecommendationsEngine";
 import { AddOnComboAnalysis } from "./AddOnComboAnalysis";
+import { getPackageCostBreakdown } from "../../data/costData";
+import { useFinance } from "../../contexts/FinanceContext";
+import { useJobs } from "../../contexts/JobContext";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -71,12 +74,67 @@ export function CostPerWashModule() {
   const [serviceType, setServiceType] = useState<"Subscription" | "One-Time">("Subscription");
   const [varianceLevel, setVarianceLevel] = useState<"Washer" | "Team" | "Supervisor" | "Pincode" | "Cluster">("Washer");
 
-  // Mock data - will be replaced with actual data in future phases
-  const actualCostPerWash = 245;
-  const standardCostPerWash = 220;
+  // Standard cost: the real material + consumable + manpower + overhead
+  // formula from costData.ts, averaged across this vehicle category's
+  // packages (previously hardcoded to 220 regardless of category or month).
+  const getStandardCost = (vehicleType: "4W" | "2W") => {
+    const category = vehicleType === "4W" ? "SUV / MUV / Sedan" : "2W - Standard / Commuter Bike";
+    const breakdown = getPackageCostBreakdown(category);
+    if (breakdown.length === 0) return 0;
+    return Math.round(breakdown.reduce((sum, p) => sum + p.totalCompanyCost, 0) / breakdown.length);
+  };
+  const standardCostPerWash = useMemo(() => getStandardCost(packageType), [packageType]);
+
+  // Actual cost: real recorded expenses (accounts 5000-5999 in the ledger)
+  // for the given month, divided by real completed jobs that month —
+  // previously hardcoded to 245 regardless of what was actually spent or
+  // how many washes were actually done. This is a company-wide average,
+  // not a per-category figure — the ledger doesn't break expenses down by
+  // vehicle category, so this is the most honest real number available,
+  // not a fabricated wash-specific one.
+  const { getExpensesFromLedger } = useFinance();
+  const { completedJobs } = useJobs();
+
+  const monthDateRange = (monthLabel: string): { start: string; end: string } | null => {
+    const parsed = new Date(`1 ${monthLabel}`);
+    if (isNaN(parsed.getTime())) return null;
+    return {
+      start: new Date(parsed.getFullYear(), parsed.getMonth(), 1).toISOString().split("T")[0],
+      end: new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0).toISOString().split("T")[0],
+    };
+  };
+  const previousMonthLabel = (monthLabel: string): string => {
+    const parsed = new Date(`1 ${monthLabel}`);
+    if (isNaN(parsed.getTime())) return monthLabel;
+    parsed.setMonth(parsed.getMonth() - 1);
+    return parsed.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+  const washesInRange = (start: string, end: string) =>
+    completedJobs.filter((j: any) => {
+      const d = j.completedAt || j.scheduledDate;
+      return d && d >= start && d <= end;
+    }).length;
+
+  const getActualCost = (monthLabel: string): { cost: number; washCount: number } => {
+    const range = monthDateRange(monthLabel);
+    if (!range) return { cost: 0, washCount: 0 };
+    const totalExpenses = getExpensesFromLedger(range.start, range.end);
+    const washCount = washesInRange(range.start, range.end);
+    return { cost: washCount > 0 ? Math.round(totalExpenses / washCount) : 0, washCount };
+  };
+
+  const { cost: actualCostPerWash, washCount: washesThisMonthForImpact } = useMemo(
+    () => getActualCost(selectedMonth), [selectedMonth, getExpensesFromLedger, completedJobs]
+  );
+  const previousMonthActual = useMemo(
+    () => getActualCost(previousMonthLabel(selectedMonth)).cost, [selectedMonth, getExpensesFromLedger, completedJobs]
+  );
+  const actualVsLastMonthPct = previousMonthActual > 0
+    ? ((actualCostPerWash - previousMonthActual) / previousMonthActual) * 100 : 0;
+
   const variance = actualCostPerWash - standardCostPerWash;
-  const variancePercentage = ((variance / standardCostPerWash) * 100);
-  const totalVarianceImpact = variance * 1250; // Assuming 1250 washes per month
+  const variancePercentage = standardCostPerWash > 0 ? ((variance / standardCostPerWash) * 100) : 0;
+  const totalVarianceImpact = variance * washesThisMonthForImpact;
 
   // Determine variance state
   const getVarianceState = (variance: number): "efficient" | "moderate" | "high" => {
@@ -455,8 +513,12 @@ export function CostPerWashModule() {
                 <p className="text-sm text-gray-500 mb-1">Actual Cost per Wash</p>
                 <h3 className="text-3xl font-bold text-gray-900 mb-2">₹{actualCostPerWash}</h3>
                 <div className="flex items-center gap-1">
-                  <ArrowUpRight className="w-4 h-4 text-red-600" />
-                  <span className="text-sm text-red-600 font-medium">+8.5%</span>
+                  {actualVsLastMonthPct >= 0
+                    ? <ArrowUpRight className="w-4 h-4 text-red-600" />
+                    : <ArrowDownRight className="w-4 h-4 text-green-600" />}
+                  <span className={`text-sm font-medium ${actualVsLastMonthPct >= 0 ? "text-red-600" : "text-green-600"}`}>
+                    {actualVsLastMonthPct >= 0 ? "+" : ""}{actualVsLastMonthPct.toFixed(1)}%
+                  </span>
                   <span className="text-sm text-gray-500">vs last month</span>
                 </div>
               </div>
@@ -475,9 +537,7 @@ export function CostPerWashModule() {
                 <p className="text-sm text-gray-500 mb-1">Standard Cost per Wash</p>
                 <h3 className="text-3xl font-bold text-gray-900 mb-2">₹{standardCostPerWash}</h3>
                 <div className="flex items-center gap-1">
-                  <ArrowDownRight className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-600 font-medium">-2.3%</span>
-                  <span className="text-sm text-gray-500">vs last month</span>
+                  <span className="text-xs text-gray-400">Based on current material, consumable &amp; labor rates</span>
                 </div>
               </div>
               <div className="p-3 bg-green-50 rounded-lg">
