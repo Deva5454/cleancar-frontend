@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
+import { useEvents } from "../../contexts/EventSystem";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { washerGpsViolationService, type WasherGpsViolation } from "../../services/washerGpsViolationService";
@@ -90,6 +91,33 @@ export function WasherCoreScreensConnected() {
     window.addEventListener("cc360:location_off_auto_checkout", handleLocationOff);
     return () => window.removeEventListener("cc360:location_off_auto_checkout", handleLocationOff);
   }, [washerId, currentCityId, currentUser]);
+
+  // ── NEW JOB ASSIGNED NOTIFICATION ───────────────────────────────────────────
+  // JobContext already emits a real "JOB_ASSIGNED" event the moment a
+  // supervisor assigns a job to a washer — nothing on the washer's side was
+  // ever listening for it, so a washer only found out by manually checking
+  // their Schedule screen. Now: an immediate in-app toast, plus a real
+  // browser notification if the washer has already granted permission for
+  // one (this never requests permission itself — that has to be a
+  // deliberate opt-in elsewhere, not sprung on someone mid-shift).
+  const { subscribe } = useEvents();
+  useEffect(() => {
+    if (!washerId) return;
+    const unsubscribe = subscribe("JOB_ASSIGNED", (event: any) => {
+      const data = event?.data || event;
+      if (data?.washerId !== washerId) return;
+      const when = data?.scheduledDate ? ` for ${data.scheduledDate}` : "";
+      toast.success(`New job assigned${when} — ${data?.customerName || "a customer"}`, { duration: 8000 });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("New job assigned", {
+            body: `${data?.customerName || "A customer"}${when} — check your Schedule for details.`,
+          });
+        } catch { /* not fatal if the browser blocks it */ }
+      }
+    });
+    return unsubscribe;
+  }, [washerId, subscribe]);
 
   // ── SEED + LOAD JOBS ─────────────────────────────────────────────────────
   useEffect(() => {
