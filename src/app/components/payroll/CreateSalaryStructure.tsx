@@ -229,6 +229,16 @@ export function CreateSalaryStructure() {
       monthlyApplicable: [6, 12], // June and December only
       tooltip: "₹12.00 (Gujarat Standard - Half Yearly, deducted in June and December)"
     },
+    {
+      id: "gratuity",
+      name: "Gratuity",
+      type: "percentage",
+      value: 4.81,
+      baseOn: "basic",
+      isStatutory: true,
+      category: "statutory",
+      tooltip: "4.81% of Basic (standard formula: 15 days ÷ 26 working days ÷ 12 months)"
+    },
   ]);
 
   // Load saved structures on mount and subscribe to changes
