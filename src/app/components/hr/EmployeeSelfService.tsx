@@ -48,6 +48,8 @@ import { useRole } from "../../contexts/RoleContext";
 import { generateEmployeeId, generateEmployeeCode, getEmployeeStatusFromRole } from "../../utils/employeeUtils";
 import { useEmployee, type Employee } from "../../contexts/EmployeeContext";
 import { usePayroll } from "../../contexts/PayrollContext";
+import { computeAttendanceReport } from "../../utils/attendanceReportCore";
+import { useHRData } from "../../contexts/HRDataContext";
 import { leaveBalanceService, type EmployeeLeaveBalance } from "../../services/leaveBalanceService";
 import { MASTER_EMPLOYEES } from "../../data/employeeData";
 
@@ -90,8 +92,11 @@ interface MonthlyPayslipData {
 // on file yet show an honest "not generated yet" state instead of a guess.
 const buildHistoricalPayslipData = (
   employeeId: string,
+  employeeName: string,
+  role: string,
   joiningDate: string,
-  realPayrollRuns: any[]
+  realPayrollRuns: any[],
+  getAttendanceByEmployeeId: (id: string) => any[]
 ): MonthlyPayslipData[] => {
   const history: MonthlyPayslipData[] = [];
   const startDate = new Date(joiningDate);
@@ -103,6 +108,27 @@ const buildHistoricalPayslipData = (
     const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const realRun = realPayrollRuns.find(pr => pr.month === monthStr);
 
+    // Late-coming and auto-logout counts come from the same real
+    // day-by-day attendance pipeline used everywhere else in HR/Payroll
+    // (attendanceReportCore.ts) — "late" means a real recorded lateMinutes
+    // > 0 that day; "auto logout" means the employee checked in but the
+    // system never got a real checkout for them that day. Previously both
+    // were just set to 0 with a "not tracked" note, but the real tracking
+    // already existed — it just wasn't wired into this screen yet.
+    const monthAttendance = getAttendanceByEmployeeId(employeeId).filter((r: any) => r.date?.startsWith(monthStr));
+    let lateComingCount = 0, autoLogoutCount = 0;
+    if (monthAttendance.length > 0) {
+      const report = computeAttendanceReport({
+        employeeId, employeeName, empCode: employeeId, role,
+        dailyAttendance: monthAttendance.map((r: any) => ({
+          date: r.date, status: r.status, checkIn: r.checkInTime, checkOut: r.checkOutTime, lateMinutes: r.lateMinutes,
+        })),
+        graceUsageCount: 0, hasGhosting: false,
+      });
+      lateComingCount = report.lateComingCount;
+      autoLogoutCount = report.autoLogoutCount;
+    }
+
     if (realRun) {
       const totalDays = realRun.totalDays || new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
       const presentDays = realRun.daysWorked ?? totalDays;
@@ -112,8 +138,8 @@ const buildHistoricalPayslipData = (
         hasDeduction: attendanceLOP > 0,
         deductionAmount: attendanceLOP,
         deductionDays: totalDays > 0 ? Math.round(((totalDays - presentDays) / totalDays) * totalDays * 10) / 10 : 0,
-        lateComingCount: 0, // not tracked at the payroll-record granularity — see note below
-        autoLogoutCount: 0, // same
+        lateComingCount,
+        autoLogoutCount,
         perDayRate: totalDays > 0 ? Math.round((realRun.grossSalary || 0) / totalDays) : 0,
         netPayable: realRun.netSalary || 0,
         grossSalary: realRun.grossSalary || 0,
@@ -128,14 +154,16 @@ const buildHistoricalPayslipData = (
     } else {
       // No real payroll run generated for this month yet — shown as an
       // honest empty state in the UI (see notGenerated flag), not guessed.
+      // Attendance-derived counts (late/auto-logout) can still be real
+      // even if payroll hasn't run yet, so they're kept rather than zeroed.
       const totalDays = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
       history.push({
         month: monthStr,
         hasDeduction: false,
         deductionAmount: 0,
         deductionDays: 0,
-        lateComingCount: 0,
-        autoLogoutCount: 0,
+        lateComingCount,
+        autoLogoutCount,
         perDayRate: 0,
         netPayable: 0,
         grossSalary: 0,
@@ -164,6 +192,7 @@ export function EmployeeSelfService() {
   // real regardless of how the rest of the screen was built.
   const { getEmployeeById, employees } = useEmployee();
   const { getPayrollByEmployee } = usePayroll();
+  const { getAttendanceByEmployeeId } = useHRData();
   const realEmployeeId = currentUser.employeeId || "";
   const realEmployee = realEmployeeId ? getEmployeeById(realEmployeeId) : undefined;
 
@@ -318,7 +347,7 @@ export function EmployeeSelfService() {
         : undefined;
       const realLookupId = realLookupEmployee?.employeeId || (employeeToLoad === currentEmployee.name ? currentEmployee.id : employeeId);
       const employeePayrollRuns = getPayrollByEmployee(realLookupId);
-      const history = buildHistoricalPayslipData(realLookupId, currentEmployee.joiningDate, employeePayrollRuns);
+      const history = buildHistoricalPayslipData(realLookupId, employeeToLoad, currentRole, currentEmployee.joiningDate, employeePayrollRuns, getAttendanceByEmployeeId);
       setHistoricalData(history);
 
       // Subscribe to updates
