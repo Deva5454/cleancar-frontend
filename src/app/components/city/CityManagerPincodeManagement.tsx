@@ -21,10 +21,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { MapPin, Plus, CheckCircle, AlertCircle, Users, Target } from "lucide-react";
 import { organizationHierarchyService } from "../../services/organizationHierarchyService";
 import { useRole } from "../../contexts/RoleContext";
+import { useCustomers } from "../../contexts/CustomerContext";
 import { logger } from "../../services/logger";
 
 export function CityManagerPincodeManagement() {
   const { currentUser } = useRole();
+  const { customers } = useCustomers();
   const [isAddPincodeOpen, setIsAddPincodeOpen] = useState(false);
 
   // Form state for new pincode
@@ -291,6 +293,9 @@ export function CityManagerPincodeManagement() {
         {pincodes.map((pincode) => {
           const teams = organizationHierarchyService.getTeamsByPincode(pincode.id);
           const cluster = clusters.find(c => c.id === pincode.clusterId);
+          const pincodeCustomers = customers.filter((c: any) => c.address?.pinCode === pincode.pincode);
+          const activeCustomers = pincodeCustomers.filter((c: any) => c.status === "Active").length;
+          const inactiveCustomers = pincodeCustomers.filter((c: any) => c.status === "Inactive").length;
 
           return (
             <Card key={pincode.id} className="border-2">
@@ -347,6 +352,17 @@ export function CityManagerPincodeManagement() {
                     >
                       {pincode.metadata.marketPotential}
                     </Badge>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="text-center flex-1">
+                    <p className="text-lg font-bold text-emerald-600">{activeCustomers}</p>
+                    <p className="text-xs text-gray-500">Active Customers</p>
+                  </div>
+                  <div className="text-center flex-1">
+                    <p className="text-lg font-bold text-red-500">{inactiveCustomers}</p>
+                    <p className="text-xs text-gray-500">Inactive Customers</p>
                   </div>
                 </div>
 
