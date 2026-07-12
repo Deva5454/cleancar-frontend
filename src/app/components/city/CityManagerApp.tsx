@@ -43,6 +43,7 @@ import {
 import { cityManagerService } from "../../services/cityManagerService";
 import { CURRENT_CITY_MANAGER } from "../../constants/cityManager.constants";
 import { useRole } from "../../contexts/RoleContext";
+import { useCustomers } from "../../contexts/CustomerContext";
 import { useCity } from "../../contexts/CityContext";
 import { organizationHierarchyService } from "../../services/organizationHierarchyService";
 import { CityManagerPincodeManagement } from "./CityManagerPincodeManagement";
@@ -349,12 +350,86 @@ function CommandDashboard() {
   const cityKPIs = cityManagerService.getCityKPIs();
   const clusters = cityManagerService.getClusterCards();
   const alerts = cityManagerService.getCityAlerts();
+  const { customers } = useCustomers();
+
+  // Period filter for the customer counts below — "customers acquired in
+  // this period," broken down by their current status. There's no real
+  // time-series history of status changes tracked anywhere in this app
+  // (confirmed while building this), so this filters by each customer's
+  // real signup date (createdAt), not a snapshot of "who was active on
+  // that date" — the most honest thing achievable with the data that
+  // actually exists.
+  const [periodPreset, setPeriodPreset] = useState<"week" | "month" | "30days" | "custom">("30days");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const periodRange = (() => {
+    const now = new Date();
+    const to = new Date(now);
+    let from = new Date(now);
+    if (periodPreset === "week") from.setDate(now.getDate() - 7);
+    else if (periodPreset === "month") from.setMonth(now.getMonth() - 1);
+    else if (periodPreset === "30days") from.setDate(now.getDate() - 30);
+    else {
+      return {
+        from: customFrom || "1970-01-01",
+        to: customTo || now.toISOString().split("T")[0],
+      };
+    }
+    return { from: from.toISOString().split("T")[0], to: to.toISOString().split("T")[0] };
+  })();
+
+  const customersInPeriod = customers.filter((c: any) => {
+    const created = (c.createdAt || "").split("T")[0];
+    return created >= periodRange.from && created <= periodRange.to;
+  });
 
   const criticalClusters = clusters.filter((c) => c.status === "RED").length;
   const amberClusters = clusters.filter((c) => c.status === "AMBER").length;
 
   return (
     <div className="space-y-6">
+      {/* Period Filter */}
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-gray-700">Customer data period:</span>
+          <div className="flex gap-2">
+            {([
+              { key: "week", label: "Last Week" },
+              { key: "month", label: "Last Month" },
+              { key: "30days", label: "Last 30 Days" },
+              { key: "custom", label: "Custom" },
+            ] as const).map((opt) => (
+              <Button
+                key={opt.key}
+                size="sm"
+                variant={periodPreset === opt.key ? "default" : "outline"}
+                onClick={() => setPeriodPreset(opt.key)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+          {periodPreset === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+              <span className="text-sm text-gray-500">to</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* City KPI Strip */}
       <div className="grid grid-cols-5 gap-4">
         <Card className="p-4">
@@ -662,7 +737,13 @@ function CommandDashboard() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          {clusters.map((cluster) => (
+          {clusters.map((cluster) => {
+            const clusterPincodes = new Set((cluster.pincodeDetails || []).map((pc) => pc.pincode));
+            const clusterCustomers = customersInPeriod.filter((c: any) => clusterPincodes.has(c.address?.pinCode));
+            const activeCount = clusterCustomers.filter((c: any) => c.status === "Active").length;
+            const inactiveCount = clusterCustomers.filter((c: any) => c.status === "Inactive").length;
+            const totalCount = clusterCustomers.length;
+            return (
             <Card
               key={cluster.id}
               className={`p-4 cursor-pointer hover:shadow-lg transition-shadow border-l-4 ${
@@ -695,24 +776,21 @@ function CommandDashboard() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-4 gap-3 mb-3">
                 <div>
-                  <p className="text-xs text-gray-500">Revenue</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {cluster.revenue.percentage.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    ₹{(cluster.revenue.mtd / 100000).toFixed(1)}L
-                  </p>
+                  <p className="text-xs text-gray-500">Active</p>
+                  <p className="text-lg font-bold text-emerald-600">{activeCount}</p>
+                  <p className="text-xs text-gray-600">customers</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">EBITDA</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {cluster.ebitda.percentage.toFixed(1)}%
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    ₹{(cluster.ebitda.contribution / 100000).toFixed(1)}L
-                  </p>
+                  <p className="text-xs text-gray-500">Inactive</p>
+                  <p className="text-lg font-bold text-red-500">{inactiveCount}</p>
+                  <p className="text-xs text-gray-600">customers</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="text-lg font-bold text-gray-900">{totalCount}</p>
+                  <p className="text-xs text-gray-600">customers</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Retention</p>
@@ -738,7 +816,8 @@ function CommandDashboard() {
                 )}
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </div>
 
