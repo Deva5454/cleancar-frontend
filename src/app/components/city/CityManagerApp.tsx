@@ -64,7 +64,6 @@ type Screen =
   | "EXPANSION"
   | "PINCODE_MANAGEMENT"
   | "ALERTS"
-  | "REPORTS"
   | "INCENTIVE"
   | "EXIT_VERIFY"
   | "WASHER_GPS_APPROVALS"
@@ -170,8 +169,6 @@ export function CityManagerApp() {
         return <CityManagerPincodeManagement />;
       case "ALERTS":
         return <AlertsEscalations />;
-      case "REPORTS":
-        return <ReportsAnalytics />;
       case "INCENTIVE":
         return <IncentiveTracker />;
       case "WASHER_GPS_APPROVALS":
@@ -309,7 +306,6 @@ export function CityManagerApp() {
             { id: "EXPANSION", label: "Expansion", icon: MapPin },
             { id: "PINCODE_MANAGEMENT", label: "Pincodes", icon: Target },
             { id: "ALERTS", label: "Alerts", icon: AlertTriangle, badge: criticalAlerts },
-            { id: "REPORTS", label: "Reports", icon: FileText },
             { id: "INCENTIVE", label: "Incentive", icon: Award },
             { id: "WASHER_GPS_APPROVALS", label: "Washer Re-Check-In", icon: MapPin, badge: pendingWasherGpsApprovals },
             // Operations Manager coverage — while there's no OM in place,
@@ -1134,13 +1130,40 @@ function CMTeamOperationsTab() {
   const allPincodes = clusters.flatMap((c) => (c.pincodeDetails || []).map((pc) => pc.pincodeId));
   const teamOperations = operationsManagerService.getTeamOperationsData(undefined, allPincodes);
   const [washerDetailModal, setWasherDetailModal] = useState<{ show: boolean; washer: any } | null>(null);
+  const [reassignModal, setReassignModal] = useState<{ show: boolean; washer: any } | null>(null);
+  const [pickedWasherId, setPickedWasherId] = useState("");
+  const { getJobsByWasherId, assignJobToWasher } = useJobs();
+
+  const activeStatuses = ["Assigned", "Acknowledged", "In Progress"];
+  const reassignJobs = reassignModal?.washer
+    ? getJobsByWasherId(reassignModal.washer.id).filter((j: any) => activeStatuses.includes(j.status))
+    : [];
+
+  const otherWashers = reassignModal?.washer
+    ? teamOperations.washers
+        .filter((w: any) => w.id !== reassignModal.washer.id && w.status === "PRESENT")
+        .map((w: any) => ({ ...w, activeCount: getJobsByWasherId(w.id).filter((j: any) => activeStatuses.includes(j.status)).length }))
+        .sort((a: any, b: any) => a.activeCount - b.activeCount)
+    : [];
+
+  const handleConfirmReassign = () => {
+    if (!pickedWasherId || !reassignModal?.washer) return;
+    const target = teamOperations.washers.find((w: any) => w.id === pickedWasherId);
+    reassignJobs.forEach((j: any) => assignJobToWasher(j.jobId, pickedWasherId, target?.name || pickedWasherId));
+    toast.success(`${reassignJobs.length} job(s) reassigned from ${reassignModal.washer.name} to ${target?.name || pickedWasherId}`);
+    setReassignModal(null);
+    setPickedWasherId("");
+  };
 
   return (
     <div className="-mx-4 sm:-mx-6 -mt-4">
       <OMTeamOperations
         teams={teamOperations.teams}
         washers={teamOperations.washers}
-        onReassignCover={(washerId) => toast.info("Cover reassignment isn't built yet — same as on Operations Manager's own screen.")}
+        onReassignCover={(washerId) => {
+          const washer = teamOperations.washers.find((w: any) => w.id === washerId);
+          if (washer) { setReassignModal({ show: true, washer }); setPickedWasherId(""); }
+        }}
         onViewWasherDetail={(washerId) => {
           const washer = teamOperations.washers.find((w: any) => w.id === washerId);
           if (washer) setWasherDetailModal({ show: true, washer });
@@ -1156,6 +1179,43 @@ function CMTeamOperationsTab() {
               <p><span className="text-gray-500">Status:</span> {washerDetailModal.washer.status}</p>
             </div>
             <Button className="w-full mt-4" variant="outline" onClick={() => setWasherDetailModal(null)}>Close</Button>
+          </Card>
+        </div>
+      )}
+      {reassignModal?.show && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setReassignModal(null)}>
+          <Card className="max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-lg mb-1">Reassign Cover — {reassignModal.washer.name}</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {reassignJobs.length === 0
+                ? "This washer has no active jobs to reassign."
+                : `${reassignJobs.length} active job(s) will move to whoever you pick below.`}
+            </p>
+            {reassignJobs.length > 0 && (
+              <>
+                <label className="text-sm font-medium text-gray-700">Reassign to</label>
+                <select
+                  className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm"
+                  value={pickedWasherId}
+                  onChange={(e) => setPickedWasherId(e.target.value)}
+                >
+                  <option value="">Select washer...</option>
+                  {otherWashers.map((w: any) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.activeCount} active{w.activeCount === 0 ? " - idle" : ""})
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setReassignModal(null)}>Cancel</Button>
+              {reassignJobs.length > 0 && (
+                <Button className="flex-1" disabled={!pickedWasherId} onClick={handleConfirmReassign}>
+                  Confirm Reassign
+                </Button>
+              )}
+            </div>
           </Card>
         </div>
       )}
