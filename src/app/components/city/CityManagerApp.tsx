@@ -299,8 +299,8 @@ export function CityManagerApp() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="bg-white border-b border-gray-200 px-6">
-        <div className="flex gap-6 overflow-x-auto">
+      <div className="bg-white border-b border-gray-200 px-6 py-2">
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
           {[
             { id: "COMMAND_DASHBOARD", label: "Command Dashboard", icon: BarChart3 },
             { id: "LEADS_CONVERSION", label: "Leads & Conversion", icon: Target },
@@ -326,7 +326,7 @@ export function CityManagerApp() {
               <button
                 key={tab.id}
                 onClick={() => setActiveScreen(tab.id as Screen)}
-                className={`relative flex items-center gap-2 py-4 px-3 border-b-2 transition-colors ${
+                className={`relative flex items-center gap-2 py-2.5 px-3 border-b-2 transition-colors ${
                   isActive
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-600 hover:text-gray-900"
