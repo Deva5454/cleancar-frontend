@@ -718,56 +718,15 @@ class CityManagerService {
   // ============================================
 
   getCityAlerts(cityId: string = 'CITY-SURAT'): CityAlert[] {
-    // ✅ UPDATED: Now uses real cluster names
-    const clusters = organizationHierarchyService.getClustersByCity(cityId);
-    const clusterNames = clusters.map(c => c.name);
-
-    return [
-      {
-        id: "ALERT-CM-001",
-        type: "CLUSTER_REVENUE_CRITICAL",
-        priority: "CRITICAL",
-        title: `${clusterNames[2] || 'Central Surat'} Revenue Critical`,
-        description: "Revenue at 73.8% - below critical threshold of 75%",
-        impact: "₹6.8L revenue gap, 85 customers affected",
-        affectedClusters: [clusterNames[2] || 'Central Surat'],
-        timeElapsed: 72 * 60,
-        createdAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-        autoEscalateIn: 48 * 60,
-        actions: {
-          initiateIntervention: true,
-          requiresDecision: true,
-        },
-      },
-      {
-        id: "ALERT-CM-002",
-        type: "RETENTION_CRISIS",
-        priority: "CRITICAL",
-        title: "Premium Segment Churn Spike",
-        description: "28 premium customers at high churn risk",
-        impact: "₹4.2L monthly revenue at risk",
-        affectedClusters: [clusterNames[0] || 'South Surat', clusterNames[1] || 'North Surat'],
-        timeElapsed: 120 * 60,
-        createdAt: new Date(Date.now() - 120 * 60 * 60 * 1000),
-        actions: {
-          initiateIntervention: true,
-        },
-      },
-      {
-        id: "ALERT-CM-003",
-        type: "COST_ANOMALY",
-        priority: "WARNING",
-        title: "Consumable Cost Spike",
-        description: "18% increase in consumable costs month-over-month",
-        impact: "EBITDA compression by 2%",
-        affectedClusters: [clusterNames[0] || 'South Surat', clusterNames[1] || 'North Surat'],
-        timeElapsed: 48 * 60,
-        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
-        actions: {
-          requiresDecision: true,
-        },
-      },
-    ];
+    // Previously returned 3 hardcoded example alerts, always the same
+    // regardless of real conditions — "Central Surat Revenue Critical
+    // ₹6.8L revenue gap", "Premium Segment Churn Spike ₹4.2L monthly
+    // revenue at risk", "Consumable Cost Spike EBITDA compression by 2%".
+    // All three were fake data AND all three surfaced revenue/EBITDA
+    // figures, which City Manager should not see anywhere in this app.
+    // Returning none is the honest state until a real, non-financial
+    // alert source is built for this role.
+    return [];
   }
 
   // ============================================

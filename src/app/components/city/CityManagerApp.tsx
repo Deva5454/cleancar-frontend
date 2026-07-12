@@ -274,18 +274,6 @@ export function CityManagerApp() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Revenue MTD</p>
-              <p className="text-lg font-bold text-gray-900">
-                ₹{(cityKPIs.revenue.mtd / 100000).toFixed(1)}L
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">EBITDA</p>
-              <p className="text-lg font-bold text-green-600">
-                {cityKPIs.ebitda.percentage.toFixed(1)}%
-              </p>
-            </div>
             {criticalAlerts > 0 && (
               <Badge variant="destructive" className="h-8">
                 {criticalAlerts} Critical
@@ -301,7 +289,6 @@ export function CityManagerApp() {
           {[
             { id: "COMMAND_DASHBOARD", label: "Command Dashboard", icon: BarChart3 },
             { id: "INTERVENTIONS", label: "Governance", icon: AlertCircle, badge: activeInterventions },
-            { id: "REVENUE_EBITDA", label: "P&L", icon: DollarSign },
             { id: "RETENTION", label: "Retention", icon: Users },
             { id: "EXPANSION", label: "Expansion", icon: MapPin },
             { id: "PINCODE_MANAGEMENT", label: "Pincodes", icon: Target },
@@ -431,42 +418,7 @@ function CommandDashboard() {
       </Card>
 
       {/* City KPI Strip */}
-      <div className="grid grid-cols-5 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Revenue vs Target</p>
-            <TrendingUp className="w-4 h-4 text-green-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {cityKPIs.revenue.percentage.toFixed(1)}%
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            ₹{(cityKPIs.revenue.mtd / 100000).toFixed(1)}L / ₹{(cityKPIs.revenue.target / 100000).toFixed(1)}L
-          </p>
-          <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
-            <TrendingUp className="w-3 h-3" />
-            {cityKPIs.revenue.growth.toFixed(1)}% growth
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">EBITDA %</p>
-            <Activity className="w-4 h-4 text-blue-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {cityKPIs.ebitda.percentage.toFixed(1)}%
-          </p>
-          <p className="text-xs text-gray-500 mt-1">
-            ₹{(cityKPIs.ebitda.amount / 100000).toFixed(1)}L
-          </p>
-          <div className="mt-2">
-            <Badge variant={cityKPIs.ebitda.percentage >= 25 ? "default" : "destructive"}>
-              {cityKPIs.ebitda.percentage >= 25 ? "Above Threshold" : "Below Threshold"}
-            </Badge>
-          </div>
-        </Card>
-
+      <div className="grid grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-gray-600">Retention Rate</p>
@@ -1085,7 +1037,7 @@ function ExpansionPlanning() {
               <div>
                 <p className="font-medium text-gray-900">{zone.name}</p>
                 <p className="text-sm text-gray-600">
-                  Potential: ₹{(zone.potentialRevenue / 100000).toFixed(1)}L • Investment: ₹{(zone.investmentRequired / 100000).toFixed(1)}L
+                  Investment: ₹{(zone.investmentRequired / 100000).toFixed(1)}L
                 </p>
               </div>
               <div className="text-right">
@@ -1211,7 +1163,7 @@ function IncentiveTracker() {
           {!data.kpiScoring.ebitda.thresholdMet && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-800 font-medium">
-                ⚠️ EBITDA below mandatory threshold - Zero payout
+                ⚠️ Profitability threshold not met - Zero payout
               </p>
             </div>
           )}
