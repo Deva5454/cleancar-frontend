@@ -68,6 +68,7 @@ import { Badge } from "../ui/badge";
 
 
 import { Button } from "../ui/button";
+import { Card } from "../ui/card";
 
 
 
@@ -76,6 +77,8 @@ import { Clock, Sun, Briefcase, FileText, Moon, Lock } from "lucide-react";
 
 
 import { useRole } from "../../contexts/RoleContext";
+import { useJobs } from "../../contexts/JobContext";
+import { toast } from "sonner";
 import { getMarketingExpenseSummary } from "../../services/complimentary2WService";
 
 
@@ -429,6 +432,10 @@ export function OperationsManagerApp() {
 
 
   } | null>(null);
+
+  const [reassignCoverModal, setReassignCoverModal] = useState<{ show: boolean; washer: any } | null>(null);
+  const [reassignPickedWasherId, setReassignPickedWasherId] = useState("");
+  const { getJobsByWasherId, assignJobToWasher } = useJobs();
 
 
 
@@ -865,14 +872,8 @@ export function OperationsManagerApp() {
 
 
   const handleReassignCover = (washerId: string) => {
-
-
-
-    logger.log("Reassign cover for:", washerId);
-
-
-
-    // Show cover reassignment modal
+    const washer = teamOperations.washers.find((w: any) => w.id === washerId);
+    if (washer) { setReassignCoverModal({ show: true, washer }); setReassignPickedWasherId(""); }
 
 
 
@@ -2625,17 +2626,9 @@ export function OperationsManagerApp() {
 
 
           onReassign={() => {
-
-
-
-            notificationService.info("Reassignment", "Cover reassignment initiated");
-
-
-
             setWasherDetailModal(null);
-
-
-
+            setReassignCoverModal({ show: true, washer: washerDetailModal.washer });
+            setReassignPickedWasherId("");
           }}
 
 
@@ -2645,6 +2638,60 @@ export function OperationsManagerApp() {
 
 
       )}
+
+      {reassignCoverModal?.show && (() => {
+        const activeStatuses = ["Assigned", "Acknowledged", "In Progress"];
+        const reassignJobs = getJobsByWasherId(reassignCoverModal.washer.id).filter((j: any) => activeStatuses.includes(j.status));
+        const otherWashers = teamOperations.washers
+          .filter((w: any) => w.id !== reassignCoverModal.washer.id && w.status === "PRESENT")
+          .map((w: any) => ({ ...w, activeCount: getJobsByWasherId(w.id).filter((j: any) => activeStatuses.includes(j.status)).length }))
+          .sort((a: any, b: any) => a.activeCount - b.activeCount);
+        const handleConfirmReassign = () => {
+          if (!reassignPickedWasherId) return;
+          const target = teamOperations.washers.find((w: any) => w.id === reassignPickedWasherId);
+          reassignJobs.forEach((j: any) => assignJobToWasher(j.jobId, reassignPickedWasherId, target?.name || reassignPickedWasherId));
+          toast.success(`${reassignJobs.length} job(s) reassigned from ${reassignCoverModal.washer.name} to ${target?.name || reassignPickedWasherId}`);
+          setReassignCoverModal(null);
+          setReassignPickedWasherId("");
+        };
+        return (
+          <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setReassignCoverModal(null)}>
+            <Card className="max-w-md w-full p-6" onClick={(e: any) => e.stopPropagation()}>
+              <h3 className="font-bold text-lg mb-1">Reassign Cover — {reassignCoverModal.washer.name}</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {reassignJobs.length === 0
+                  ? "This washer has no active jobs to reassign."
+                  : `${reassignJobs.length} active job(s) will move to whoever you pick below.`}
+              </p>
+              {reassignJobs.length > 0 && (
+                <>
+                  <label className="text-sm font-medium text-gray-700">Reassign to</label>
+                  <select
+                    className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm"
+                    value={reassignPickedWasherId}
+                    onChange={(e) => setReassignPickedWasherId(e.target.value)}
+                  >
+                    <option value="">Select washer...</option>
+                    {otherWashers.map((w: any) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} ({w.activeCount} active{w.activeCount === 0 ? " - idle" : ""})
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setReassignCoverModal(null)}>Cancel</Button>
+                {reassignJobs.length > 0 && (
+                  <Button className="flex-1" disabled={!reassignPickedWasherId} onClick={handleConfirmReassign}>
+                    Confirm Reassign
+                  </Button>
+                )}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
 
 
 
