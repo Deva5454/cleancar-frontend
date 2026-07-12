@@ -92,7 +92,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       users: ["view", "export"],
       leads: ["view", "create", "edit", "export"],
       customers: ["view", "create", "edit", "export"],
-      operations: ["view", "create", "edit", "export"],
+      operations: ["view", "create", "edit", "approve", "export"],
       complaints: ["view", "create", "edit", "approve", "export"],
       finance: ["view", "export"],
       travel: ["view", "create"],
@@ -101,13 +101,23 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       analytics: ["view", "export"],
       reports: ["view", "export"],
       "crm": ["view", "create", "edit", "export"],
-      "jobs": ["view", "export"],
+      // Previously ["view","export"] only — City Manager couldn't approve
+      // jobs at all. Added "approve" so City Manager can cover job
+      // verification while there's no Operations Manager in place.
+      "jobs": ["view", "create", "edit", "approve", "export"],
       "admin": [],
       "audit-trail": ["view", "export"],
       "cloth-tracking": ["view"],
       "store-manager": [],
       "payroll-self-service": ["view"],
       hr: ["view", "edit", "approve"],  // ← verify exit materials for direct reports
+      // Added so City Manager can cover Operations Manager's real
+      // day-to-day responsibilities while that role is unfilled —
+      // managing washer and supervisor records, and a real approvals
+      // inbox, matching exactly what Operations Manager already has.
+      "car-washer": ["view", "create", "edit", "export"],
+      "supervisor": ["view", "create", "edit", "export"],
+      "approvals": ["view", "approve"],
     },
 
     "Cluster Manager": {
@@ -540,7 +550,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       users: ["view"],
       leads: ["view", "create", "edit", "export"],
       customers: ["view", "create", "edit", "export"],
-      operations: ["view", "create", "edit"],
+      operations: ["view", "create", "edit", "approve"],
       complaints: ["view", "create", "edit", "approve"],
       finance: ["view"],
       travel: ["view", "create"],
@@ -548,12 +558,16 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       performance: ["view", "export"],
       analytics: ["view"],
       "crm": ["view", "create", "edit", "export"],
-      "jobs": ["view", "export"],
+      "jobs": ["view", "create", "edit", "approve", "export"],
       "admin": [],
       "audit-trail": ["view", "export"],
       "cloth-tracking": ["view"],
       "store-manager": [],
       "payroll-self-service": ["view"],
+      // Same Operations-Manager-coverage additions as CITY-SURAT above.
+      "car-washer": ["view", "create", "edit", "export"],
+      "supervisor": ["view", "create", "edit", "export"],
+      "approvals": ["view", "approve"],
     },
 
     "Cluster Manager": {

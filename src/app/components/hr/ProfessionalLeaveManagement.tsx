@@ -252,10 +252,10 @@ function ProfessionalLeaveManagement() {
     return null;
   };
 
-  const canReviewLeave = ["HR", "Super Admin", "Operations Manager", "Supervisor"].includes(currentRole);
+  const canReviewLeave = ["HR", "Super Admin", "Operations Manager", "Supervisor", "Sales Head", "City Manager"].includes(currentRole);
 
   const handleApproveLeave = (leave: LeaveApplication) => {
-    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can approve leave"); return; }
+    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, Sales Head, City Manager, and Super Admin can approve leave"); return; }
     const canonicalType = toCanonicalLeaveType(leave.leaveType);
     if (canonicalType && canonicalType !== "LWP") {
       const result = leaveBalanceService.deductLeave(leave.employeeId, canonicalType, leave.days, leave.reason);
@@ -272,7 +272,7 @@ function ProfessionalLeaveManagement() {
   };
 
   const handleRejectLeave = (leave: LeaveApplication) => {
-    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, and Super Admin can reject leave"); return; }
+    if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, Sales Head, City Manager, and Super Admin can reject leave"); return; }
     const updated = realLeaveRequests.map((r: any) => r.id === leave.id
       ? { ...r, status: "Rejected", approvedBy: currentUser?.name || "HR", approvedOn: new Date().toISOString() }
       : r);

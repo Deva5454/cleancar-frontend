@@ -32,6 +32,7 @@ import {
   Target,
   AlertTriangle,
   MapPin,
+  CheckCircle,
   FileText,
   Award,
   ArrowLeft,
@@ -41,9 +42,12 @@ import {
   LogOut,
 } from "lucide-react";
 import { cityManagerService } from "../../services/cityManagerService";
+import { operationsManagerService } from "../../services/operationsManagerService";
+import { OMTeamOperations } from "../om/OMTeamOperations";
 import { CURRENT_CITY_MANAGER } from "../../constants/cityManager.constants";
 import { useRole } from "../../contexts/RoleContext";
 import { useCustomers } from "../../contexts/CustomerContext";
+import { useJobs } from "../../contexts/JobContext";
 import { useCity } from "../../contexts/CityContext";
 import { organizationHierarchyService } from "../../services/organizationHierarchyService";
 import { CityManagerPincodeManagement } from "./CityManagerPincodeManagement";
@@ -63,7 +67,9 @@ type Screen =
   | "REPORTS"
   | "INCENTIVE"
   | "EXIT_VERIFY"
-  | "WASHER_GPS_APPROVALS";
+  | "WASHER_GPS_APPROVALS"
+  | "TEAM_OPERATIONS"
+  | "JOB_APPROVALS";
 
 export function CityManagerApp() {
   const { currentUser, currentRole } = useRole();
@@ -105,6 +111,8 @@ export function CityManagerApp() {
       && e.verifierRole === "City Manager"
   );
   const pendingWasherGpsApprovals = washerGpsViolationService.getPendingForCity(city).filter(v => v.requestedAt).length;
+  const { allJobs } = useJobs();
+  const pendingJobApprovals = allJobs.filter((j: any) => j.status === "Completed" && j.cityId === city).length;
   const _persistExits = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
     try {
@@ -167,6 +175,10 @@ export function CityManagerApp() {
         return <IncentiveTracker />;
       case "WASHER_GPS_APPROVALS":
         return <WasherGpsApprovals />;
+      case "TEAM_OPERATIONS":
+        return <CMTeamOperationsTab />;
+      case "JOB_APPROVALS":
+        return <CMJobApprovalsTab />;
       case "EXIT_VERIFY":
         return (
           <div className="space-y-4">
@@ -296,6 +308,12 @@ export function CityManagerApp() {
             { id: "REPORTS", label: "Reports", icon: FileText },
             { id: "INCENTIVE", label: "Incentive", icon: Award },
             { id: "WASHER_GPS_APPROVALS", label: "Washer Re-Check-In", icon: MapPin, badge: pendingWasherGpsApprovals },
+            // Operations Manager coverage — while there's no OM in place,
+            // City Manager handles washer/supervisor team oversight and
+            // job verification directly, matching the same real screens
+            // and data OM would use.
+            { id: "TEAM_OPERATIONS", label: "Team Operations", icon: Users },
+            { id: "JOB_APPROVALS", label: "Job Approvals", icon: CheckCircle, badge: pendingJobApprovals },
             { id: "EXIT_VERIFY", label: "Exit Verify", icon: LogOut, badge: pendingCMExits.length },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1098,6 +1116,105 @@ function AlertsEscalations() {
           </div>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// ── Operations Manager coverage ──────────────────────────────────────────────
+// While there's no Operations Manager, City Manager covers washer/supervisor
+// team oversight and job verification directly. Reuses the same real
+// components and data OM would use — not a separate rebuild.
+
+function CMTeamOperationsTab() {
+  const { city, cityInfo } = useCity();
+  const clusters = cityManagerService.getClusterCards();
+  const allPincodes = clusters.flatMap((c) => (c.pincodeDetails || []).map((pc) => pc.pincode));
+  const teamOperations = operationsManagerService.getTeamOperationsData(undefined, allPincodes);
+  const [washerDetailModal, setWasherDetailModal] = useState<{ show: boolean; washer: any } | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">Team Operations — {cityInfo.displayName}</h2>
+        <p className="text-sm text-gray-500">
+          Washer and supervisor oversight across all clusters, covering Operations Manager's role while it's unfilled.
+        </p>
+      </div>
+      <OMTeamOperations
+        teams={teamOperations.teams}
+        washers={teamOperations.washers}
+        onReassignCover={(washerId) => toast.info("Cover reassignment isn't built yet — same as on Operations Manager's own screen.")}
+        onViewWasherDetail={(washerId) => {
+          const washer = teamOperations.washers.find((w: any) => w.id === washerId);
+          if (washer) setWasherDetailModal({ show: true, washer });
+        }}
+        onEscalate={(washerId) => toast.info(`Escalation noted for washer ${washerId} — visible in Governance.`)}
+      />
+      {washerDetailModal?.show && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setWasherDetailModal(null)}>
+          <Card className="max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-lg mb-3">{washerDetailModal.washer.name}</h3>
+            <div className="space-y-2 text-sm">
+              <p><span className="text-gray-500">Units today:</span> {washerDetailModal.washer.unitsToday}</p>
+              <p><span className="text-gray-500">Status:</span> {washerDetailModal.washer.status}</p>
+            </div>
+            <Button className="w-full mt-4" variant="outline" onClick={() => setWasherDetailModal(null)}>Close</Button>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CMJobApprovalsTab() {
+  const { city } = useCity();
+  const { allJobs, markJobAsVerified } = useJobs();
+  const [pending, setPending] = useState(() => allJobs.filter((j: any) => j.status === "Completed" && j.cityId === city));
+
+  const refresh = () => setPending(allJobs.filter((j: any) => j.status === "Completed" && j.cityId === city));
+
+  const handleVerify = (jobId: string, status: "verified" | "flagged" | "failed") => {
+    markJobAsVerified(jobId, status);
+    setPending((p: any[]) => p.filter((j: any) => j.jobId !== jobId));
+    toast.success(status === "verified" ? "Job verified" : "Job flagged for review");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">Job Approvals</h2>
+        <p className="text-sm text-gray-500">
+          Completed jobs awaiting verification — real job-verification logic that existed but was never connected to any screen before this.
+        </p>
+      </div>
+      {pending.length === 0 ? (
+        <Card className="p-8 text-center">
+          <CheckCircle className="w-10 h-10 text-green-300 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">No jobs awaiting approval</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pending.map((job: any) => (
+            <Card key={job.jobId} className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900">{job.customerName || job.customerId}</p>
+                  <p className="text-sm text-gray-600">{job.packageName} · {job.scheduledDate}</p>
+                  <p className="text-xs text-gray-500 mt-1">Washer: {job.washerName || job.washerId || "Unassigned"}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleVerify(job.jobId, "verified")}>
+                    Verify
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => handleVerify(job.jobId, "flagged")}>
+                    Flag
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
