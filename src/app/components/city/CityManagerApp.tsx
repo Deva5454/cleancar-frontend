@@ -1109,6 +1109,13 @@ function ReportsAnalytics() {
     <div className="space-y-6">
       <h2 className="text-xl font-bold">Reports & Analytics</h2>
       
+      {reports.length === 0 ? (
+        <Card className="p-8 text-center">
+          <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">No reports available yet</p>
+          <p className="text-sm text-gray-500 mt-1">Real report generation for this screen hasn't been built yet.</p>
+        </Card>
+      ) : (
       <div className="grid gap-4">
         {reports.map((report) => (
           <Card key={report.id} className="p-4">
@@ -1126,6 +1133,7 @@ function ReportsAnalytics() {
           </Card>
         ))}
       </div>
+      )}
     </div>
   );
 }

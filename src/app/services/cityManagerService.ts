@@ -808,33 +808,16 @@ class CityManagerService {
   // ============================================
 
   getCityReports(): CityReport[] {
-    // In production: GET /api/city-manager/reports
-    return [
-      {
-        id: "REP-001",
-        reportType: "MONTHLY_P&L",
-        month: "March 2026",
-        generatedAt: new Date(),
-        generatedBy: "SYSTEM",
-        summary: "Monthly P&L showing 12.5% revenue growth with 28.5% EBITDA",
-      },
-      {
-        id: "REP-002",
-        reportType: "CLUSTER_PERFORMANCE",
-        month: "March 2026",
-        generatedAt: new Date(),
-        generatedBy: "SYSTEM",
-        summary: "Cluster performance analysis - East Zone requires intervention",
-      },
-      {
-        id: "REP-003",
-        reportType: "RETENTION_ANALYSIS",
-        month: "March 2026",
-        generatedAt: new Date(),
-        generatedBy: "SYSTEM",
-        summary: "Retention analysis showing quality issues as primary churn driver",
-      },
-    ];
+    // Previously returned 3 hardcoded fake reports, always the same
+    // regardless of real conditions — including a "Monthly P&L" report
+    // with fabricated revenue/EBITDA figures (which City Manager should
+    // not see anywhere), and a "Cluster Performance" report mentioning
+    // "East Zone," a cluster that doesn't exist in the real data (the
+    // real clusters are South Surat / North Surat / Central Surat).
+    // No real report generation exists behind any of this yet — the
+    // "Download" button had no functionality at all. Returning none is
+    // the honest state until real report generation is actually built.
+    return [];
   }
 
   // ============================================
