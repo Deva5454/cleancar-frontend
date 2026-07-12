@@ -1126,20 +1126,13 @@ function AlertsEscalations() {
 // components and data OM would use — not a separate rebuild.
 
 function CMTeamOperationsTab() {
-  const { city, cityInfo } = useCity();
   const clusters = cityManagerService.getClusterCards();
-  const allPincodes = clusters.flatMap((c) => (c.pincodeDetails || []).map((pc) => pc.pincode));
+  const allPincodes = clusters.flatMap((c) => (c.pincodeDetails || []).map((pc) => pc.pincodeId));
   const teamOperations = operationsManagerService.getTeamOperationsData(undefined, allPincodes);
   const [washerDetailModal, setWasherDetailModal] = useState<{ show: boolean; washer: any } | null>(null);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Team Operations — {cityInfo.displayName}</h2>
-        <p className="text-sm text-gray-500">
-          Washer and supervisor oversight across all clusters, covering Operations Manager's role while it's unfilled.
-        </p>
-      </div>
+    <div className="-mx-4 sm:-mx-6 -mt-4">
       <OMTeamOperations
         teams={teamOperations.teams}
         washers={teamOperations.washers}
