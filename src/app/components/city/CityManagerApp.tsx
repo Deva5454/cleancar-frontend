@@ -69,7 +69,8 @@ type Screen =
   | "EXIT_VERIFY"
   | "WASHER_GPS_APPROVALS"
   | "TEAM_OPERATIONS"
-  | "JOB_APPROVALS";
+  | "JOB_APPROVALS"
+  | "LEADS_CONVERSION";
 
 export function CityManagerApp() {
   const { currentUser, currentRole } = useRole();
@@ -179,6 +180,8 @@ export function CityManagerApp() {
         return <CMTeamOperationsTab />;
       case "JOB_APPROVALS":
         return <CMJobApprovalsTab />;
+      case "LEADS_CONVERSION":
+        return <CMLeadsConversionTab />;
       case "EXIT_VERIFY":
         return (
           <div className="space-y-4">
@@ -300,6 +303,7 @@ export function CityManagerApp() {
         <div className="flex gap-6 overflow-x-auto">
           {[
             { id: "COMMAND_DASHBOARD", label: "Command Dashboard", icon: BarChart3 },
+            { id: "LEADS_CONVERSION", label: "Leads & Conversion", icon: Target },
             { id: "INTERVENTIONS", label: "Governance", icon: AlertCircle, badge: activeInterventions },
             { id: "RETENTION", label: "Retention", icon: Users },
             { id: "EXPANSION", label: "Expansion", icon: MapPin },
@@ -1208,6 +1212,133 @@ function CMJobApprovalsTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function CMLeadsConversionTab() {
+  const { city, cityInfo } = useCity();
+  const { leads } = useCustomers();
+  const clusters = cityManagerService.getClusterCards();
+
+  // City-wide leads: matched by pincode across every cluster in this city.
+  const cityPincodes = new Set(clusters.flatMap((c) => (c.pincodeDetails || []).map((pc) => pc.pincode)));
+  const cityLeads = leads.filter((l: any) => cityPincodes.has(l.address?.pinCode));
+
+  const statusCounts = {
+    new: cityLeads.filter((l: any) => l.status === "New").length,
+    inProgress: cityLeads.filter((l: any) => l.status === "Contacted" || l.status === "Demo Scheduled" || l.status === "Demo Completed").length,
+    paymentPending: cityLeads.filter((l: any) => l.status === "Payment Pending").length,
+    converted: cityLeads.filter((l: any) => l.status === "Converted").length,
+    rejected: cityLeads.filter((l: any) => l.status === "Rejected").length,
+  };
+  const total = cityLeads.length;
+  const conversionRate = total > 0 ? ((statusCounts.converted / total) * 100).toFixed(1) : "0.0";
+
+  // Leads stuck in Payment Pending for more than 3 days — the exact stage
+  // where a booked job's payment hasn't been collected/confirmed yet.
+  // Uses the real timestamp stamped when a lead enters this status; falls
+  // back to the lead's creation date for any older record from before that
+  // timestamp existed.
+  const STUCK_THRESHOLD_DAYS = 3;
+  const now = Date.now();
+  const stuckLeads = cityLeads
+    .filter((l: any) => l.status === "Payment Pending")
+    .map((l: any) => {
+      const since = l.paymentPendingSince || l.createdAt;
+      const daysStuck = since ? Math.floor((now - new Date(since).getTime()) / 86400000) : 0;
+      return { ...l, daysStuck };
+    })
+    .filter((l: any) => l.daysStuck >= STUCK_THRESHOLD_DAYS)
+    .sort((a: any, b: any) => b.daysStuck - a.daysStuck);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold">Leads & Conversion — {cityInfo.displayName}</h2>
+        <p className="text-sm text-gray-500">Real-time view of every lead in the system and how many convert to paying customers.</p>
+      </div>
+
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <p className="text-sm text-gray-600">Total Leads</p>
+          <p className="text-2xl font-bold text-gray-900">{total}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-gray-600">New / In Progress</p>
+          <p className="text-2xl font-bold text-blue-600">{statusCounts.new + statusCounts.inProgress}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-gray-600">Payment Pending</p>
+          <p className="text-2xl font-bold text-amber-600">{statusCounts.paymentPending}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-gray-600">Converted</p>
+          <p className="text-2xl font-bold text-emerald-600">{statusCounts.converted}</p>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Conversion Rate</p>
+            <p className="text-3xl font-bold text-gray-900">{conversionRate}%</p>
+          </div>
+          <p className="text-xs text-gray-500 max-w-xs text-right">
+            {statusCounts.converted} converted out of {total} total leads city-wide
+          </p>
+        </div>
+      </Card>
+
+      {/* Per-cluster breakdown */}
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">By Cluster</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {clusters.map((cluster) => {
+            const clusterPincodes = new Set((cluster.pincodeDetails || []).map((pc) => pc.pincode));
+            const clusterLeads = cityLeads.filter((l: any) => clusterPincodes.has(l.address?.pinCode));
+            const clusterConverted = clusterLeads.filter((l: any) => l.status === "Converted").length;
+            const clusterRate = clusterLeads.length > 0 ? ((clusterConverted / clusterLeads.length) * 100).toFixed(0) : "0";
+            return (
+              <Card key={cluster.id} className="p-4">
+                <p className="font-semibold text-gray-900">{cluster.clusterName}</p>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <p className="text-2xl font-bold text-gray-900">{clusterLeads.length}</p>
+                  <p className="text-sm text-gray-500">leads</p>
+                </div>
+                <p className="text-sm text-emerald-600 mt-1">{clusterConverted} converted ({clusterRate}%)</p>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Stuck in Payment Pending */}
+      <div>
+        <h3 className="font-semibold text-gray-900 mb-3">
+          Stuck in Payment Pending ({stuckLeads.length})
+        </h3>
+        {stuckLeads.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-gray-500">
+            Nothing stuck — every booked lead is moving through the pipeline normally.
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {stuckLeads.map((lead: any) => (
+              <Card key={lead.leadId} className="p-4 flex items-center justify-between border-amber-200">
+                <div>
+                  <p className="font-medium text-gray-900">{lead.firstName} {lead.lastName}</p>
+                  <p className="text-sm text-gray-500">{lead.address?.area}, {lead.address?.pinCode} · Assigned to {lead.assignedTo || "Unassigned"}</p>
+                </div>
+                <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+                  {lead.daysStuck} days
+                </Badge>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

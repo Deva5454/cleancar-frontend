@@ -15,10 +15,12 @@ import { doorstepPaymentService, type DoorstepPayment } from "../../services/doo
 import { useCustomers } from "../../contexts/CustomerContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
+import { useEvents } from "../../contexts/EventSystem";
 import { toast } from "sonner";
 
 export function TSMPaymentConfirmations() {
   const { currentUser } = useRole();
+  const { emit } = useEvents();
   const { city } = useCity();
   const { leads, updateLead } = useCustomers();
   const [pending, setPending] = useState<DoorstepPayment[]>([]);
@@ -44,6 +46,13 @@ export function TSMPaymentConfirmations() {
         status: "Converted",
         notes: `${relatedLead.notes || ""} — Payment confirmed by ${currentUser?.name || "TSM"} on ${new Date().toLocaleDateString("en-IN")}.`,
       } as any);
+      emit("LEAD_CONVERTED", {
+        leadId: relatedLead.leadId,
+        customerId: payment.customerId,
+        tseName: relatedLead.assignedTo,
+        cityId: city,
+        pincode: relatedLead.address?.pinCode,
+      }, "TSMPaymentConfirmations");
       toast.success(`${payment.customerName} — payment confirmed, lead converted to customer.`);
     } else {
       // Payment confirmed either way — the money collection itself doesn't

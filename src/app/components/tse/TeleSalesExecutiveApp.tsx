@@ -305,6 +305,7 @@ export function TeleSalesExecutiveApp() {
       updateLead(realLead.leadId, {
         status: "Payment Pending",
         notes: `${crmUpdate.notes || ""} — Job ${job.jobId} booked, ₹${finalPrice} due at doorstep.`.trim(),
+        paymentPendingSince: new Date().toISOString(),
       } as any);
 
       emit("LEAD_BOOKED_PENDING_PAYMENT", { leadId: realLead.leadId, jobId: job.jobId, customerId: customer.customerId, amount: finalPrice }, "TeleSalesExecutiveApp");
