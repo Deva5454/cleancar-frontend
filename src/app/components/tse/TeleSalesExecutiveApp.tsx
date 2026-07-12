@@ -273,6 +273,7 @@ export function TeleSalesExecutiveApp() {
       const today = new Date().toISOString().split("T")[0];
       const job = createJob({
         customerId: customer.customerId,
+        leadId: realLead.leadId,
         customerName: `${customer.firstName} ${customer.lastName}`.trim(),
         customerPhone: customer.phone,
         scheduledDate: today,

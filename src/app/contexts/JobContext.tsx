@@ -19,6 +19,7 @@ export interface Job {
   jobId: string;
   customerId: string; // GLOBAL IDENTITY - links to CustomerContext
   subscriptionId?: string; // Links to CustomerSubscriptionContext if from subscription
+  leadId?: string; // Links to CustomerContext's lead record, when this job originated from a TSE booking a lead (see TeleSalesExecutiveApp.tsx handleCRMSubmit)
   washerId?: string; // GLOBAL IDENTITY - links to HRDataContext (employeeId)
   scheduledDate: string;
   timeSlot: string;

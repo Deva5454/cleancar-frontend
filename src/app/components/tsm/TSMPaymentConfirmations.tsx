@@ -13,6 +13,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { doorstepPaymentService, type DoorstepPayment } from "../../services/doorstepPaymentService";
 import { useCustomers } from "../../contexts/CustomerContext";
+import { useJobs } from "../../contexts/JobContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { useEvents } from "../../contexts/EventSystem";
@@ -23,18 +24,23 @@ export function TSMPaymentConfirmations() {
   const { emit } = useEvents();
   const { city } = useCity();
   const { leads, updateLead } = useCustomers();
+  const { allJobs } = useJobs();
   const [pending, setPending] = useState<DoorstepPayment[]>([]);
 
   const reload = () => setPending(doorstepPaymentService.getTSEPendingConfirmations(city));
   useEffect(() => { reload(); }, [city]);
 
   const handleConfirm = (payment: DoorstepPayment) => {
-    // Find the lead this payment's job came from — matched via the note
-    // left on the lead when it was booked (see handleCRMSubmit), since the
-    // job itself doesn't carry a leadId back-reference.
-    const relatedLead = leads.find((l: any) =>
-      l.status === "Payment Pending" && (l.notes || "").includes(payment.jobId)
-    );
+    // Find the lead this payment's job came from — via the job's real
+    // leadId field. Previously there was no such field, so this matched
+    // on whether a note left on the lead happened to contain the job ID
+    // as text — a workaround, not a real link. Falls back to the old
+    // note-matching only for jobs booked before this fix, so anything
+    // already in flight doesn't silently break.
+    const job = allJobs.find((j: any) => j.jobId === payment.jobId);
+    const relatedLead = job?.leadId
+      ? leads.find((l: any) => l.leadId === job.leadId)
+      : leads.find((l: any) => l.status === "Payment Pending" && (l.notes || "").includes(payment.jobId));
 
     doorstepPaymentService.reconcileRegister(
       `REG-${city}-${payment.shiftDate}-${new Date(payment.collectedAt ?? "").getHours() < 14 ? "Morning" : "Evening"}`,
