@@ -51,7 +51,7 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { useCity } from "../../contexts/CityContext";
 import { calculateGST, generateInvoiceNumber } from "../../services/accountingEntryService";
-import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
+import { COMPANY_GST_CONFIG, gstComplianceService } from "../../services/gstComplianceService";
 import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
@@ -306,6 +306,75 @@ async function recordPayment(
   } catch (err) {
     // Non-blocking: log but don't fail the payment recording
     logger.log("Accounting ledger post failed for invoice payment:", err);
+  }
+
+  // ── Create the matching GST transaction ───────────────────────────────────
+  // Previously this never happened — real invoices calculated GST correctly
+  // for display, but nothing ever recorded it into gstComplianceService, so
+  // every real sale had to be manually retyped into a separate GST entry
+  // screen for it to ever appear in a GSTR-1 return. Created as "Draft" —
+  // not auto-approved — so an accountant still reviews it through the same
+  // validation flow manual entries go through, rather than silently
+  // trusting invoice data straight into a filed return.
+  try {
+    const payAmt = parseFloat(paymentData.amount);
+    const gstCalc = calculateGST(payAmt, 18, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+    const paymentDateObj = new Date(paymentData.paymentDate);
+    gstComplianceService.saveTransaction({
+      id: `GST-INV-${invoice.invoiceNumber}-${Date.now()}`,
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: paymentData.paymentDate,
+      transactionType: "Sale",
+      transactionSubType: invoice.serviceType || "Car Wash Service",
+      gstType: "B2C",
+      partyId: invoice.customerId || "UNKNOWN",
+      partyName: invoice.customerName || "Unknown Customer",
+      partyGstin: "",
+      partyState: COMPANY_GST_CONFIG.stateCode,
+      placeOfSupply: COMPANY_GST_CONFIG.stateCode,
+      placeOfSupplyCode: COMPANY_GST_CONFIG.stateCode,
+      // SAC 998533 (vehicle cleaning services) is a reasonable default for
+      // this business — worth confirming with the business's accountant
+      // that this is the exact code they want used for filing.
+      hsnSacCode: "998533",
+      description: invoice.serviceType || "Car Wash Service",
+      quantity: 1,
+      unit: "Nos",
+      unitPrice: payAmt,
+      taxableValue: payAmt,
+      gstRate: 18,
+      cgst: gstCalc.cgst,
+      sgst: gstCalc.sgst,
+      igst: gstCalc.igst,
+      cess: 0,
+      totalTax: gstCalc.cgst + gstCalc.sgst + gstCalc.igst,
+      invoiceTotal: gstCalc.totalBillValue,
+      itcEligible: false,
+      itcAmount: 0,
+      reverseCharge: false,
+      status: "Draft",
+      validationErrors: [],
+      riskScore: 0,
+      riskLevel: "Clean",
+      createdBy: "System (Invoice Payment)",
+      createdAt: new Date().toISOString(),
+      month: paymentDateObj.getMonth() + 1,
+      year: paymentDateObj.getFullYear(),
+      cityId,
+      city: cityId,
+      supplyNature: "Taxable",
+      changeHistory: [{
+        timestamp: new Date().toISOString(),
+        changedBy: "System",
+        action: "Auto-created from invoice payment",
+        newStatus: "Draft",
+      }],
+    } as any);
+  } catch (err) {
+    // Non-blocking: a GST record failing to auto-create shouldn't block
+    // the payment itself from being recorded. Same pattern as the
+    // accounting ledger post above.
+    logger.log("GST transaction auto-creation failed for invoice payment", { error: String(err) });
   }
 
   logger.log("Payment recorded and revenue created:", { invoiceId, paymentData });
