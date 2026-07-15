@@ -4,6 +4,8 @@ import { useGlobalEventHandlers } from "../../hooks/useGlobalEventHandlers";
 import { initializeHRData } from "../../utils/hr-data-initializer";
 import { EventMonitor } from "../crm/EventMonitor";
 import { RootLayout } from "./RootLayout";
+import { useCity } from "../../contexts/CityContext";
+import { gstComplianceService } from "../../services/gstComplianceService";
 
 /**
  * AppShell — renders inside AppProvider so all hooks have access to contexts.
@@ -17,6 +19,19 @@ function AppShell() {
       console.error("Failed to initialize HR data:", e);
     }
   }, []);
+
+  // gstComplianceService tracks its own city internally (a real bug found
+  // during audit — it defaulted to CITY-SURAT and had a setCityId() method
+  // that was never called anywhere, so every GST record was silently read
+  // and written under Surat's keys regardless of which city was actually
+  // selected). Syncing it here, once, guarantees it's correct before any
+  // of the 23 screens that use this service ever render, and keeps it
+  // correct automatically if a future screen is added — no per-screen
+  // sync code to remember.
+  const { city } = useCity();
+  useEffect(() => {
+    gstComplianceService.setCityId(city);
+  }, [city]);
 
   return (
     <>
