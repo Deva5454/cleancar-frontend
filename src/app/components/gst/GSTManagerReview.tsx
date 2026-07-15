@@ -52,7 +52,11 @@ export function GSTManagerReview() {
       approvedBy: "Manager",
       approvedAt: new Date().toISOString()
     };
-    gstComplianceService.saveTransaction(updated);
+    const saved = gstComplianceService.saveTransaction(updated);
+    if (!saved) {
+      toast.error("Could not approve — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     gstComplianceService.appendChangeLog(txn.id, {
       timestamp: new Date().toISOString(),
       changedBy: "Manager",
@@ -76,7 +80,11 @@ export function GSTManagerReview() {
       approvedAt: new Date().toISOString(),
       validationErrors: [...selectedTxn.validationErrors, `Override: ${overrideReason}`]
     };
-    gstComplianceService.saveTransaction(updated);
+    const saved = gstComplianceService.saveTransaction(updated);
+    if (!saved) {
+      toast.error("Could not save override — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     gstComplianceService.appendChangeLog(selectedTxn.id, {
       timestamp: new Date().toISOString(),
       changedBy: "Manager",
@@ -95,7 +103,11 @@ export function GSTManagerReview() {
       ...txn,
       status: "Draft"
     };
-    gstComplianceService.saveTransaction(updated);
+    const saved = gstComplianceService.saveTransaction(updated);
+    if (!saved) {
+      toast.error("Could not reject — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     setTransactions(gstComplianceService.getTransactions(city));
   };
 
@@ -142,7 +154,11 @@ export function GSTManagerReview() {
     updatedTxn.approvedBy = "Manager";
     updatedTxn.approvedAt = new Date().toISOString();
 
-    gstComplianceService.saveTransaction(updatedTxn);
+    const saved = gstComplianceService.saveTransaction(updatedTxn);
+    if (!saved) {
+      toast.error("Could not save correction — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     setTransactions(gstComplianceService.getTransactions(city));
     setSelectedCorrection(null);
   };

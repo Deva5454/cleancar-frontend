@@ -320,7 +320,7 @@ async function recordPayment(
     const payAmt = parseFloat(paymentData.amount);
     const gstCalc = calculateGST(payAmt, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
     const paymentDateObj = new Date(paymentData.paymentDate);
-    gstComplianceService.saveTransaction({
+    const gstSaved = gstComplianceService.saveTransaction({
       id: `GST-INV-${invoice.invoiceNumber}-${Date.now()}`,
       invoiceNumber: invoice.invoiceNumber,
       invoiceDate: paymentData.paymentDate,
@@ -370,6 +370,13 @@ async function recordPayment(
         newStatus: "Draft",
       }],
     } as any);
+    if (!gstSaved) {
+      // Non-blocking (the payment itself already succeeded), but this
+      // should still be visible — previously a storage failure here was
+      // completely silent, even though it means this payment's GST
+      // transaction genuinely doesn't exist for filing purposes.
+      toast.warning("Payment recorded, but the GST transaction record could not be saved — storage is full. This payment will need to be entered manually into the GST module.", { duration: 12000 });
+    }
   } catch (err) {
     // Non-blocking: a GST record failing to auto-create shouldn't block
     // the payment itself from being recorded. Same pattern as the

@@ -97,7 +97,11 @@ export function GSTReconciliation() {
         };
       });
 
-      matchedRecords.forEach(rec => gstComplianceService.saveReconciliationRecord(rec));
+      const failedCount = matchedRecords.filter(rec => !gstComplianceService.saveReconciliationRecord(rec)).length;
+      if (failedCount > 0) {
+        toast.error(`Could not save ${failedCount} of ${matchedRecords.length} record(s) — storage is full. Please contact support or clear old data, then try again.`, { duration: 10000 });
+        return;
+      }
       setRecords(gstComplianceService.getReconciliation());
 
       const matched   = matchedRecords.filter(r => r.matchStatus === "Matched").length;

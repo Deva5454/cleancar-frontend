@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "sonner";
 import { CheckCircle2, AlertCircle, Send, X, Check, TrendingDown } from "lucide-react";
 import { gstComplianceService, type GSTTransaction } from "../../services/gstComplianceService";
 import { analyzeTransaction, scoreAfterCorrection, type AICorrection } from "../../services/gstAIScoringService";
@@ -60,14 +61,22 @@ export function GSTValidationCentre() {
     updatedTxn.riskScore = newScore;
     updatedTxn.riskLevel = newScore < 30 ? "Clean" : newScore < 60 ? "Medium" : newScore < 80 ? "High" : "Critical";
 
-    gstComplianceService.saveTransaction(updatedTxn);
+    const saved = gstComplianceService.saveTransaction(updatedTxn);
+    if (!saved) {
+      toast.error("Could not save correction — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     setTransactions(gstComplianceService.getTransactions(city));
   };
 
   const handleAction = (txn: GSTTransaction, action: "reviewed" | "approved" | "manager" | "rejected") => {
     const newStatus = action === "approved" ? "Approved" : action === "manager" ? "Validated" : "Draft";
     const updated = { ...txn, status: newStatus as any };
-    gstComplianceService.saveTransaction(updated);
+    const saved = gstComplianceService.saveTransaction(updated);
+    if (!saved) {
+      toast.error("Could not save — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     setTransactions(gstComplianceService.getTransactions(city));
     setSelectedTxn(null);
   };

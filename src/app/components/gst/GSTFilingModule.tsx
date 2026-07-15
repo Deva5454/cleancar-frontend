@@ -87,6 +87,7 @@ export function GSTFilingModule() {
       .getTransactionsByMonth(selectedMonth, selectedYear, city)
       .filter(t => t.status === "Approved");
 
+    let failedCount = 0;
     toFile.forEach(t => {
       const updated = {
         ...t,
@@ -101,8 +102,14 @@ export function GSTFilingModule() {
           note: `Filed on ${filingDate}. Reference: ${filingReference}`,
         }],
       };
-      gstComplianceService.saveTransaction(updated);
+      const saved = gstComplianceService.saveTransaction(updated);
+      if (!saved) failedCount++;
     });
+
+    if (failedCount > 0) {
+      toast.error(`Could not save ${failedCount} of ${toFile.length} transaction(s) — storage is full. Please contact support or clear old data, then try again.`, { duration: 10000 });
+      return;
+    }
 
     setFiled(true);
     toast.success(`Filing confirmed. ${toFile.length} transactions marked as Filed. Reference: ${filingReference}`);

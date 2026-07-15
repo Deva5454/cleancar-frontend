@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { FileOutput, Download, CheckCircle, XCircle, AlertTriangle, Copy, Check } from "lucide-react";
 import { gstComplianceService, type GSTTransaction } from "../../services/gstComplianceService";
 import { showExportMenu } from "../../utils/gstExportUtils";
+import { toast } from "sonner";
 import { useCity } from "../../contexts/CityContext";
 
 export function GSTR1Module() {
@@ -117,10 +118,11 @@ export function GSTR1Module() {
 
     // Mark all approved transactions as included in this GSTR-1 generation
     const generatedAt = new Date().toISOString();
+    let failedCount = 0;
     monthTransactions
       .filter(t => t.status === "Approved")
       .forEach(t => {
-        gstComplianceService.saveTransaction({
+        const saved = gstComplianceService.saveTransaction({
           ...t,
           gstr1GeneratedAt: generatedAt,
           changeHistory: [...(t.changeHistory || []), {
@@ -130,7 +132,13 @@ export function GSTR1Module() {
             note: `GSTR-1 generated for ${selectedMonth} ${selectedYear}`,
           }],
         });
+        if (!saved) failedCount++;
       });
+
+    if (failedCount > 0) {
+      toast.error(`Could not save ${failedCount} transaction(s) — storage is full. Please contact support or clear old data, then try again.`, { duration: 10000 });
+      return;
+    }
 
     setShowGenerated(true);
     setStatus("Generated");

@@ -243,7 +243,11 @@ export function GSTTransactionEntry() {
       }],
     } as GSTTransaction;
 
-    gstComplianceService.saveTransaction(transaction);
+    const saved = gstComplianceService.saveTransaction(transaction);
+    if (!saved) {
+      toast.error("Could not save transaction — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
 
     // RCM Journal Entry auto-generation
     if (formData.isRCM && formData.transactionType === "Purchase") {

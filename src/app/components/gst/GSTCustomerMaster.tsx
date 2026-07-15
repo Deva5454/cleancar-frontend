@@ -48,7 +48,11 @@ export function GSTCustomerMaster() {
 
   const handleSaveCustomer = (customer: GSTCustomer) => {
     const customerWithCity = { ...customer, cityId: city, city: cityInfo.displayName };
-    gstComplianceService.saveCustomer(customerWithCity);
+    const success = gstComplianceService.saveCustomer(customerWithCity);
+    if (!success) {
+      toast.error("Could not save customer — storage is full. Please contact support or clear old data, then try again.", { duration: 10000 });
+      return;
+    }
     setCustomers(gstComplianceService.getCustomers(city));
     setShowAddForm(false);
     setEditingCustomer(null);
