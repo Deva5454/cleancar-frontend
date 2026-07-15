@@ -71,6 +71,7 @@ const FinanceModule = lazy(() => import("./components/modules/FinanceModule"));
 const RevenueCaptureSystem = lazy(() => import("./components/finance/RevenueCaptureSystem"));
 const PackageCostMatrix = lazy(() => import("./components/finance/PackageCostMatrix"));
 const CostPerWashModule = lazy(() => import("./components/finance/CostPerWashModule"));
+const CostPerWashCalculator = lazy(() => import("./components/finance/CostPerWashCalculator"));
 const ActualCostInputs = lazy(() => import("./components/finance/ActualCostInputs"));
 const FinanceTransactions = lazy(() => import("./components/finance/FinanceTransactions"));
 const LedgerEntriesView = lazy(() => import("./components/finance/LedgerEntriesView"));
@@ -371,6 +372,7 @@ export const router = createBrowserRouter([
       { path: "finance/package-cost-matrix", element: <PackageCostMatrix /> },
       { path: "finance/cost-per-wash", element: <CostPerWashModule /> },
       { path: "finance/cost-per-wash/actual-inputs", element: <ActualCostInputs /> },
+      { path: "finance/cost-calculator", element: <CostPerWashCalculator /> },
       { path: "hr", element: <ErrorBoundary><HRModule /></ErrorBoundary> },
       { path: "hr/leave", element: <Navigate to="/hr/professional-leave" replace /> },
       { path: "hr/enhanced-leave", element: <Navigate to="/hr/professional-leave" replace /> },

@@ -536,7 +536,7 @@ export const router = createBrowserRouter([
       { path: "washer-core-screens-demo", element: <DevOnlyRoute element={<WasherCoreScreensDemo />} /> },
       
       // Washer Core Screens Connected (Production)
-      { path: "washer-core-screens", element: <WasherCoreScreensConnected /> },
+      { path: "washer-core-screens", element: <Suspense fallback={<PageLoader />}><WasherCoreScreensConnected /></Suspense> },
 
       // Washer Attendance History
       { path: "washer/attendance", element: <WasherAttendanceHistory /> },

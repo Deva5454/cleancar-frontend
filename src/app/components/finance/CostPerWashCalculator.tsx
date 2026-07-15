@@ -69,3 +69,5 @@ export function CostPerWashCalculator() {
     </div>
   );
 }
+
+export default CostPerWashCalculator;

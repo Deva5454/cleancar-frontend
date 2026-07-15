@@ -280,6 +280,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Revenue Capture", path: "/finance/revenue-capture", icon: DollarSign, module: "finance", match: "prefix" },
       { label: "Package Pricing", path: "/finance/package-cost-matrix", icon: Layers, module: "finance", match: "prefix" },
       { label: "Cost Per Wash", path: "/finance/cost-per-wash", icon: Calculator, module: "finance", match: "prefix" },
+      { label: "Cost Per Wash Calculator", path: "/finance/cost-calculator", icon: Calculator, module: "finance", match: "prefix" },
       { label: "Financial Reports", path: "/finance/reports", icon: FileBarChart, module: "finance", match: "prefix" },
     ]
   },

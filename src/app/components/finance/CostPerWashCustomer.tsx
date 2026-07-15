@@ -49,6 +49,7 @@ import {
   type PlanType,
 } from "../../data/subscriptionPlans";
 import { usePlanDefinitions } from "../../contexts/PlanDefinitionContext";
+import { type LegacyPackageType, LEGACY_TO_CURRENT_PLAN_TYPE, CURRENT_PLAN_TYPE_TO_LEGACY } from "../../data/costData";
 import {
   getTotalCostPerWash,
   getMonthlyCost,
@@ -63,7 +64,7 @@ export function CostPerWashCustomer() {
   const { planTypes, vehicleCategories } = usePlanDefinitions();
 
   // Input filters
-  const [selectedPackage, setSelectedPackage] = useState<PlanType>("Shampoo Wash");
+  const [selectedPackage, setSelectedPackage] = useState<LegacyPackageType>("Shampoo Wash");
   const [selectedVehicleCategory, setSelectedVehicleCategory] =
     useState<VehicleCategory>("Hatchback / Compact Sedan");
   const [selectedWasher, setSelectedWasher] = useState<string>("Average");
@@ -129,9 +130,9 @@ export function CostPerWashCustomer() {
 
   // Get actual vs required comparison for all vehicle categories
   const getComparisonData = () => {
-    return vehicleCategories.map((category) => {
+    return vehicleCategories.map((category: VehicleCategory) => {
       const actualMonthlyPrice =
-        CURRENT_PLAN_VERSION.pricingMatrix[category][selectedPackage];
+        CURRENT_PLAN_VERSION.pricingMatrix[category][LEGACY_TO_CURRENT_PLAN_TYPE[selectedPackage]];
       const actualPricePerWash =
         typeof actualMonthlyPrice === "number"
           ? actualMonthlyPrice / washesPerMonth
@@ -167,10 +168,10 @@ export function CostPerWashCustomer() {
   // Generate recommended actions
   const getRecommendedActions = () => {
     const comparisonData = getComparisonData();
-    const belowTarget = comparisonData.filter((d) => d.status === "below");
+    const belowTarget = comparisonData.filter((d: any) => d.status === "below");
 
     if (belowTarget.length > 0) {
-      return belowTarget.map((item) => ({
+      return belowTarget.map((item: any) => ({
         type: "warning" as const,
         message: `Consider revising pricing for ${item.category} — current EBITDA ${(item?.actualEBITDA ?? 0).toFixed(1)}% is below ${targetEBITDA}% target. Suggested price: ₹${(item.requiredPricePerWash * washesPerMonth).toFixed(0)}/month.`,
       }));
@@ -187,7 +188,7 @@ export function CostPerWashCustomer() {
   // Calculate simulation data
   const getSimulationData = () => {
     const currentMonthlyPrice =
-      CURRENT_PLAN_VERSION.pricingMatrix[simulatedCategory][selectedPackage];
+      CURRENT_PLAN_VERSION.pricingMatrix[simulatedCategory][LEGACY_TO_CURRENT_PLAN_TYPE[selectedPackage]];
     const currentPrice =
       typeof currentMonthlyPrice === "number" ? currentMonthlyPrice : 0;
 
@@ -219,7 +220,7 @@ export function CostPerWashCustomer() {
     setCalculated(true);
     const actualPrice =
       CURRENT_PLAN_VERSION.pricingMatrix[selectedVehicleCategory][
-        selectedPackage
+        LEGACY_TO_CURRENT_PLAN_TYPE[selectedPackage]
       ];
     setSimulatedPrice(typeof actualPrice === "number" ? actualPrice : 0);
     setSimulatedCategory(selectedVehicleCategory);
@@ -257,14 +258,14 @@ export function CostPerWashCustomer() {
                 Package
               </Label>
               <Select
-                value={selectedPackage}
-                onValueChange={(value) => setSelectedPackage(value as PlanType)}
+                value={LEGACY_TO_CURRENT_PLAN_TYPE[selectedPackage]}
+                onValueChange={(value) => setSelectedPackage(CURRENT_PLAN_TYPE_TO_LEGACY[value as PlanType] || "Shampoo Wash")}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {planTypes.map((pkg) => (
+                  {planTypes.filter((pkg: PlanType) => CURRENT_PLAN_TYPE_TO_LEGACY[pkg]).map((pkg: PlanType) => (
                     <SelectItem key={pkg} value={pkg}>
                       {pkg}
                     </SelectItem>
@@ -289,7 +290,7 @@ export function CostPerWashCustomer() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {vehicleCategories.map((category) => (
+                  {vehicleCategories.map((category: VehicleCategory) => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
@@ -559,7 +560,7 @@ export function CostPerWashCustomer() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {comparisonData.map((item) => (
+                      {comparisonData.map((item: any) => (
                         <TableRow key={item.category}>
                           <TableCell className="font-medium">
                             {item.category}
@@ -623,7 +624,7 @@ export function CostPerWashCustomer() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {recommendedActions.map((action, idx) => (
+                {recommendedActions.map((action: any, idx: number) => (
                   <Card
                     key={idx}
                     className={
@@ -677,7 +678,7 @@ export function CostPerWashCustomer() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {vehicleCategories.map((category) => (
+                        {vehicleCategories.map((category: VehicleCategory) => (
                           <SelectItem key={category} value={category}>
                             {category}
                           </SelectItem>

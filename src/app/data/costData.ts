@@ -719,6 +719,13 @@ export function calculateCostPerWashToCustomer(
 // PACKAGE COST BREAKDOWN
 // ============================================
 
+// The legacy package vocabulary the real material/manpower cost data
+// (MATERIALS usageMapping, manpower washesPerHour logic, etc.) is keyed
+// on — distinct from the current PlanType union used for subscription
+// plans. Naming this explicitly rather than mislabeling it as PlanType,
+// which is what caused a real, pre-existing type error here.
+export type LegacyPackageType = "Water Wash" | "Shampoo Wash" | "Shampoo+Wax" | "Shampoo+Polish";
+
 export interface PackageCostBreakdown {
   package: string;
   materialCost: number;
@@ -734,10 +741,44 @@ export interface PackageCostBreakdown {
   status: "Above Target" | "Near Target" | "Below Target";
 }
 
+// Maps the legacy cost-calculation package names to the current plan
+// types, so customer pricing (keyed on the current PlanType system) can
+// be looked up correctly. Confirmed against real plan deliverables in
+// subscriptionPlans.ts, not guessed:
+// - Water Wash → EXPRESS_WASH: daily service is water spray + dry only,
+//   shampoo is just a 1x/month extra
+// - Shampoo Wash → SMART_WASH: shampoo becomes the regular feature,
+//   explicitly "replaces Express Wash's 1x/month" with 2x/month
+// - Shampoo+Wax → ELITE_WASH: first tier that includes hand wax polish
+// - Shampoo+Polish → ELITE_2W: this file already had a comment saying
+//   so ("2-wheeler polish work") before this mapping was ever wired up
+export const LEGACY_TO_CURRENT_PLAN_TYPE: Record<LegacyPackageType, PlanType> = {
+  "Water Wash": "EXPRESS_WASH",
+  "Shampoo Wash": "SMART_WASH",
+  "Shampoo+Wax": "ELITE_WASH",
+  "Shampoo+Polish": "ELITE_2W",
+};
+
+// Reverse of the above — for screens that show the user the current plan
+// names (what they'll actually recognize) but need the legacy type
+// internally for cost calculation.
+export const CURRENT_PLAN_TYPE_TO_LEGACY: Partial<Record<PlanType, LegacyPackageType>> = {
+  "EXPRESS_WASH": "Water Wash",
+  "SMART_WASH": "Shampoo Wash",
+  "ELITE_WASH": "Shampoo+Wax",
+  "ELITE_2W": "Shampoo+Polish",
+};
+
 export function getPackageCostBreakdown(
   vehicleCategory: VehicleCategory
 ): PackageCostBreakdown[] {
-  const packages: PlanType[] = [
+  // These are the legacy package names the real cost data (MATERIALS,
+  // usageMapping, etc.) is still keyed on — a separate, older vocabulary
+  // from the current PlanType union (EXPRESS_WASH, SMART_WASH, etc.).
+  // Previously this array claimed to be PlanType[], which doesn't
+  // actually include these values — a genuine type error, not just here
+  // but in every screen that calls this function.
+  const packages: LegacyPackageType[] = [
     "Water Wash",
     "Shampoo Wash",
     "Shampoo+Wax",
@@ -757,7 +798,7 @@ export function getPackageCostBreakdown(
     const overheadCost = calculateOverheadCost();
     const totalCompanyCost = materialCost + consumableCost + manpowerCost + overheadCost;
     
-    const customerMonthlyPrice = getCustomerPrice(vehicleCategory, pkg);
+    const customerMonthlyPrice = getCustomerPrice(vehicleCategory, LEGACY_TO_CURRENT_PLAN_TYPE[pkg]);
     const avgWashesPerMonth = getAvgWashesPerMonth(pkg);
     const costPerWashToCustomer = calculateCostPerWashToCustomer(
       customerMonthlyPrice,

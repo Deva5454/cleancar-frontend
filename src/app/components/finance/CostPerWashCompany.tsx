@@ -61,6 +61,9 @@ import {
   OVERHEAD_ITEMS,
   AVG_WASHES_PER_MONTH,
   type Material,
+  type LegacyPackageType,
+  LEGACY_TO_CURRENT_PLAN_TYPE,
+  CURRENT_PLAN_TYPE_TO_LEGACY,
   getPackageCostBreakdown,
 } from "../../data/costData";
 import {
@@ -90,7 +93,8 @@ export function CostPerWashCompany() {
   const { planTypes, vehicleCategories } = usePlanDefinitions();
 
   // Input filters
-  const [selectedPackage, setSelectedPackage] = useState<PlanType>("Shampoo Wash");
+  const [selectedPackage, setSelectedPackage] = useState<LegacyPackageType>("Shampoo Wash");
+  const [selectedCurrentPlan, setSelectedCurrentPlan] = useState<PlanType>("SMART_WASH");
   const [selectedVehicleCategory, setSelectedVehicleCategory] =
     useState<VehicleCategory>("Hatchback / Compact Sedan");
   // "Include Incentive Costs" toggle — referenced by the checkbox below but
@@ -139,80 +143,6 @@ export function CostPerWashCompany() {
     "Last 6 Months",
     "Custom Date Range",
   ];
-
-  // Calculate material cost based on package
-  const calculateMaterialCost = (): {
-    total: number;
-    breakdown: MaterialBreakdown[];
-  } => {
-    const activeMaterials = MATERIALS.filter((m) => m.status === "Active");
-    const breakdown: MaterialBreakdown[] = [];
-    let total = 0;
-
-    activeMaterials.forEach((material) => {
-      const mapping = material.usageMapping.find((m) =>
-        m.package.includes(selectedPackage)
-      );
-      if (mapping) {
-        const cost = material.costPerUnit * mapping.quantityPerWash;
-        total += cost;
-        breakdown.push({
-          material,
-          quantityUsed: mapping.quantityPerWash,
-          costPerUnit: material.costPerUnit,
-          totalCost: cost,
-        });
-      }
-    });
-
-    return { total, breakdown };
-  };
-
-  // Calculate consumable cost
-  const calculateConsumableCost = () => {
-    return CONSUMABLES.filter((c) => c.status === "Active").reduce(
-      (sum, c) => sum + c.costPerUnit * c.avgUsagePerWash,
-      0
-    );
-  };
-
-  // Calculate manpower cost based on package complexity
-  const calculateManpowerCost = () => {
-    const washer = MANPOWER_ROLES.find((r) => r.role === "Washer");
-    const supervisor = MANPOWER_ROLES.find((r) => r.role === "Supervisor");
-
-    if (!washer || !supervisor) return { washerCost: 0, supervisorCost: 0, total: 0 };
-
-    let washesPerHour = 2; // Default for Water Wash / Shampoo Wash
-
-    if (selectedPackage === "Shampoo+Wax") {
-      washesPerHour = 1.5; // Interior + wax more time-consuming
-    } else if (selectedPackage === "Shampoo+Polish") {
-      washesPerHour = 1.5; // 2-wheeler detailed polish work
-    }
-
-    const washerCost =
-      washer.monthlySalary /
-      (washer.workingDaysPerMonth * washer.workingHoursPerDay * washesPerHour);
-
-    const supervisorCost = supervisor.monthlySalary / AVG_WASHES_PER_MONTH;
-
-    return {
-      washerCost,
-      supervisorCost,
-      total: washerCost + supervisorCost,
-    };
-  };
-
-  // Calculate overhead cost
-  const calculateOverheadCost = () => {
-    return (
-      OVERHEAD_ITEMS.filter((o) => !o.excludeFromCalculation).reduce(
-        (sum, o) => sum + o.monthlyCost,
-        0
-      ) / AVG_WASHES_PER_MONTH
-    );
-  };
 
 
   // Cost breakdown for the selected package/vehicle category — uses the
@@ -320,13 +250,20 @@ export function CostPerWashCompany() {
                 <Package className="w-4 h-4 text-blue-600" />
                 Package
               </Label>
-              <Select value={selectedPackage} onValueChange={(value) => setSelectedPackage(value as PlanType)}>
+              <Select
+                value={CURRENT_PLAN_TYPE_TO_LEGACY[selectedCurrentPlan] || "Shampoo Wash"}
+                onValueChange={(value) => {
+                  const legacy = value as LegacyPackageType;
+                  setSelectedPackage(legacy);
+                  setSelectedCurrentPlan(LEGACY_TO_CURRENT_PLAN_TYPE[legacy]);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {planTypes.map((pkg) => (
-                    <SelectItem key={pkg} value={pkg}>
+                  {planTypes.filter((pkg: PlanType) => CURRENT_PLAN_TYPE_TO_LEGACY[pkg]).map((pkg: PlanType) => (
+                    <SelectItem key={pkg} value={CURRENT_PLAN_TYPE_TO_LEGACY[pkg]!}>
                       {pkg}
                     </SelectItem>
                   ))}
@@ -350,7 +287,7 @@ export function CostPerWashCompany() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {vehicleCategories.map((category) => (
+                  {vehicleCategories.map((category: VehicleCategory) => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
@@ -532,6 +469,25 @@ export function CostPerWashCompany() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {/* Material Cost — was missing from this table entirely.
+                        Without it, the visible rows never summed to the
+                        real total shown at the bottom of this table. */}
+                    <TableRow>
+                      <TableCell className="font-medium flex items-center gap-2">
+                        <Package className="w-4 h-4 text-teal-600" />
+                        Material Cost
+                      </TableCell>
+                      <TableCell className="text-right text-teal-600 font-medium">
+                        ₹{(breakdown?.materialCost ?? 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right text-teal-600">
+                        ₹{(breakdown.materialCost * monthlyWashes).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-gray-500">Package-specific</span>
+                      </TableCell>
+                    </TableRow>
+
                     {/* Labour Cost */}
                     <TableRow>
                       <TableCell className="font-medium flex items-center gap-2">
@@ -539,10 +495,10 @@ export function CostPerWashCompany() {
                         Labour Cost
                       </TableCell>
                       <TableCell className="text-right text-blue-600 font-medium">
-                        ₹{(breakdown?.labour ?? 0).toFixed(2)}
+                        ₹{(breakdown?.manpowerCost ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right text-blue-600">
-                        ₹{(breakdown.labour * monthlyWashes).toFixed(2)}
+                        ₹{(breakdown.manpowerCost * monthlyWashes).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-gray-500">
@@ -558,81 +514,38 @@ export function CostPerWashCompany() {
                         Consumables
                       </TableCell>
                       <TableCell className="text-right text-purple-600 font-medium">
-                        ₹{(breakdown?.consumables ?? 0).toFixed(2)}
+                        ₹{(breakdown?.consumableCost ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right text-purple-600">
-                        ₹{(breakdown.consumables * monthlyWashes).toFixed(2)}
+                        ₹{(breakdown.consumableCost * monthlyWashes).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-gray-500">Liquids</span>
                       </TableCell>
                     </TableRow>
 
-                    {/* Cloth Cost */}
-                    <TableRow>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <Package className="w-4 h-4 text-green-600" />
-                        Cloth & Sponge
-                      </TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">
-                        ₹{(breakdown?.cloth ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600">
-                        ₹{(breakdown.cloth * monthlyWashes).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-500">Microfibre</span>
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Equipment Cost */}
-                    <TableRow>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <Wrench className="w-4 h-4 text-amber-600" />
-                        Equipment
-                      </TableCell>
-                      <TableCell className="text-right text-amber-600 font-medium">
-                        ₹{(breakdown?.equipment ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right text-amber-600">
-                        ₹{(breakdown.equipment * monthlyWashes).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-500">Depreciation</span>
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Laundry Cost */}
-                    <TableRow>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <Package className="w-4 h-4 text-indigo-600" />
-                        Laundry
-                      </TableCell>
-                      <TableCell className="text-right text-indigo-600 font-medium">
-                        ₹{(breakdown?.laundry ?? 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right text-indigo-600">
-                        ₹{(breakdown.laundry * monthlyWashes).toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-gray-500">Sanitization</span>
-                      </TableCell>
-                    </TableRow>
-
-                    {/* Fixed Overhead */}
+                    {/* Overhead Cost — previously shown as four separate
+                        rows (Cloth & Sponge, Equipment, Laundry, Fixed
+                        Overhead) reading fields that no longer exist on the
+                        real cost breakdown. The real calculation already
+                        sums cloth, equipment wear, laundry, and office/ERP
+                        costs together into a single overheadCost figure
+                        (see costData.ts OVERHEAD_ITEMS) — this now shows
+                        that same real total instead of reading undefined
+                        fields. */}
                     <TableRow>
                       <TableCell className="font-medium flex items-center gap-2">
                         <Building className="w-4 h-4 text-orange-600" />
-                        Fixed Overhead
+                        Overhead Cost
                       </TableCell>
                       <TableCell className="text-right text-orange-600 font-medium">
-                        ₹{(breakdown?.fixedOverhead ?? 0).toFixed(2)}
+                        ₹{(breakdown?.overheadCost ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right text-orange-600">
-                        ₹{(breakdown.fixedOverhead * monthlyWashes).toFixed(2)}
+                        ₹{(breakdown.overheadCost * monthlyWashes).toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-gray-500">Office+ERP</span>
+                        <span className="text-xs text-gray-500">Cloth, equipment, laundry, office/ERP</span>
                       </TableCell>
                     </TableRow>
 
@@ -708,7 +621,7 @@ export function CostPerWashCompany() {
                     <YAxis key="yaxis" tick={{ fontSize: 11 }} width={50} />
                     <Tooltip
                       key="tooltip"
-                      formatter={(value: number) => `₹${value.toFixed(2)}`}
+                      formatter={((value: number) => `₹${value.toFixed(2)}`) as any}
                       labelFormatter={(value) => {
                         const item = trendData.find((d) => d.id === value);
                         return item ? item.month : value;
