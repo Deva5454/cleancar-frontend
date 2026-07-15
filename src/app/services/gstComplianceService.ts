@@ -5,6 +5,13 @@ export const COMPANY_GST_CONFIG = {
   stateName:    "Gujarat",
   gstin:        "24GAOPS5676E1Z3",
   companyName:  "24/9 Car Washing Private Limited",
+  // Previously this exact number (18) was hardcoded directly into 9+
+  // separate calculateGST() calls across the app — correct today for this
+  // business's car wash services, but meant changing it later (or adding
+  // a different rate for goods sold, which fall under different GST
+  // slabs — 5%/12%/28%) would mean hunting down every call site
+  // individually. Now there's one place to change it.
+  defaultServiceGstRate: 18,
 } as const;
 
 export type VendorRiskLevel = "Clean" | "Medium" | "High" | "Critical";

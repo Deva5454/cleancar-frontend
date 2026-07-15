@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useCity } from "../../contexts/CityContext";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
+import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import {
   accountingEntryService,
   autoPostSalesEntry,
@@ -228,7 +229,7 @@ export function RazorpayFlow() {
     // Entry 1b — Output GST posting (Fix 1: post Output CGST/SGST to ledger)
     if (totalSales > 0) {
       const taxableBase = Math.round(totalSales / 1.18);
-      const gst = calculateGST(taxableBase, 18, "24", "B2C", currentCityId);
+      const gst = calculateGST(taxableBase, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", currentCityId);
       const outputGSTLines = autoPostSalesEntry({
         invoiceNumber: entry1.voucherNumber,
         taxableValue: taxableBase,

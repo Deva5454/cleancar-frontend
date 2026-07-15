@@ -182,13 +182,13 @@ async function fetchInvoices(
       dueDate: r.receivedDate || r.createdAt?.split("T")[0],
       subtotal: r.amount,
       taxAmount: (() => {
-        const g = calculateGST(r.amount, 18, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId);
+        const g = calculateGST(r.amount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId);
         return g.cgst + g.sgst + g.igst;
       })(),
       discountAmount: 0,
-      totalAmount: (() => calculateGST(r.amount, 18, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)(),
-      paidAmount: r.status === "Received" ? (() => calculateGST(r.amount, 18, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)() : 0,
-      balanceDue: r.status === "Received" ? 0 : (() => calculateGST(r.amount, 18, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)(),
+      totalAmount: (() => calculateGST(r.amount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)(),
+      paidAmount: r.status === "Received" ? (() => calculateGST(r.amount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)() : 0,
+      balanceDue: r.status === "Received" ? 0 : (() => calculateGST(r.amount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", r.cityId).totalBillValue)(),
       status: r.status === "Received" ? "PAID" as const : r.status === "Pending" ? "UNPAID" as const : "CANCELLED" as const,
       paymentStatus: r.status === "Received" ? "COMPLETED" as const : "PENDING" as const,
       city: r.cityId,
@@ -318,7 +318,7 @@ async function recordPayment(
   // trusting invoice data straight into a filed return.
   try {
     const payAmt = parseFloat(paymentData.amount);
-    const gstCalc = calculateGST(payAmt, 18, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+    const gstCalc = calculateGST(payAmt, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
     const paymentDateObj = new Date(paymentData.paymentDate);
     gstComplianceService.saveTransaction({
       id: `GST-INV-${invoice.invoiceNumber}-${Date.now()}`,
@@ -441,7 +441,7 @@ export default function InvoiceManagement() {
       const baseAmount = sub.pricing?.finalPrice || 0;
       const taxableAmount = baseAmount;
       const custStateCode = COMPANY_GST_CONFIG.stateCode; // assume intrastate; update if customer state known
-      const gst1 = calculateGST(taxableAmount, 18, custStateCode, "B2C", sub.cityId);
+      const gst1 = calculateGST(taxableAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, custStateCode, "B2C", sub.cityId);
       const { cgst, sgst, igst } = gst1;
       const totalAmount = gst1.totalBillValue;
 
@@ -508,7 +508,7 @@ export default function InvoiceManagement() {
           const customer = customers.find(c => c.customerId === sub.customerId);
           const invoiceNum = i + 1;
           const baseAmount = sub.pricing?.finalPrice || 0;
-          const gst2 = calculateGST(baseAmount, 18, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+          const gst2 = calculateGST(baseAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
           const { cgst, sgst, igst: igst2 } = gst2;
           const totalAmount = gst2.totalBillValue;
           const dueDate = sub.renewalDate || new Date().toISOString().split("T")[0];
@@ -635,7 +635,7 @@ export default function InvoiceManagement() {
     }
     setIsCreating(true);
     const amt = parseFloat(createForm.amount);
-    const gst3 = calculateGST(amt, 18, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+    const gst3 = calculateGST(amt, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
     const { cgst, sgst } = gst3;
     const total = gst3.totalBillValue;
     const newInv: Invoice = {
