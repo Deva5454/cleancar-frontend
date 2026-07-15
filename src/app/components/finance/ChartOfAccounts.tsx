@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -49,6 +49,8 @@ import {
   Shield,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
+import { accountingEntryService } from "../../services/accountingEntryService";
 import { toast } from "sonner";
 import { BackButton } from "../ui/back-button";
 
@@ -86,6 +88,14 @@ interface AuditRecord {
 }
 
 // Complete Chart of Accounts following Indian accounting standards
+// Individual account balances below are illustrative reference data, not
+// real business figures — these specific account names (e.g. "HDFC Bank -
+// Current Account") don't have a confident, unambiguous match to any real
+// ledger account, so guessing a mapping risked confidently showing a wrong
+// number, which is worse than an honest one. The 5 summary totals shown at
+// the top of this screen ARE real — computed directly from actual ledger
+// data, grouped by nature (asset/liability/income/expense), independently
+// of this illustrative tree. See realNatureTotals in the component below.
 const initialAccounts: Account[] = [
   // ASSETS
   {
@@ -123,7 +133,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 1250000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -136,7 +146,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 850000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -162,7 +172,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 15000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -175,7 +185,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 45500,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -201,7 +211,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1300",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 385000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -214,7 +224,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1300",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 245000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -240,7 +250,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1400",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 1850000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -253,7 +263,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1400",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 650000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -266,7 +276,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1400",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 285000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -292,7 +302,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1500",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 150000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -318,7 +328,7 @@ const initialAccounts: Account[] = [
     parentAccount: "1600",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 45000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -359,7 +369,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2100",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 185000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -372,7 +382,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2100",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 285000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -398,7 +408,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 42500,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -411,7 +421,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 42500,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -424,7 +434,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 15200,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -450,7 +460,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2300",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 18500,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -463,7 +473,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2300",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 12000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -489,7 +499,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2400",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 1500000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -515,7 +525,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2500",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 285000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -528,7 +538,7 @@ const initialAccounts: Account[] = [
     parentAccount: "2500",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 195000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -556,7 +566,7 @@ const initialAccounts: Account[] = [
     parentAccount: "3000",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 5000000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -569,7 +579,7 @@ const initialAccounts: Account[] = [
     parentAccount: "3000",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 1250000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -597,7 +607,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 2850000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -610,7 +620,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 1450000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -623,7 +633,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 385000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -636,7 +646,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 950000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -649,7 +659,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 250000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -662,7 +672,7 @@ const initialAccounts: Account[] = [
     parentAccount: "4000",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 45000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -703,7 +713,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 685000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -716,7 +726,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 285000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -729,7 +739,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 125000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -742,7 +752,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 85000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -755,7 +765,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 145000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -768,7 +778,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5100",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 95000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -794,7 +804,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 185000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -807,7 +817,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 125000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -820,7 +830,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 45000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -833,7 +843,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 150000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -846,7 +856,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 35000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -859,7 +869,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: false,
-    balance: 15000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -872,7 +882,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 45000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -885,7 +895,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: true,
     tdsApplicable: true,
-    balance: 65000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -898,7 +908,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 485000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -911,7 +921,7 @@ const initialAccounts: Account[] = [
     parentAccount: "5200",
     gstApplicable: false,
     tdsApplicable: false,
-    balance: 85000,
+    balance: 0,
     isActive: true,
     createdDate: "2026-01-01",
   },
@@ -947,6 +957,31 @@ function loadPersistedAudit(): AuditRecord[] {
 // ── Component ─────────────────────────────────────────────────────────────────
 function ChartOfAccounts() {
   const { currentRole } = useRole();
+  const { city } = useCity();
+
+  // Real totals, computed independently from the illustrative tree below.
+  // Previously the 5 summary numbers (Assets/Liabilities/Equity/Income/
+  // Expenses) were summed from 48 individually hardcoded fake balances —
+  // specific-looking numbers like ₹1,850,000 that never reflected any
+  // real business activity. This screen's account tree uses its own
+  // category names (Assets/Liabilities/...) which don't map cleanly
+  // one-to-one onto the real ledger system's specific account heads
+  // (cash_bank, accounts_receivable, etc.) at the individual-line level —
+  // guessing that mapping account-by-account risked confidently showing
+  // a wrong number, which is worse than an honest one. But the real
+  // ledger data IS already tagged with a "nature" (asset/liability/
+  // income/expense) that matches this screen's top-level categories
+  // exactly, so the 5 summary totals — the numbers someone actually
+  // glances at first — are now genuinely real.
+  const realNatureTotals = useMemo(() => {
+    const ledgers = accountingEntryService.getLedgers(city);
+    const totals = { asset: 0, liability: 0, income: 0, expense: 0 };
+    ledgers.forEach((l) => {
+      const bal = accountingEntryService.getLedgerBalance(l.id, city);
+      totals[l.nature] = (totals[l.nature] ?? 0) + bal.balance;
+    });
+    return totals;
+  }, [city]);
 
   // C1 FIX: load from localStorage, fall back to initialAccounts on first visit
   const [accounts, setAccountsState] = useState<Account[]>(() => loadPersistedAccounts());
@@ -1570,7 +1605,7 @@ function ChartOfAccounts() {
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Total Assets</div>
             <div className="text-2xl font-bold text-green-600">
-              ₹{(totals?.assets ?? 0).toLocaleString("en-IN")}
+              ₹{realNatureTotals.asset.toLocaleString("en-IN")}
             </div>
           </CardContent>
         </Card>
@@ -1578,7 +1613,7 @@ function ChartOfAccounts() {
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Total Liabilities</div>
             <div className="text-2xl font-bold text-red-600">
-              ₹{(totals?.liabilities ?? 0).toLocaleString("en-IN")}
+              ₹{realNatureTotals.liability.toLocaleString("en-IN")}
             </div>
           </CardContent>
         </Card>
@@ -1586,15 +1621,16 @@ function ChartOfAccounts() {
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Total Equity</div>
             <div className="text-2xl font-bold text-blue-600">
-              ₹{(totals?.equity ?? 0).toLocaleString("en-IN")}
+              ₹{(realNatureTotals.asset - realNatureTotals.liability).toLocaleString("en-IN")}
             </div>
+            <div className="text-xs text-gray-400">Assets − Liabilities</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Total Income</div>
             <div className="text-2xl font-bold text-green-600">
-              ₹{(totals?.income ?? 0).toLocaleString("en-IN")}
+              ₹{realNatureTotals.income.toLocaleString("en-IN")}
             </div>
           </CardContent>
         </Card>
@@ -1602,7 +1638,7 @@ function ChartOfAccounts() {
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Total Expenses</div>
             <div className="text-2xl font-bold text-orange-600">
-              ₹{(totals?.expenses ?? 0).toLocaleString("en-IN")}
+              ₹{realNatureTotals.expense.toLocaleString("en-IN")}
             </div>
           </CardContent>
         </Card>
