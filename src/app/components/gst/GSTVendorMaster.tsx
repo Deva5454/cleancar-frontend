@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Building2, Plus, Search, Download, X, Check, AlertCircle, Edit2, Ban, CheckCircle, Upload, Shield, Calendar, FileText, Clock } from "lucide-react";
 import { gstComplianceService, type GSTVendor, type VendorRiskLevel, type LegalEntityType, type TDSOverride, type VendorDocument, TDS_ENTITY_CONFIG } from "../../services/gstComplianceService";
@@ -318,6 +318,7 @@ function VendorForm({ vendor, onSave, onClose }: {
 
   const [gstinError, setGstinError] = useState("");
   const [gstinValid, setGstinValid] = useState(!!vendor?.gstinValidated);
+  const documentsRef = useRef<HTMLDivElement>(null);
   const [showTDSOverrideForm, setShowTDSOverrideForm] = useState(false);
   const [overrideForm, setOverrideForm] = useState({
     overrideRate: 0, tdsSection: formData.tdsDefaultSection || "",
@@ -445,10 +446,12 @@ function VendorForm({ vendor, onSave, onClose }: {
     }
     if (!formData.gstCertificate) {
       toast.error("GST Certificate upload is mandatory.");
+      documentsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (!formData.panCertificate) {
       toast.error("PAN Certificate upload is mandatory.");
+      documentsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (!formData.legalEntityType) {
@@ -623,7 +626,7 @@ function VendorForm({ vendor, onSave, onClose }: {
             )}
 
             {/* ── MANDATORY DOCUMENTS ──────────────────────────────────── */}
-            <div className="col-span-2 mt-2">
+            <div ref={documentsRef} className="col-span-2 mt-2 scroll-mt-4">
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-4 h-4 text-indigo-600" />
                 <h3 className="font-semibold text-gray-800 text-sm">Mandatory Compliance Documents</h3>
