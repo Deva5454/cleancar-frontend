@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSupervisor } from "../../contexts/SupervisorContext";
 import { useRole } from "../../contexts/RoleContext";
+import { salesManagerService, type SMLocation } from "../../services/salesManagerService";
+import { useEvents } from "../../contexts/EventSystem";
 import { DataService } from "../../services/DataService";
 import { SupervisorDashboard } from "./SupervisorDashboard";
 import { TeamAttendanceMonitorV2 } from "./TeamAttendanceMonitorV2";
@@ -54,6 +56,37 @@ export function SupervisorAppConnected() {
   const navigate = useNavigate();
   const { scenario, scenarioData } = useScenario();
   const { currentUser } = useRole();
+
+  // ── BTL LOCATION ASSIGNMENT NOTIFICATION ────────────────────────────────────
+  // Sales Head can now assign a supervisor to a real BTL location, but
+  // nothing on the supervisor's side was listening for it — they'd only
+  // find out by chance. Same real notification pattern already used for
+  // washer job assignments: an immediate toast, plus a real browser
+  // notification if permission was already granted (never requested here).
+  const [myBtlLocations, setMyBtlLocations] = useState<SMLocation[]>([]);
+  const { subscribe } = useEvents();
+  useEffect(() => {
+    const employeeId = currentUser?.employeeId;
+    if (!employeeId) return;
+    const refresh = () => {
+      setMyBtlLocations(salesManagerService.getLocations().filter(l => l.supervisorId === employeeId));
+    };
+    refresh();
+    const unsubscribe = subscribe("SUPERVISOR_BTL_ASSIGNED", (event: any) => {
+      const data = event?.data || event;
+      if (data?.supervisorId !== employeeId) return;
+      toast.success(`You've been assigned a new BTL location — ${data?.locationName || "check My Locations"}`, { duration: 8000 });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("New BTL location assigned", {
+            body: `${data?.locationName || "A location"} — check your Leads tab for details.`,
+          });
+        } catch { /* not fatal if the browser blocks it */ }
+      }
+      refresh();
+    });
+    return unsubscribe;
+  }, [currentUser?.employeeId, subscribe]);
 
   // ── Exit Verification State ──────────────────────────────────────────────
   const _safeName = (v: any): string => {
@@ -1606,6 +1639,21 @@ export function SupervisorAppConnected() {
 
           {/* Screen 6: BTL Leads */}
           <TabsContent value="leads" className="mt-0">
+            {myBtlLocations.length > 0 && (
+              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm font-medium text-amber-900 mb-2">
+                  My Assigned BTL Locations ({myBtlLocations.length})
+                </p>
+                <div className="space-y-1">
+                  {myBtlLocations.map(loc => (
+                    <div key={loc.id} className="text-sm text-amber-800 flex items-center justify-between">
+                      <span>{loc.name} <span className="text-amber-600">({loc.type})</span></span>
+                      <span className="text-xs text-amber-600">{loc.address}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <BTLLeadScreen
               leads={btlLeads}
               metrics={leadMetrics}

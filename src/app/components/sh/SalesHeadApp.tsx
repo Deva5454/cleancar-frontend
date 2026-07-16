@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { salesManagerService, type SMLocation } from "../../services/salesManagerService";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { useEvents } from "../../contexts/EventSystem";
 import {
   salesHeadService,
   type TCEStatus, type SHLead, type SHAlert, type TCEGateColor,
@@ -826,6 +827,7 @@ export function SalesHeadApp() {
 
 function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; onRefresh: () => void }) {
   const { getEmployeesByRole } = useEmployee();
+  const { emit } = useEvents();
   const supervisors = getEmployeesByRole("Supervisor");
   const pending = locations.filter(l => l.status === "Pending Approval");
   const needsSupervisor = locations.filter(l => l.status === "Active Prospect" && !l.supervisorId);
@@ -862,6 +864,12 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
       return;
     }
     toast.success(`${supName} assigned to ${loc.name}.`);
+    emit("SUPERVISOR_BTL_ASSIGNED", {
+      supervisorId: sup.employeeId,
+      supervisorName: supName,
+      locationId: loc.id,
+      locationName: loc.name,
+    }, "SalesHeadApp");
     setAssigningId(null);
     setPickedSupervisorId("");
     onRefresh();

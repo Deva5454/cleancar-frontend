@@ -28,7 +28,8 @@ export type SystemEventType =
   | "PAYMENT_RECEIVED"         // Customer payment received
   | "PAYMENT_MADE"             // Vendor/salary payment made
   | "QA_AUDIT_SUBMITTED"       // QA audit completed
-  | "HR_OVERRIDE_APPLIED";     // HR override applied to incentive
+  | "HR_OVERRIDE_APPLIED"      // HR override applied to incentive
+  | "SUPERVISOR_BTL_ASSIGNED"; // Supervisor assigned to a BTL lead-gen location
 
 export interface SystemEvent<T = any> {
   type: SystemEventType;
