@@ -27,6 +27,8 @@ import {
   RefreshCw, ChevronRight, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
+import { salesManagerService, type SMLocation } from "../../services/salesManagerService";
+import { useEmployee } from "../../contexts/EmployeeContext";
 import {
   salesHeadService,
   type TCEStatus, type SHLead, type SHAlert, type TCEGateColor,
@@ -577,6 +579,8 @@ export function SalesHeadApp() {
     e => (e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated")
       && e.verifierRole === "Sales Head"
   );
+  const [btlLocations, setBtlLocations] = useState<SMLocation[]>(() => salesManagerService.getLocations());
+  const pendingBTLLocations = btlLocations.filter(l => l.status === "Pending Approval");
   const _persist = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
     try {
@@ -666,6 +670,14 @@ export function SalesHeadApp() {
             <TabsTrigger value="team" className="text-xs gap-1 border-l-2 border-purple-300">
               <Users className="w-3 h-3 hidden sm:block" />Team View
             </TabsTrigger>
+            <TabsTrigger value="btl-approvals" className="text-xs gap-1 border-l-2 border-amber-300 relative">
+              <MapPin className="w-3 h-3 hidden sm:block" />BTL Approvals
+              {pendingBTLLocations.length > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold leading-none">
+                  {pendingBTLLocations.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="exit-verify" className="text-xs gap-1 border-l-2 border-red-300 relative">
               🚪 Exit
               {pendingSMExits.length > 0 && (
@@ -712,6 +724,14 @@ export function SalesHeadApp() {
                 <FieldAttendanceAdmin />
               </div>
             </div>
+          </TabsContent>
+
+          {/* BTL Location Approvals */}
+          <TabsContent value="btl-approvals" className="p-4 space-y-4">
+            <BTLApprovalsPanel
+              locations={btlLocations}
+              onRefresh={() => setBtlLocations(salesManagerService.getLocations())}
+            />
           </TabsContent>
 
           {/* Sales Manager Exit Verification */}
@@ -799,6 +819,121 @@ export function SalesHeadApp() {
             )}
           </TabsContent>
         </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; onRefresh: () => void }) {
+  const { getEmployeesByRole } = useEmployee();
+  const supervisors = getEmployeesByRole("Supervisor");
+  const pending = locations.filter(l => l.status === "Pending Approval");
+  const needsSupervisor = locations.filter(l => l.status === "Active Prospect" && !l.supervisorId);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [pickedSupervisorId, setPickedSupervisorId] = useState("");
+
+  const handleApprove = (loc: SMLocation) => {
+    const success = salesManagerService.approveLocation(loc.id);
+    if (!success) {
+      toast.error("Could not approve — storage is full. Please contact support or clear old data, then try again.");
+      return;
+    }
+    toast.success(`${loc.name} approved. Next, assign a supervisor to begin BTL activity.`);
+    onRefresh();
+  };
+
+  const handleReject = (loc: SMLocation) => {
+    const success = salesManagerService.rejectLocation(loc.id);
+    if (!success) {
+      toast.error("Could not reject — storage is full. Please contact support or clear old data, then try again.");
+      return;
+    }
+    toast.info(`${loc.name} rejected.`);
+    onRefresh();
+  };
+
+  const handleAssign = (loc: SMLocation) => {
+    const sup = supervisors.find((s: any) => s.employeeId === pickedSupervisorId);
+    if (!sup) return;
+    const supName = sup.fullName || `${sup.firstName} ${sup.lastName}`;
+    const success = salesManagerService.assignSupervisor(loc.id, sup.employeeId, supName);
+    if (!success) {
+      toast.error("Could not assign — storage is full. Please contact support or clear old data, then try again.");
+      return;
+    }
+    toast.success(`${supName} assigned to ${loc.name}.`);
+    setAssigningId(null);
+    setPickedSupervisorId("");
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">BTL Location Approvals</h2>
+        <p className="text-sm text-gray-500">Locations submitted by Sales Managers, awaiting your approval before any BTL activity can begin.</p>
+      </div>
+
+      <div>
+        <h3 className="font-medium text-gray-900 mb-2">Pending Approval ({pending.length})</h3>
+        {pending.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-gray-500">Nothing pending — every submitted location has been reviewed.</Card>
+        ) : (
+          <div className="space-y-2">
+            {pending.map(loc => (
+              <Card key={loc.id} className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{loc.name} <span className="text-xs text-gray-400">({loc.type})</span></p>
+                  <p className="text-sm text-gray-500">{loc.address} · {loc.contactPerson}, {loc.contactPhone}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove(loc)}>Approve</Button>
+                  <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => handleReject(loc)}>Reject</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="font-medium text-gray-900 mb-2">Approved — Needs a Supervisor ({needsSupervisor.length})</h3>
+        {needsSupervisor.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-gray-500">Every approved location already has a supervisor assigned.</Card>
+        ) : (
+          <div className="space-y-2">
+            {needsSupervisor.map(loc => (
+              <Card key={loc.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{loc.name}</p>
+                    <p className="text-sm text-gray-500">{loc.address}</p>
+                  </div>
+                  {assigningId !== loc.id ? (
+                    <Button size="sm" onClick={() => { setAssigningId(loc.id); setPickedSupervisorId(""); }}>
+                      Assign Supervisor
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2 items-center">
+                      <select
+                        className="border rounded-lg px-2 py-1.5 text-sm"
+                        value={pickedSupervisorId}
+                        onChange={e => setPickedSupervisorId(e.target.value)}
+                      >
+                        <option value="">Select supervisor...</option>
+                        {supervisors.map((s: any) => (
+                          <option key={s.employeeId} value={s.employeeId}>{s.fullName || `${s.firstName} ${s.lastName}`}</option>
+                        ))}
+                      </select>
+                      <Button size="sm" disabled={!pickedSupervisorId} onClick={() => handleAssign(loc)}>Confirm</Button>
+                      <Button size="sm" variant="outline" onClick={() => setAssigningId(null)}>Cancel</Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -256,6 +256,77 @@ class SalesManagerService {
     return data;
   }
 
+  private save<T>(key: string, list: T[]): boolean {
+    try {
+      localStorage.setItem(key, JSON.stringify(list));
+      return true;
+    } catch (error) {
+      console.error(`[salesManagerService] Failed to save ${key}:`, error);
+      return false;
+    }
+  }
+
+  // Real submission — previously the "Submit New Location for Approval"
+  // form was a fake 800ms timeout with a success toast; nothing was ever
+  // saved. This creates a genuine location record with "Pending Approval"
+  // status, using the same real status this data model already defines.
+  addLocation(input: {
+    name: string; type: LocationType; address: string;
+    contactPerson: string; contactPhone: string;
+  }): boolean {
+    const locations = this.getLocations();
+    const newLocation: SMLocation = {
+      id: `LOC-${Date.now()}`,
+      name: input.name,
+      type: input.type,
+      address: input.address,
+      gpsLat: 0,
+      gpsLng: 0,
+      contactPerson: input.contactPerson,
+      contactPhone: input.contactPhone,
+      status: "Pending Approval",
+      qrCodeActive: false,
+      leadsMTD: 0, leadsMTDM1: 0, leadsMTDM2: 0, leadsMTDM3: 0,
+      conversionsMTD: 0, conversionRatePct: 0, payingCustomers: 0,
+      lastSupervisorActivity: "",
+      activationBonusStatus: "pending",
+      previousPayingMilestone: 0,
+    };
+    locations.push(newLocation);
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
+  // Real approval/rejection — previously there was no screen anywhere
+  // that could act on a pending location, even though the status values
+  // for it already existed in this exact data model.
+  approveLocation(locationId: string): boolean {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === locationId);
+    if (idx < 0) return false;
+    locations[idx] = { ...locations[idx], status: "Active Prospect", approvedDate: new Date().toISOString() };
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
+  rejectLocation(locationId: string): boolean {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === locationId);
+    if (idx < 0) return false;
+    locations[idx] = { ...locations[idx], status: "Rejected" };
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
+  // Real supervisor assignment — previously the Supervisor Assignment
+  // screen only displayed 5 hardcoded example locations pre-assigned to
+  // 2 example supervisors; there was no way to actually assign a
+  // supervisor to a real, newly-approved location.
+  assignSupervisor(locationId: string, supervisorId: string, supervisorName: string): boolean {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === locationId);
+    if (idx < 0) return false;
+    locations[idx] = { ...locations[idx], supervisorId, supervisorName };
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
   getLocations():      SMLocation[]     { return this.load(this.KEYS.LOCATIONS,   seedLocations);    }
   getBlockDeals():     SMBlockDeal[]    { return this.load(this.KEYS.BLOCK_DEALS, seedBlockDeals);   }
   getAlerts():         SMAlert[]        { return this.load(this.KEYS.ALERTS,      seedAlerts);       }

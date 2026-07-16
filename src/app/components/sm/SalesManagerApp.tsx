@@ -227,14 +227,25 @@ function SubmitLocation() {
       toast.error("Please fill all required fields"); return;
     }
     setSubmitting(true);
+    const success = salesManagerService.addLocation({
+      name: form.name,
+      type: form.type,
+      address: form.address,
+      contactPerson: form.contactPerson,
+      contactPhone: form.contactPhone,
+    });
     setTimeout(() => {
-      toast.success("Location submitted for Sales Head approval", {
-        description: "You will be notified within 24 hours.",
-      });
-      setForm({ name: "", type: "" as any, address: "", contactPerson: "", contactPhone: "",
-        estimatedVehicles: "", proposedBTL: "", notes: "" });
+      if (success) {
+        toast.success("Location submitted for Sales Head approval", {
+          description: "You will be notified once it's reviewed.",
+        });
+        setForm({ name: "", type: "" as any, address: "", contactPerson: "", contactPhone: "",
+          estimatedVehicles: "", proposedBTL: "", notes: "" });
+      } else {
+        toast.error("Could not submit — storage is full. Please contact support or clear old data, then try again.");
+      }
       setSubmitting(false);
-    }, 800);
+    }, 400);
   };
 
   return (
