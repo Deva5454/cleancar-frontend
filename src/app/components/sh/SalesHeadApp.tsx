@@ -960,19 +960,44 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
         ) : (
           <div className="space-y-2">
             {assignedLocations.map(loc => (
-              <Card key={loc.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{loc.name}</p>
-                  <p className="text-sm text-gray-500">{loc.supervisorName}</p>
+              <Card key={loc.id} className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{loc.name}</p>
+                    <p className="text-sm text-gray-500">{loc.supervisorName}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loc.supervisorAcknowledged ? (
+                      <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1">
+                        Confirmed {loc.supervisorAcknowledgedAt ? new Date(loc.supervisorAcknowledgedAt).toLocaleDateString() : ""}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
+                        Awaiting confirmation
+                      </span>
+                    )}
+                    {assigningId !== loc.id && (
+                      <Button size="sm" variant="outline" onClick={() => { setAssigningId(loc.id); setPickedSupervisorId(""); }}>
+                        Reassign
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                {loc.supervisorAcknowledged ? (
-                  <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1">
-                    Confirmed {loc.supervisorAcknowledgedAt ? new Date(loc.supervisorAcknowledgedAt).toLocaleDateString() : ""}
-                  </span>
-                ) : (
-                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
-                    Awaiting confirmation
-                  </span>
+                {assigningId === loc.id && (
+                  <div className="flex gap-2 items-center mt-3 pt-3 border-t">
+                    <select
+                      className="border rounded-lg px-2 py-1.5 text-sm"
+                      value={pickedSupervisorId}
+                      onChange={e => setPickedSupervisorId(e.target.value)}
+                    >
+                      <option value="">Select new supervisor...</option>
+                      {supervisors.filter((s: any) => s.employeeId !== loc.supervisorId).map((s: any) => (
+                        <option key={s.employeeId} value={s.employeeId}>{s.fullName || `${s.firstName} ${s.lastName}`}</option>
+                      ))}
+                    </select>
+                    <Button size="sm" disabled={!pickedSupervisorId} onClick={() => handleAssign(loc)}>Confirm Reassignment</Button>
+                    <Button size="sm" variant="outline" onClick={() => setAssigningId(null)}>Cancel</Button>
+                  </div>
                 )}
               </Card>
             ))}
