@@ -25,6 +25,7 @@ export interface SMLocation {
   contactPerson: string; contactPhone: string;
   status: LocationStatus; approvedDate?: string; qrCodeActive: boolean;
   supervisorId?: string; supervisorName?: string;
+  supervisorAcknowledged?: boolean; supervisorAcknowledgedAt?: string;
   leadsMTD: number; leadsMTDM1: number; leadsMTDM2: number; leadsMTDM3: number;
   conversionsMTD: number; conversionRatePct: number; payingCustomers: number;
   lastSupervisorActivity: string;
@@ -323,7 +324,28 @@ class SalesManagerService {
     const locations = this.getLocations();
     const idx = locations.findIndex(l => l.id === locationId);
     if (idx < 0) return false;
-    locations[idx] = { ...locations[idx], supervisorId, supervisorName };
+    locations[idx] = {
+      ...locations[idx],
+      supervisorId, supervisorName,
+      supervisorAcknowledged: false,
+      supervisorAcknowledgedAt: undefined,
+    };
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
+  // Real acknowledgment — a supervisor being assigned doesn't mean they've
+  // actually seen it. This is the supervisor's own confirmation that they
+  // know about the assignment, timestamped for real, so Sales Head can
+  // tell the difference between "assigned" and "assigned and confirmed."
+  acknowledgeAssignment(locationId: string, supervisorId: string): boolean {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === locationId && l.supervisorId === supervisorId);
+    if (idx < 0) return false;
+    locations[idx] = {
+      ...locations[idx],
+      supervisorAcknowledged: true,
+      supervisorAcknowledgedAt: new Date().toISOString(),
+    };
     return this.save(this.KEYS.LOCATIONS, locations);
   }
 

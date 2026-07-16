@@ -88,6 +88,25 @@ export function SupervisorAppConnected() {
     return unsubscribe;
   }, [currentUser?.employeeId, subscribe]);
 
+  const { emit } = useEvents();
+  const handleAcknowledgeLocation = (loc: SMLocation) => {
+    const employeeId = currentUser?.employeeId;
+    if (!employeeId) return;
+    const success = salesManagerService.acknowledgeAssignment(loc.id, employeeId);
+    if (!success) {
+      toast.error("Could not confirm — storage is full. Please contact support or clear old data, then try again.");
+      return;
+    }
+    setMyBtlLocations(salesManagerService.getLocations().filter(l => l.supervisorId === employeeId));
+    emit("SUPERVISOR_BTL_ACKNOWLEDGED", {
+      supervisorId: employeeId,
+      supervisorName: currentUser?.name,
+      locationId: loc.id,
+      locationName: loc.name,
+    }, "SupervisorAppConnected");
+    toast.success(`Confirmed receipt of ${loc.name}.`);
+  };
+
   // ── Exit Verification State ──────────────────────────────────────────────
   const _safeName = (v: any): string => {
     if (!v) return "";
@@ -1644,11 +1663,22 @@ export function SupervisorAppConnected() {
                 <p className="text-sm font-medium text-amber-900 mb-2">
                   My Assigned BTL Locations ({myBtlLocations.length})
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {myBtlLocations.map(loc => (
-                    <div key={loc.id} className="text-sm text-amber-800 flex items-center justify-between">
-                      <span>{loc.name} <span className="text-amber-600">({loc.type})</span></span>
-                      <span className="text-xs text-amber-600">{loc.address}</span>
+                    <div key={loc.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{loc.name} <span className="text-xs text-gray-500">({loc.type})</span></p>
+                        <p className="text-xs text-gray-500">{loc.address}</p>
+                      </div>
+                      {loc.supervisorAcknowledged ? (
+                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1">
+                          Confirmed
+                        </span>
+                      ) : (
+                        <Button size="sm" onClick={() => handleAcknowledgeLocation(loc)}>
+                          Confirm Receipt
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>

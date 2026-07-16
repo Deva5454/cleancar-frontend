@@ -827,10 +827,19 @@ export function SalesHeadApp() {
 
 function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; onRefresh: () => void }) {
   const { getEmployeesByRole } = useEmployee();
-  const { emit } = useEvents();
+  const { emit, subscribe } = useEvents();
   const supervisors = getEmployeesByRole("Supervisor");
   const pending = locations.filter(l => l.status === "Pending Approval");
   const needsSupervisor = locations.filter(l => l.status === "Active Prospect" && !l.supervisorId);
+  const assignedLocations = locations.filter(l => l.supervisorId);
+  useEffect(() => {
+    const unsubscribe = subscribe("SUPERVISOR_BTL_ACKNOWLEDGED", (event: any) => {
+      const data = event?.data || event;
+      toast.info(`${data?.supervisorName || "A supervisor"} confirmed receipt of ${data?.locationName || "a location"}.`);
+      onRefresh();
+    });
+    return unsubscribe;
+  }, [subscribe]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [pickedSupervisorId, setPickedSupervisorId] = useState("");
 
@@ -938,6 +947,33 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
                     </div>
                   )}
                 </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="font-medium text-gray-900 mb-2">Assigned — Confirmation Status ({assignedLocations.length})</h3>
+        {assignedLocations.length === 0 ? (
+          <Card className="p-6 text-center text-sm text-gray-500">No locations assigned yet.</Card>
+        ) : (
+          <div className="space-y-2">
+            {assignedLocations.map(loc => (
+              <Card key={loc.id} className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{loc.name}</p>
+                  <p className="text-sm text-gray-500">{loc.supervisorName}</p>
+                </div>
+                {loc.supervisorAcknowledged ? (
+                  <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1">
+                    Confirmed {loc.supervisorAcknowledgedAt ? new Date(loc.supervisorAcknowledgedAt).toLocaleDateString() : ""}
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
+                    Awaiting confirmation
+                  </span>
+                )}
               </Card>
             ))}
           </div>
