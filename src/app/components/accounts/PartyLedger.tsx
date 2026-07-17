@@ -627,7 +627,7 @@ export function PartyLedger() {
                     <td className="px-4 py-2 text-right text-xs text-gray-500">—</td>
                     <td className="px-4 py-2 text-right text-xs text-gray-500">—</td>
                     <td className="px-4 py-2 text-right text-xs font-semibold text-gray-700">
-                      {fmt(selectedParty.openingBalance)} <span className="text-gray-400">{selectedParty.openingType !== "Nil" ? selectedParty.openingType : ""}</span>
+                      {fmt(selectedParty.openingBalance)} <span className="text-gray-400">{selectedParty.openingType}</span>
                     </td>
                   </tr>
 
