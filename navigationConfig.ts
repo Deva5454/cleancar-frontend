@@ -314,6 +314,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Vendor Payment",     path: "/accounts/vendor-payment",   icon: Building,        module: "accounts", match: "prefix" },
       { label: "Payroll Processing", path: "/accounts/payroll-processing",icon: Calculator,     module: "accounts", match: "prefix" },
       { label: "Payables",           path: "/accounts/payables",         icon: CreditCard,      module: "accounts", match: "prefix" },
+      { label: "Creditors",          path: "/accounts/creditors",        icon: Building2,       module: "accounts", match: "prefix" },
       { label: "TDS Payable",        path: "/accounts/tds-payable",      icon: Percent,         module: "accounts", match: "prefix" },
       { label: "Advance Tax",        path: "/accounts/advance-tax",      icon: Calendar,        module: "accounts", match: "prefix" },
     ]
