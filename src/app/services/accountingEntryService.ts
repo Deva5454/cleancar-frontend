@@ -131,6 +131,40 @@ export interface ChangeLog {
   newValue: string;
 }
 
+// A saved template for a transaction that repeats every month (rent, a
+// fixed vendor bill). This app has no real backend or scheduled job, so
+// "recurring" here means: whenever the Recurring Transactions screen
+// loads, any template whose nextRunDate has arrived shows up ready to
+// confirm — a real entry only gets posted once a person clicks Confirm,
+// the same "don't silently trust automation with real money" caution
+// used for the GST auto-created transactions built earlier this week.
+export interface RecurringTemplate {
+  id: string;
+  name: string;                 // "Monthly Office Rent", "ERP Software Subscription"
+  entryType: EntryType;
+  vendorName?: string;
+  vendorGstin?: string;
+  vendorStateCode?: string;
+  expenseAccount: string;
+  expenseAccountLabel: string;
+  taxableValue: number;
+  gstRate: number;
+  gstEntryType: GSTEntryType;
+  paymentMode: PaymentMode;
+  debitAccount: string;
+  creditAccount: string;
+  narration?: string;
+  dayOfMonth: number;           // 1-28, which day each month this is due
+  nextRunDate: string;
+  lastRunDate?: string;
+  lastCreatedEntryId?: string;
+  isActive: boolean;
+  city: string;
+  cityId: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface JournalEntry {
   id: string;
   voucherNumber: string;          // JV/CITY/FY/NNNN
@@ -270,6 +304,19 @@ const CITY_STATE_CODES: Record<string, string> = {
   "CITY-AHMEDABAD": "24", // Gujarat
 };
 const DEFAULT_STATE_CODE = "24";
+
+// Computes the next real date a recurring template is due, given a target
+// day-of-month. If that day has already passed this month, rolls to next
+// month — never returns a date in the past.
+function nextRunDateFor(dayOfMonth: number): string {
+  const now = new Date();
+  const day = Math.min(Math.max(dayOfMonth, 1), 28); // cap at 28 so it's valid in every month
+  let candidate = new Date(now.getFullYear(), now.getMonth(), day);
+  if (candidate <= now) {
+    candidate = new Date(now.getFullYear(), now.getMonth() + 1, day);
+  }
+  return candidate.toISOString().split("T")[0];
+}
 
 export function calculateGST(
   taxableValue: number,
@@ -454,6 +501,81 @@ class AccountingEntryService {
   private saveEntries(entries: AccountingEntry[]): void {
     DataService.setAll("ACCOUNTING_ENTRIES", entries);
   }
+
+  getRecurringTemplates(cityId?: string): RecurringTemplate[] {
+    return DataService.get<RecurringTemplate>("RECURRING_TEMPLATES", cityId);
+  }
+
+  saveRecurringTemplate(
+    data: Omit<RecurringTemplate, "id" | "nextRunDate" | "createdAt">,
+    cityId: string
+  ): RecurringTemplate {
+    const all = this.getRecurringTemplates(cityId);
+    const template: RecurringTemplate = {
+      ...data,
+      id: `RT-${Date.now()}`,
+      nextRunDate: nextRunDateFor(data.dayOfMonth),
+      createdAt: new Date().toISOString(),
+    };
+    DataService.setAll("RECURRING_TEMPLATES", [...all, template], cityId);
+    return template;
+  }
+
+  toggleRecurringTemplate(templateId: string, isActive: boolean, cityId: string): void {
+    const all = this.getRecurringTemplates(cityId);
+    const idx = all.findIndex((t) => t.id === templateId);
+    if (idx < 0) return;
+    all[idx] = { ...all[idx], isActive };
+    DataService.setAll("RECURRING_TEMPLATES", all, cityId);
+  }
+
+  // Creates a real accounting entry from a due template, using the same
+  // real createEntry() every manually-entered transaction goes through —
+  // this isn't a separate, parallel posting path, it's the exact same one.
+  runRecurringTemplate(templateId: string, cityId: string, cityName: string, runBy: string): AccountingEntry | null {
+    const all = this.getRecurringTemplates(cityId);
+    const idx = all.findIndex((t) => t.id === templateId);
+    if (idx < 0) return null;
+    const t = all[idx];
+    const gst = calculateGST(t.taxableValue, t.gstRate, "24", t.gstEntryType, cityId);
+    const entry = this.createEntry(
+      {
+        entryType: t.entryType,
+        date: new Date().toISOString().split("T")[0],
+        vendorName: t.vendorName,
+        vendorGstin: t.vendorGstin,
+        vendorStateCode: t.vendorStateCode,
+        invoiceNumber: `RECURRING-${t.id}-${Date.now()}`,
+        expenseAccount: t.expenseAccount,
+        expenseAccountLabel: t.expenseAccountLabel,
+        taxableValue: t.taxableValue,
+        gstRate: t.gstRate,
+        gstEntryType: t.gstEntryType,
+        cgst: gst.cgst,
+        sgst: gst.sgst,
+        igst: gst.igst,
+        totalBillValue: gst.totalBillValue,
+        paymentMode: t.paymentMode,
+        isRCM: t.gstEntryType === "RCM",
+        debitAccount: t.debitAccount,
+        creditAccount: t.creditAccount,
+        narration: t.narration || `Recurring — ${t.name}`,
+        city: cityName,
+        cityId,
+        createdBy: runBy,
+      },
+      cityName
+    );
+    all[idx] = {
+      ...t,
+      lastRunDate: entry.date,
+      lastCreatedEntryId: entry.id,
+      nextRunDate: nextRunDateFor(t.dayOfMonth),
+    };
+    DataService.setAll("RECURRING_TEMPLATES", all, cityId);
+    return entry;
+  }
+
   private getJournals(): JournalEntry[] {
     const ds = DataService.get<JournalEntry>("JOURNAL_ENTRIES");
     if (ds.length === 0) {

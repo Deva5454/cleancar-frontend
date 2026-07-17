@@ -10,7 +10,7 @@
 
 import type { Module } from "../types/permissions";
 import {
-  Home, Users, BarChart3, Target, Package, DollarSign, Settings,
+  Home, Users, BarChart3, Target, Package, DollarSign, Settings, Repeat,
   UserPlus, Calculator, TrendingUp, Eye, Database, AlertCircle,
   MapPin, Clock, BookUser, UserCheck, Calendar, FileText, Banknote,
   CheckSquare, ListTree, Receipt, CreditCard, Building, Landmark,
@@ -317,6 +317,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Creditors",          path: "/accounts/creditors",        icon: Building2,       module: "accounts", match: "prefix" },
       { label: "Credit/Debit Notes", path: "/accounts/credit-debit-notes", icon: FileText,      module: "accounts", match: "prefix" },
       { label: "Debtors",            path: "/accounts/debtors",           icon: Users,           module: "accounts", match: "prefix" },
+      { label: "Recurring Transactions", path: "/accounts/recurring-transactions", icon: Repeat, module: "accounts", match: "prefix" },
       { label: "TDS Payable",        path: "/accounts/tds-payable",      icon: Percent,         module: "accounts", match: "prefix" },
       { label: "Advance Tax",        path: "/accounts/advance-tax",      icon: Calendar,        module: "accounts", match: "prefix" },
     ]

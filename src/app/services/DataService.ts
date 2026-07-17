@@ -148,6 +148,7 @@ const STORAGE_KEYS = {
   EXIT_WORKFLOWS:           "exit_workflows",    // Exit workflow service (employee lock/status)
   LEAVE_REQUESTS:           "leave_requests",    // Leave request submit/approve/reject workflow
   WASHER_GPS_VIOLATIONS:    "washer_gps_violations", // Auto-checkout on GPS off + City Manager re-check-in approval
+  RECURRING_TEMPLATES:      "recurring_templates",   // Saved monthly-recurring transaction templates
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
