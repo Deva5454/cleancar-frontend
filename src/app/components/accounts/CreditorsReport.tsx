@@ -12,7 +12,7 @@
  * many days have passed since the due date.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useCity } from "../../contexts/CityContext";
 import { useFinance } from "../../contexts/FinanceContext";
 import { Badge } from "../ui/badge";
@@ -50,6 +50,7 @@ const BUCKET_COLORS: Record<AgingBucket, string> = {
 export function CreditorsReport() {
   const { city, cityInfo } = useCity();
   const { payables } = useFinance();
+  const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
 
   const vendorGroups = useMemo(() => {
     const outstanding = payables.filter(
@@ -161,11 +162,14 @@ export function CreditorsReport() {
             </thead>
             <tbody>
               {vendorGroups.map((g) => (
-                <tr key={g.vendorId} className="border-b last:border-0 hover:bg-gray-50">
+                <>
+                <tr key={g.vendorId} className="border-b last:border-0 hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedVendor(expandedVendor === g.vendorId ? null : g.vendorId)}>
                   <td className="p-3 font-medium text-gray-900">
+                    <span className="mr-1 text-gray-400">{expandedVendor === g.vendorId ? "▾" : "▸"}</span>
                     <PartyLedgerLink partyId={g.vendorName} partyType="vendors">
                       {g.vendorName}
                     </PartyLedgerLink>
+                    <span className="text-xs text-gray-400 ml-2">({g.bills.length} bill{g.bills.length !== 1 ? "s" : ""})</span>
                   </td>
                   <td className="p-3 text-right text-gray-600">
                     {g.buckets.current > 0 ? `₹${g.buckets.current.toLocaleString("en-IN")}` : "—"}
@@ -190,6 +194,39 @@ export function CreditorsReport() {
                     ₹{g.total.toLocaleString("en-IN")}
                   </td>
                 </tr>
+                {expandedVendor === g.vendorId && (
+                  <tr key={`${g.vendorId}-bills`} className="bg-gray-50 border-b">
+                    <td colSpan={7} className="p-0">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-gray-500 border-b border-gray-200">
+                            <th className="text-left px-6 py-2 font-medium">Bill / Invoice</th>
+                            <th className="text-left px-3 py-2 font-medium">Due Date</th>
+                            <th className="text-left px-3 py-2 font-medium">Status</th>
+                            <th className="text-right px-3 py-2 font-medium">Amount</th>
+                            <th className="px-3 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.bills.map((b: any) => (
+                            <tr key={b.payableId} className="border-b border-gray-100 last:border-0">
+                              <td className="px-6 py-2">{b.invoiceNumber || "No invoice ref"} <span className="text-gray-400">— {b.description}</span></td>
+                              <td className="px-3 py-2">{b.dueDate}</td>
+                              <td className="px-3 py-2">
+                                <Badge className={BUCKET_COLORS[agingBucket(b.dueDate)]}>{BUCKET_LABELS[agingBucket(b.dueDate)]}</Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right font-medium">₹{b.amount.toLocaleString("en-IN")}</td>
+                              <td className="px-3 py-2 text-right">
+                                <a href="/accounts/payables" className="text-purple-700 hover:underline text-xs">Pay →</a>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>
