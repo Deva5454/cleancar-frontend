@@ -62,6 +62,20 @@ class IncentiveEngineService {
     return this.progressMap.get(id)!;
   }
 
+  // The class tracks progress per-washer via progressMap, but most methods
+  // below were written against a single `this.progress` property that was
+  // never actually declared — a real gap left over from an earlier,
+  // single-washer version of this service that was never fully migrated
+  // when progressMap was introduced. This getter resolves `this.progress`
+  // to "the currently active washer's progress" (via setWasherId()),
+  // reusing the same real get-or-create lookup above rather than each of
+  // the 86 call sites needing its own fix. Since it returns the same
+  // object reference stored in the map, direct mutations like
+  // `this.progress.isLateCheckIn = true` correctly persist.
+  private get progress(): WasherProgress {
+    return this.getProgress_internal();
+  }
+
   private createEmptyProgress(): WasherProgress {
     return {
     baseUnitsCompleted: 0,
@@ -561,7 +575,8 @@ class IncentiveEngineService {
   // ==================== RESET (For testing) ====================
 
   reset(): void {
-    this.progress = {
+    const id = this.currentWasherId || "WASHER-UNKNOWN";
+    this.progressMap.set(id, {
       baseUnitsCompleted: 0,
       baseUnitsTarget: this.config.baseQuota,
       isBaseComplete: false,
@@ -588,7 +603,7 @@ class IncentiveEngineService {
       isLateCheckIn: false,
       isWeekOff: false,
       isCoverDay: false,
-    };
+    });
     this.animationTriggers = {
       shouldAnimateUnlock: false,
       shouldAnimateEarning: false,
