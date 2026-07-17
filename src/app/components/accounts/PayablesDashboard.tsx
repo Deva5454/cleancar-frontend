@@ -26,6 +26,32 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+function numberToWordsIndian(num: number): string {
+  if (num === 0) return "Zero";
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const twoDigits = (n: number): string => {
+    if (n < 20) return ones[n];
+    return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+  };
+  const threeDigits = (n: number): string => {
+    if (n < 100) return twoDigits(n);
+    return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + twoDigits(n % 100) : "");
+  };
+  let n = Math.floor(num);
+  const crore = Math.floor(n / 10000000); n %= 10000000;
+  const lakh = Math.floor(n / 100000); n %= 100000;
+  const thousand = Math.floor(n / 1000); n %= 1000;
+  const rest = n;
+  const parts: string[] = [];
+  if (crore) parts.push(threeDigits(crore) + " Crore");
+  if (lakh) parts.push(threeDigits(lakh) + " Lakh");
+  if (thousand) parts.push(threeDigits(thousand) + " Thousand");
+  if (rest) parts.push(threeDigits(rest));
+  return parts.join(" ") || "Zero";
+}
+
 const PAYMENT_METHODS: Payable["paymentMethod"][] = [
   "Bank Transfer", "UPI", "Cheque", "Cash",
 ];
@@ -95,6 +121,46 @@ export default function PayablesDashboard() {
   const totalOverdue     = useMemo(() => overdueList.reduce((s,p) => s+p.amount, 0),     [overdueList]);
 
   const openPayDialog = (p: Payable) => { setPayDialog(p); setPayMethod("Bank Transfer"); setPayRef(""); };
+
+  const handlePrintCheque = () => {
+    if (!payDialog) return;
+    const amount = payDialog.amount;
+    const amountWords = numberToWordsIndian(amount) + " Rupees Only";
+    const payee = payDialog.vendorName || payDialog.description;
+    const dateStr = new Date().toLocaleDateString("en-IN");
+    const win = window.open("", "_blank", "width=800,height=400");
+    if (!win) { toast.error("Please allow pop-ups to print a cheque."); return; }
+    win.document.write(`
+      <html>
+        <head>
+          <title>Cheque — ${payee}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 30px; }
+            .cheque { border: 1px solid #ccc; padding: 20px; max-width: 700px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 16px; }
+            .label { font-size: 11px; color: #666; text-transform: uppercase; }
+            .value { font-size: 16px; font-weight: 600; }
+            .amount-box { border: 1px solid #333; padding: 8px 16px; display: inline-block; font-size: 18px; font-weight: bold; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="cheque">
+            <div class="row"><span class="label">Date</span><span class="value">${dateStr}</span></div>
+            <div class="row"><span class="label">Pay</span><span class="value">${payee}</span></div>
+            <div class="row"><span class="label">Amount in Words</span><span class="value">${amountWords}</span></div>
+            <div class="row"><span class="label">Amount</span><span class="amount-box">₹ ${amount.toLocaleString("en-IN")}</span></div>
+            <div class="row"><span class="label">Reference</span><span class="value">${payRef || "—"}</span></div>
+          </div>
+          <p class="no-print" style="margin-top:20px;color:#666;font-size:13px;">
+            Align this with a real cheque leaf in your printer before printing — this is not connected to any bank's real cheque-printing system.
+          </p>
+          <button class="no-print" onclick="window.print()" style="margin-top:10px;padding:8px 16px;">Print</button>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
 
   const handleConfirmPayment = async () => {
     if (!payDialog) return;
@@ -320,6 +386,11 @@ export default function PayablesDashboard() {
                 placeholder="e.g. UTR0000123456"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
+            {payMethod === "Cheque" && (
+              <Button variant="outline" className="w-full" onClick={handlePrintCheque}>
+                🖨️ Print Cheque
+              </Button>
+            )}
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1"
                 onClick={() => setPayDialog(null)} disabled={paying}>
