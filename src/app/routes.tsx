@@ -129,6 +129,7 @@ const CreditorsReport = lazy(() => import("./components/accounts/CreditorsReport
 const CreditDebitNoteEntry = lazy(() => import("./components/accounts/CreditDebitNoteEntry"));
 const DebtorsReport = lazy(() => import("./components/accounts/DebtorsReport"));
 const RecurringTransactions = lazy(() => import("./components/accounts/RecurringTransactions"));
+const BankReconciliation = lazy(() => import("./components/accounts/BankReconciliation"));
 // Phase 3 Accounting Reports
 import { GSTR2AReport } from "./components/accounts/GSTR2AReport";
 import { PurchaseSummaryReport } from "./components/accounts/PurchaseSummaryReport";
@@ -418,6 +419,7 @@ export const router = createBrowserRouter([
       { path: "accounts/credit-debit-notes", element: <ErrorBoundary><CreditDebitNoteEntry /></ErrorBoundary> },
       { path: "accounts/debtors", element: <ErrorBoundary><DebtorsReport /></ErrorBoundary> },
       { path: "accounts/recurring-transactions", element: <ErrorBoundary><RecurringTransactions /></ErrorBoundary> },
+      { path: "accounts/bank-reconciliation", element: <ErrorBoundary><BankReconciliation /></ErrorBoundary> },
       { path: "accounts/tds-payable", element: <ErrorBoundary><TDSPayableModule /></ErrorBoundary> },
       { path: "accounts/advance-tax", element: <ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary> },
       { path: "accounts/journal-entry", element: <JournalEntry /> },

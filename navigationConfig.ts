@@ -318,6 +318,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Credit/Debit Notes", path: "/accounts/credit-debit-notes", icon: FileText,      module: "accounts", match: "prefix" },
       { label: "Debtors",            path: "/accounts/debtors",           icon: Users,           module: "accounts", match: "prefix" },
       { label: "Recurring Transactions", path: "/accounts/recurring-transactions", icon: Repeat, module: "accounts", match: "prefix" },
+      { label: "Bank Reconciliation", path: "/accounts/bank-reconciliation", icon: Landmark, module: "accounts", match: "prefix" },
       { label: "TDS Payable",        path: "/accounts/tds-payable",      icon: Percent,         module: "accounts", match: "prefix" },
       { label: "Advance Tax",        path: "/accounts/advance-tax",      icon: Calendar,        module: "accounts", match: "prefix" },
     ]
