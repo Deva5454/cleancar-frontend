@@ -18,6 +18,7 @@ import { useFinance } from "../../contexts/FinanceContext";
 import { Badge } from "../ui/badge";
 import { Building2, Download } from "lucide-react";
 import { showExportMenu } from "../../utils/gstExportUtils";
+import { PartyLedgerLink } from "./PartyLedgerLink";
 
 type AgingBucket = "current" | "0-30" | "31-60" | "61-90" | "90+";
 
@@ -161,7 +162,11 @@ export function CreditorsReport() {
             <tbody>
               {vendorGroups.map((g) => (
                 <tr key={g.vendorId} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="p-3 font-medium text-gray-900">{g.vendorName}</td>
+                  <td className="p-3 font-medium text-gray-900">
+                    <PartyLedgerLink partyId={g.vendorName} partyType="vendors">
+                      {g.vendorName}
+                    </PartyLedgerLink>
+                  </td>
                   <td className="p-3 text-right text-gray-600">
                     {g.buckets.current > 0 ? `₹${g.buckets.current.toLocaleString("en-IN")}` : "—"}
                   </td>

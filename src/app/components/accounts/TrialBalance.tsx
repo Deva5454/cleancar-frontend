@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useCity } from "../../contexts/CityContext";
 import { accountingEntryService, CHART_OF_ACCOUNTS_HEADS, type LedgerMaster } from "../../services/accountingEntryService";
 import { Download } from "lucide-react";
+import { PartyLedgerLink } from "./PartyLedgerLink";
 
 interface LedgerBalance {
   ledgerId: string;
@@ -265,7 +266,19 @@ export function TrialBalance() {
                   {/* Individual Ledger Rows */}
                   {ledgersInHead.map((ledger) => (
                     <tr key={ledger.ledgerId} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-sm pl-8">{ledger.ledgerName}</td>
+                      <td className="px-4 py-2 text-sm pl-8">
+                        {ledger.accountHead === "accounts_receivable" ? (
+                          <PartyLedgerLink partyId={ledger.ledgerName} partyType="customers">
+                            {ledger.ledgerName}
+                          </PartyLedgerLink>
+                        ) : ledger.accountHead === "accounts_payable" ? (
+                          <PartyLedgerLink partyId={ledger.ledgerName} partyType="vendors">
+                            {ledger.ledgerName}
+                          </PartyLedgerLink>
+                        ) : (
+                          ledger.ledgerName
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-sm text-right">₹{(ledger?.openingDr ?? 0).toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-right">₹{(ledger?.openingCr ?? 0).toFixed(2)}</td>
                       <td className="px-4 py-2 text-sm text-right">₹{(ledger?.periodDr ?? 0).toFixed(2)}</td>

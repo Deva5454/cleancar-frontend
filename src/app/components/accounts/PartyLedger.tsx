@@ -10,7 +10,8 @@
  *   - Export to CSV
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCity } from "../../contexts/CityContext";
 import {
   Search, Download, ArrowLeft, ChevronRight,
@@ -375,7 +376,11 @@ function buildEmployeeLedgers(city: string, from: string, to: string): PartyAcco
 // ══════════════════════════════════════════════════════════════════════════
 export function PartyLedger() {
   const { city } = useCity();
-  const [tab, setTab] = useState<TabType>("customers");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<TabType>(() => {
+    const t = searchParams.get("tab");
+    return (t === "vendors" || t === "employees" || t === "customers") ? t : "customers";
+  });
   const [selectedMonth, setSelectedMonth] = useState("All Months");
   const [search, setSearch] = useState("");
   const [selectedParty, setSelectedParty] = useState<PartyAccount | null>(null);
@@ -388,6 +393,20 @@ export function PartyLedger() {
     if (tab === "vendors")   return buildVendorLedgers(city, from, to);
     return buildEmployeeLedgers(city, from, to);
   }, [tab, city, from, to]);
+
+  // Real deep-link resolution — once the real party list for this tab has
+  // loaded, auto-select the one matching ?party=<id or name> in the URL,
+  // so a link from another screen (Trial Balance, Creditors, Debtors) can
+  // open straight to the right detail instead of a bare list the person
+  // has to search through themselves.
+  useEffect(() => {
+    const partyParam = searchParams.get("party");
+    if (!partyParam || parties.length === 0) return;
+    const match = parties.find(
+      (p) => p.id === partyParam || p.name.toLowerCase() === partyParam.toLowerCase()
+    );
+    if (match) setSelectedParty(match);
+  }, [parties, searchParams]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
