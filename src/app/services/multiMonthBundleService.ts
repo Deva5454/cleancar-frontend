@@ -218,7 +218,7 @@ export function createBundle(params: {
   };
 
   // Persist
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   all.push(bundle);
   DataService.setAll(STORAGE_KEY, all);
 
@@ -230,7 +230,7 @@ export function createBundle(params: {
  * Called by JobContext.completeJob() on the first job for this bundle.
  */
 export function recordBundleFirstWash(bundleId: string, firstWashDate: string): MultiMonthBundle | null {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   const idx = all.findIndex(b => b.bundleId === bundleId);
   if (idx < 0) return null;
 
@@ -265,7 +265,7 @@ export function recordBundleVisit(bundleId: string, jobId: string): {
   softCapReached:    boolean;
   message:           string;
 } {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   const idx = all.findIndex(b => b.bundleId === bundleId);
   if (idx < 0) return { success: false, revenueRecognised: 0, deferredRevenue: 0, visitsRemaining: 0, windowVisitsRemaining: 0, softCapReached: false, message: "Bundle not found" };
 
@@ -315,7 +315,7 @@ export function recordBundleVisit(bundleId: string, jobId: string): {
  */
 export function advanceBundleWindows(): void {
   try {
-    const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+    const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
     const todayStr = today();
     let changed = false;
 
@@ -377,7 +377,7 @@ export function canRequestWash(bundleId: string): {
   visitsLeft:  number;
   windowEnd:   string;
 } {
-  const all  = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all  = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   const b    = all.find(x => x.bundleId === bundleId);
   if (!b) return { canRequest: false, reason: "Bundle not found", visitsLeft: 0, windowEnd: "" };
   if (b.status !== "ACTIVE") return { canRequest: false, reason: `Bundle is ${b.status}`, visitsLeft: 0, windowEnd: "" };
@@ -408,7 +408,7 @@ export function calculateCancellationRefund(bundleId: string): {
   netRefund:         number;
   message:           string;
 } {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   const b   = all.find(x => x.bundleId === bundleId);
   
   if (!b) return { totalPaid: 0, visitsUsed: 0, totalVisits: 0, pctConsumed: 0, refundEligible: false, revenueForVisitsUsed: 0, cancellationFee: 0, gatewayCharges: 0, netRefund: 0, message: "Bundle not found" };
@@ -443,7 +443,7 @@ export function calculateCancellationRefund(bundleId: string): {
  */
 export function cancelBundle(bundleId: string): { success: boolean; refund: ReturnType<typeof calculateCancellationRefund> } {
   const refund = calculateCancellationRefund(bundleId);
-  const all    = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all    = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   const idx    = all.findIndex(b => b.bundleId === bundleId);
   if (idx < 0) return { success: false, refund };
 
@@ -475,9 +475,10 @@ export function cancelBundle(bundleId: string): { success: boolean; refund: Retu
  */
 export function checkLowVisitReminders(): void {
   try {
-    const all       = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
-    const customers = lsGet<any[]>("CUSTOMERS");
-    const reminded  = DataService.get<Record<string, boolean>>("BUNDLE_LOW_VISIT_REMINDERS") || {};
+    const all       = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
+    const customers = lsGet<any>("CUSTOMERS");
+    let reminded: Record<string, boolean> = {};
+    try { reminded = JSON.parse(localStorage.getItem("BUNDLE_LOW_VISIT_REMINDERS") || "{}"); } catch { /* ignore */ }
     const todayStr  = today();
     const todayDate = new Date(todayStr);
 
@@ -514,17 +515,17 @@ export function checkLowVisitReminders(): void {
 // ── Read helpers ─────────────────────────────────────────────────────────────
 
 export function getBundleBySubscriptionId(subscriptionId: string): MultiMonthBundle | null {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   return all.find(b => b.subscriptionId === subscriptionId) || null;
 }
 
 export function getBundlesByCustomerId(customerId: string): MultiMonthBundle[] {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   return all.filter(b => b.customerId === customerId);
 }
 
 export function getAllActiveBundles(): MultiMonthBundle[] {
-  const all = DataService.get<MultiMonthBundle[]>(STORAGE_KEY) || [];
+  const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   return all.filter(b => b.status === "ACTIVE" || b.status === "PENDING_FIRST_WASH");
 }
 
