@@ -102,6 +102,16 @@ export interface AccountingEntry {
   tdsRate?: number;         // percentage e.g. 2 for 194C company
   tdsAmount?: number;       // computed deduction (netted from vendor payment)
   narration?: string;
+  // Real backup document (the actual bill/receipt) attached to this
+  // entry. Kept to a single file with a size limit — this app stores
+  // everything client-side (no real backend file storage exists), and
+  // entries are created far more often than the one-off vendor document
+  // uploads that already use this same pattern in GST Vendor Master, so
+  // an unbounded per-entry attachment would meaningfully worsen the real
+  // storage-quota risk already found and fixed elsewhere this week.
+  attachmentFileName?: string;
+  attachmentFileType?: string;
+  attachmentFileBase64?: string;
   city: string;
   cityId: string;
   financialYear: string;          // "25-26"

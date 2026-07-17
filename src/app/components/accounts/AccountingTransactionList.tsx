@@ -409,6 +409,24 @@ export function AccountingTransactionList() {
                 </>
               )}
 
+              {selectedEntry.attachmentFileName && selectedEntry.attachmentFileBase64 && (
+                <>
+                  <hr />
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Attached Bill / Receipt</p>
+                    <a
+                      href={`data:${selectedEntry.attachmentFileType || "application/octet-stream"};base64,${selectedEntry.attachmentFileBase64}`}
+                      download={selectedEntry.attachmentFileName}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-purple-700 hover:underline font-medium"
+                    >
+                      📎 {selectedEntry.attachmentFileName}
+                    </a>
+                  </div>
+                </>
+              )}
+
               <hr />
 
               <div>

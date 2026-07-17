@@ -47,6 +47,9 @@ export function AccountingEntry() {
   const [vendorGstin, setVendorGstin] = useState("");
   const [vendorStateCode, setVendorStateCode] = useState("");
   const [gstinError, setGstinError] = useState("");
+  const [attachmentFileName, setAttachmentFileName] = useState("");
+  const [attachmentFileType, setAttachmentFileType] = useState("");
+  const [attachmentFileBase64, setAttachmentFileBase64] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [hsnSacCode, setHsnSacCode] = useState("");
   const [gstEntryType, setGstEntryType] = useState<GSTEntryType>("B2B");
@@ -192,6 +195,23 @@ export function AccountingEntry() {
     }
   };
 
+  const MAX_ATTACHMENT_BYTES = 500 * 1024; // 500KB — see note on AccountingEntry type in accountingEntryService.ts
+  const handleAttachmentUpload = (file: File) => {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`File is too large (${(file.size / 1024).toFixed(0)}KB) — please attach a file under 500KB. A compressed photo of the bill is usually enough.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachmentFileName(file.name);
+      setAttachmentFileType(file.type);
+      setAttachmentFileBase64((reader.result as string).split(",")[1] || "");
+      toast.success(`${file.name} attached`);
+    };
+    reader.onerror = () => toast.error("Could not read this file — please try again.");
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = () => {
     // Validation
     if (vendorGstin && gstinError) {
@@ -243,6 +263,9 @@ export function AccountingEntry() {
         debitAccount,
         creditAccount,
         narration,
+        attachmentFileName: attachmentFileName || undefined,
+        attachmentFileType: attachmentFileType || undefined,
+        attachmentFileBase64: attachmentFileBase64 || undefined,
         city: cityInfo.displayName,
         cityId: city,
         createdBy: currentUser.name,
@@ -255,6 +278,9 @@ export function AccountingEntry() {
   };
 
   const resetForm = () => {
+    setAttachmentFileName("");
+    setAttachmentFileType("");
+    setAttachmentFileBase64("");
     setSelectedVendorId("");
     setSelectedPackageCode("");
     setVendorName("");
@@ -824,6 +850,31 @@ export function AccountingEntry() {
                   placeholder="Brief description of the transaction"
                 />
                 <p className="text-xs text-gray-500 mt-1">{narration.length}/200</p>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">Attach Bill / Receipt (optional)</label>
+                {attachmentFileName ? (
+                  <div className="flex items-center justify-between border rounded-lg p-2 bg-green-50 border-green-200">
+                    <span className="text-sm text-green-800">📎 {attachmentFileName}</span>
+                    <button
+                      type="button"
+                      className="text-xs text-red-600 hover:underline"
+                      onClick={() => { setAttachmentFileName(""); setAttachmentFileType(""); setAttachmentFileBase64(""); }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="w-full text-sm border rounded-lg px-3 py-2"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachmentUpload(f); }}
+                  />
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Up to 500KB — a compressed photo of the bill is usually enough. Stored with this entry.
+                </p>
               </div>
             </div>
           </div>
