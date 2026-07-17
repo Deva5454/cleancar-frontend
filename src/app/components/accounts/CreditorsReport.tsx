@@ -19,6 +19,7 @@ import { Badge } from "../ui/badge";
 import { Building2, Download } from "lucide-react";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { PartyLedgerLink } from "./PartyLedgerLink";
+import { calculateOverdueInterest, daysOverdue, DEFAULT_OVERDUE_INTEREST_RATE } from "./overdueInterestUtils";
 
 type AgingBucket = "current" | "0-30" | "31-60" | "61-90" | "90+";
 
@@ -51,6 +52,7 @@ export function CreditorsReport() {
   const { city, cityInfo } = useCity();
   const { payables } = useFinance();
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
+  const [interestRate, setInterestRate] = useState(DEFAULT_OVERDUE_INTEREST_RATE);
 
   const vendorGroups = useMemo(() => {
     const outstanding = payables.filter(
@@ -86,6 +88,10 @@ export function CreditorsReport() {
   }, [payables, city]);
 
   const grandTotal = vendorGroups.reduce((s, g) => s + g.total, 0);
+  const totalInterest = vendorGroups.reduce(
+    (s, g) => s + g.bills.reduce((bs: number, b: any) => bs + calculateOverdueInterest(b.amount, b.dueDate, interestRate), 0),
+    0
+  );
   const bucketTotals = (["current", "0-30", "31-60", "61-90", "90+"] as AgingBucket[]).reduce(
     (acc, b) => {
       acc[b] = vendorGroups.reduce((s, g) => s + g.buckets[b], 0);
@@ -127,8 +133,20 @@ export function CreditorsReport() {
         </button>
       </div>
 
+      <div className="flex items-center gap-2 text-sm">
+        <label className="text-gray-600">Interest on overdue amounts (annual %):</label>
+        <input
+          type="number"
+          min={0}
+          className="w-20 border rounded-lg px-2 py-1 text-sm"
+          value={interestRate}
+          onChange={(e) => setInterestRate(parseFloat(e.target.value) || 0)}
+        />
+        <span className="text-xs text-gray-400">Adjustable — {DEFAULT_OVERDUE_INTEREST_RATE}% is a starting default, not a confirmed business rate</span>
+      </div>
+
       {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
         <div className="p-4 rounded-lg border bg-gray-900 text-white">
           <p className="text-xs opacity-80">Total Owed</p>
           <p className="text-xl font-bold">₹{grandTotal.toLocaleString("en-IN")}</p>
@@ -139,6 +157,10 @@ export function CreditorsReport() {
             <p className="text-lg font-bold">₹{bucketTotals[b].toLocaleString("en-IN")}</p>
           </div>
         ))}
+        <div className="p-4 rounded-lg border bg-red-900 text-white">
+          <p className="text-xs opacity-80">Interest Accrued</p>
+          <p className="text-lg font-bold">₹{totalInterest.toFixed(2)}</p>
+        </div>
       </div>
 
       {/* Per-vendor breakdown */}
@@ -204,6 +226,7 @@ export function CreditorsReport() {
                             <th className="text-left px-3 py-2 font-medium">Due Date</th>
                             <th className="text-left px-3 py-2 font-medium">Status</th>
                             <th className="text-right px-3 py-2 font-medium">Amount</th>
+                            <th className="text-right px-3 py-2 font-medium">Interest Accrued</th>
                             <th className="px-3 py-2"></th>
                           </tr>
                         </thead>
@@ -216,6 +239,11 @@ export function CreditorsReport() {
                                 <Badge className={BUCKET_COLORS[agingBucket(b.dueDate)]}>{BUCKET_LABELS[agingBucket(b.dueDate)]}</Badge>
                               </td>
                               <td className="px-3 py-2 text-right font-medium">₹{b.amount.toLocaleString("en-IN")}</td>
+                              <td className="px-3 py-2 text-right text-red-600">
+                                {daysOverdue(b.dueDate) > 0
+                                  ? `₹${calculateOverdueInterest(b.amount, b.dueDate, interestRate).toFixed(2)}`
+                                  : "—"}
+                              </td>
                               <td className="px-3 py-2 text-right">
                                 <a href="/accounts/payables" className="text-purple-700 hover:underline text-xs">Pay →</a>
                               </td>

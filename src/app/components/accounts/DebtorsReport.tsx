@@ -13,11 +13,12 @@
  * is built on that real data, not invented placeholder receivables.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { salesManagerService, type SMBlockDeal } from "../../services/salesManagerService";
 import { Badge } from "../ui/badge";
 import { Users, Download } from "lucide-react";
 import { showExportMenu } from "../../utils/gstExportUtils";
+import { calculateOverdueInterest, daysOverdue, DEFAULT_OVERDUE_INTEREST_RATE } from "./overdueInterestUtils";
 
 type AgingBucket = "current" | "0-30" | "31-60" | "61-90" | "90+";
 
@@ -47,6 +48,7 @@ const BUCKET_COLORS: Record<AgingBucket, string> = {
 };
 
 export function DebtorsReport() {
+  const [interestRate, setInterestRate] = useState(DEFAULT_OVERDUE_INTEREST_RATE);
   const outstanding = useMemo(() => {
     const deals = salesManagerService.getBlockDeals();
     return deals.filter(
@@ -107,8 +109,20 @@ export function DebtorsReport() {
         </button>
       </div>
 
+      <div className="flex items-center gap-2 text-sm">
+        <label className="text-gray-600">Interest on overdue amounts (annual %):</label>
+        <input
+          type="number"
+          min={0}
+          className="w-20 border rounded-lg px-2 py-1 text-sm"
+          value={interestRate}
+          onChange={(e) => setInterestRate(parseFloat(e.target.value) || 0)}
+        />
+        <span className="text-xs text-gray-400">Adjustable — {DEFAULT_OVERDUE_INTEREST_RATE}% is a starting default, not a confirmed business rate</span>
+      </div>
+
       {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
         <div className="p-4 rounded-lg border bg-gray-900 text-white">
           <p className="text-xs opacity-80">Total Owed to Us</p>
           <p className="text-xl font-bold">₹{grandTotal.toLocaleString("en-IN")}</p>
@@ -119,6 +133,12 @@ export function DebtorsReport() {
             <p className="text-lg font-bold">₹{bucketTotals[b].toLocaleString("en-IN")}</p>
           </div>
         ))}
+        <div className="p-4 rounded-lg border bg-red-900 text-white">
+          <p className="text-xs opacity-80">Interest Accrued</p>
+          <p className="text-lg font-bold">
+            ₹{rows.reduce((s, r) => s + calculateOverdueInterest(r.amount, r.dueDate, interestRate), 0).toFixed(2)}
+          </p>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -135,6 +155,7 @@ export function DebtorsReport() {
                 <th className="text-left p-3 font-medium text-gray-600">Due Date</th>
                 <th className="text-left p-3 font-medium text-gray-600">Status</th>
                 <th className="text-right p-3 font-medium text-gray-900">Amount</th>
+                <th className="text-right p-3 font-medium text-gray-900">Interest Accrued</th>
               </tr>
             </thead>
             <tbody>
@@ -148,6 +169,11 @@ export function DebtorsReport() {
                   </td>
                   <td className="p-3 text-right font-bold text-gray-900">
                     ₹{r.amount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="p-3 text-right text-red-600">
+                    {daysOverdue(r.dueDate) > 0
+                      ? `₹${calculateOverdueInterest(r.amount, r.dueDate, interestRate).toFixed(2)}`
+                      : "—"}
                   </td>
                 </tr>
               ))}
