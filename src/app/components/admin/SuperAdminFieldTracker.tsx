@@ -851,7 +851,7 @@ export function SuperAdminFieldTracker() {
 
       {liveLocations.length === 0 && allSessions.length === 0 && (
         <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
-          No field sessions on file yet — this screen reads real GPS/session data from fieldTrackingService, but nothing in the field-facing apps currently writes to it. Once a real location-tracking flow starts logging sessions, they'll appear here automatically.
+          No field sessions on file for this date yet — real check-ins from Supervisor, Sales Head, Operations Manager, and Sales Manager apps will appear here automatically once someone checks in.
         </div>
       )}
 

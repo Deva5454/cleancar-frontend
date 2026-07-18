@@ -378,6 +378,7 @@ export const NAV_CONFIG: NavItem[] = [
     description: "System configuration and settings",
     children: [
       { label: "City Management", path: "/admin/city-management", icon: MapPin, module: "admin", match: "prefix" },
+      { label: "Field Tracker", path: "/admin/field-tracker", icon: MapPin, module: "admin", match: "prefix" },
       { label: "Business Rules", path: "/admin/business-rules", icon: Settings, module: "admin", match: "prefix" },
       { label: "Shift Management", path: "/admin/shift-management", icon: Clock, module: "admin", match: "prefix" },
       { label: "Fraud Alerts", path: "/admin/fraud-alerts", icon: AlertCircle, module: "admin", match: "prefix" },
