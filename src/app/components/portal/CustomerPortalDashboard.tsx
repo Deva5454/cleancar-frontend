@@ -7,13 +7,14 @@
  * staff see internally.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
-import { Car, Calendar, LogOut, MapPin, RadioTower } from "lucide-react";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X } from "lucide-react";
+import { toast } from "sonner";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
   Unassigned: "Scheduled",
@@ -23,12 +24,17 @@ const JOB_STATUS_LABELS: Record<string, string> = {
   Completed: "Completed",
   Verified: "Completed",
   Failed: "Not completed",
+  Cancelled: "Cancelled",
 };
 
 export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
   const { customers } = useCustomers();
-  const { getJobsByCustomerId } = useJobs();
+  const { getJobsByCustomerId, updateJob } = useJobs();
+  const [rescheduleJobId, setRescheduleJobId] = useState<string | null>(null);
+  const [newDate, setNewDate] = useState("");
+  const [newSlot, setNewSlot] = useState("");
+  const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
   const navigate = useNavigate();
 
@@ -43,11 +49,40 @@ export function CustomerPortalDashboard() {
   );
   const today = new Date().toISOString().split("T")[0];
   const upcomingJobs = allJobs
-    .filter((j: any) => j.scheduledDate >= today && j.status !== "Completed" && j.status !== "Verified" && j.status !== "Failed")
+    .filter((j: any) => j.scheduledDate >= today && j.status !== "Completed" && j.status !== "Verified" && j.status !== "Failed" && j.status !== "Cancelled")
     .sort((a: any, b: any) => a.scheduledDate.localeCompare(b.scheduledDate));
   const pastJobs = allJobs
-    .filter((j: any) => j.status === "Completed" || j.status === "Verified" || j.scheduledDate < today)
+    .filter((j: any) => j.status === "Completed" || j.status === "Verified" || j.status === "Cancelled" || j.scheduledDate < today)
     .sort((a: any, b: any) => b.scheduledDate.localeCompare(a.scheduledDate));
+
+  const CUTOFF_DAYS_NOTICE = "Rescheduling or cancelling is available up until the day before your scheduled wash.";
+  const canModify = (job: any) => job.scheduledDate > today;
+
+  const openReschedule = (job: any) => {
+    if (!canModify(job)) { toast.error("This wash is scheduled for today and can no longer be rescheduled."); return; }
+    setRescheduleJobId(job.jobId);
+    setNewDate(job.scheduledDate);
+    setNewSlot(job.timeSlot);
+  };
+
+  const confirmReschedule = () => {
+    if (!rescheduleJobId || !newDate || !newSlot) return;
+    updateJob(rescheduleJobId, { scheduledDate: newDate, timeSlot: newSlot });
+    toast.success("Wash rescheduled.");
+    setRescheduleJobId(null);
+  };
+
+  const openCancel = (job: any) => {
+    if (!canModify(job)) { toast.error("This wash is scheduled for today and can no longer be cancelled here — please contact support."); return; }
+    setCancelJobId(job.jobId);
+  };
+
+  const confirmCancel = () => {
+    if (!cancelJobId) return;
+    updateJob(cancelJobId, { status: "Cancelled", cancellationReason: "Cancelled by customer via portal", cancelledAt: new Date().toISOString() });
+    toast.success("Wash cancelled.");
+    setCancelJobId(null);
+  };
 
   const subscriptions = useMemo(
     () => (loggedInCustomerId ? getSubscriptionsByCustomerId(loggedInCustomerId) : []),
@@ -120,21 +155,32 @@ export function CustomerPortalDashboard() {
           ) : (
             <div className="space-y-2">
               {upcomingJobs.map((job: any) => (
-                <div key={job.jobId} className="bg-white rounded-xl border p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate} · {job.timeSlot}</p>
-                    <p className="text-xs text-blue-600 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
+                <div key={job.jobId} className="bg-white rounded-xl border p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate} · {job.timeSlot}</p>
+                      <p className="text-xs text-blue-600 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
+                    </div>
+                    {(job.status === "Assigned" || job.status === "Acknowledged" || job.status === "In Progress") && (
+                      <a href={`/track/${job.jobId}`} className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded-full px-3 py-1.5">
+                        <RadioTower className="w-3 h-3" /> Track
+                      </a>
+                    )}
                   </div>
-                  {(job.status === "Assigned" || job.status === "Acknowledged" || job.status === "In Progress") && (
-                    <a href={`/track/${job.jobId}`} className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded-full px-3 py-1.5">
-                      <RadioTower className="w-3 h-3" /> Track
-                    </a>
-                  )}
+                  <div className="flex gap-2 mt-3 pt-3 border-t">
+                    <button onClick={() => openReschedule(job)} className="text-xs text-gray-600 border rounded-lg px-3 py-1.5">
+                      Reschedule
+                    </button>
+                    <button onClick={() => openCancel(job)} className="text-xs text-red-600 border border-red-200 rounded-lg px-3 py-1.5">
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+          <p className="text-xs text-gray-400 mt-2">{CUTOFF_DAYS_NOTICE}</p>
         </div>
 
         {/* Wash history */}
@@ -171,6 +217,57 @@ export function CustomerPortalDashboard() {
         </div>
 
       </div>
+
+      {/* Reschedule modal */}
+      {rescheduleJobId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Reschedule Wash</h3>
+              <button onClick={() => setRescheduleJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">New Date</label>
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
+                  min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Time Slot</label>
+                <select value={newSlot} onChange={(e) => setNewSlot(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="6:00 AM - 8:00 AM">6:00 AM - 8:00 AM</option>
+                  <option value="8:00 AM - 10:00 AM">8:00 AM - 10:00 AM</option>
+                  <option value="4:00 PM - 6:00 PM">4:00 PM - 6:00 PM</option>
+                  <option value="6:00 PM - 8:00 PM">6:00 PM - 8:00 PM</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={confirmReschedule} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Confirm New Date
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel confirmation modal */}
+      {cancelJobId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <h3 className="font-semibold text-gray-900 mb-2">Cancel this wash?</h3>
+            <p className="text-sm text-gray-500 mb-4">This can't be undone. You can always book again from your dashboard.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setCancelJobId(null)} className="flex-1 border rounded-xl py-3 font-medium text-gray-700">
+                Keep it
+              </button>
+              <button onClick={confirmCancel} className="flex-1 bg-red-600 text-white rounded-xl py-3 font-medium">
+                Yes, cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

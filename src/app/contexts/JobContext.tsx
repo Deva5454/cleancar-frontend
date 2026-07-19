@@ -23,7 +23,7 @@ export interface Job {
   washerId?: string; // GLOBAL IDENTITY - links to HRDataContext (employeeId)
   scheduledDate: string;
   timeSlot: string;
-  status: "Unassigned" | "Assigned" | "Acknowledged" | "In Progress" | "Completed" | "Verified" | "Failed";
+  status: "Unassigned" | "Assigned" | "Acknowledged" | "In Progress" | "Completed" | "Verified" | "Failed" | "Cancelled";
   jobType: "One-Time Demo" | "Subscription Demo" | "Regular" | "Add-on";
   packageName: string;
   packageType?: string;
@@ -56,6 +56,8 @@ export interface Job {
   qaAuditId?: string;
   // Failure handling
   failureReason?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
   rescheduleRequested?: boolean;
 
   // City isolation
