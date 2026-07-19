@@ -58,7 +58,22 @@ export interface Job {
   failureReason?: string;
   cancellationReason?: string;
   cancelledAt?: string;
-  rescheduleRequested?: boolean;
+  rescheduleRequested?: boolean; // set by washer/staff on a Failed job — distinct from customer requests below
+  // Real customer-initiated reschedule request — requires real staff
+  // approval before the booking's actual date/time changes. Separate
+  // fields from the flag above, which belongs to a different real
+  // scenario (a washer reporting a job failed).
+  rescheduleRequestStatus?: "pending" | "approved" | "rejected";
+  rescheduleRequestedDate?: string;
+  rescheduleRequestedSlot?: string;
+  rescheduleRequestReason?: string;
+  rescheduleCount?: number;
+  // Real doorstep-payment gate — already read by isPaymentRequired() in
+  // doorstepPaymentService.ts and by the washer app's completion check,
+  // but never formally declared here. Making it explicit so any job
+  // creation path has to consciously decide whether payment is pending,
+  // rather than silently defaulting to "no payment needed."
+  paymentStatus?: "Pending" | "Paid";
 
   // City isolation
   cityId: string;

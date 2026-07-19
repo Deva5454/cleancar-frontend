@@ -435,7 +435,7 @@ export function OperationsManagerApp() {
 
   const [reassignCoverModal, setReassignCoverModal] = useState<{ show: boolean; washer: any } | null>(null);
   const [reassignPickedWasherId, setReassignPickedWasherId] = useState("");
-  const { getJobsByWasherId, assignJobToWasher } = useJobs();
+  const { getJobsByWasherId, assignJobToWasher, allJobs, updateJob } = useJobs();
 
 
 
@@ -1759,6 +1759,16 @@ export function OperationsManagerApp() {
 
               </TabsTrigger>
 
+              <TabsTrigger value="reschedule-requests" className="py-4 text-sm font-semibold">
+
+
+
+                🔄 Reschedule Requests
+
+
+
+              </TabsTrigger>
+
 
 
               <TabsTrigger value="reports" className="py-4 text-sm font-semibold">
@@ -2067,6 +2077,51 @@ export function OperationsManagerApp() {
         {/* Field Check-In — GPS tracking, auto-starts on check-in, stops on check-out */}
         <TabsContent value="field" className="mt-0">
           <FieldCheckIn />
+        </TabsContent>
+
+        <TabsContent value="reschedule-requests" className="mt-0 p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Reschedule Requests</h2>
+            <p className="text-sm text-gray-500">Real customer requests, submitted through the customer portal, awaiting review.</p>
+          </div>
+          {(() => {
+            const pending = allJobs.filter((j: any) => j.rescheduleRequestStatus === "pending");
+            if (pending.length === 0) {
+              return <Card className="p-6 text-center text-sm text-gray-500">No reschedule requests waiting right now.</Card>;
+            }
+            const handleApprove = (job: any) => {
+              updateJob(job.jobId, {
+                scheduledDate: job.rescheduleRequestedDate,
+                timeSlot: job.rescheduleRequestedSlot,
+                rescheduleRequestStatus: "approved",
+                rescheduleCount: (job.rescheduleCount || 0) + 1,
+              });
+              toast.success(`Approved — ${job.packageName} moved to ${job.rescheduleRequestedDate}`);
+            };
+            const handleReject = (job: any) => {
+              updateJob(job.jobId, { rescheduleRequestStatus: "rejected" });
+              toast.info(`Reschedule request for ${job.packageName} rejected`);
+            };
+            return (
+              <div className="space-y-2">
+                {pending.map((job: any) => (
+                  <Card key={job.jobId} className="p-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{job.packageName}</p>
+                      <p className="text-sm text-gray-500">
+                        Currently {job.scheduledDate} ({job.timeSlot}) → requested {job.rescheduleRequestedDate} ({job.rescheduleRequestedSlot})
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">Already rescheduled {job.rescheduleCount || 0} time(s) on this booking</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove(job)}>Approve</Button>
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => handleReject(job)}>Reject</Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            );
+          })()}
         </TabsContent>
 
 

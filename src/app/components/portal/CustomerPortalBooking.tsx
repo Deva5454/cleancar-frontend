@@ -67,6 +67,7 @@ export function CustomerPortalBooking() {
       timeSlot,
       status: "Unassigned",
       jobType: "Regular",
+      paymentStatus: "Pending",
       packageName: `${PLAN_TIER_NAMES[plan] || plan}`,
       packageType: plan,
       vehicleDetails: {
@@ -217,6 +218,14 @@ export function CustomerPortalBooking() {
                 <p>{vehicleBrand}, {vehicleColor} · {regNumber}</p>
                 <p>{scheduledDate} · {timeSlot}</p>
                 <p className="font-bold text-gray-900 pt-2 border-t mt-2">₹{priceForSelected}/month</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
+              <span className="text-amber-600 text-base leading-none mt-0.5">₹</span>
+              <div>
+                <p className="text-sm font-medium text-amber-800">Payment collected at your doorstep</p>
+                <p className="text-xs text-amber-700 mt-0.5">Pay by cash, UPI, or a payment link when the team arrives — no advance payment needed to confirm this booking.</p>
               </div>
             </div>
 

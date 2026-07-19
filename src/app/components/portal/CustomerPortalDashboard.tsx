@@ -5,6 +5,12 @@
  * getJobsByCustomerId() and getSubscriptionsByCustomerId(), not a
  * separate customer-facing dataset that could ever disagree with what
  * staff see internally.
+ *
+ * Reschedule is a real REQUEST, not direct self-service — validated
+ * against a real, adjustable policy (reschedulePolicy.ts), and only
+ * takes effect once a staff member approves it (Operations Manager app,
+ * Reschedule Requests tab). Cancellation stays direct self-service,
+ * since that's a one-way action the customer can safely make themselves.
  */
 
 import { useMemo, useState } from "react";
@@ -13,7 +19,8 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X } from "lucide-react";
+import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
@@ -31,12 +38,13 @@ export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
   const { customers } = useCustomers();
   const { getJobsByCustomerId, updateJob } = useJobs();
+  const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
+  const navigate = useNavigate();
+
   const [rescheduleJobId, setRescheduleJobId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState("");
   const [newSlot, setNewSlot] = useState("");
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
-  const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
-  const navigate = useNavigate();
 
   const customer = useMemo(
     () => customers.find((c: any) => c.customerId === loggedInCustomerId),
@@ -55,25 +63,43 @@ export function CustomerPortalDashboard() {
     .filter((j: any) => j.status === "Completed" || j.status === "Verified" || j.status === "Cancelled" || j.scheduledDate < today)
     .sort((a: any, b: any) => b.scheduledDate.localeCompare(a.scheduledDate));
 
-  const CUTOFF_DAYS_NOTICE = "Rescheduling or cancelling is available up until the day before your scheduled wash.";
-  const canModify = (job: any) => job.scheduledDate > today;
+  const subscriptions = useMemo(
+    () => (loggedInCustomerId ? getSubscriptionsByCustomerId(loggedInCustomerId) : []),
+    [loggedInCustomerId, getSubscriptionsByCustomerId]
+  );
+  const activeSubscription = subscriptions.find((s: any) => s.status === "Active");
 
   const openReschedule = (job: any) => {
-    if (!canModify(job)) { toast.error("This wash is scheduled for today and can no longer be rescheduled."); return; }
+    if (job.rescheduleRequestStatus === "pending") {
+      toast.info("A reschedule request for this booking is already pending approval.");
+      return;
+    }
+    const check = isReschedulePermitted(job.scheduledDate, job.timeSlot, job.rescheduleCount || 0);
+    if (!check.allowed) {
+      toast.error(check.reason);
+      return;
+    }
     setRescheduleJobId(job.jobId);
     setNewDate(job.scheduledDate);
     setNewSlot(job.timeSlot);
   };
 
-  const confirmReschedule = () => {
+  const submitRescheduleRequest = () => {
     if (!rescheduleJobId || !newDate || !newSlot) return;
-    updateJob(rescheduleJobId, { scheduledDate: newDate, timeSlot: newSlot });
-    toast.success("Wash rescheduled.");
+    updateJob(rescheduleJobId, {
+      rescheduleRequestStatus: "pending",
+      rescheduleRequestedDate: newDate,
+      rescheduleRequestedSlot: newSlot,
+    });
+    toast.success("Reschedule request submitted — you'll be notified once it's reviewed.");
     setRescheduleJobId(null);
   };
 
   const openCancel = (job: any) => {
-    if (!canModify(job)) { toast.error("This wash is scheduled for today and can no longer be cancelled here — please contact support."); return; }
+    if (job.scheduledDate <= today) {
+      toast.error("This wash is scheduled for today and can no longer be cancelled here — please contact support.");
+      return;
+    }
     setCancelJobId(job.jobId);
   };
 
@@ -83,12 +109,6 @@ export function CustomerPortalDashboard() {
     toast.success("Wash cancelled.");
     setCancelJobId(null);
   };
-
-  const subscriptions = useMemo(
-    () => (loggedInCustomerId ? getSubscriptionsByCustomerId(loggedInCustomerId) : []),
-    [loggedInCustomerId, getSubscriptionsByCustomerId]
-  );
-  const activeSubscription = subscriptions.find((s: any) => s.status === "Active");
 
   const handleLogout = () => {
     logout();
@@ -161,6 +181,9 @@ export function CustomerPortalDashboard() {
                       <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate} · {job.timeSlot}</p>
                       <p className="text-xs text-blue-600 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
+                      {job.paymentStatus === "Pending" && (
+                        <p className="text-xs text-amber-700 mt-0.5">₹ Pay at doorstep</p>
+                      )}
                     </div>
                     {(job.status === "Assigned" || job.status === "Acknowledged" || job.status === "In Progress") && (
                       <a href={`/track/${job.jobId}`} className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded-full px-3 py-1.5">
@@ -168,9 +191,19 @@ export function CustomerPortalDashboard() {
                       </a>
                     )}
                   </div>
+
+                  {job.rescheduleRequestStatus === "pending" && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                      <Clock className="w-3 h-3" /> Reschedule to {job.rescheduleRequestedDate} ({job.rescheduleRequestedSlot}) pending approval
+                    </div>
+                  )}
+                  {job.rescheduleRequestStatus === "rejected" && (
+                    <div className="text-xs text-red-600 mt-2">Your last reschedule request wasn't approved. Please contact support or try a different time.</div>
+                  )}
+
                   <div className="flex gap-2 mt-3 pt-3 border-t">
                     <button onClick={() => openReschedule(job)} className="text-xs text-gray-600 border rounded-lg px-3 py-1.5">
-                      Reschedule
+                      Request Reschedule
                     </button>
                     <button onClick={() => openCancel(job)} className="text-xs text-red-600 border border-red-200 rounded-lg px-3 py-1.5">
                       Cancel
@@ -180,7 +213,10 @@ export function CustomerPortalDashboard() {
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-2">{CUTOFF_DAYS_NOTICE}</p>
+          <p className="text-xs text-gray-400 mt-2">
+            Reschedule requests need at least {RESCHEDULE_POLICY.minHoursBeforeSlot} hours' notice and are reviewed before they're confirmed.
+            Cancellation is available up until the day before your scheduled wash.
+          </p>
         </div>
 
         {/* Wash history */}
@@ -218,23 +254,24 @@ export function CustomerPortalDashboard() {
 
       </div>
 
-      {/* Reschedule modal */}
+      {/* Reschedule request modal */}
       {rescheduleJobId && (
         <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-20 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Reschedule Wash</h3>
+              <h3 className="font-semibold text-gray-900">Request a Reschedule</h3>
               <button onClick={() => setRescheduleJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
+            <p className="text-xs text-gray-500 mb-3">This is a request — the new date is confirmed once approved.</p>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">New Date</label>
+                <label className="text-xs text-gray-500 mb-1 block">Preferred New Date</label>
                 <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
                   min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
                   className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Time Slot</label>
+                <label className="text-xs text-gray-500 mb-1 block">Preferred Time Slot</label>
                 <select value={newSlot} onChange={(e) => setNewSlot(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm">
                   <option value="6:00 AM - 8:00 AM">6:00 AM - 8:00 AM</option>
                   <option value="8:00 AM - 10:00 AM">8:00 AM - 10:00 AM</option>
@@ -243,8 +280,8 @@ export function CustomerPortalDashboard() {
                 </select>
               </div>
             </div>
-            <button onClick={confirmReschedule} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
-              Confirm New Date
+            <button onClick={submitRescheduleRequest} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Submit Request
             </button>
           </div>
         </div>
