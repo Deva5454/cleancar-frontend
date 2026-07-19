@@ -85,6 +85,17 @@ export function CustomerPortalDashboard() {
 
       <div className="p-4 max-w-2xl mx-auto space-y-5">
 
+        <button
+          onClick={() => navigate("/portal/book")}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-5 flex items-center justify-between"
+        >
+          <div className="text-left">
+            <p className="font-semibold">Book a Wash</p>
+            <p className="text-sm opacity-90 mt-0.5">Choose a plan and schedule your next wash</p>
+          </div>
+          <Car className="w-8 h-8 opacity-90" />
+        </button>
+
         {/* Active subscription card */}
         {activeSubscription && (
           <div className="bg-blue-600 text-white rounded-2xl p-5">

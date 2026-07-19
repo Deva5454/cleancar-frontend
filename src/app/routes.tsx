@@ -271,6 +271,7 @@ import { AppProvider } from "./contexts/AppProvider";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
 const CustomerPortalLogin = lazy(() => import("./components/portal/CustomerPortalLogin"));
 const CustomerPortalDashboard = lazy(() => import("./components/portal/CustomerPortalDashboard"));
+const CustomerPortalBooking = lazy(() => import("./components/portal/CustomerPortalBooking"));
 import { CustomerPortalAuthProvider } from "./components/portal/CustomerPortalAuthContext";
 
 export const router = createBrowserRouter([
@@ -311,6 +312,10 @@ export const router = createBrowserRouter([
   {
     path: "/portal/dashboard",
     element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalDashboard /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
+  },
+  {
+    path: "/portal/book",
+    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalBooking /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
   },
 
   // Main application routes with layout
