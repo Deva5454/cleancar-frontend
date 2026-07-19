@@ -269,6 +269,9 @@ import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
 import { AppProvider } from "./contexts/AppProvider";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
+const CustomerPortalLogin = lazy(() => import("./components/portal/CustomerPortalLogin"));
+const CustomerPortalDashboard = lazy(() => import("./components/portal/CustomerPortalDashboard"));
+import { CustomerPortalAuthProvider } from "./components/portal/CustomerPortalAuthContext";
 
 export const router = createBrowserRouter([
   {
@@ -300,6 +303,14 @@ export const router = createBrowserRouter([
   {
     path: "/track/:jobId",
     element: <ErrorBoundary><AppProvider><WasherTrackingPageDirect /></AppProvider></ErrorBoundary>,
+  },
+  {
+    path: "/portal/login",
+    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalLogin /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
+  },
+  {
+    path: "/portal/dashboard",
+    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalDashboard /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
   },
 
   // Main application routes with layout
