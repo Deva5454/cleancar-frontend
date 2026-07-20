@@ -44,6 +44,7 @@ export function CustomerSubscription() {
       return {
         customerId: sub.customerId,
         customerName: customer ? `${customer.firstName} ${customer.lastName}` : "Unknown Customer",
+        phone: customer?.phone || "N/A",
         planType: sub.packageType,
         billingCycle: sub.billingCycle,
         carDetails: {
@@ -141,6 +142,7 @@ export function CustomerSubscription() {
               columns={[
                 { key: "customerId", label: "Customer ID", sortable: true },
                 { key: "customerName", label: "Name", sortable: true },
+                { key: "phone", label: "Phone", sortable: true },
                 {
                   key: "planType",
                   label: "Plan",
