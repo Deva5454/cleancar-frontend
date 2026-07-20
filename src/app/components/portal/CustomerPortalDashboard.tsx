@@ -37,6 +37,41 @@ const JOB_STATUS_LABELS: Record<string, string> = {
   Cancelled: "Cancelled",
 };
 
+const STATUS_STAGES = ["Unassigned", "Assigned", "In Progress", "Completed"] as const;
+const STAGE_LABELS: Record<string, string> = {
+  Unassigned: "Scheduled",
+  Assigned: "Team Assigned",
+  "In Progress": "In Progress",
+  Completed: "Completed",
+};
+
+function JobStatusStrip({ status }: { status: string }) {
+  // Acknowledged and Assigned share the same real stage in this strip -
+  // both mean "a real team member is on this job," just at different
+  // real sub-states the customer doesn't need to distinguish visually.
+  const normalized = status === "Acknowledged" ? "Assigned" : status === "Verified" ? "Completed" : status;
+  const currentIndex = STATUS_STAGES.indexOf(normalized as typeof STATUS_STAGES[number]);
+  if (currentIndex < 0) return null; // Failed/Cancelled jobs don't show this strip
+
+  return (
+    <div className="flex items-center mt-3">
+      {STATUS_STAGES.map((stage, i) => (
+        <div key={stage} className="flex items-center flex-1 last:flex-none">
+          <div className="flex flex-col items-center">
+            <div className={`w-2.5 h-2.5 rounded-full ${i <= currentIndex ? "bg-blue-600" : "bg-gray-200"}`} />
+            <span className={`text-[10px] mt-1 whitespace-nowrap ${i <= currentIndex ? "text-blue-700 font-medium" : "text-gray-400"}`}>
+              {STAGE_LABELS[stage]}
+            </span>
+          </div>
+          {i < STATUS_STAGES.length - 1 && (
+            <div className={`h-0.5 flex-1 mx-1 ${i < currentIndex ? "bg-blue-600" : "bg-gray-200"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
   const { customers } = useCustomers();
@@ -284,6 +319,8 @@ export function CustomerPortalDashboard() {
                       </a>
                     )}
                   </div>
+
+                  <JobStatusStrip status={job.status} />
 
                   {job.rescheduleRequestStatus === "pending" && (
                     <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
