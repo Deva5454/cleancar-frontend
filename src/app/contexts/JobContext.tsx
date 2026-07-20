@@ -74,6 +74,10 @@ export interface Job {
   // creation path has to consciously decide whether payment is pending,
   // rather than silently defaulting to "no payment needed."
   paymentStatus?: "Pending" | "Paid";
+  // Real customer rating and feedback, submitted after a wash completes.
+  customerRating?: number; // 1-5
+  customerRatingComment?: string;
+  customerRatingSubmittedAt?: string;
 
   // City isolation
   cityId: string;

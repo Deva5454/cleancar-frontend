@@ -23,7 +23,7 @@ import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
 import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
 import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User } from "lucide-react";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star } from "lucide-react";
 import { toast } from "sonner";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
@@ -50,6 +50,9 @@ export function CustomerPortalDashboard() {
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [ratingJobId, setRatingJobId] = useState<string | null>(null);
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
   const { city, cityInfo } = useCity();
   const [refundJobId, setRefundJobId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
@@ -156,6 +159,26 @@ export function CustomerPortalDashboard() {
     }
     setRefundJobId(null);
     refreshRefunds();
+  };
+
+  const openRatingPrompt = (job: any) => {
+    setRatingJobId(job.jobId);
+    setSelectedStars(0);
+    setRatingComment("");
+  };
+
+  const submitRating = () => {
+    if (!ratingJobId || selectedStars === 0) {
+      toast.error("Please select a star rating");
+      return;
+    }
+    updateJob(ratingJobId, {
+      customerRating: selectedStars,
+      customerRatingComment: ratingComment || undefined,
+      customerRatingSubmittedAt: new Date().toISOString(),
+    });
+    toast.success("Thanks for your feedback!");
+    setRatingJobId(null);
   };
 
   const scrollToSection = (id: string) => {
@@ -302,11 +325,27 @@ export function CustomerPortalDashboard() {
             <div className="space-y-2">
               {pastJobs.slice(0, 10).map((job: any) => {
                 const existingRefund = refundRequests.find((r) => r.jobId === job.jobId);
+                const isCompleted = job.status === "Completed" || job.status === "Verified";
                 return (
                   <div key={job.jobId} className="bg-white rounded-xl border p-4">
                     <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate}</p>
                     <p className="text-xs text-gray-400 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
+
+                    {isCompleted && (
+                      job.customerRating ? (
+                        <div className="flex items-center gap-0.5 mt-2">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className={`w-3.5 h-3.5 ${n <= job.customerRating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                          ))}
+                        </div>
+                      ) : (
+                        <button onClick={() => openRatingPrompt(job)} className="flex items-center gap-1 text-xs text-amber-700 border border-amber-200 rounded-lg px-3 py-1.5 mt-2">
+                          <Star className="w-3.5 h-3.5" /> Rate this wash
+                        </button>
+                      )
+                    )}
+
                     {existingRefund ? (
                       <p className={`text-xs mt-2 ${existingRefund.status === "Paid" ? "text-green-600" : existingRefund.status === "Rejected" ? "text-red-600" : "text-amber-600"}`}>
                         Refund {existingRefund.status.toLowerCase()}
@@ -435,6 +474,35 @@ export function CustomerPortalDashboard() {
                 <LogOut className="w-4 h-4" /> Log Out
               </button>
             </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Rating modal */}
+      {ratingJobId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">How was your wash?</h3>
+              <button onClick={() => setRatingJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="flex justify-center gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} onClick={() => setSelectedStars(n)}>
+                  <Star className={`w-9 h-9 ${n <= selectedStars ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Tell us more (optional)"
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              rows={3}
+            />
+            <button onClick={submitRating} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Submit
+            </button>
           </div>
         </div>
       )}
