@@ -162,6 +162,18 @@ export function CustomerPortalDashboard() {
     setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   };
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
   const handleLogout = () => {
     logout();
     navigate("/portal/login");
@@ -385,7 +397,7 @@ export function CustomerPortalDashboard() {
             </div>
             <nav className="space-y-1">
               <button
-                onClick={() => { setMenuOpen(false); navigate("/portal/dashboard"); }}
+                onClick={() => { setMenuOpen(false); setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
               >
                 <User className="w-4 h-4 text-gray-500" /> My Account
