@@ -23,7 +23,7 @@ import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
 import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
 import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star, Tag } from "lucide-react";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star, Tag, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { seedPortalTestData, seedSampleOffers } from "../../services/portalTestDataSeed";
 import { planSyncService } from "../../services/planSyncService";
@@ -87,6 +87,8 @@ export function CustomerPortalDashboard() {
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const [lastViewedNotifAt, setLastViewedNotifAt] = useState(() => localStorage.getItem("cc360_portal_notif_last_viewed") || "");
   const [ratingJobId, setRatingJobId] = useState<string | null>(null);
   const [selectedStars, setSelectedStars] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
@@ -105,6 +107,45 @@ export function CustomerPortalDashboard() {
     () => (loggedInCustomerId ? getJobsByCustomerId(loggedInCustomerId) : []),
     [loggedInCustomerId, getJobsByCustomerId]
   );
+
+  // Real notification feed - derived from the customer's actual current
+  // job and refund state, using the real timestamps already on those
+  // records (updatedAt, reviewedAt, paidAt). Not a separate event log
+  // that could miss an update - this reflects whatever is genuinely
+  // true right now, every time it's computed.
+  const notifications = useMemo(() => {
+    const items: Array<{ id: string; text: string; time: string; type: "info" | "success" | "warning" }> = [];
+    allJobs.forEach((j: any) => {
+      if (j.status === "Assigned" || j.status === "Acknowledged") {
+        items.push({ id: `${j.jobId}-assigned`, text: `A team member was assigned to your ${j.packageName}`, time: j.updatedAt, type: "info" });
+      }
+      if ((j.status === "Completed" || j.status === "Verified") && !j.customerRating) {
+        items.push({ id: `${j.jobId}-rate`, text: `Your ${j.packageName} is complete — rate your experience`, time: j.updatedAt, type: "info" });
+      }
+      if (j.customerRating) {
+        items.push({ id: `${j.jobId}-rated`, text: `Thanks for rating your ${j.packageName} ${j.customerRating} stars`, time: j.customerRatingSubmittedAt || j.updatedAt, type: "success" });
+      }
+      if (j.rescheduleRequestStatus === "approved") {
+        items.push({ id: `${j.jobId}-resched-ok`, text: `Your reschedule request was approved — now ${j.scheduledDate}`, time: j.updatedAt, type: "success" });
+      }
+      if (j.rescheduleRequestStatus === "rejected") {
+        items.push({ id: `${j.jobId}-resched-no`, text: `Your reschedule request wasn't approved`, time: j.updatedAt, type: "warning" });
+      }
+      if (j.status === "Cancelled") {
+        items.push({ id: `${j.jobId}-cancelled`, text: `Your ${j.packageName} booking was cancelled`, time: j.cancelledAt || j.updatedAt, type: "info" });
+      }
+    });
+    refundRequests.forEach((r) => {
+      if (r.status === "Approved") items.push({ id: `${r.id}-approved`, text: `Your refund of ₹${r.amount.toLocaleString("en-IN")} was approved`, time: r.reviewedAt || r.requestedAt, type: "success" });
+      if (r.status === "Rejected") items.push({ id: `${r.id}-rejected`, text: `Your refund request wasn't approved`, time: r.reviewedAt || r.requestedAt, type: "warning" });
+      if (r.status === "Paid") items.push({ id: `${r.id}-paid`, text: `Your refund of ₹${r.amount.toLocaleString("en-IN")} has been paid`, time: r.paidAt || r.requestedAt, type: "success" });
+    });
+    return items
+      .filter((n) => n.time)
+      .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 20);
+  }, [allJobs, refundRequests]);
+
   const today = new Date().toISOString().split("T")[0];
   const upcomingJobs = allJobs
     .filter((j: any) => j.scheduledDate >= today && j.status !== "Completed" && j.status !== "Verified" && j.status !== "Failed" && j.status !== "Cancelled")
@@ -251,6 +292,17 @@ export function CustomerPortalDashboard() {
     setRatingJobId(null);
   };
 
+  const unreadCount = lastViewedNotifAt
+    ? notifications.filter((n) => new Date(n.time).getTime() > new Date(lastViewedNotifAt).getTime()).length
+    : notifications.length;
+
+  const openNotifications = () => {
+    setNotifPanelOpen(true);
+    const now = new Date().toISOString();
+    localStorage.setItem("cc360_portal_notif_last_viewed", now);
+    setLastViewedNotifAt(now);
+  };
+
   const scrollToSection = (id: string) => {
     setMenuOpen(false);
     setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
@@ -292,6 +344,14 @@ export function CustomerPortalDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={openNotifications} className="relative text-gray-500 hover:text-gray-700 p-1">
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
           <button onClick={() => setMenuOpen(true)} className="text-gray-500 hover:text-gray-700 p-1">
             <Menu className="w-6 h-6" />
           </button>
@@ -575,6 +635,38 @@ export function CustomerPortalDashboard() {
                 <LogOut className="w-4 h-4" /> Log Out
               </button>
             </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Notification panel */}
+      {notifPanelOpen && (
+        <div className="fixed inset-0 z-30">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNotifPanelOpen(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-xl flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h3 className="font-semibold text-gray-900">Notifications</h3>
+              <button onClick={() => setNotifPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {notifications.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center mt-8">No notifications yet.</p>
+              ) : (
+                notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`p-3 rounded-lg text-sm ${
+                      n.type === "success" ? "bg-green-50 text-green-800" :
+                      n.type === "warning" ? "bg-amber-50 text-amber-800" :
+                      "bg-blue-50 text-blue-800"
+                    }`}
+                  >
+                    <p>{n.text}</p>
+                    <p className="text-xs opacity-60 mt-1">{new Date(n.time).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
