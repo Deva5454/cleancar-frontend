@@ -138,6 +138,43 @@ export interface ChangeLog {
 // confirm — a real entry only gets posted once a person clicks Confirm,
 // the same "don't silently trust automation with real money" caution
 // used for the GST auto-created transactions built earlier this week.
+// A customer-requested refund. Two things about this are DEFAULT
+// ASSUMPTIONS, not confirmed business rules — stated explicitly here so
+// they're easy to find and correct:
+//   1. ELIGIBILITY: currently allowed for a Cancelled job where payment
+//      was already collected (paymentStatus "Paid"), or a Failed job
+//      (a company-caused failure, matching the existing 3-consecutive-
+//      failures flag already in the codebase). Any other real business
+//      rule should replace isRefundEligible() below.
+//   2. HOW MONEY ACTUALLY MOVES BACK: there's no payment gateway in this
+//      app to auto-reverse a UPI/cash transaction, so "Approved" doesn't
+//      mean paid — a real staff member has to separately confirm the
+//      money was actually sent back, outside this app, then mark it
+//      Paid here. This is an honest reflection of a real technical
+//      constraint, not a shortcut.
+export interface RefundRequest {
+  id: string;
+  jobId: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected" | "Paid";
+  requestedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  paidAt?: string;
+  paymentReference?: string;
+  city: string;
+  cityId: string;
+}
+
+export function isRefundEligible(job: { status: string; paymentStatus?: string }): boolean {
+  if (job.status === "Cancelled" && job.paymentStatus === "Paid") return true;
+  if (job.status === "Failed") return true;
+  return false;
+}
+
 export interface RecurringTemplate {
   id: string;
   name: string;                 // "Monthly Office Rent", "ERP Software Subscription"
@@ -574,6 +611,73 @@ class AccountingEntryService {
     };
     DataService.setAll("RECURRING_TEMPLATES", all, cityId);
     return entry;
+  }
+
+  getRefundRequests(cityId?: string): RefundRequest[] {
+    return DataService.get<RefundRequest>("REFUND_REQUESTS", cityId);
+  }
+
+  requestRefund(data: Omit<RefundRequest, "id" | "status" | "requestedAt">, cityId: string): RefundRequest {
+    const all = this.getRefundRequests(cityId);
+    const request: RefundRequest = {
+      ...data,
+      id: `REFUND-${Date.now()}`,
+      status: "Pending",
+      requestedAt: new Date().toISOString(),
+    };
+    DataService.setAll("REFUND_REQUESTS", [...all, request], cityId);
+    return request;
+  }
+
+  // Approving posts a real, reversing ledger entry immediately — the
+  // same real createJournal() Credit/Debit Notes already use — so the
+  // books reflect the refund right away. This does NOT mean the money
+  // has actually reached the customer yet; see markRefundPaid() below.
+  approveRefund(refundId: string, cityId: string, cityName: string, reviewedBy: string): boolean {
+    const all = this.getRefundRequests(cityId);
+    const idx = all.findIndex((r) => r.id === refundId);
+    if (idx < 0) return false;
+    const refund = all[idx];
+    const ledgers = this.getLedgers(cityId);
+    const arLedger = ledgers.find((l) => l.name === "Accounts Receivable");
+    if (arLedger) {
+      this.createJournal(
+        {
+          date: new Date().toISOString().split("T")[0],
+          narration: `Refund approved — ${refund.customerName} — ${refund.reason}`,
+          lines: [{ accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${refund.customerName}`, debit: refund.amount, credit: 0 }],
+          city: cityName,
+          cityId,
+          createdBy: reviewedBy,
+        },
+        cityName
+      );
+    }
+    all[idx] = { ...refund, status: "Approved", reviewedBy, reviewedAt: new Date().toISOString() };
+    DataService.setAll("REFUND_REQUESTS", all, cityId);
+    return true;
+  }
+
+  rejectRefund(refundId: string, cityId: string, reviewedBy: string): boolean {
+    const all = this.getRefundRequests(cityId);
+    const idx = all.findIndex((r) => r.id === refundId);
+    if (idx < 0) return false;
+    all[idx] = { ...all[idx], status: "Rejected", reviewedBy, reviewedAt: new Date().toISOString() };
+    DataService.setAll("REFUND_REQUESTS", all, cityId);
+    return true;
+  }
+
+  // The manual confirmation step — there's no payment gateway in this
+  // app to auto-reverse a real UPI/cash transaction, so a staff member
+  // has to actually send the money back outside the app, then record
+  // that it genuinely happened here.
+  markRefundPaid(refundId: string, cityId: string, paymentReference: string): boolean {
+    const all = this.getRefundRequests(cityId);
+    const idx = all.findIndex((r) => r.id === refundId);
+    if (idx < 0) return false;
+    all[idx] = { ...all[idx], status: "Paid", paidAt: new Date().toISOString(), paymentReference };
+    DataService.setAll("REFUND_REQUESTS", all, cityId);
+    return true;
   }
 
   private getJournals(): JournalEntry[] {

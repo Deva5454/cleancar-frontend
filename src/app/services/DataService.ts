@@ -149,6 +149,7 @@ const STORAGE_KEYS = {
   LEAVE_REQUESTS:           "leave_requests",    // Leave request submit/approve/reject workflow
   WASHER_GPS_VIOLATIONS:    "washer_gps_violations", // Auto-checkout on GPS off + City Manager re-check-in approval
   RECURRING_TEMPLATES:      "recurring_templates",   // Saved monthly-recurring transaction templates
+  REFUND_REQUESTS:          "refund_requests",       // Customer refund requests, real approval workflow
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

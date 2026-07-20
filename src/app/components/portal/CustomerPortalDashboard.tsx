@@ -13,13 +13,16 @@
  * since that's a one-way action the customer can safely make themselves.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
+import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
+import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
+import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
 import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +48,11 @@ export function CustomerPortalDashboard() {
   const [newDate, setNewDate] = useState("");
   const [newSlot, setNewSlot] = useState("");
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
+  const { city, cityInfo } = useCity();
+  const [refundJobId, setRefundJobId] = useState<string | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
+  const refreshRefunds = () => setRefundRequests(accountingEntryService.getRefundRequests(city).filter((r) => r.customerId === loggedInCustomerId));
 
   const customer = useMemo(
     () => customers.find((c: any) => c.customerId === loggedInCustomerId),
@@ -108,6 +116,44 @@ export function CustomerPortalDashboard() {
     updateJob(cancelJobId, { status: "Cancelled", cancellationReason: "Cancelled by customer via portal", cancelledAt: new Date().toISOString() });
     toast.success("Wash cancelled.");
     setCancelJobId(null);
+  };
+
+  useEffect(() => {
+    if (loggedInCustomerId) refreshRefunds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedInCustomerId, city]);
+
+  const openRefundRequest = (job: any) => {
+    setRefundJobId(job.jobId);
+    setRefundReason("");
+  };
+
+  const submitRefundRequest = () => {
+    if (!refundJobId || !customer) return;
+    const job = allJobs.find((j: any) => j.jobId === refundJobId);
+    if (!job) return;
+    const category = job.vehicleDetails?.category as VehicleCategory | undefined;
+    const planType = job.packageType as PlanType | undefined;
+    const realAmount = category && planType ? getSubscriptionPrice(category, planType) : "NA";
+    accountingEntryService.requestRefund(
+      {
+        jobId: job.jobId,
+        customerId: customer.customerId,
+        customerName: `${customer.firstName} ${customer.lastName}`,
+        amount: typeof realAmount === "number" ? realAmount : 0,
+        reason: refundReason || "Requested via customer portal",
+        city: cityInfo.displayName,
+        cityId: city,
+      },
+      city
+    );
+    if (realAmount === "NA") {
+      toast.info("Request submitted — the amount will need to be confirmed manually during review.");
+    } else {
+      toast.success("Refund request submitted — you'll be notified once it's reviewed.");
+    }
+    setRefundJobId(null);
+    refreshRefunds();
   };
 
   const handleLogout = () => {
@@ -230,13 +276,25 @@ export function CustomerPortalDashboard() {
             </div>
           ) : (
             <div className="space-y-2">
-              {pastJobs.slice(0, 10).map((job: any) => (
-                <div key={job.jobId} className="bg-white rounded-xl border p-4">
-                  <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate}</p>
-                  <p className="text-xs text-gray-400 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
-                </div>
-              ))}
+              {pastJobs.slice(0, 10).map((job: any) => {
+                const existingRefund = refundRequests.find((r) => r.jobId === job.jobId);
+                return (
+                  <div key={job.jobId} className="bg-white rounded-xl border p-4">
+                    <p className="font-medium text-gray-900 text-sm">{job.packageName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{job.scheduledDate}</p>
+                    <p className="text-xs text-gray-400 mt-1">{JOB_STATUS_LABELS[job.status] || job.status}</p>
+                    {existingRefund ? (
+                      <p className={`text-xs mt-2 ${existingRefund.status === "Paid" ? "text-green-600" : existingRefund.status === "Rejected" ? "text-red-600" : "text-amber-600"}`}>
+                        Refund {existingRefund.status.toLowerCase()}
+                      </p>
+                    ) : isRefundEligible(job) ? (
+                      <button onClick={() => openRefundRequest(job)} className="text-xs text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5 mt-2">
+                        Request Refund
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -301,6 +359,25 @@ export function CustomerPortalDashboard() {
                 Yes, cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund request modal */}
+      {refundJobId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-20 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Request a Refund</h3>
+              <button onClick={() => setRefundJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">A team member will review this request. You'll see the real status here once it's decided.</p>
+            <label className="text-xs text-gray-500 mb-1 block">Reason (optional)</label>
+            <textarea value={refundReason} onChange={(e) => setRefundReason(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} placeholder="Tell us what happened" />
+            <button onClick={submitRefundRequest} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Submit Request
+            </button>
           </div>
         </div>
       )}
