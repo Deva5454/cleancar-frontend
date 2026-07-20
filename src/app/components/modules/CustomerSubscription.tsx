@@ -77,6 +77,10 @@ export function CustomerSubscription() {
           onClick: () => navigate("/subscription/plan-management"),
           icon: <Settings className="w-4 h-4 mr-2" />,
         }}
+        secondaryAction={{
+          label: "Preview Customer Portal",
+          onClick: () => window.open("/portal/login", "_blank"),
+        }}
         breadcrumbs={[
           { label: "Dashboard", onClick: () => navigate("/") },
           { label: "Customers" },
