@@ -166,9 +166,19 @@ export function CustomerPortalDashboard() {
 
   useEffect(() => {
     if (customers.length === 0) return;
-    const result = seedPortalTestData({ customers, createJob, updateJob });
-    if (result.seeded) {
-      toast.info(`Test data seeded — ${result.count} sample jobs added for feature testing.`);
+    try {
+      const result = seedPortalTestData({ customers, createJob, updateJob });
+      if (result.seeded) {
+        const msg = result.failures > 0
+          ? `Test data seeded — ${result.count} added, ${result.failures} skipped (see console).`
+          : `Test data seeded — ${result.count} sample jobs added for feature testing.`;
+        toast.info(msg);
+      }
+    } catch (err) {
+      // Defense in depth - even if something inside the seed function
+      // itself throws unexpectedly, this must never crash the real
+      // customer's dashboard.
+      console.error("[portalTestDataSeed] Seeding failed entirely, dashboard unaffected:", err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers.length]);
