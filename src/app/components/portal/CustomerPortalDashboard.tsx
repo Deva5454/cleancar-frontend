@@ -49,6 +49,7 @@ export function CustomerPortalDashboard() {
   const [newSlot, setNewSlot] = useState("");
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const { city, cityInfo } = useCity();
   const [refundJobId, setRefundJobId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
@@ -397,7 +398,7 @@ export function CustomerPortalDashboard() {
             </div>
             <nav className="space-y-1">
               <button
-                onClick={() => { setMenuOpen(false); setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100); }}
+                onClick={() => { setMenuOpen(false); setAccountPanelOpen(true); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
               >
                 <User className="w-4 h-4 text-gray-500" /> My Account
@@ -434,6 +435,62 @@ export function CustomerPortalDashboard() {
                 <LogOut className="w-4 h-4" /> Log Out
               </button>
             </nav>
+          </div>
+        </div>
+      )}
+
+      {/* My Account panel */}
+      {accountPanelOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">My Account</h3>
+              <button onClick={() => setAccountPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-semibold">
+                {customer.firstName?.[0] || "?"}
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{customer.firstName} {customer.lastName}</p>
+                {customer.createdAt && (
+                  <p className="text-xs text-gray-400">Member since {new Date(customer.createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-gray-500">Phone</span>
+                <span className="text-gray-900 font-medium">{customer.phone}</span>
+              </div>
+              {customer.email && (
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-gray-500">Email</span>
+                  <span className="text-gray-900 font-medium">{customer.email}</span>
+                </div>
+              )}
+              {customer.vehicleDetails && (
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-gray-500">Vehicle</span>
+                  <span className="text-gray-900 font-medium text-right">
+                    {customer.vehicleDetails.brand} · {customer.vehicleDetails.color}
+                    <br />
+                    <span className="text-xs text-gray-500">{customer.vehicleDetails.registrationNumber}</span>
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-500">Address</span>
+                <span className="text-gray-900 font-medium text-right">
+                  {customer.address?.line1}
+                  {customer.address?.line2 ? `, ${customer.address.line2}` : ""}
+                  <br />
+                  {customer.address?.area}, {customer.address?.city} {customer.address?.pinCode}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       )}
