@@ -18,6 +18,8 @@ import {
   PLAN_TIER_NAMES,
   getSubscriptionPrice,
   CURRENT_PLAN_VERSION,
+  ADD_ON_SERVICES,
+  getAddonPrice,
   type VehicleCategory,
   type PlanType,
 } from "../../data/subscriptionPlans";
@@ -48,6 +50,17 @@ export function CustomerPortalBooking() {
   const [scheduledDate, setScheduledDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+
+  const toggleAddon = (id: string) => {
+    setSelectedAddons((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]);
+  };
+  const addonsTotal = vehicleCategory
+    ? selectedAddons.reduce((sum, id) => {
+        const price = getAddonPrice(id, vehicleCategory);
+        return sum + (typeof price === "number" ? price : 0);
+      }, 0)
+    : 0;
 
   const priceForSelected = vehicleCategory && plan ? getSubscriptionPrice(vehicleCategory, plan) : null;
 
@@ -83,7 +96,13 @@ export function CustomerPortalBooking() {
         city: customer.address?.city || "",
         pinCode: customer.address?.pinCode || "",
       },
-      serviceDetails: {},
+      serviceDetails: {
+        addons: selectedAddons.map((id) => {
+          const addon = ADD_ON_SERVICES.find((a) => a.id === id);
+          const price = vehicleCategory ? getAddonPrice(id, vehicleCategory) : 0;
+          return { id, name: addon?.name || id, price: typeof price === "number" ? price : 0 };
+        }),
+      },
     } as any);
     setTimeout(() => {
       toast.success("Booking confirmed! You'll get a real notification once a team member is assigned.");
@@ -166,8 +185,56 @@ export function CustomerPortalBooking() {
           </div>
         )}
 
-        {/* Step 2: Vehicle details */}
+        {/* Step 2: Add-ons - real add-on catalog, real per-vehicle pricing */}
         {step === 2 && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Add extras to this wash?</p>
+              <p className="text-xs text-gray-400 mt-0.5">Optional — skip if you'd just like the base plan.</p>
+            </div>
+            <div className="space-y-2">
+              {ADD_ON_SERVICES.filter((a) => a.isActive).map((addon) => {
+                const price = vehicleCategory ? getAddonPrice(addon.id, vehicleCategory) : "NA";
+                if (price === "NA") return null;
+                const recommended = plan ? addon.bestPairedWith.includes(plan as PlanType) : false;
+                const isSelected = selectedAddons.includes(addon.id);
+                return (
+                  <button
+                    key={addon.id}
+                    onClick={() => toggleAddon(addon.id)}
+                    className={`w-full text-left p-4 rounded-xl border ${isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg leading-none">{addon.icon}</span>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {addon.name}
+                            {recommended && <span className="text-xs text-blue-600 font-normal ml-2">Recommended for your plan</span>}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">{addon.description}</p>
+                        </div>
+                      </div>
+                      <p className="font-bold text-gray-900 text-sm whitespace-nowrap">+₹{price}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {addonsTotal > 0 && (
+              <p className="text-sm text-gray-600 text-right">Add-ons total: <span className="font-bold text-gray-900">₹{addonsTotal}</span></p>
+            )}
+            <button
+              onClick={() => setStep(3)}
+              className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium"
+            >
+              {selectedAddons.length > 0 ? "Continue" : "Skip"}
+            </button>
+          </div>
+        )}
+
+        {/* Step 3: Vehicle details */}
+        {step === 3 && (
           <div className="space-y-4">
             <p className="text-sm font-medium text-gray-700">Vehicle Details</p>
             <div className="bg-white rounded-xl border p-4 space-y-3">
@@ -188,7 +255,7 @@ export function CustomerPortalBooking() {
               </div>
             </div>
             <button
-              onClick={() => setStep(3)}
+              onClick={() => setStep(4)}
               disabled={!regNumber || !vehicleBrand}
               className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium disabled:opacity-40"
             >
@@ -197,8 +264,8 @@ export function CustomerPortalBooking() {
           </div>
         )}
 
-        {/* Step 3: Schedule + confirm */}
-        {step === 3 && (
+        {/* Step 4: Schedule + confirm */}
+        {step === 4 && (
           <div className="space-y-4">
             <p className="text-sm font-medium text-gray-700">When should we come?</p>
             <div className="bg-white rounded-xl border p-4 space-y-3">
@@ -228,7 +295,20 @@ export function CustomerPortalBooking() {
                 <p>{PLAN_TIER_NAMES[plan as string] || plan} — {vehicleCategory}</p>
                 <p>{vehicleBrand}, {vehicleColor} · {regNumber}</p>
                 <p>{scheduledDate} · {timeSlot}</p>
-                <p className="font-bold text-gray-900 pt-2 border-t mt-2">₹{priceForSelected}/month</p>
+                {selectedAddons.length > 0 && (
+                  <div className="pt-1">
+                    {selectedAddons.map((id) => {
+                      const addon = ADD_ON_SERVICES.find((a) => a.id === id);
+                      const price = vehicleCategory ? getAddonPrice(id, vehicleCategory) : "NA";
+                      if (!addon || price === "NA") return null;
+                      return <p key={id} className="text-xs">+ {addon.name} — ₹{price}</p>;
+                    })}
+                  </div>
+                )}
+                <p className="font-bold text-gray-900 pt-2 border-t mt-2">
+                  ₹{(typeof priceForSelected === "number" ? priceForSelected : 0) + addonsTotal}
+                  <span className="text-xs font-normal text-gray-500">/month{addonsTotal > 0 ? " + add-ons" : ""}</span>
+                </p>
               </div>
             </div>
 
