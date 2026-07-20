@@ -23,9 +23,10 @@ import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
 import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
 import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star } from "lucide-react";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star, Tag } from "lucide-react";
 import { toast } from "sonner";
-import { seedPortalTestData } from "../../services/portalTestDataSeed";
+import { seedPortalTestData, seedSampleOffers } from "../../services/portalTestDataSeed";
+import { planSyncService } from "../../services/planSyncService";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
   Unassigned: "Scheduled",
@@ -118,6 +119,15 @@ export function CustomerPortalDashboard() {
   );
   const activeSubscription = subscriptions.find((s: any) => s.status === "Active");
 
+  const activePromotions = useMemo(
+    () => planSyncService.getPromotions().filter((p) => p.active && p.startDate <= today && p.endDate >= today),
+    [today]
+  );
+  const activeCoupons = useMemo(
+    () => planSyncService.getCoupons().filter((c) => c.active && c.validFrom <= today && c.validTo >= today && c.usedCount < c.maxUses),
+    [today]
+  );
+
   const openReschedule = (job: any) => {
     if (job.rescheduleRequestStatus === "pending") {
       toast.info("A reschedule request for this booking is already pending approval.");
@@ -179,6 +189,11 @@ export function CustomerPortalDashboard() {
       // itself throws unexpectedly, this must never crash the real
       // customer's dashboard.
       console.error("[portalTestDataSeed] Seeding failed entirely, dashboard unaffected:", err);
+    }
+    try {
+      seedSampleOffers(planSyncService);
+    } catch (err) {
+      console.error("[portalTestDataSeed] Offers seeding failed, dashboard unaffected:", err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers.length]);
@@ -298,6 +313,35 @@ export function CustomerPortalDashboard() {
           </div>
           <Car className="w-8 h-8 opacity-90" />
         </button>
+
+        {/* Active Offers - real data, business-managed */}
+        {(activePromotions.length > 0 || activeCoupons.length > 0) && (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+              <Tag className="w-4 h-4 text-orange-600" /> Offers For You
+            </h2>
+            <div className="space-y-2">
+              {activePromotions.map((promo) => (
+                <div key={promo.id} className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                  <p className="text-sm font-semibold text-orange-900">{promo.badge || promo.name}</p>
+                  <p className="text-xs text-orange-700 mt-0.5">{promo.description}</p>
+                  {!promo.autoApply && <p className="text-xs text-orange-600 mt-1">Applied automatically at checkout</p>}
+                </div>
+              ))}
+              {activeCoupons.map((coupon) => (
+                <div key={coupon.id} className="bg-white border border-dashed border-orange-300 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 tracking-wide">{coupon.code}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{coupon.description}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-orange-700">
+                    {coupon.type === "percent" ? `${coupon.value}% off` : `₹${coupon.value} off`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Active subscription card */}
         {activeSubscription && (

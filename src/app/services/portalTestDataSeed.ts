@@ -138,3 +138,70 @@ export function seedPortalTestData(ctx: SeedContext): { seeded: boolean; count: 
   markPortalTestDataSeeded();
   return { seeded: true, count, failures };
 }
+
+// ── Sample offers, seeded on the business side itself ──────────────────────
+//
+// Checked first: the real admin Discounts & Offers screen (planSyncService)
+// starts genuinely empty until staff create something real there. Rather
+// than fake an "offers" display on the customer portal with data that
+// doesn't exist anywhere real, this seeds one sample promotion and one
+// sample coupon using the exact same real addPromotion()/addCoupon()
+// functions the admin screen itself calls — so it shows up there too,
+// fully visible and editable by staff, not a customer-portal-only fake.
+// Same real one-time migration pattern as the job seed above.
+
+const OFFERS_SEED_KEY = "PORTAL_OFFERS_SEED_V1";
+
+export function hasSeededOffers(): boolean {
+  return localStorage.getItem(OFFERS_SEED_KEY) === "DONE";
+}
+
+export interface OffersSeedService {
+  getPromotions: () => any[];
+  addPromotion: (p: any) => any;
+  addCoupon: (c: any) => any;
+}
+
+export function seedSampleOffers(service: OffersSeedService): boolean {
+  if (hasSeededOffers()) return false;
+  try {
+    const existing = service.getPromotions();
+    if (existing.length === 0) {
+      const today = new Date();
+      const in30Days = new Date(today);
+      in30Days.setDate(in30Days.getDate() + 30);
+      service.addPromotion({
+        name: "Welcome Offer [SAMPLE]",
+        description: "10% off your first month on any plan",
+        type: "percent",
+        value: 10,
+        applicablePlans: [],
+        startDate: today.toISOString().split("T")[0],
+        endDate: in30Days.toISOString().split("T")[0],
+        active: true,
+        autoApply: true,
+        badge: "🎉 Welcome Offer",
+        createdBy: "System [SAMPLE]",
+      });
+      service.addCoupon({
+        code: "SAVE20",
+        type: "flat",
+        value: 100,
+        minOrderValue: 500,
+        maxUses: 100,
+        validFrom: today.toISOString().split("T")[0],
+        validTo: in30Days.toISOString().split("T")[0],
+        applicablePlans: [],
+        active: true,
+        description: "₹100 off on orders above ₹500 [SAMPLE]",
+        createdBy: "System [SAMPLE]",
+      });
+    }
+    localStorage.setItem(OFFERS_SEED_KEY, "DONE");
+    return true;
+  } catch (err) {
+    console.warn("[portalTestDataSeed] Could not seed sample offers:", err);
+    localStorage.setItem(OFFERS_SEED_KEY, "DONE"); // don't retry forever
+    return false;
+  }
+}
