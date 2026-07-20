@@ -51,6 +51,10 @@ export function CustomerPortalBooking() {
   const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[0]);
   const [submitting, setSubmitting] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [vehicleQueue, setVehicleQueue] = useState<Array<{
+    vehicleCategory: VehicleCategory; modelInput: string; plan: PlanType;
+    regNumber: string; vehicleBrand: string; vehicleColor: string; selectedAddons: string[];
+  }>>([]);
 
   const toggleAddon = (id: string) => {
     setSelectedAddons((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]);
@@ -64,6 +68,37 @@ export function CustomerPortalBooking() {
 
   const priceForSelected = vehicleCategory && plan ? getSubscriptionPrice(vehicleCategory, plan) : null;
 
+  const priceForVehicle = (category: VehicleCategory, planType: PlanType, addons: string[]) => {
+    const base = getSubscriptionPrice(category, planType);
+    const baseNum = typeof base === "number" ? base : 0;
+    const addonsSum = addons.reduce((sum, id) => {
+      const p = getAddonPrice(id, category);
+      return sum + (typeof p === "number" ? p : 0);
+    }, 0);
+    return baseNum + addonsSum;
+  };
+
+  const grandTotal =
+    vehicleQueue.reduce((sum, v) => sum + priceForVehicle(v.vehicleCategory, v.plan, v.selectedAddons), 0) +
+    (vehicleCategory && plan ? priceForVehicle(vehicleCategory, plan, selectedAddons) : 0);
+
+  const resetVehicleFields = () => {
+    setModelInput(""); setVehicleCategory(""); setPlan(""); setSelectedAddons([]);
+    setRegNumber(""); setVehicleBrand(""); setVehicleColor("");
+  };
+
+  const addAnotherVehicle = () => {
+    if (!vehicleCategory || !plan || !regNumber || !vehicleBrand) return;
+    setVehicleQueue((prev) => [...prev, { vehicleCategory, modelInput, plan, regNumber, vehicleBrand, vehicleColor, selectedAddons }]);
+    resetVehicleFields();
+    setStep(1);
+    toast.success("Vehicle added — configure the next one.");
+  };
+
+  const removeQueuedVehicle = (index: number) => {
+    setVehicleQueue((prev) => prev.filter((_, i) => i !== index));
+  };
+
   if (!loggedInCustomerId || !customer) {
     navigate("/portal/login");
     return null;
@@ -75,40 +110,54 @@ export function CustomerPortalBooking() {
       return;
     }
     setSubmitting(true);
-    const job = createJob({
-      customerId: customer.customerId,
-      scheduledDate,
-      timeSlot,
-      status: "Unassigned",
-      jobType: "Regular",
-      paymentStatus: "Pending",
-      packageName: `${PLAN_TIER_NAMES[plan] || plan}`,
-      packageType: plan,
-      vehicleDetails: {
-        category: vehicleCategory,
-        color: vehicleColor,
-        brand: vehicleBrand,
-        registration: regNumber,
-      },
-      location: {
-        addressLine1: customer.address?.line1 || "",
-        area: customer.address?.area || "",
-        city: customer.address?.city || "",
-        pinCode: customer.address?.pinCode || "",
-      },
-      serviceDetails: {
-        addons: selectedAddons.map((id) => {
-          const addon = ADD_ON_SERVICES.find((a) => a.id === id);
-          const price = vehicleCategory ? getAddonPrice(id, vehicleCategory) : 0;
-          return { id, name: addon?.name || id, price: typeof price === "number" ? price : 0 };
-        }),
-      },
-    } as any);
+
+    const allVehicles = [
+      ...vehicleQueue,
+      { vehicleCategory, modelInput, plan, regNumber, vehicleBrand, vehicleColor, selectedAddons },
+    ];
+
+    allVehicles.forEach((v) => {
+      createJob({
+        customerId: customer.customerId,
+        scheduledDate,
+        timeSlot,
+        status: "Unassigned",
+        jobType: "Regular",
+        paymentStatus: "Pending",
+        packageName: `${PLAN_TIER_NAMES[v.plan] || v.plan}`,
+        packageType: v.plan,
+        vehicleDetails: {
+          category: v.vehicleCategory,
+          color: v.vehicleColor,
+          brand: v.vehicleBrand,
+          registration: v.regNumber,
+        },
+        location: {
+          addressLine1: customer.address?.line1 || "",
+          area: customer.address?.area || "",
+          city: customer.address?.city || "",
+          pinCode: customer.address?.pinCode || "",
+        },
+        serviceDetails: {
+          addons: v.selectedAddons.map((id) => {
+            const addon = ADD_ON_SERVICES.find((a) => a.id === id);
+            const price = getAddonPrice(id, v.vehicleCategory);
+            return { id, name: addon?.name || id, price: typeof price === "number" ? price : 0 };
+          }),
+        },
+      } as any);
+    });
+
     setTimeout(() => {
-      toast.success("Booking confirmed! You'll get a real notification once a team member is assigned.");
+      toast.success(
+        allVehicles.length > 1
+          ? `${allVehicles.length} bookings confirmed! You'll get a real notification once each is assigned.`
+          : "Booking confirmed! You'll get a real notification once a team member is assigned."
+      );
       navigate("/portal/dashboard");
     }, 400);
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,6 +173,17 @@ export function CustomerPortalBooking() {
         {/* Step 1: Car model (auto-detects category) + plan */}
         {step === 1 && (
           <div className="space-y-5">
+            {vehicleQueue.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1.5">
+                <p className="text-xs font-medium text-blue-800">Vehicles in this booking ({vehicleQueue.length})</p>
+                {vehicleQueue.map((v, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs text-blue-700">
+                    <span>{v.vehicleBrand} ({v.vehicleCategory}) — {PLAN_TIER_NAMES[v.plan] || v.plan}</span>
+                    <button onClick={() => removeQueuedVehicle(i)} className="text-red-600">Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">What car do you drive?</p>
               <input
@@ -259,7 +319,14 @@ export function CustomerPortalBooking() {
               disabled={!regNumber || !vehicleBrand}
               className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium disabled:opacity-40"
             >
-              Continue
+              Continue to Schedule
+            </button>
+            <button
+              onClick={addAnotherVehicle}
+              disabled={!regNumber || !vehicleBrand}
+              className="w-full border border-blue-200 text-blue-700 rounded-xl py-3 font-medium disabled:opacity-40"
+            >
+              + Add Another Vehicle
             </button>
           </div>
         )}
@@ -290,24 +357,35 @@ export function CustomerPortalBooking() {
 
             {/* Summary */}
             <div className="bg-white rounded-xl border p-4">
-              <p className="text-sm font-semibold text-gray-900 mb-2">Booking Summary</p>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>{PLAN_TIER_NAMES[plan as string] || plan} — {vehicleCategory}</p>
-                <p>{vehicleBrand}, {vehicleColor} · {regNumber}</p>
-                <p>{scheduledDate} · {timeSlot}</p>
-                {selectedAddons.length > 0 && (
-                  <div className="pt-1">
-                    {selectedAddons.map((id) => {
-                      const addon = ADD_ON_SERVICES.find((a) => a.id === id);
-                      const price = vehicleCategory ? getAddonPrice(id, vehicleCategory) : "NA";
-                      if (!addon || price === "NA") return null;
-                      return <p key={id} className="text-xs">+ {addon.name} — ₹{price}</p>;
-                    })}
+              <p className="text-sm font-semibold text-gray-900 mb-2">
+                Booking Summary {vehicleQueue.length > 0 && `(${vehicleQueue.length + 1} vehicles)`}
+              </p>
+              <div className="text-sm text-gray-600 space-y-3">
+                {vehicleQueue.map((v, i) => (
+                  <div key={i} className="pb-2 border-b">
+                    <p>{PLAN_TIER_NAMES[v.plan] || v.plan} — {v.vehicleCategory}</p>
+                    <p className="text-xs">{v.vehicleBrand}, {v.vehicleColor} · {v.regNumber}</p>
+                    <p className="text-xs font-semibold text-gray-900">₹{priceForVehicle(v.vehicleCategory, v.plan, v.selectedAddons)}</p>
                   </div>
-                )}
+                ))}
+                <div>
+                  <p>{PLAN_TIER_NAMES[plan as string] || plan} — {vehicleCategory}</p>
+                  <p className="text-xs">{vehicleBrand}, {vehicleColor} · {regNumber}</p>
+                  {selectedAddons.length > 0 && (
+                    <div className="pt-1">
+                      {selectedAddons.map((id) => {
+                        const addon = ADD_ON_SERVICES.find((a) => a.id === id);
+                        const price = vehicleCategory ? getAddonPrice(id, vehicleCategory) : "NA";
+                        if (!addon || price === "NA") return null;
+                        return <p key={id} className="text-xs">+ {addon.name} — ₹{price}</p>;
+                      })}
+                    </div>
+                  )}
+                </div>
+                <p>{scheduledDate} · {timeSlot} <span className="text-xs">(same time for all vehicles)</span></p>
                 <p className="font-bold text-gray-900 pt-2 border-t mt-2">
-                  ₹{(typeof priceForSelected === "number" ? priceForSelected : 0) + addonsTotal}
-                  <span className="text-xs font-normal text-gray-500">/month{addonsTotal > 0 ? " + add-ons" : ""}</span>
+                  ₹{grandTotal}
+                  <span className="text-xs font-normal text-gray-500">/month total</span>
                 </p>
               </div>
             </div>
@@ -325,7 +403,7 @@ export function CustomerPortalBooking() {
               disabled={submitting}
               className="w-full bg-green-600 text-white rounded-xl py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <Check className="w-4 h-4" /> {submitting ? "Confirming..." : "Confirm Booking"}
+              <Check className="w-4 h-4" /> {submitting ? "Confirming..." : vehicleQueue.length > 0 ? `Confirm ${vehicleQueue.length + 1} Bookings` : "Confirm Booking"}
             </button>
           </div>
         )}
