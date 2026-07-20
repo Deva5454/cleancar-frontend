@@ -16,7 +16,14 @@
  *   GET  /api/v1/plans/matrix    → pricing matrix by plan name → vehicle category
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1").replace(/\/$/, "");
+// If VITE_API_URL isn't explicitly set, there is no real backend to call —
+// defaulting to localhost:3000 made sense for local development, but in a
+// deployed build with nothing configured, that "default" would still
+// attempt a real network request and fail every time. API_ENABLED reflects
+// the honest truth: there's a real backend configured, or there isn't.
+const CONFIGURED_API_URL = import.meta.env.VITE_API_URL;
+const API_ENABLED = Boolean(CONFIGURED_API_URL);
+const BASE_URL = (CONFIGURED_API_URL || "http://localhost:3000/api/v1").replace(/\/$/, "");
 
 // ── Auth token helper ─────────────────────────────────────────────────────────
 // Reads the JWT from whatever key your auth context stores it under.
@@ -85,6 +92,7 @@ class PlanApiServiceClass {
   }
 
   private shouldSkipApi(): boolean {
+    if (!API_ENABLED) return true; // No real backend configured — never attempt a call
     if (!this.apiUnreachable) return false;
     // Allow retry after 10 minutes
     if (Date.now() - this.lastFailTs > this.RETRY_AFTER) {
@@ -117,6 +125,7 @@ class PlanApiServiceClass {
   }
 
   async upsertTier(tier: Omit<ApiPlanTier, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<ApiPlanTier | null> {
+    if (!API_ENABLED) return null;
     try {
       const res = await fetch(`${BASE_URL}/plans/tiers`, {
         method: "POST",
@@ -166,6 +175,7 @@ class PlanApiServiceClass {
   }
 
   async upsertAddon(addon: Omit<ApiPlanAddon, "createdAt" | "updatedAt"> & { id?: string }): Promise<ApiPlanAddon | null> {
+    if (!API_ENABLED) return null;
     try {
       const res = await fetch(`${BASE_URL}/plans/addons`, {
         method: "POST",
@@ -185,6 +195,7 @@ class PlanApiServiceClass {
   // ── PRICING MATRIX ─────────────────────────────────────────────────────────
 
   async getPricingMatrix(): Promise<Record<string, Record<string, number>>> {
+    if (!API_ENABLED) return {};
     try {
       const res = await fetch(`${BASE_URL}/plans/matrix`);
       if (!res.ok) throw new Error(`GET /plans/matrix failed: ${res.status}`);
