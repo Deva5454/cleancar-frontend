@@ -25,6 +25,7 @@ import { accountingEntryService, isRefundEligible, type RefundRequest } from "..
 import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
 import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star } from "lucide-react";
 import { toast } from "sonner";
+import { seedPortalTestData } from "../../services/portalTestDataSeed";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
   Unassigned: "Scheduled",
@@ -75,7 +76,7 @@ function JobStatusStrip({ status }: { status: string }) {
 export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
   const { customers } = useCustomers();
-  const { getJobsByCustomerId, updateJob } = useJobs();
+  const { getJobsByCustomerId, updateJob, createJob } = useJobs();
   const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
   const navigate = useNavigate();
 
@@ -162,6 +163,15 @@ export function CustomerPortalDashboard() {
     if (loggedInCustomerId) refreshRefunds();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedInCustomerId, city]);
+
+  useEffect(() => {
+    if (customers.length === 0) return;
+    const result = seedPortalTestData({ customers, createJob, updateJob });
+    if (result.seeded) {
+      toast.info(`Test data seeded — ${result.count} sample jobs added for feature testing.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers.length]);
 
   const openRefundRequest = (job: any) => {
     setRefundJobId(job.jobId);
