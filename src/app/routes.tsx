@@ -268,6 +268,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 import { MobileChangeRequest } from "./components/hr/MobileChangeRequest";
 const MyAccountPage = lazy(() => import("./components/hr/MyAccountPage"));
 import { AppProvider } from "./contexts/AppProvider";
+import { CustomerPortalProvider } from "./contexts/CustomerPortalProvider";
 import WasherTrackingPageDirect from "./components/washer/WasherTrackingPage";
 const CustomerPortalLogin = lazy(() => import("./components/portal/CustomerPortalLogin"));
 const CustomerPortalDashboard = lazy(() => import("./components/portal/CustomerPortalDashboard"));
@@ -307,15 +308,15 @@ export const router = createBrowserRouter([
   },
   {
     path: "/portal/login",
-    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalLogin /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
+    element: <ErrorBoundary><CustomerPortalProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalLogin /></Suspense></CustomerPortalAuthProvider></CustomerPortalProvider></ErrorBoundary>,
   },
   {
     path: "/portal/dashboard",
-    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalDashboard /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
+    element: <ErrorBoundary><CustomerPortalProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalDashboard /></Suspense></CustomerPortalAuthProvider></CustomerPortalProvider></ErrorBoundary>,
   },
   {
     path: "/portal/book",
-    element: <ErrorBoundary><AppProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalBooking /></Suspense></CustomerPortalAuthProvider></AppProvider></ErrorBoundary>,
+    element: <ErrorBoundary><CustomerPortalProvider><CustomerPortalAuthProvider><Suspense fallback={<PageLoader />}><CustomerPortalBooking /></Suspense></CustomerPortalAuthProvider></CustomerPortalProvider></ErrorBoundary>,
   },
 
   // Main application routes with layout
