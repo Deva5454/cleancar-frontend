@@ -14,7 +14,6 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
 import {
-  VEHICLE_CATEGORIES,
   PLAN_TYPES,
   PLAN_TIER_NAMES,
   getSubscriptionPrice,
@@ -22,6 +21,7 @@ import {
   type VehicleCategory,
   type PlanType,
 } from "../../data/subscriptionPlans";
+import { detectVehicleCategory } from "./carModelLookup";
 import { ChevronLeft, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +40,7 @@ export function CustomerPortalBooking() {
 
   const [step, setStep] = useState(1);
   const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory | "">("");
+  const [modelInput, setModelInput] = useState("");
   const [plan, setPlan] = useState<PlanType | "">("");
   const [regNumber, setRegNumber] = useState(customer?.vehicleDetails?.registrationNumber || "");
   const [vehicleBrand, setVehicleBrand] = useState(customer?.vehicleDetails?.brand || "");
@@ -101,22 +102,32 @@ export function CustomerPortalBooking() {
 
       <div className="p-4 max-w-2xl mx-auto">
 
-        {/* Step 1: Vehicle type + plan */}
+        {/* Step 1: Car model (auto-detects category) + plan */}
         {step === 1 && (
           <div className="space-y-5">
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Vehicle Type</p>
-              <div className="grid grid-cols-2 gap-2">
-                {VEHICLE_CATEGORIES.map((vc) => (
-                  <button
-                    key={vc}
-                    onClick={() => { setVehicleCategory(vc); setPlan(""); }}
-                    className={`text-left p-3 rounded-xl border text-sm ${vehicleCategory === vc ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}
-                  >
-                    {vc}
-                  </button>
-                ))}
-              </div>
+              <p className="text-sm font-medium text-gray-700 mb-2">What car do you drive?</p>
+              <input
+                value={modelInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setModelInput(val);
+                  const detected = detectVehicleCategory(val);
+                  setVehicleCategory(detected || "");
+                  setPlan("");
+                }}
+                placeholder="e.g. Hyundai Creta, Maruti Swift"
+                className="w-full border rounded-xl px-4 py-3 text-base"
+              />
+              {modelInput.trim() && (
+                vehicleCategory ? (
+                  <p className="text-xs text-green-700 mt-2">✓ Recognized as {vehicleCategory}</p>
+                ) : (
+                  <p className="text-xs text-amber-700 mt-2">
+                    We couldn't recognize this model — please check the spelling, or try including the brand name (e.g. "Maruti Swift" instead of just "Swift").
+                  </p>
+                )
+              )}
             </div>
 
             {vehicleCategory && (
@@ -146,7 +157,7 @@ export function CustomerPortalBooking() {
             )}
 
             <button
-              onClick={() => setStep(2)}
+              onClick={() => { if (!vehicleBrand) setVehicleBrand(modelInput); setStep(2); }}
               disabled={!vehicleCategory || !plan}
               className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium disabled:opacity-40"
             >
