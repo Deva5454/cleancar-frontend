@@ -23,7 +23,7 @@ import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
 import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
 import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock } from "lucide-react";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User } from "lucide-react";
 import { toast } from "sonner";
 
 const JOB_STATUS_LABELS: Record<string, string> = {
@@ -48,6 +48,7 @@ export function CustomerPortalDashboard() {
   const [newDate, setNewDate] = useState("");
   const [newSlot, setNewSlot] = useState("");
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { city, cityInfo } = useCity();
   const [refundJobId, setRefundJobId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
@@ -156,6 +157,11 @@ export function CustomerPortalDashboard() {
     refreshRefunds();
   };
 
+  const scrollToSection = (id: string) => {
+    setMenuOpen(false);
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/portal/login");
@@ -179,9 +185,14 @@ export function CustomerPortalDashboard() {
             <p className="text-xs text-gray-500">{customer.phone}</p>
           </div>
         </div>
-        <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600">
-          <LogOut className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMenuOpen(true)} className="text-gray-500 hover:text-gray-700 p-1">
+            <Menu className="w-6 h-6" />
+          </button>
+          <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600">
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="p-4 max-w-2xl mx-auto space-y-5">
@@ -211,7 +222,7 @@ export function CustomerPortalDashboard() {
 
         {/* Upcoming bookings */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <h2 id="upcoming-section" className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-blue-600" /> Upcoming
           </h2>
           {upcomingJobs.length === 0 ? (
@@ -267,7 +278,7 @@ export function CustomerPortalDashboard() {
 
         {/* Wash history */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <h2 id="history-section" className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <Car className="w-4 h-4 text-gray-600" /> Wash History
           </h2>
           {pastJobs.length === 0 ? (
@@ -301,7 +312,7 @@ export function CustomerPortalDashboard() {
 
         {/* Address on file */}
         <div className="bg-white rounded-xl border p-4">
-          <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <h2 id="address-section" className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-gray-600" /> Saved Address
           </h2>
           <p className="text-sm text-gray-600">
@@ -359,6 +370,58 @@ export function CustomerPortalDashboard() {
                 Yes, cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation menu panel */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-30">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-xl p-5">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-semibold text-gray-900">Menu</h3>
+              <button onClick={() => setMenuOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <nav className="space-y-1">
+              <button
+                onClick={() => { setMenuOpen(false); navigate("/portal/dashboard"); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <User className="w-4 h-4 text-gray-500" /> My Account
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); navigate("/portal/book"); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <Car className="w-4 h-4 text-gray-500" /> Book a Wash
+              </button>
+              <button
+                onClick={() => scrollToSection("upcoming-section")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <Calendar className="w-4 h-4 text-gray-500" /> Upcoming Washes
+              </button>
+              <button
+                onClick={() => scrollToSection("history-section")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <Clock className="w-4 h-4 text-gray-500" /> Wash History &amp; Refunds
+              </button>
+              <button
+                onClick={() => scrollToSection("address-section")}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+              >
+                <MapPin className="w-4 h-4 text-gray-500" /> Saved Address
+              </button>
+              <div className="border-t my-3" />
+              <button
+                onClick={() => { setMenuOpen(false); handleLogout(); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-50 text-sm text-red-600"
+              >
+                <LogOut className="w-4 h-4" /> Log Out
+              </button>
+            </nav>
           </div>
         </div>
       )}
