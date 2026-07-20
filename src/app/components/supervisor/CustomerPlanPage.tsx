@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
+import { useJobs } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -488,6 +489,7 @@ export function CustomerPlanPage() {
   const { recordRevenue } = useFinance();
   const { addCustomer, customers } = useCustomers();
   const { createSubscription } = useCustomerSubscriptions();
+  const { generateJobsFromSubscription } = useJobs();
   const { city } = useCity();
 
   // Listen for config changes from admin
@@ -653,6 +655,24 @@ export function CustomerPlanPage() {
         },
         billingCycle: "Monthly",
         paymentStatus: "Paid",
+      });
+
+      // Generate the real first job - previously the subscription record
+      // was created but no actual job ever was, meaning the customer's
+      // wash was never genuinely scheduled anywhere real.
+      generateJobsFromSubscription(sub.subscriptionId, customerId, 1, {
+        packageName: planObj?.name || packObj?.name || selectedPlan || "Plan",
+        vehicleCategory: activeCat || undefined,
+        vehicleRegistration: custReg || undefined,
+        vehicleBrand: carModel ? (carModel.split(" ")[0] || carModel) : undefined,
+        area: cfg.serviceablePincodes.find(p => p.code === pincode)?.label || pincode,
+        addressLine1: custAddress,
+        pinCode: pincode,
+        city: "Surat",
+        cityId: "CITY-SURAT",
+        amount: total,
+        customerName: custName,
+        customerPhone: custMobile,
       });
 
       // 3ï¸âƒ£ Record revenue in FinanceContext (auto-posts double-entry ledger)

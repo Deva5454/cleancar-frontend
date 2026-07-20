@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
+import { useJobs } from "../../contexts/AppProvider";
 import { useCity } from "../../contexts/CityContext";
 import { tatTrackingService } from "../../services/tatTrackingService";
 import { getBookingSlot } from "../../services/bookingWindowService";
@@ -530,6 +531,7 @@ export function CustomerPlanPage() {
   const { recordRevenue } = useFinance();
   const { addCustomer, customers, addLead } = useCustomers();
   const { createSubscription } = useCustomerSubscriptions();
+  const { generateJobsFromSubscription } = useJobs();
   const { city } = useCity();
 
   useEffect(()=>{ const fn=()=>setCfg(loadConfig()); window.addEventListener("storage",fn); window.addEventListener("planConfigUpdated",fn); return()=>{ window.removeEventListener("storage",fn); window.removeEventListener("planConfigUpdated",fn); }; },[]);
@@ -770,6 +772,23 @@ export function CustomerPlanPage() {
           return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
         })(),
       }:{})});
+      // Generate the real first job - previously the subscription record
+      // was created but no actual job ever was, meaning the customer's
+      // wash was never genuinely scheduled anywhere real.
+      generateJobsFromSubscription(sub.subscriptionId, customerId, 1, {
+        packageName: planMode === "monthly" ? (planObj?.name || selectedPlan || "Plan") : (packObj?.name || selectedPack || "Pack"),
+        vehicleCategory: activeCat || undefined,
+        vehicleRegistration: custReg || undefined,
+        vehicleBrand: carModel || undefined,
+        area: pincodeLabel || pincode,
+        addressLine1: custAddress,
+        pinCode: pincode,
+        city: "Surat",
+        cityId: city || "CITY-SURAT",
+        amount: finalTotal,
+        customerName: custName,
+        customerPhone: custMobile,
+      });
       // Write subscription to Railway backend in background (non-blocking)
       const _cityId = city || "CITY-SURAT";
       IncentiveApiService.create({
