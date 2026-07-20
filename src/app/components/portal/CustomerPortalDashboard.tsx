@@ -591,48 +591,89 @@ export function CustomerPortalDashboard() {
       {menuOpen && (
         <div className="fixed inset-0 z-30">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-xl p-5">
-            <div className="flex items-center justify-between mb-6">
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-xl overflow-y-auto">
+            <div className="p-5 bg-blue-50 border-b border-blue-100">
+              <p className="text-xs text-blue-700">You're viewing your account</p>
+              <p className="text-sm font-semibold text-blue-900 mt-0.5">
+                {customer.phone}{customer.email ? ` · ${customer.email}` : ""}
+              </p>
+            </div>
+            <div className="flex items-center justify-between px-5 pt-4">
               <h3 className="font-semibold text-gray-900">Menu</h3>
               <button onClick={() => setMenuOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
-            <nav className="space-y-1">
+            <nav className="p-3 space-y-1">
               <button
                 onClick={() => { setMenuOpen(false); setAccountPanelOpen(true); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
               >
-                <User className="w-4 h-4 text-gray-500" /> My Account
+                <User className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">My Account</p>
+                  <p className="text-xs text-gray-500 mt-0.5">View your profile, vehicle, and saved address</p>
+                  {!customer.email && (
+                    <span className="inline-block text-xs text-amber-700 bg-amber-50 rounded-full px-2 py-0.5 mt-1">Add your email</span>
+                  )}
+                </div>
               </button>
+
               <button
                 onClick={() => { setMenuOpen(false); navigate("/portal/book"); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
               >
-                <Car className="w-4 h-4 text-gray-500" /> Book a Wash
+                <Car className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Book a Wash</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Choose a plan, add extras, and schedule your visit</p>
+                </div>
               </button>
+
               <button
                 onClick={() => scrollToSection("upcoming-section")}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
               >
-                <Calendar className="w-4 h-4 text-gray-500" /> Upcoming Washes
+                <Calendar className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900">Upcoming Washes</p>
+                    {upcomingJobs.length > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">{upcomingJobs.length}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Track, reschedule, or cancel a scheduled wash</p>
+                </div>
               </button>
+
               <button
                 onClick={() => scrollToSection("history-section")}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
               >
-                <Clock className="w-4 h-4 text-gray-500" /> Wash History &amp; Refunds
+                <Clock className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Wash History &amp; Refunds</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Rate past washes, or request a refund</p>
+                </div>
               </button>
+
               <button
                 onClick={() => scrollToSection("address-section")}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 text-sm text-gray-700"
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
               >
-                <MapPin className="w-4 h-4 text-gray-500" /> Saved Address
+                <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Saved Address</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Where we come to wash your vehicle</p>
+                </div>
               </button>
+
               <div className="border-t my-3" />
+
               <button
                 onClick={() => { setMenuOpen(false); handleLogout(); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-red-50 text-sm text-red-600"
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-red-50 text-red-600"
               >
-                <LogOut className="w-4 h-4" /> Log Out
+                <LogOut className="w-5 h-5" />
+                <p className="text-sm font-medium">Log Out</p>
               </button>
             </nav>
           </div>
