@@ -48,6 +48,11 @@ export interface Customer {
     color: string;
     registrationNumber: string;
   }>;
+  // Real referral fields - already written by planSyncService's real
+  // referral functions, just never formally declared here.
+  referralCode?: string;
+  referralRewardBalance?: number;
+  referredBy?: string;
   leadSource?: string; // "Referral", "Google Ads", "Walk-in", etc.
   status: "Lead" | "Demo Scheduled" | "Active" | "Inactive" | "Churned";
   createdAt: string;

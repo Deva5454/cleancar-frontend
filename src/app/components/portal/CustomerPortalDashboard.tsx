@@ -176,6 +176,13 @@ export function CustomerPortalDashboard() {
     [today]
   );
 
+  const referralProgram = useMemo(() => planSyncService.getReferralProgram(), []);
+  const referralStats = useMemo(() => {
+    if (!customer || !referralProgram.enabled) return null;
+    planSyncService.assignReferralCodeToCustomer(customer.customerId, `${customer.firstName} ${customer.lastName}`);
+    return planSyncService.getCustomerReferralStats(customer.customerId);
+  }, [customer, referralProgram.enabled]);
+
   const openReschedule = (job: any) => {
     if (job.rescheduleRequestStatus === "pending") {
       toast.info("A reschedule request for this booking is already pending approval.");
@@ -358,6 +365,7 @@ export function CustomerPortalDashboard() {
   }, [menuOpen]);
 
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [referPanelOpen, setReferPanelOpen] = useState(false);
 
   const handleLogout = () => {
     setLogoutConfirmOpen(true);
@@ -709,6 +717,19 @@ export function CustomerPortalDashboard() {
                 </div>
               </button>
 
+              {referralStats && (
+                <button
+                  onClick={() => { setMenuOpen(false); setReferPanelOpen(true); }}
+                  className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
+                >
+                  <Tag className="w-5 h-5 text-gray-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Refer a Friend</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Share your code, earn real credit when they book</p>
+                  </div>
+                </button>
+              )}
+
               <div className="border-t my-3" />
 
               <button
@@ -780,6 +801,46 @@ export function CustomerPortalDashboard() {
             <button onClick={submitRating} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
               Submit
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Refer a Friend panel */}
+      {referPanelOpen && referralStats && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Refer a Friend</h3>
+              <button onClick={() => setReferPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">{referralProgram.termsText}</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center mb-4">
+              <p className="text-xs text-blue-700">Your referral code</p>
+              <p className="text-2xl font-bold text-blue-900 tracking-widest mt-1">{referralStats.code}</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(referralStats.code);
+                  toast.success("Code copied — share it with a friend!");
+                }}
+                className="text-xs text-blue-700 underline mt-2"
+              >
+                Copy code
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-gray-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-gray-900">{referralStats.totalReferrals}</p>
+                <p className="text-xs text-gray-500">Shared</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-gray-900">{referralStats.converted}</p>
+                <p className="text-xs text-gray-500">Converted</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-green-700">₹{referralStats.rewardBalance}</p>
+                <p className="text-xs text-gray-500">Earned</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

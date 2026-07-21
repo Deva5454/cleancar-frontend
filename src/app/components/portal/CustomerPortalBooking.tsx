@@ -24,6 +24,7 @@ import {
   type PlanType,
 } from "../../data/subscriptionPlans";
 import { detectVehicleCategory } from "./carModelLookup";
+import { planSyncService } from "../../services/planSyncService";
 import { ChevronLeft, Check, Car } from "lucide-react";
 import { toast } from "sonner";
 
@@ -74,6 +75,8 @@ export function CustomerPortalBooking() {
   const [serviceArea, setServiceArea] = useState(customer?.address?.area || "");
   const [servicePinCode, setServicePinCode] = useState(customer?.address?.pinCode || "");
   const [editingAddress, setEditingAddress] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState<{ code: string; discount: number; kind: "coupon" | "referral" } | null>(null);
   const [vehicleQueue, setVehicleQueue] = useState<Array<{
     vehicleCategory: VehicleCategory; modelInput: string; plan: PlanType;
     regNumber: string; vehicleBrand: string; vehicleColor: string; selectedAddons: string[];
@@ -121,6 +124,37 @@ export function CustomerPortalBooking() {
   const grandTotal =
     vehicleQueue.reduce((sum, v) => sum + priceForVehicle(v.vehicleCategory, v.plan, v.selectedAddons), 0) +
     (vehicleCategory && plan ? priceForVehicle(vehicleCategory, plan, selectedAddons) : 0);
+
+  const finalTotal = appliedCode ? Math.max(0, grandTotal - appliedCode.discount) : grandTotal;
+
+  const applyCode = () => {
+    const code = codeInput.trim();
+    if (!code) return;
+    const today = new Date().toISOString().split("T")[0];
+
+    // Try a real coupon first
+    const coupon = planSyncService.getCoupons().find((c) => c.code.toUpperCase() === code.toUpperCase());
+    if (coupon) {
+      if (!coupon.active) { toast.error("This coupon is no longer active"); return; }
+      if (coupon.validFrom > today || coupon.validTo < today) { toast.error("This coupon has expired"); return; }
+      if (coupon.usedCount >= coupon.maxUses) { toast.error("This coupon has reached its usage limit"); return; }
+      if (grandTotal < coupon.minOrderValue) { toast.error(`This coupon needs a minimum order of ₹${coupon.minOrderValue}`); return; }
+      const discount = coupon.type === "percent" ? Math.round(grandTotal * coupon.value / 100) : coupon.value;
+      setAppliedCode({ code: coupon.code, discount, kind: "coupon" });
+      toast.success(`Coupon applied — ₹${discount} off`);
+      return;
+    }
+
+    // Try a real referral code
+    const referral = planSyncService.validateReferralCode(code, grandTotal);
+    if (referral.valid) {
+      setAppliedCode({ code, discount: referral.discount, kind: "referral" });
+      toast.success(`Referral code applied — ₹${referral.discount} off`);
+      return;
+    }
+
+    toast.error(referral.error || "This code isn't valid or has already been used");
+  };
 
   const resetVehicleFields = () => {
     setModelInput(""); setVehicleCategory(""); setPlan(""); setSelectedAddons([]);
@@ -206,6 +240,17 @@ export function CustomerPortalBooking() {
       updateCustomer(customer.customerId, {
         savedVehicles: [...savedVehicleList, ...newVehiclesToSave],
       });
+    }
+
+    // Actually redeem the code that was applied - a coupon's usage count
+    // genuinely increments, or a referral genuinely converts, using the
+    // real functions the business side's own systems already rely on.
+    if (appliedCode) {
+      if (appliedCode.kind === "coupon") {
+        planSyncService.redeemCoupon(appliedCode.code);
+      } else {
+        planSyncService.convertReferral(appliedCode.code, customer.customerId, `${customer.firstName} ${customer.lastName}`, grandTotal);
+      }
     }
 
     setTimeout(() => {
@@ -471,6 +516,29 @@ export function CustomerPortalBooking() {
               )}
             </div>
 
+            {/* Coupon or referral code - real validation against both real systems */}
+            <div className="bg-white rounded-xl border p-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Have a coupon or referral code?</p>
+              {!appliedCode ? (
+                <div className="flex gap-2">
+                  <input
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code"
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm tracking-wide"
+                  />
+                  <button onClick={applyCode} className="bg-gray-900 text-white rounded-lg px-4 text-sm font-medium">Apply</button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <p className="text-sm text-green-800">
+                    <span className="font-semibold">{appliedCode.code}</span> applied — ₹{appliedCode.discount} off
+                  </p>
+                  <button onClick={() => { setAppliedCode(null); setCodeInput(""); }} className="text-xs text-red-600">Remove</button>
+                </div>
+              )}
+            </div>
+
             {/* Summary */}
             <div className="bg-white rounded-xl border p-4">
               <p className="text-sm font-semibold text-gray-900 mb-2">
@@ -499,8 +567,14 @@ export function CustomerPortalBooking() {
                   )}
                 </div>
                 <p>{scheduledDate} · {timeSlot} <span className="text-xs">(same time for all vehicles)</span></p>
+                {appliedCode && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Code {appliedCode.code}</span>
+                    <span>-₹{appliedCode.discount}</span>
+                  </div>
+                )}
                 <p className="font-bold text-gray-900 pt-2 border-t mt-2">
-                  ₹{grandTotal}
+                  ₹{finalTotal}
                   <span className="text-xs font-normal text-gray-500">/month total</span>
                 </p>
               </div>
