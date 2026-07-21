@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useRole } from "../../contexts/RoleContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
@@ -90,6 +92,17 @@ export function StoreManagerModule() {
   const [invSearch, setInvSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState(0);
+
+  // Real access gate: the main store hub is for the main store manager
+  // only (no assignedBranchId) - a branch-assigned manager is redirected
+  // to their own real, restricted screen instead. Placed after every
+  // hook above so React's hooks rules are never violated.
+  const { currentUser } = useRole();
+  const { getEmployeeById } = useEmployee();
+  const assignedEmployee = currentUser?.employeeId ? getEmployeeById(currentUser.employeeId) : undefined;
+  if (assignedEmployee?.assignedBranchId) {
+    return <Navigate to="/store-manager/branch-store" replace />;
+  }
 
   // Derived stats
   const totalItems      = inventory.reduce((s: number, i: any) => s + (i.centralStock ?? 0), 0);

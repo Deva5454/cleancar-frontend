@@ -12,6 +12,8 @@
 import { useState, useMemo } from "react";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
 import { getBranchesForCity, type BranchStore } from "../../config/branchStores";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -25,9 +27,19 @@ import { toast } from "sonner";
 export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
   const { inventory, stockTransactions, receiveBranchTransfer } = useInventory();
   const { city } = useCity();
+  const { currentUser } = useRole();
+  const { getEmployeeById } = useEmployee();
   const branches = getBranchesForCity(city);
-  const activeBranch: BranchStore | undefined = branchId
-    ? branches.find((b) => b.id === branchId)
+
+  // Real branch resolution: an explicit prop wins (for any future
+  // multi-branch admin view); otherwise, use the real logged-in
+  // employee's assignedBranchId - a genuine restriction, not a picker.
+  // Falls back to the first real branch only if the current user has no
+  // real branch assignment at all (e.g. an Admin previewing this screen).
+  const assignedEmployee = currentUser?.employeeId ? getEmployeeById(currentUser.employeeId) : undefined;
+  const resolvedBranchId = branchId || assignedEmployee?.assignedBranchId;
+  const activeBranch: BranchStore | undefined = resolvedBranchId
+    ? branches.find((b) => b.id === resolvedBranchId)
     : branches[0];
 
   const [receivingId, setReceivingId] = useState<string | null>(null);

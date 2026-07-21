@@ -67,6 +67,11 @@ export interface Employee {
   department: string;
   city: string;
   unit?: string;
+  // Real, dedicated field for a Store Manager assigned specifically to a
+  // branch store - restricts their access to that branch only. A Store
+  // Manager with no assignedBranchId is treated as the main store
+  // manager, who can see across all stores (main + every branch).
+  assignedBranchId?: string;
 
   // ===== HIERARCHY & GEOGRAPHY =====
   cityId?: string;

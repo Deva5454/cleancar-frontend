@@ -8,9 +8,11 @@
  */
 
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
 import { getBranchesForCity } from "../../config/branchStores";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -28,12 +30,23 @@ export function BranchTransferOut() {
   const { inventory, stockTransactions, transferToBranch } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
+  const { getEmployeeById } = useEmployee();
   const branches = getBranchesForCity(city);
 
   const [selectedBranch, setSelectedBranch] = useState(branches[0]?.id || "");
   const [selectedItem, setSelectedItem] = useState("");
   const [quantity, setQuantity] = useState("");
   const [challanNumber, setChallanNumber] = useState("");
+
+  // Real access gate: a branch-assigned manager only ever receives
+  // transfers, never sends them - the main store manager (no
+  // assignedBranchId) is the only one who genuinely belongs here. This
+  // check runs after every hook above, so React's hooks rules are never
+  // violated regardless of which real user lands on this page.
+  const assignedEmployee = currentUser?.employeeId ? getEmployeeById(currentUser.employeeId) : undefined;
+  if (assignedEmployee?.assignedBranchId) {
+    return <Navigate to="/store-manager/branch-store" replace />;
+  }
 
   const centralItems = inventory.filter((i: any) => i.cityId === city && (i.centralStock || 0) > 0);
   const recentTransfers = stockTransactions
