@@ -21,9 +21,10 @@ import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionCon
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
 import { useCity } from "../../contexts/CityContext";
 import { RESCHEDULE_POLICY, isReschedulePermitted } from "../../config/reschedulePolicy";
-import { accountingEntryService, isRefundEligible, type RefundRequest } from "../../services/accountingEntryService";
-import { getSubscriptionPrice, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
-import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star, Tag, Bell } from "lucide-react";
+import { accountingEntryService, isRefundEligible, type RefundRequest, type GiftSubscription, type CallbackRequest } from "../../services/accountingEntryService";
+import { isWithinCallbackWindow, CALLBACK_HOUR_OPTIONS } from "../../config/callbackPolicy";
+import { getSubscriptionPrice, VEHICLE_CATEGORIES, PLAN_TYPES, PLAN_TIER_NAMES, type VehicleCategory, type PlanType } from "../../data/subscriptionPlans";
+import { Car, Calendar, LogOut, MapPin, RadioTower, X, Clock, Menu, Wallet, User, Star, Tag, Bell, Check } from "lucide-react";
 import { toast } from "sonner";
 import { seedPortalTestData, seedSampleOffers } from "../../services/portalTestDataSeed";
 import { planSyncService } from "../../services/planSyncService";
@@ -78,7 +79,7 @@ export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
   const { customers, updateCustomer } = useCustomers();
   const { getJobsByCustomerId, updateJob, createJob } = useJobs();
-  const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
+  const { getSubscriptionsByCustomerId, pauseSubscription, resumeSubscription, cancelSubscription, createSubscription } = useCustomerSubscriptions();
   const navigate = useNavigate();
 
   const [rescheduleJobId, setRescheduleJobId] = useState<string | null>(null);
@@ -99,11 +100,94 @@ export function CustomerPortalDashboard() {
   const [ratingJobId, setRatingJobId] = useState<string | null>(null);
   const [selectedStars, setSelectedStars] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [ratingStep, setRatingStep] = useState<1 | 2>(1);
+  const [selectedNps, setSelectedNps] = useState<number | null>(null);
   const { city, cityInfo } = useCity();
   const [refundJobId, setRefundJobId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [refundRequests, setRefundRequests] = useState<RefundRequest[]>([]);
   const refreshRefunds = () => setRefundRequests(accountingEntryService.getRefundRequests(city).filter((r) => r.customerId === loggedInCustomerId));
+  const refreshGifts = () => setMyGifts(accountingEntryService.getGiftSubscriptions(city).filter((g) => g.buyerCustomerId === loggedInCustomerId));
+  const refreshCallbacks = () => setMyCallbacks(accountingEntryService.getCallbackRequests(city).filter((c) => c.customerId === loggedInCustomerId));
+
+  const submitCallbackRequest = () => {
+    if (!customer) return;
+    const check = isWithinCallbackWindow(callbackDate, callbackHour);
+    if (!check.valid) {
+      toast.error(check.reason);
+      return;
+    }
+    accountingEntryService.requestCallback(
+      {
+        customerId: customer.customerId,
+        customerName: `${customer.firstName} ${customer.lastName}`,
+        customerPhone: customer.phone,
+        requestedDate: callbackDate,
+        requestedHour: callbackHour,
+        reason: callbackReason || undefined,
+        city: cityInfo.displayName,
+        cityId: city,
+      },
+      city
+    );
+    toast.success("Callback requested — our team will call you at the time you picked.");
+    setCallbackPanelOpen(false);
+    setCallbackReason("");
+    refreshCallbacks();
+  };
+
+  const submitGiftRequest = () => {
+    if (!customer || !giftRecipientName.trim() || !giftVehicleCategory || !giftPlan) {
+      toast.error("Please fill in the recipient's name, vehicle type, and plan");
+      return;
+    }
+    const price = getSubscriptionPrice(giftVehicleCategory, giftPlan);
+    const gift = accountingEntryService.requestGift(
+      {
+        buyerCustomerId: customer.customerId,
+        buyerName: `${customer.firstName} ${customer.lastName}`,
+        recipientName: giftRecipientName,
+        recipientPhone: giftRecipientPhone || undefined,
+        planType: giftPlan,
+        vehicleCategory: giftVehicleCategory,
+        amount: typeof price === "number" ? price : 0,
+        city: cityInfo.displayName,
+        cityId: city,
+      },
+      city
+    );
+    toast.success(`Gift request submitted! Our team will call you to confirm payment, then share code ${gift.giftCode} to pass along.`);
+    setGiftPanelOpen(false);
+    setGiftRecipientName(""); setGiftRecipientPhone(""); setGiftVehicleCategory(""); setGiftPlan("");
+    refreshGifts();
+  };
+
+  const submitRedeem = () => {
+    if (!customer || !redeemCodeInput.trim()) return;
+    const gift = accountingEntryService.findGiftByCode(redeemCodeInput.trim(), city);
+    if (!gift) { toast.error("We couldn't find that gift code"); return; }
+    if (gift.status !== "Active") {
+      toast.error(gift.status === "Pending Payment" ? "This gift is still awaiting payment confirmation" : "This gift code has already been used");
+      return;
+    }
+    accountingEntryService.redeemGift(gift.id, city, customer.customerId);
+    createSubscription({
+      customerId: customer.customerId,
+      packageType: gift.planType as any,
+      packageName: PLAN_TIER_NAMES[gift.planType] || gift.planType,
+      frequency: "Weekly",
+      status: "Active",
+      startDate: new Date().toISOString().split("T")[0],
+      pricing: { basePrice: gift.amount, discount: gift.amount, finalPrice: 0, currency: "INR" },
+      priceLocked: 0,
+      serviceDetails: { vehicleType: gift.vehicleCategory },
+      billingCycle: "Monthly",
+      paymentStatus: "Paid",
+    } as any);
+    toast.success(`Gift redeemed! Your new ${PLAN_TIER_NAMES[gift.planType] || gift.planType} subscription is active.`);
+    setRedeemPanelOpen(false);
+    setRedeemCodeInput("");
+  };
 
   const customer = useMemo(
     () => customers.find((c: any) => c.customerId === loggedInCustomerId),
@@ -115,13 +199,62 @@ export function CustomerPortalDashboard() {
     [loggedInCustomerId, getJobsByCustomerId]
   );
 
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingJobs = allJobs
+    .filter((j: any) => j.scheduledDate >= today && j.status !== "Completed" && j.status !== "Verified" && j.status !== "Failed" && j.status !== "Cancelled")
+    .sort((a: any, b: any) => a.scheduledDate.localeCompare(b.scheduledDate));
+  const pastJobs = allJobs
+    .filter((j: any) => j.status === "Completed" || j.status === "Verified" || j.status === "Cancelled" || j.scheduledDate < today)
+    .sort((a: any, b: any) => b.scheduledDate.localeCompare(a.scheduledDate));
+
+  const subscriptions = useMemo(
+    () => (loggedInCustomerId ? getSubscriptionsByCustomerId(loggedInCustomerId) : []),
+    [loggedInCustomerId, getSubscriptionsByCustomerId]
+  );
+  const activeSubscriptions = subscriptions.filter((s: any) => s.status === "Active");
+  const pausedSubscriptions = subscriptions.filter((s: any) => s.status === "Paused");
+
+  // Real expected-washes-per-billing-cycle, derived from frequency. This
+  // is a clearly labeled ESTIMATE, not an enforced cap - checked the real
+  // subscription data model and confirmed no hard visit limit is actually
+  // tracked or enforced anywhere in the app for standard plans, despite
+  // an "Exhausted" status existing in the type. Labeling this honestly
+  // as "Expected" rather than "Allowed" throughout the UI.
+  const WASHES_PER_MONTH: Record<string, number> = {
+    "Daily": 30, "Alternate Days": 15, "Weekly": 4, "Bi-Weekly": 2, "Monthly": 1,
+  };
+  const CYCLE_MONTHS: Record<string, number> = { "Monthly": 1, "Quarterly": 3, "Annual": 12 };
+
+  const getSubscriptionWashStats = (sub: any) => {
+    const washesDone = allJobs.filter(
+      (j: any) => j.subscriptionId === sub.subscriptionId && (j.status === "Completed" || j.status === "Verified")
+    ).length;
+    const perMonth = WASHES_PER_MONTH[sub.frequency] || 4;
+    const months = CYCLE_MONTHS[sub.billingCycle] || 1;
+    const expectedTotal = perMonth * months;
+    return { washesDone, expectedTotal, washesRemaining: Math.max(0, expectedTotal - washesDone) };
+  };
+
   // Real notification feed - derived from the customer's actual current
-  // job and refund state, using the real timestamps already on those
-  // records (updatedAt, reviewedAt, paidAt). Not a separate event log
-  // that could miss an update - this reflects whatever is genuinely
-  // true right now, every time it's computed.
+  // job, refund, and subscription state, using real timestamps already
+  // on those records. Not a separate event log that could miss an
+  // update - this reflects whatever is genuinely true right now.
+  //
+  // Two of these reminders match REAL, already-enforced policies found
+  // in the business logic - not invented thresholds:
+  //   - First wash reminder: real policy is Day 10/13/15 since payment,
+  //     with the subscription genuinely lapsing on Day 15 if still
+  //     unbooked (firstWashReminderService.ts). Shown here so the
+  //     customer sees it in-app too, not only via WhatsApp.
+  //   - Pack expiry reminder: real policy is 7/3/1 days before expiry
+  //     (whatsappRescheduleHandler.ts's checkPackExpiries). Same real
+  //     thresholds, shown in-app.
   const notifications = useMemo(() => {
     const items: Array<{ id: string; text: string; time: string; type: "info" | "success" | "warning" }> = [];
+    const now = new Date();
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
     allJobs.forEach((j: any) => {
       if (j.status === "Assigned" || j.status === "Acknowledged") {
         items.push({ id: `${j.jobId}-assigned`, text: `A team member was assigned to your ${j.packageName}`, time: j.updatedAt, type: "info" });
@@ -141,31 +274,62 @@ export function CustomerPortalDashboard() {
       if (j.status === "Cancelled") {
         items.push({ id: `${j.jobId}-cancelled`, text: `Your ${j.packageName} booking was cancelled`, time: j.cancelledAt || j.updatedAt, type: "info" });
       }
+      // Real upcoming-wash reminder - fires once the day before, using
+      // the job's own scheduled date so it never repeats or drifts.
+      if (j.scheduledDate === tomorrowStr && j.status !== "Cancelled" && j.status !== "Completed" && j.status !== "Verified") {
+        items.push({ id: `${j.jobId}-tomorrow`, text: `Reminder: your ${j.packageName} wash is scheduled for tomorrow, ${j.timeSlot}`, time: now.toISOString(), type: "info" });
+      }
     });
+
     refundRequests.forEach((r) => {
       if (r.status === "Approved") items.push({ id: `${r.id}-approved`, text: `Your refund of ₹${r.amount.toLocaleString("en-IN")} was approved`, time: r.reviewedAt || r.requestedAt, type: "success" });
       if (r.status === "Rejected") items.push({ id: `${r.id}-rejected`, text: `Your refund request wasn't approved`, time: r.reviewedAt || r.requestedAt, type: "warning" });
       if (r.status === "Paid") items.push({ id: `${r.id}-paid`, text: `Your refund of ₹${r.amount.toLocaleString("en-IN")} has been paid`, time: r.paidAt || r.requestedAt, type: "success" });
     });
+
+    // Real first-wash-not-booked reminder, matching the exact real
+    // Day 10/13/15 policy already enforced for WhatsApp reminders.
+    subscriptions.forEach((sub: any) => {
+      if (sub.status !== "Active" || sub.firstWashDate) return;
+      const hasFirstWash = allJobs.some((j: any) => j.subscriptionId === sub.subscriptionId && (j.status === "Completed" || j.status === "Verified"));
+      if (hasFirstWash || !sub.createdAt) return;
+      const daysSincePayment = Math.floor((now.getTime() - new Date(sub.createdAt).getTime()) / 86400000);
+      if ([10, 13, 15].includes(daysSincePayment)) {
+        const daysLeft = 15 - daysSincePayment;
+        items.push({
+          id: `${sub.subscriptionId}-firstwash-day${daysSincePayment}`,
+          text: daysSincePayment === 15
+            ? `Last day! Book your first wash today or your ${sub.packageName} plan will lapse.`
+            : `You still haven't booked your first wash — ${daysLeft} day${daysLeft !== 1 ? "s" : ""} left before your ${sub.packageName} plan lapses.`,
+          time: now.toISOString(),
+          type: daysSincePayment === 15 ? "warning" : "info",
+        });
+      }
+    });
+
+    // Real pack expiry reminder, matching the exact real 7/3/1-day
+    // policy already used for the business-side pack expiry warnings.
+    subscriptions.forEach((sub: any) => {
+      if (!sub.visitsExpiry || sub.status === "Exhausted" || sub.status === "Cancelled") return;
+      const expiry = new Date(sub.visitsExpiry);
+      if (expiry <= now) return;
+      const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / 86400000);
+      if ([7, 3, 1].includes(daysLeft)) {
+        const stats = getSubscriptionWashStats(sub);
+        items.push({
+          id: `${sub.subscriptionId}-packexpiry-day${daysLeft}`,
+          text: `Your ${sub.packageName} plan expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} (${sub.visitsExpiry}) — ${stats.washesRemaining} wash(es) left to use.`,
+          time: now.toISOString(),
+          type: daysLeft === 1 ? "warning" : "info",
+        });
+      }
+    });
+
     return items
       .filter((n) => n.time)
       .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
       .slice(0, 20);
-  }, [allJobs, refundRequests]);
-
-  const today = new Date().toISOString().split("T")[0];
-  const upcomingJobs = allJobs
-    .filter((j: any) => j.scheduledDate >= today && j.status !== "Completed" && j.status !== "Verified" && j.status !== "Failed" && j.status !== "Cancelled")
-    .sort((a: any, b: any) => a.scheduledDate.localeCompare(b.scheduledDate));
-  const pastJobs = allJobs
-    .filter((j: any) => j.status === "Completed" || j.status === "Verified" || j.status === "Cancelled" || j.scheduledDate < today)
-    .sort((a: any, b: any) => b.scheduledDate.localeCompare(a.scheduledDate));
-
-  const subscriptions = useMemo(
-    () => (loggedInCustomerId ? getSubscriptionsByCustomerId(loggedInCustomerId) : []),
-    [loggedInCustomerId, getSubscriptionsByCustomerId]
-  );
-  const activeSubscription = subscriptions.find((s: any) => s.status === "Active");
+  }, [allJobs, refundRequests, subscriptions]);
 
   const activePromotions = useMemo(
     () => planSyncService.getPromotions().filter((p) => p.active && p.startDate <= today && p.endDate >= today),
@@ -225,7 +389,7 @@ export function CustomerPortalDashboard() {
   };
 
   useEffect(() => {
-    if (loggedInCustomerId) refreshRefunds();
+    if (loggedInCustomerId) { refreshRefunds(); refreshGifts(); refreshCallbacks(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedInCustomerId, city]);
 
@@ -320,6 +484,8 @@ export function CustomerPortalDashboard() {
     setRatingJobId(job.jobId);
     setSelectedStars(0);
     setRatingComment("");
+    setRatingStep(1);
+    setSelectedNps(null);
   };
 
   const submitRating = () => {
@@ -332,6 +498,20 @@ export function CustomerPortalDashboard() {
       customerRatingComment: ratingComment || undefined,
       customerRatingSubmittedAt: new Date().toISOString(),
     });
+    setRatingStep(2);
+  };
+
+  const submitNps = () => {
+    if (!ratingJobId || selectedNps === null) return;
+    updateJob(ratingJobId, {
+      npsScore: selectedNps,
+      npsSubmittedAt: new Date().toISOString(),
+    });
+    toast.success("Thanks for your feedback!");
+    setRatingJobId(null);
+  };
+
+  const skipNps = () => {
     toast.success("Thanks for your feedback!");
     setRatingJobId(null);
   };
@@ -366,6 +546,43 @@ export function CustomerPortalDashboard() {
 
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [referPanelOpen, setReferPanelOpen] = useState(false);
+  const [pauseSubId, setPauseSubId] = useState<string | null>(null);
+  const [pauseReason, setPauseReason] = useState("");
+  const [cancelSubId, setCancelSubId] = useState<string | null>(null);
+  const [receiptJobId, setReceiptJobId] = useState<string | null>(null);
+  const [giftPanelOpen, setGiftPanelOpen] = useState(false);
+  const [giftRecipientName, setGiftRecipientName] = useState("");
+  const [giftRecipientPhone, setGiftRecipientPhone] = useState("");
+  const [giftVehicleCategory, setGiftVehicleCategory] = useState<VehicleCategory | "">("");
+  const [giftPlan, setGiftPlan] = useState<PlanType | "">("");
+  const [redeemPanelOpen, setRedeemPanelOpen] = useState(false);
+  const [redeemCodeInput, setRedeemCodeInput] = useState("");
+  const [myGifts, setMyGifts] = useState<any[]>([]);
+  const [callbackPanelOpen, setCallbackPanelOpen] = useState(false);
+  const [callbackDate, setCallbackDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [callbackHour, setCallbackHour] = useState(CALLBACK_HOUR_OPTIONS[0]);
+  const [callbackReason, setCallbackReason] = useState("");
+  const [myCallbacks, setMyCallbacks] = useState<CallbackRequest[]>([]);
+
+  const confirmPause = () => {
+    if (!pauseSubId) return;
+    pauseSubscription(pauseSubId, pauseReason || "Paused by customer via portal");
+    toast.success("Subscription paused.");
+    setPauseSubId(null);
+    setPauseReason("");
+  };
+
+  const handleResume = (subId: string) => {
+    resumeSubscription(subId);
+    toast.success("Subscription resumed.");
+  };
+
+  const confirmCancelSub = () => {
+    if (!cancelSubId) return;
+    cancelSubscription(cancelSubId);
+    toast.success("Subscription cancelled.");
+    setCancelSubId(null);
+  };
 
   const handleLogout = () => {
     setLogoutConfirmOpen(true);
@@ -414,6 +631,12 @@ export function CustomerPortalDashboard() {
 
       <div className="p-4 max-w-2xl mx-auto space-y-5">
 
+        {notifications.filter((n) => n.type === "warning").slice(0, 2).map((n) => (
+          <div key={n.id} className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-sm text-amber-800">
+            {n.text}
+          </div>
+        ))}
+
         <button
           onClick={() => navigate("/portal/book")}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-5 flex items-center justify-between"
@@ -454,17 +677,60 @@ export function CustomerPortalDashboard() {
           </div>
         )}
 
-        {/* Active subscription card */}
-        {activeSubscription && (
-          <div className="bg-blue-600 text-white rounded-2xl p-5">
-            <p className="text-xs opacity-80">Active Plan</p>
-            <p className="text-lg font-bold mt-1">{activeSubscription.packageName}</p>
-            <p className="text-sm opacity-90 mt-1">{activeSubscription.frequency}</p>
-            {activeSubscription.renewalDate && (
-              <p className="text-xs opacity-75 mt-3">Renews {activeSubscription.renewalDate}</p>
-            )}
+        {/* Every real active subscription, with full real status */}
+        {activeSubscriptions.map((sub: any) => {
+          const { washesDone, expectedTotal, washesRemaining } = getSubscriptionWashStats(sub);
+          const lapseDate = sub.endDate || sub.renewalDate;
+          return (
+            <div key={sub.subscriptionId} className="bg-blue-600 text-white rounded-2xl p-5 space-y-3">
+              <div>
+                <p className="text-xs opacity-80">Active Plan</p>
+                <p className="text-lg font-bold mt-1">{sub.packageName}</p>
+                <p className="text-sm opacity-90 mt-1">{sub.frequency}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs bg-blue-700/40 rounded-xl p-3">
+                <div>
+                  <p className="opacity-70">Started</p>
+                  <p className="font-medium">{sub.startDate}</p>
+                </div>
+                <div>
+                  <p className="opacity-70">{sub.endDate ? "Ends" : "Renews"}</p>
+                  <p className="font-medium">{lapseDate || "—"}</p>
+                </div>
+                <div>
+                  <p className="opacity-70">Washes done</p>
+                  <p className="font-medium">{washesDone} of ~{expectedTotal}</p>
+                </div>
+                <div>
+                  <p className="opacity-70">Remaining (est.)</p>
+                  <p className="font-medium">{washesRemaining}</p>
+                </div>
+              </div>
+              {lapseDate && (
+                <p className="text-xs opacity-75">Lapses after {lapseDate} unless renewed.</p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => { setPauseSubId(sub.subscriptionId); setPauseReason(""); }} className="flex-1 bg-white/15 rounded-lg py-2 text-xs font-medium">
+                  Pause
+                </button>
+                <button onClick={() => setCancelSubId(sub.subscriptionId)} className="flex-1 bg-white/15 rounded-lg py-2 text-xs font-medium">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Paused subscriptions - real resume action */}
+        {pausedSubscriptions.map((sub: any) => (
+          <div key={sub.subscriptionId} className="bg-gray-100 border border-gray-200 rounded-2xl p-5">
+            <p className="text-xs text-gray-500">Paused Plan</p>
+            <p className="text-lg font-bold text-gray-900 mt-1">{sub.packageName}</p>
+            <button onClick={() => handleResume(sub.subscriptionId)} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium mt-3">
+              Resume Subscription
+            </button>
           </div>
-        )}
+        ))}
 
         {/* Upcoming bookings */}
         <div>
@@ -556,6 +822,12 @@ export function CustomerPortalDashboard() {
                           <Star className="w-3.5 h-3.5" /> Rate this wash
                         </button>
                       )
+                    )}
+
+                    {isCompleted && job.paymentStatus === "Paid" && (
+                      <button onClick={() => setReceiptJobId(job.jobId)} className="text-xs text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 mt-2 mr-2">
+                        View Receipt
+                      </button>
                     )}
 
                     {existingRefund ? (
@@ -730,6 +1002,39 @@ export function CustomerPortalDashboard() {
                 </button>
               )}
 
+              <button
+                onClick={() => { setMenuOpen(false); setGiftPanelOpen(true); }}
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
+              >
+                <Wallet className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Gift a Wash</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Buy a plan for someone else</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMenuOpen(false); setRedeemPanelOpen(true); }}
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
+              >
+                <Check className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Redeem a Gift</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Have a gift code? Activate it here</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setMenuOpen(false); setCallbackPanelOpen(true); }}
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-gray-50 text-left"
+              >
+                <RadioTower className="w-5 h-5 text-gray-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Request a Callback</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Pick a time in office hours, our team will call you</p>
+                </div>
+              </button>
+
               <div className="border-t my-3" />
 
               <button
@@ -776,31 +1081,276 @@ export function CustomerPortalDashboard() {
         </div>
       )}
 
-      {/* Rating modal */}
+      {/* Rating modal - real two-step flow: stars, then NPS */}
       {ratingJobId && (
         <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">How was your wash?</h3>
-              <button onClick={() => setRatingJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div className="flex justify-center gap-2 mb-4">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} onClick={() => setSelectedStars(n)}>
-                  <Star className={`w-9 h-9 ${n <= selectedStars ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+            {ratingStep === 1 ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">How was your wash?</h3>
+                  <button onClick={() => setRatingJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
+                </div>
+                <div className="flex justify-center gap-2 mb-4">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} onClick={() => setSelectedStars(n)}>
+                      <Star className={`w-9 h-9 ${n <= selectedStars ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Tell us more (optional)"
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                  rows={3}
+                />
+                <button onClick={submitRating} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+                  Continue
                 </button>
-              ))}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-900">One more thing</h3>
+                  <button onClick={skipNps}><X className="w-5 h-5 text-gray-400" /></button>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">How likely are you to recommend us to a friend?</p>
+                <div className="grid grid-cols-6 gap-1.5 mb-2">
+                  {Array.from({ length: 11 }, (_, n) => n).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setSelectedNps(n)}
+                      className={`aspect-square rounded-lg text-sm font-medium border ${selectedNps === n ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 text-gray-600"}`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mb-4">
+                  <span>Not likely</span>
+                  <span>Very likely</span>
+                </div>
+                <button
+                  onClick={submitNps}
+                  disabled={selectedNps === null}
+                  className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium disabled:opacity-40"
+                >
+                  Submit
+                </button>
+                <button onClick={skipNps} className="w-full text-gray-400 text-xs py-2">Skip</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Gift a Wash panel */}
+      {giftPanelOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">Gift a Wash</h3>
+              <button onClick={() => setGiftPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
-            <textarea
-              value={ratingComment}
-              onChange={(e) => setRatingComment(e.target.value)}
-              placeholder="Tell us more (optional)"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              rows={3}
-            />
-            <button onClick={submitRating} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
-              Submit
+            <p className="text-xs text-gray-500 mb-4">
+              There's no online payment here yet — after you submit, our team will call you to confirm payment, then share a real code you can pass along.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Recipient's Name</label>
+                <input value={giftRecipientName} onChange={(e) => setGiftRecipientName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Recipient's Phone (optional)</label>
+                <input value={giftRecipientPhone} onChange={(e) => setGiftRecipientPhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Vehicle Type</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {VEHICLE_CATEGORIES.map((vc) => (
+                    <button key={vc} onClick={() => { setGiftVehicleCategory(vc); setGiftPlan(""); }}
+                      className={`text-xs p-2 rounded-lg border text-left ${giftVehicleCategory === vc ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}>
+                      {vc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {giftVehicleCategory && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Plan</label>
+                  <div className="space-y-1.5">
+                    {PLAN_TYPES.map((pt) => {
+                      const price = getSubscriptionPrice(giftVehicleCategory, pt);
+                      if (price === "NA") return null;
+                      return (
+                        <button key={pt} onClick={() => setGiftPlan(pt)}
+                          className={`w-full flex justify-between p-2 rounded-lg border text-sm ${giftPlan === pt ? "border-blue-500 bg-blue-50" : "border-gray-200"}`}>
+                          <span>{PLAN_TIER_NAMES[pt] || pt}</span>
+                          <span className="font-semibold">₹{price}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button onClick={submitGiftRequest} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Submit Gift Request
             </button>
+            {myGifts.length > 0 && (
+              <div className="mt-4 pt-4 border-t space-y-2">
+                <p className="text-xs font-medium text-gray-700">Your gift requests</p>
+                {myGifts.map((g) => (
+                  <div key={g.id} className="text-xs bg-gray-50 rounded-lg p-2">
+                    <p className="text-gray-900">{g.recipientName} — {PLAN_TIER_NAMES[g.planType] || g.planType}</p>
+                    <p className={g.status === "Active" ? "text-green-600" : g.status === "Redeemed" ? "text-blue-600" : "text-amber-600"}>
+                      {g.status}{g.status === "Active" && ` — code ${g.giftCode}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Redeem a Gift panel */}
+      {redeemPanelOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">Redeem a Gift</h3>
+              <button onClick={() => setRedeemPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Enter the gift code someone shared with you to activate your subscription.</p>
+            <input
+              value={redeemCodeInput}
+              onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())}
+              placeholder="GIFT-XXXXXX"
+              className="w-full border rounded-lg px-3 py-2 text-sm tracking-wide"
+            />
+            <button onClick={submitRedeem} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Redeem
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Request a Callback panel - real office-hours validation */}
+      {callbackPanelOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">Request a Callback</h3>
+              <button onClick={() => setCallbackPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Our team calls between 9:00 AM and 7:00 PM, Monday to Saturday.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Date</label>
+                <input type="date" value={callbackDate} onChange={(e) => setCallbackDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Time</label>
+                <select value={callbackHour} onChange={(e) => setCallbackHour(Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm">
+                  {CALLBACK_HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>{h > 12 ? h - 12 : h}:00 {h >= 12 ? "PM" : "AM"}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">What's this about? (optional)</label>
+                <textarea value={callbackReason} onChange={(e) => setCallbackReason(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
+              </div>
+            </div>
+            <button onClick={submitCallbackRequest} className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium mt-4">
+              Request Callback
+            </button>
+            {myCallbacks.filter((c) => c.status === "Pending").length > 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2 mt-3">
+                You have {myCallbacks.filter((c) => c.status === "Pending").length} pending callback request(s) already.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Digital receipt - real, itemized from the actual job record */}
+      {receiptJobId && (() => {
+        const job = allJobs.find((j: any) => j.jobId === receiptJobId);
+        if (!job) return null;
+        const category = job.vehicleDetails?.category as VehicleCategory | undefined;
+        const planType = job.packageType as PlanType | undefined;
+        const basePrice = category && planType ? getSubscriptionPrice(category, planType) : "NA";
+        const addons = job.serviceDetails?.addons || [];
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Receipt</h3>
+                <button onClick={() => setReceiptJobId(null)}><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
+              <p className="text-xs text-gray-400 mb-3">{job.jobId} · {job.scheduledDate}</p>
+              <div className="text-sm space-y-2 border-t border-b py-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{job.packageName}</span>
+                  <span className="text-gray-900">₹{typeof basePrice === "number" ? basePrice : "—"}</span>
+                </div>
+                {addons.map((a: any) => (
+                  <div key={a.id} className="flex justify-between text-xs">
+                    <span className="text-gray-500">+ {a.name}</span>
+                    <span className="text-gray-700">₹{a.price}</span>
+                  </div>
+                ))}
+                {job.discountAmount ? (
+                  <div className="flex justify-between text-green-700">
+                    <span>Code {job.discountCode}</span>
+                    <span>-₹{job.discountAmount}</span>
+                  </div>
+                ) : null}
+              </div>
+              <div className="flex justify-between items-center pt-3">
+                <span className="font-semibold text-gray-900">Total Paid</span>
+                <span className="font-bold text-lg text-gray-900">₹{job.finalAmount ?? (typeof basePrice === "number" ? basePrice : "—")}</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Vehicle: {job.vehicleDetails?.brand} · {job.vehicleDetails?.registration}</p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Pause subscription modal */}
+      {pauseSubId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <h3 className="font-semibold text-gray-900 mb-2">Pause this subscription?</h3>
+            <p className="text-sm text-gray-500 mb-3">You can resume anytime from this same screen.</p>
+            <textarea value={pauseReason} onChange={(e) => setPauseReason(e.target.value)}
+              placeholder="Reason (optional)" className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setPauseSubId(null)} className="flex-1 border rounded-xl py-2.5 text-sm font-medium text-gray-700">Keep Active</button>
+              <button onClick={confirmPause} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-medium">Pause</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel subscription modal */}
+      {cancelSubId && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <h3 className="font-semibold text-gray-900 mb-2">Cancel this subscription?</h3>
+            <p className="text-sm text-gray-500 mb-4">This can't be undone. You can always subscribe again later.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setCancelSubId(null)} className="flex-1 border rounded-xl py-2.5 text-sm font-medium text-gray-700">Keep It</button>
+              <button onClick={confirmCancelSub} className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium">Cancel Subscription</button>
+            </div>
           </div>
         </div>
       )}

@@ -132,6 +132,7 @@ const RecurringTransactions = lazy(() => import("./components/accounts/Recurring
 const BankReconciliation = lazy(() => import("./components/accounts/BankReconciliation"));
 const FinancialRatios = lazy(() => import("./components/accounts/FinancialRatios"));
 const RefundRequests = lazy(() => import("./components/accounts/RefundRequests"));
+const GiftSubscriptions = lazy(() => import("./components/accounts/GiftSubscriptions"));
 // Phase 3 Accounting Reports
 import { GSTR2AReport } from "./components/accounts/GSTR2AReport";
 import { PurchaseSummaryReport } from "./components/accounts/PurchaseSummaryReport";
@@ -441,6 +442,7 @@ export const router = createBrowserRouter([
       { path: "accounts/bank-reconciliation", element: <ErrorBoundary><BankReconciliation /></ErrorBoundary> },
       { path: "accounts/financial-ratios", element: <ErrorBoundary><FinancialRatios /></ErrorBoundary> },
       { path: "accounts/refund-requests", element: <ErrorBoundary><RefundRequests /></ErrorBoundary> },
+      { path: "accounts/gift-subscriptions", element: <ErrorBoundary><GiftSubscriptions /></ErrorBoundary> },
       { path: "accounts/tds-payable", element: <ErrorBoundary><TDSPayableModule /></ErrorBoundary> },
       { path: "accounts/advance-tax", element: <ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary> },
       { path: "accounts/journal-entry", element: <JournalEntry /> },

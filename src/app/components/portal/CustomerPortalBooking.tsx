@@ -11,6 +11,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCustomers } from "../../contexts/CustomerContext";
+import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCustomerPortalAuth } from "./CustomerPortalAuthContext";
 import {
@@ -33,6 +34,7 @@ const TIME_SLOTS = ["6:00 AM - 8:00 AM", "8:00 AM - 10:00 AM", "4:00 PM - 6:00 P
 export function CustomerPortalBooking() {
   const { loggedInCustomerId } = useCustomerPortalAuth();
   const { customers, updateCustomer } = useCustomers();
+  const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
   const { createJob } = useJobs();
   const navigate = useNavigate();
 
@@ -191,9 +193,28 @@ export function CustomerPortalBooking() {
       { vehicleCategory, modelInput, plan, regNumber, vehicleBrand, vehicleColor, selectedAddons },
     ];
 
+    // Find a real active subscription with a matching plan type, to link
+    // this job to it for real wash-count tracking. A booking that
+    // doesn't match any active subscription's plan is a real standalone
+    // booking, correctly left unlinked.
+    const activeSubs = customer ? getSubscriptionsByCustomerId(customer.customerId).filter((s: any) => s.status === "Active") : [];
+
+    // Distribute the applied discount proportionally across vehicles, by
+    // each vehicle's real share of the pre-discount total - so a
+    // multi-vehicle booking with one code applied still shows an honest,
+    // itemized discount per job, not the whole discount dumped on one.
+    const preDiscountTotal = allVehicles.reduce((sum, v) => sum + priceForVehicle(v.vehicleCategory, v.plan, v.selectedAddons), 0);
+
     allVehicles.forEach((v) => {
+      const vehiclePrice = priceForVehicle(v.vehicleCategory, v.plan, v.selectedAddons);
+      const vehicleDiscount = appliedCode && preDiscountTotal > 0
+        ? Math.round((vehiclePrice / preDiscountTotal) * appliedCode.discount)
+        : 0;
+      const matchingSub = activeSubs.find((s: any) => s.packageType === v.plan);
+
       createJob({
         customerId: customer.customerId,
+        subscriptionId: matchingSub?.subscriptionId,
         scheduledDate,
         timeSlot,
         status: "Unassigned",
@@ -201,6 +222,9 @@ export function CustomerPortalBooking() {
         paymentStatus: "Pending",
         packageName: `${PLAN_TIER_NAMES[v.plan] || v.plan}`,
         packageType: v.plan,
+        discountCode: appliedCode?.code,
+        discountAmount: vehicleDiscount || undefined,
+        finalAmount: vehiclePrice - vehicleDiscount,
         vehicleDetails: {
           category: v.vehicleCategory,
           color: v.vehicleColor,

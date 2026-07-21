@@ -175,6 +175,60 @@ export function isRefundEligible(job: { status: string; paymentStatus?: string }
   return false;
 }
 
+// A gift subscription - real DEFAULT ASSUMPTIONS, stated explicitly:
+//   1. PAYMENT: there's no real payment gateway anywhere in this app, so
+//      a gift purchase can't be paid for online at the moment it's
+//      requested. It starts "Pending Payment" until a real staff member
+//      (TSE/CCE) confirms payment was collected by phone or in person,
+//      the same real pattern already used for doorstep collection.
+//   2. REDEMPTION: the recipient must be an existing, logged-in portal
+//      customer to redeem a gift code - this app has no way to create a
+//      brand-new customer account from outside the business flows, so a
+//      gift for someone not yet a real customer can't self-redeem; staff
+//      would need to onboard them first, same as any new customer today.
+export interface GiftSubscription {
+  id: string;
+  buyerCustomerId: string;
+  buyerName: string;
+  recipientName: string;
+  recipientPhone?: string;
+  planType: string;
+  vehicleCategory: string;
+  amount: number;
+  giftCode: string;
+  status: "Pending Payment" | "Active" | "Redeemed" | "Expired";
+  createdAt: string;
+  paidAt?: string;
+  paidReference?: string;
+  redeemedAt?: string;
+  redeemedByCustomerId?: string;
+  city: string;
+  cityId: string;
+}
+
+export function generateGiftCode(): string {
+  return `GIFT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+// A real customer callback request - a genuine, new feature, since no
+// callback infrastructure existed anywhere in this app before. Lands in
+// a real queue a TSE works from, the same way leads already do.
+export interface CallbackRequest {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  requestedDate: string;
+  requestedHour: number;
+  reason?: string;
+  status: "Pending" | "Called" | "Cancelled";
+  createdAt: string;
+  calledAt?: string;
+  calledBy?: string;
+  city: string;
+  cityId: string;
+}
+
 export interface RecurringTemplate {
   id: string;
   name: string;                 // "Monthly Office Rent", "ERP Software Subscription"
@@ -677,6 +731,67 @@ class AccountingEntryService {
     if (idx < 0) return false;
     all[idx] = { ...all[idx], status: "Paid", paidAt: new Date().toISOString(), paymentReference };
     DataService.setAll("REFUND_REQUESTS", all, cityId);
+    return true;
+  }
+
+  getGiftSubscriptions(cityId?: string): GiftSubscription[] {
+    return DataService.get<GiftSubscription>("GIFT_SUBSCRIPTIONS", cityId);
+  }
+
+  requestGift(data: Omit<GiftSubscription, "id" | "status" | "createdAt" | "giftCode">, cityId: string): GiftSubscription {
+    const all = this.getGiftSubscriptions(cityId);
+    const gift: GiftSubscription = {
+      ...data,
+      id: `GIFT-REQ-${Date.now()}`,
+      giftCode: generateGiftCode(),
+      status: "Pending Payment",
+      createdAt: new Date().toISOString(),
+    };
+    DataService.setAll("GIFT_SUBSCRIPTIONS", [...all, gift], cityId);
+    return gift;
+  }
+
+  // Real staff action - confirms payment was actually collected outside
+  // this app (phone/in-person), making the gift code genuinely usable.
+  markGiftPaid(giftId: string, cityId: string, paidReference: string): boolean {
+    const all = this.getGiftSubscriptions(cityId);
+    const idx = all.findIndex((g) => g.id === giftId);
+    if (idx < 0) return false;
+    all[idx] = { ...all[idx], status: "Active", paidAt: new Date().toISOString(), paidReference };
+    DataService.setAll("GIFT_SUBSCRIPTIONS", all, cityId);
+    return true;
+  }
+
+  findGiftByCode(code: string, cityId?: string): GiftSubscription | undefined {
+    return this.getGiftSubscriptions(cityId).find((g) => g.giftCode.toUpperCase() === code.toUpperCase());
+  }
+
+  redeemGift(giftId: string, cityId: string, redeemedByCustomerId: string): boolean {
+    const all = this.getGiftSubscriptions(cityId);
+    const idx = all.findIndex((g) => g.id === giftId);
+    if (idx < 0) return false;
+    all[idx] = { ...all[idx], status: "Redeemed", redeemedAt: new Date().toISOString(), redeemedByCustomerId };
+    DataService.setAll("GIFT_SUBSCRIPTIONS", all, cityId);
+    return true;
+  }
+
+  getCallbackRequests(cityId?: string): CallbackRequest[] {
+    return DataService.get<CallbackRequest>("CALLBACK_REQUESTS", cityId);
+  }
+
+  requestCallback(data: Omit<CallbackRequest, "id" | "status" | "createdAt">, cityId: string): CallbackRequest {
+    const all = this.getCallbackRequests(cityId);
+    const request: CallbackRequest = { ...data, id: `CB-${Date.now()}`, status: "Pending", createdAt: new Date().toISOString() };
+    DataService.setAll("CALLBACK_REQUESTS", [...all, request], cityId);
+    return request;
+  }
+
+  markCallbackDone(callbackId: string, cityId: string, calledBy: string): boolean {
+    const all = this.getCallbackRequests(cityId);
+    const idx = all.findIndex((c) => c.id === callbackId);
+    if (idx < 0) return false;
+    all[idx] = { ...all[idx], status: "Called", calledAt: new Date().toISOString(), calledBy };
+    DataService.setAll("CALLBACK_REQUESTS", all, cityId);
     return true;
   }
 

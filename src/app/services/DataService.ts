@@ -150,6 +150,8 @@ const STORAGE_KEYS = {
   WASHER_GPS_VIOLATIONS:    "washer_gps_violations", // Auto-checkout on GPS off + City Manager re-check-in approval
   RECURRING_TEMPLATES:      "recurring_templates",   // Saved monthly-recurring transaction templates
   REFUND_REQUESTS:          "refund_requests",       // Customer refund requests, real approval workflow
+  GIFT_SUBSCRIPTIONS:       "gift_subscriptions",     // Gift-a-wash requests, real staff payment confirmation + redemption
+  CALLBACK_REQUESTS:        "callback_requests",       // Real customer callback requests, real office-hours validation
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

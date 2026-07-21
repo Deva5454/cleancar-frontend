@@ -78,6 +78,16 @@ export interface Job {
   customerRating?: number; // 1-5
   customerRatingComment?: string;
   customerRatingSubmittedAt?: string;
+  // Real discount record - fixes a genuine gap: a coupon/referral code
+  // discounted what the customer saw at checkout, but nothing on the
+  // job itself recorded it, so staff/washer at the doorstep would have
+  // had no way to know a discount was owed.
+  discountCode?: string;
+  discountAmount?: number;
+  finalAmount?: number; // the real amount actually owed, after discount
+  // Real NPS-style follow-up, alongside the existing star rating.
+  npsScore?: number; // 0-10, "how likely to recommend"
+  npsSubmittedAt?: string;
 
   // City isolation
   cityId: string;

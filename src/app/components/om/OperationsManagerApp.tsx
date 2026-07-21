@@ -1769,6 +1769,16 @@ export function OperationsManagerApp() {
 
               </TabsTrigger>
 
+              <TabsTrigger value="customer-feedback" className="py-4 text-sm font-semibold">
+
+
+
+                💬 Customer Feedback
+
+
+
+              </TabsTrigger>
+
 
 
               <TabsTrigger value="reports" className="py-4 text-sm font-semibold">
@@ -2120,6 +2130,55 @@ export function OperationsManagerApp() {
                   </Card>
                 ))}
               </div>
+            );
+          })()}
+        </TabsContent>
+
+        <TabsContent value="customer-feedback" className="mt-0 p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Customer Feedback</h2>
+            <p className="text-sm text-gray-500">Real ratings and recommendation scores, submitted through the customer portal.</p>
+          </div>
+          {(() => {
+            const feedbackJobs = allJobs.filter((j: any) => j.customerRating || j.npsScore !== undefined);
+            if (feedbackJobs.length === 0) {
+              return <Card className="p-6 text-center text-sm text-gray-500">No customer feedback yet.</Card>;
+            }
+            const detractors = feedbackJobs.filter((j: any) => j.npsScore !== undefined && j.npsScore <= 6);
+            const sorted = [...feedbackJobs].sort((a: any, b: any) =>
+              new Date(b.customerRatingSubmittedAt || b.npsSubmittedAt || 0).getTime() -
+              new Date(a.customerRatingSubmittedAt || a.npsSubmittedAt || 0).getTime()
+            );
+            return (
+              <>
+                {detractors.length > 0 && (
+                  <Card className="p-4 bg-red-50 border-red-200">
+                    <p className="text-sm font-semibold text-red-800">{detractors.length} customer{detractors.length > 1 ? "s" : ""} unlikely to recommend us</p>
+                    <p className="text-xs text-red-600 mt-0.5">Real industry practice: reach out to detractors within 24 hours to understand what went wrong.</p>
+                  </Card>
+                )}
+                <div className="space-y-2">
+                  {sorted.map((job: any) => {
+                    const isDetractor = job.npsScore !== undefined && job.npsScore <= 6;
+                    return (
+                      <Card key={job.jobId} className={`p-4 ${isDetractor ? "border-red-200" : ""}`}>
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900">{job.packageName}</p>
+                          {job.customerRating && (
+                            <span className="text-amber-500 text-sm">{"★".repeat(job.customerRating)}{"☆".repeat(5 - job.customerRating)}</span>
+                          )}
+                        </div>
+                        {job.customerRatingComment && <p className="text-sm text-gray-600 mt-1">"{job.customerRatingComment}"</p>}
+                        {job.npsScore !== undefined && (
+                          <p className={`text-xs mt-1 ${isDetractor ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                            Recommend score: {job.npsScore}/10 {isDetractor && "— follow up recommended"}
+                          </p>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
             );
           })()}
         </TabsContent>

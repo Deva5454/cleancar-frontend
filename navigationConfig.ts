@@ -321,6 +321,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Bank Reconciliation", path: "/accounts/bank-reconciliation", icon: Landmark, module: "accounts", match: "prefix" },
       { label: "Financial Ratios", path: "/accounts/financial-ratios", icon: Activity, module: "accounts", match: "prefix" },
       { label: "Refund Requests", path: "/accounts/refund-requests", icon: Wallet, module: "accounts", match: "prefix" },
+      { label: "Gift Subscriptions", path: "/accounts/gift-subscriptions", icon: Wallet, module: "accounts", match: "prefix" },
       { label: "TDS Payable",        path: "/accounts/tds-payable",      icon: Percent,         module: "accounts", match: "prefix" },
       { label: "Advance Tax",        path: "/accounts/advance-tax",      icon: Calendar,        module: "accounts", match: "prefix" },
     ]
