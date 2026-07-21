@@ -30,10 +30,10 @@ export function InventoryStore() {
     return () => clearTimeout(timer);
   }, []);
 
-  const totalValue = inventory.reduce((sum, item) => {
+  const totalValue = inventory.reduce((sum: number, item: any) => {
     const currentStock = item.centralStock +
-      Object.values(item.supervisorStock).reduce((s, qty) => s + qty, 0) +
-      Object.values(item.washerStock).reduce((s, qty) => s + qty, 0);
+      Object.values(item.supervisorStock as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0) +
+      Object.values(item.washerStock as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0);
     return sum + (currentStock * (item.unitCost || 0));
   }, 0);
   const lowStockItems = getLowStockItems();
@@ -195,10 +195,10 @@ export function InventoryStore() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory.map((item) => {
+                    {inventory.map((item: any) => {
                     const currentStock = item.centralStock +
-                      Object.values(item.supervisorStock).reduce((sum, qty) => sum + qty, 0) +
-                      Object.values(item.washerStock).reduce((sum, qty) => sum + qty, 0);
+                      Object.values(item.supervisorStock as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0) +
+                      Object.values(item.washerStock as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0);
                     const isLowStock = currentStock < item.reorderLevel;
                     const totalValue = currentStock * item.unitCost;
                     return (

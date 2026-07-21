@@ -110,7 +110,7 @@ export function RevenueCaptureSystem() {
   const allRevenues = getRevenueByCity(filterCityId);
 
   // Fix 7: On mount, ensure revenue records have corresponding Output GST accounting entries
-  const { cityId } = useCity();
+  const { city: cityId } = useCity();
   useEffect(() => {
     if (!cityId) return;
     const thisMonth = selectedMonth;
@@ -500,7 +500,7 @@ export function RevenueCaptureSystem() {
                 <PieChart>
                   <Pie data={revenueSplitData} cx="50%" cy="50%"
                     innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
-                    label={({name,percent}) => `${name}: ${(percent*100).toFixed(1)}%`}>
+                    label={({name,percent}) => `${name}: ${((percent ?? 0)*100).toFixed(1)}%`}>
                     {revenueSplitData.map(e => <Cell key={e.id} fill={e.color} />)}
                   </Pie>
                   <RechartsTooltip formatter={(v:any) => `â‚¹${Number(v).toLocaleString("en-IN")}`} />
