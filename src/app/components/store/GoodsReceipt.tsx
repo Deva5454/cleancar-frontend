@@ -228,6 +228,17 @@ export function GoodsReceipt() {
                       {statusIcon(grn.status ?? "Pending")}
                       <span className="hidden sm:inline">{grn.status ?? "Pending"}</span>
                     </Badge>
+                    {grn.deliveryNoteFileBase64 && (
+                      <a
+                        href={grn.deliveryNoteFileBase64}
+                        download={grn.deliveryNoteFileName || `${grn.grnNumber}-delivery-note`}
+                        className="text-xs text-blue-600 underline shrink-0"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View Note
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}

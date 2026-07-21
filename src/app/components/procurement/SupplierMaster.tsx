@@ -31,7 +31,7 @@ import {
 import { Textarea } from "../ui/textarea";
 import { Plus, Star, Download, Building2, Phone, Mail, MapPin, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { gstComplianceService } from "../../services/gstComplianceService";
+import { gstComplianceService, type GSTVendor, type VendorDocument } from "../../services/gstComplianceService";
 import { useCity } from "../../contexts/CityContext";
 import { GST_STATE_OPTIONS } from "../../services/accountingEntryService";
 
@@ -48,7 +48,40 @@ export function SupplierMaster() {
   const navigate = useNavigate();
   const { availableCities } = useCity();
   const [vendors, setVendors] = useState(() => gstComplianceService.getVendors());
-  const [formData, setFormData] = useState({ city: "", stateCode: "", state: "" });
+  const [formData, setFormData] = useState({
+    companyName: "", tradeName: "", supplierType: "", contactPerson: "", designation: "",
+    phone: "", altPhone: "", email: "",
+    addressLine1: "", addressLine2: "", city: "", stateCode: "", state: "", pinCode: "", region: "",
+    gstNumber: "", panNumber: "", msme: "", yearEstablished: "",
+    paymentTerms: "", creditLimit: "", bankAccountNumber: "", ifscCode: "",
+    notes: "",
+  });
+  const updateField = (field: string, value: string) => setFormData(prev => ({ ...prev, [field]: value }));
+
+  // Real KYC document uploads - the GSTVendor data model already has real
+  // fields for these (gstCertificate/panCertificate), they were just
+  // never connected to this form.
+  const [gstCertFile, setGstCertFile] = useState<{ name: string; type: string; base64: string } | null>(null);
+  const [panCertFile, setPanCertFile] = useState<{ name: string; type: string; base64: string } | null>(null);
+
+  const handleKycUpload = (kind: "gst" | "pan", e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast.error("File is too large — please upload a file under 500KB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = { name: file.name, type: file.type, base64: reader.result as string };
+      if (kind === "gst") setGstCertFile(data); else setPanCertFile(data);
+      toast.success(`${kind === "gst" ? "GST" : "PAN"} certificate attached`);
+    };
+    reader.onerror = () => toast.error("Could not read this file — please try again.");
+    reader.readAsDataURL(file);
+  };
+
   const suppliers = vendors.length > 0 ? vendors.map(v => ({
     id: v.id,
     companyName: (v as any).name ?? (v as any).legalName ?? "",
@@ -75,10 +108,58 @@ export function SupplierMaster() {
   const [filterCategory, setFilterCategory] = useState("all");
 
   const handleAddSupplier = () => {
+    if (!formData.companyName.trim() || !formData.contactPerson.trim() || !formData.phone.trim() || !formData.gstNumber.trim()) {
+      toast.error("Please fill in company name, contact person, phone, and GST number");
+      return;
+    }
+    const gstDoc: VendorDocument | undefined = gstCertFile
+      ? { id: `DOC-${Date.now()}-1`, type: "GST Certificate", fileName: gstCertFile.name, fileBase64: gstCertFile.base64, uploadedBy: "Procurement", uploadedAt: new Date().toISOString(), status: "Pending Verification" }
+      : undefined;
+    const panDoc: VendorDocument | undefined = panCertFile
+      ? { id: `DOC-${Date.now()}-2`, type: "PAN Certificate", fileName: panCertFile.name, fileBase64: panCertFile.base64, uploadedBy: "Procurement", uploadedAt: new Date().toISOString(), status: "Pending Verification" }
+      : undefined;
+    const newVendor: GSTVendor = {
+      id: `SUP-${Date.now()}`,
+      name: formData.companyName.trim(),
+      gstin: formData.gstNumber.trim(),
+      pan: formData.panNumber.trim(),
+      state: formData.state || "Gujarat",
+      stateCode: formData.stateCode || "24",
+      address: `${formData.addressLine1}${formData.addressLine2 ? ", " + formData.addressLine2 : ""}`,
+      contactPerson: formData.contactPerson.trim(),
+      contactPhone: formData.phone.trim(),
+      contactEmail: formData.email.trim(),
+      vendorType: "Goods",
+      supplyType: "Regular",
+      paymentTerms: formData.paymentTerms || "Net 30",
+      bankAccountNumber: formData.bankAccountNumber.trim(),
+      ifscCode: formData.ifscCode.trim(),
+      gstinValidated: false,
+      riskScore: gstComplianceService.initVendorRisk(formData.gstNumber.trim()),
+      riskLevel: "Medium",
+      filingStatus: "Unknown",
+      createdBy: "Procurement",
+      createdAt: new Date().toISOString(),
+      status: "Active",
+      notes: formData.notes.trim(),
+      gstCertificate: gstDoc,
+      panCertificate: panDoc,
+      approvalStatus: "Pending",
+    };
+    gstComplianceService.saveVendor(newVendor);
     toast.success("Supplier added successfully");
-    // ✅ Fix: refresh vendors state so table updates immediately
     setVendors(gstComplianceService.getVendors());
     setShowAddDialog(false);
+    setFormData({
+      companyName: "", tradeName: "", supplierType: "", contactPerson: "", designation: "",
+      phone: "", altPhone: "", email: "",
+      addressLine1: "", addressLine2: "", city: "", stateCode: "", state: "", pinCode: "", region: "",
+      gstNumber: "", panNumber: "", msme: "", yearEstablished: "",
+      paymentTerms: "", creditLimit: "", bankAccountNumber: "", ifscCode: "",
+      notes: "",
+    });
+    setGstCertFile(null);
+    setPanCertFile(null);
   };
 
   const renderStars = (rating: number) => {
@@ -309,15 +390,15 @@ export function SupplierMaster() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>Company Name *</Label>
-                  <Input placeholder="Enter company name" />
+                  <Input placeholder="Enter company name" value={formData.companyName} onChange={e => updateField("companyName", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Trade Name (if different)</Label>
-                  <Input placeholder="Enter trade name" />
+                  <Input placeholder="Enter trade name" value={formData.tradeName} onChange={e => updateField("tradeName", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Supplier Type *</Label>
-                  <Select>
+                  <Select value={formData.supplierType} onValueChange={val => updateField("supplierType", val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
@@ -331,23 +412,23 @@ export function SupplierMaster() {
                 </div>
                 <div className="space-y-2">
                   <Label>Contact Person Name *</Label>
-                  <Input placeholder="Enter contact person" />
+                  <Input placeholder="Enter contact person" value={formData.contactPerson} onChange={e => updateField("contactPerson", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Designation</Label>
-                  <Input placeholder="Enter designation" />
+                  <Input placeholder="Enter designation" value={formData.designation} onChange={e => updateField("designation", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Phone *</Label>
-                  <Input placeholder="+91 XXXXX XXXXX" />
+                  <Input placeholder="+91 XXXXX XXXXX" value={formData.phone} onChange={e => updateField("phone", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Alternate Phone</Label>
-                  <Input placeholder="+91 XXXXX XXXXX" />
+                  <Input placeholder="+91 XXXXX XXXXX" value={formData.altPhone} onChange={e => updateField("altPhone", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Email *</Label>
-                  <Input type="email" placeholder="supplier@example.com" />
+                  <Input type="email" placeholder="supplier@example.com" value={formData.email} onChange={e => updateField("email", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -361,11 +442,11 @@ export function SupplierMaster() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label>Address Line 1 *</Label>
-                  <Input placeholder="Street address" />
+                  <Input placeholder="Street address" value={formData.addressLine1} onChange={e => updateField("addressLine1", e.target.value)} />
                 </div>
                 <div className="space-y-2 col-span-2">
                   <Label>Address Line 2</Label>
-                  <Input placeholder="Building, floor, etc." />
+                  <Input placeholder="Building, floor, etc." value={formData.addressLine2} onChange={e => updateField("addressLine2", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>City *</Label>
@@ -391,11 +472,11 @@ export function SupplierMaster() {
                 </div>
                 <div className="space-y-2">
                   <Label>PIN Code *</Label>
-                  <Input placeholder="XXXXXX" maxLength={6} />
+                  <Input placeholder="XXXXXX" maxLength={6} value={formData.pinCode} onChange={e => updateField("pinCode", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Region</Label>
-                  <Select>
+                  <Select value={formData.region} onValueChange={val => updateField("region", val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select region" />
                     </SelectTrigger>
@@ -418,19 +499,33 @@ export function SupplierMaster() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>GST Number *</Label>
-                  <Input placeholder="XXAABCUXXXXRXZX" maxLength={15} className="font-mono" />
+                  <Input placeholder="XXAABCUXXXXRXZX" maxLength={15} className="font-mono" value={formData.gstNumber} onChange={e => updateField("gstNumber", e.target.value.toUpperCase())} />
                 </div>
                 <div className="space-y-2">
                   <Label>PAN Number *</Label>
-                  <Input placeholder="ABCDE1234F" maxLength={10} className="font-mono" />
+                  <Input placeholder="ABCDE1234F" maxLength={10} className="font-mono" value={formData.panNumber} onChange={e => updateField("panNumber", e.target.value.toUpperCase())} />
                 </div>
                 <div className="space-y-2">
                   <Label>MSME Registration (optional)</Label>
-                  <Input placeholder="MSME number" />
+                  <Input placeholder="MSME number" value={formData.msme} onChange={e => updateField("msme", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Year Established</Label>
-                  <Input type="number" placeholder="YYYY" />
+                  <Input type="number" placeholder="YYYY" value={formData.yearEstablished} onChange={e => updateField("yearEstablished", e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>GST Certificate {gstCertFile && <span className="text-green-600 text-xs">✓ Attached</span>}</Label>
+                  <label className="flex items-center justify-center border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-gray-50">
+                    <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => handleKycUpload("gst", e)} />
+                    <span className="text-sm text-gray-600">{gstCertFile ? gstCertFile.name : "Click to attach GST certificate"}</span>
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <Label>PAN Certificate {panCertFile && <span className="text-green-600 text-xs">✓ Attached</span>}</Label>
+                  <label className="flex items-center justify-center border-2 border-dashed rounded-lg p-3 cursor-pointer hover:bg-gray-50">
+                    <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => handleKycUpload("pan", e)} />
+                    <span className="text-sm text-gray-600">{panCertFile ? panCertFile.name : "Click to attach PAN certificate"}</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -444,7 +539,7 @@ export function SupplierMaster() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>Payment Terms *</Label>
-                  <Select>
+                  <Select value={formData.paymentTerms} onValueChange={val => updateField("paymentTerms", val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment terms" />
                     </SelectTrigger>
@@ -460,15 +555,15 @@ export function SupplierMaster() {
                 </div>
                 <div className="space-y-2">
                   <Label>Credit Limit (₹) *</Label>
-                  <Input type="number" placeholder="0" />
+                  <Input type="number" placeholder="0" value={formData.creditLimit} onChange={e => updateField("creditLimit", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Bank Account Number</Label>
-                  <Input placeholder="XXXX XXXX XXXX" />
+                  <Input placeholder="XXXX XXXX XXXX" value={formData.bankAccountNumber} onChange={e => updateField("bankAccountNumber", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>IFSC Code</Label>
-                  <Input placeholder="XXXXXXXXXXXXXX" className="font-mono" />
+                  <Input placeholder="XXXXXXXXXXXXXX" className="font-mono" value={formData.ifscCode} onChange={e => updateField("ifscCode", e.target.value.toUpperCase())} />
                 </div>
               </div>
             </div>
@@ -476,7 +571,7 @@ export function SupplierMaster() {
             {/* Internal Notes */}
             <div className="space-y-2">
               <Label>Internal Notes (Not visible to supplier)</Label>
-              <Textarea rows={3} placeholder="Add any internal notes about this supplier..." />
+              <Textarea rows={3} placeholder="Add any internal notes about this supplier..." value={formData.notes} onChange={e => updateField("notes", e.target.value)} />
             </div>
           </div>
 

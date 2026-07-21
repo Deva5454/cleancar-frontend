@@ -29,6 +29,11 @@ interface Invoice {
   lines?: InvoiceLine[];
   matchLines?: MatchLine[];
   discrepancyDetails?: string;
+  // Real invoice document attachment - previously no invoice could
+  // carry a real copy of the actual vendor invoice document.
+  invoiceFileName?: string;
+  invoiceFileType?: string;
+  invoiceFileBase64?: string;
 }
 
 // ── Data ─────────────────────────────────────────────────────────────────────
@@ -94,7 +99,82 @@ const INITIAL_INVOICES: Invoice[] = [
 ];
 
 export function InvoiceMatching() {
-  const [invoices, setInvoices]         = useState<Invoice[]>(INITIAL_INVOICES);
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    try {
+      const stored = localStorage.getItem("cleancar_invoices");
+      if (stored) return JSON.parse(stored);
+      localStorage.setItem("cleancar_invoices", JSON.stringify(INITIAL_INVOICES));
+      return INITIAL_INVOICES;
+    } catch {
+      return INITIAL_INVOICES;
+    }
+  });
+  // Real invoice recording dialog - previously there was no way to
+  // record a new invoice at all, only match pre-seeded demo ones.
+  const [addInvoiceOpen, setAddInvoiceOpen] = useState(false);
+  const [newInvoiceNumber, setNewInvoiceNumber] = useState("");
+  const [newPoNumber, setNewPoNumber] = useState("");
+  const [newGrnNumber, setNewGrnNumber] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newInvoiceFileName, setNewInvoiceFileName] = useState<string | null>(null);
+  const [newInvoiceFileType, setNewInvoiceFileType] = useState<string | null>(null);
+  const [newInvoiceFileBase64, setNewInvoiceFileBase64] = useState<string | null>(null);
+
+  const persistInvoices = (updated: Invoice[]) => {
+    setInvoices(updated);
+    try { localStorage.setItem("cleancar_invoices", JSON.stringify(updated)); } catch {}
+  };
+
+  const handleNewInvoiceFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast.error("File is too large — please upload a file under 500KB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewInvoiceFileBase64(reader.result as string);
+      setNewInvoiceFileName(file.name);
+      setNewInvoiceFileType(file.type);
+      toast.success("Invoice document attached");
+    };
+    reader.onerror = () => toast.error("Could not read this file — please try again.");
+    reader.readAsDataURL(file);
+  };
+
+  const handleRecordInvoice = () => {
+    if (!newInvoiceNumber.trim() || !newSupplier.trim() || !newAmount.trim()) {
+      toast.error("Enter the invoice number, supplier, and amount");
+      return;
+    }
+    const amount = parseFloat(newAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    const newInvoice: Invoice = {
+      invoiceNumber: newInvoiceNumber.trim(),
+      poNumber: newPoNumber.trim() || "—",
+      grnNumber: newGrnNumber.trim() || "—",
+      supplier: newSupplier.trim(),
+      amount,
+      status: "Pending Match",
+      date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+      invoiceDate: new Date().toISOString().split("T")[0],
+      invoiceFileName: newInvoiceFileName || undefined,
+      invoiceFileType: newInvoiceFileType || undefined,
+      invoiceFileBase64: newInvoiceFileBase64 || undefined,
+    };
+    persistInvoices([newInvoice, ...invoices]);
+    toast.success(`Invoice ${newInvoice.invoiceNumber} recorded`);
+    setAddInvoiceOpen(false);
+    setNewInvoiceNumber(""); setNewPoNumber(""); setNewGrnNumber(""); setNewSupplier(""); setNewAmount("");
+    setNewInvoiceFileName(null); setNewInvoiceFileType(null); setNewInvoiceFileBase64(null);
+  };
+
   const [viewInvoice, setViewInvoice]   = useState<Invoice | null>(null);
   const [matchInvoice, setMatchInvoice] = useState<Invoice | null>(null);
   const [resolveInv, setResolveInv]     = useState<Invoice | null>(null);
@@ -103,7 +183,7 @@ export function InvoiceMatching() {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleConfirmMatch = (inv: Invoice) => {
-    setInvoices(prev => prev.map(i =>
+    persistInvoices(invoices.map(i =>
       i.invoiceNumber === inv.invoiceNumber
         ? { ...i, status:"Matched", matchType:"3-Way Match" }
         : i
@@ -130,7 +210,7 @@ export function InvoiceMatching() {
     }
     const newStatus = resolutionType === "accept-partial" ? "Matched" :
                       resolutionType === "reject"         ? "Rejected" : "Matched";
-    setInvoices(prev => prev.map(i =>
+    persistInvoices(invoices.map(i =>
       i.invoiceNumber === inv.invoiceNumber
         ? { ...i, status: newStatus, matchType: newStatus === "Matched" ? "Partial Match" : undefined, issue: undefined }
         : i
@@ -152,9 +232,12 @@ export function InvoiceMatching() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">Invoice Matching</h2>
-        <p className="text-sm text-gray-500 mt-1">3-way match between PO, GRN, and supplier invoices for payment approval</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Invoice Matching</h2>
+          <p className="text-sm text-gray-500 mt-1">3-way match between PO, GRN, and supplier invoices for payment approval</p>
+        </div>
+        <Button onClick={() => setAddInvoiceOpen(true)}>Record Invoice</Button>
       </div>
 
       {/* Stats */}
@@ -187,6 +270,11 @@ export function InvoiceMatching() {
                       <span>·</span><span>{inv.date}</span>
                     </div>
                     {inv.issue && <p className="text-xs text-red-600 mt-1">⚠ {inv.issue}</p>}
+                    {inv.invoiceFileBase64 && (
+                      <a href={inv.invoiceFileBase64} download={inv.invoiceFileName} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline mt-1 inline-block">
+                        View attached invoice
+                      </a>
+                    )}
                   </div>
                   <p className="font-bold text-lg mr-4 shrink-0">₹{inv.amount.toLocaleString()}</p>
                 </div>
@@ -438,6 +526,54 @@ export function InvoiceMatching() {
               disabled={!resolutionType || !resolution.trim()}>
               {resolutionType === "reject" ? "Reject Invoice" : "Apply Resolution"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Invoice — real creation flow, previously didn't exist */}
+      <Dialog open={addInvoiceOpen} onOpenChange={setAddInvoiceOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Record Invoice</DialogTitle>
+            <DialogDescription>Enter the real details from the vendor's invoice, and attach a copy if you have one.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Invoice Number</Label>
+                <Input value={newInvoiceNumber} onChange={(e) => setNewInvoiceNumber(e.target.value)} placeholder="INV-2026-001" />
+              </div>
+              <div>
+                <Label>Supplier</Label>
+                <Input value={newSupplier} onChange={(e) => setNewSupplier(e.target.value)} placeholder="Supplier name" />
+              </div>
+              <div>
+                <Label>PO Number (optional)</Label>
+                <Input value={newPoNumber} onChange={(e) => setNewPoNumber(e.target.value)} placeholder="PO-2026-0001" />
+              </div>
+              <div>
+                <Label>GRN Number (optional)</Label>
+                <Input value={newGrnNumber} onChange={(e) => setNewGrnNumber(e.target.value)} placeholder="GRN-2026-001" />
+              </div>
+              <div className="col-span-2">
+                <Label>Amount (₹)</Label>
+                <Input type="number" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} placeholder="0" />
+              </div>
+            </div>
+            <div>
+              <Label>Invoice Document</Label>
+              <label className="mt-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer hover:bg-gray-50">
+                <input type="file" className="hidden" onChange={handleNewInvoiceFile} accept="image/*,.pdf" />
+                <div className="text-center">
+                  <FileText className="w-6 h-6 mx-auto text-gray-400" />
+                  <p className="text-sm text-gray-600 mt-1">{newInvoiceFileName || "Click to attach the real invoice document"}</p>
+                </div>
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddInvoiceOpen(false)}>Cancel</Button>
+            <Button onClick={handleRecordInvoice}>Record Invoice</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

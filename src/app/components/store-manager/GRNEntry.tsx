@@ -75,12 +75,34 @@ export function GRNEntry() {
         ];
   });
 
+  const [documentFileName, setDocumentFileName] = useState<string | null>(null);
+  const [documentFileType, setDocumentFileType] = useState<string | null>(null);
+  const [documentFileBase64, setDocumentFileBase64] = useState<string | null>(null);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    // Real 500KB limit, matching the same real limit already used for
+    // accounting entry attachments elsewhere in this app.
+    if (file.size > 500 * 1024) {
+      toast.error("File is too large — please upload a file under 500KB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Previously this file was received and immediately discarded -
+      // only a boolean flag was set, so the "uploaded" delivery note
+      // never actually existed anywhere. Now it's genuinely read and
+      // stored as real Base64 data on the GRN record itself.
+      setDocumentFileBase64(reader.result as string);
+      setDocumentFileName(file.name);
+      setDocumentFileType(file.type);
       setDocumentUploaded(true);
       toast.success("Delivery note uploaded!");
-    }
+    };
+    reader.onerror = () => toast.error("Could not read this file — please try again.");
+    reader.readAsDataURL(file);
   };
 
   const handleSubmitGRN = (e: React.FormEvent<HTMLFormElement>) => {
@@ -101,6 +123,9 @@ export function GRNEntry() {
       totalAccepted: quantityReceived, totalRejected: Math.max(0, quantityOrdered - quantityReceived),
       items: [{ id:1, itemName, receivedThisDelivery: quantityReceived, acceptedQuantity: quantityReceived, rejectedQuantity: 0, condition:"Good", storageLocation:"Main Store" }],
       createdAt: new Date().toISOString(),
+      deliveryNoteFileName: documentFileName || undefined,
+      deliveryNoteFileType: documentFileType || undefined,
+      deliveryNoteFileBase64: documentFileBase64 || undefined,
     };
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
@@ -131,6 +156,9 @@ export function GRNEntry() {
 
     setGrnDialogOpen(false);
     setDocumentUploaded(false);
+    setDocumentFileName(null);
+    setDocumentFileType(null);
+    setDocumentFileBase64(null);
   };
 
   return (

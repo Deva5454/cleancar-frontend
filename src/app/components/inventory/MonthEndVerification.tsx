@@ -141,6 +141,26 @@ export function MonthEndVerification() {
     setWorksheetData(updatedData);
   };
 
+  const handleVarianceEvidenceUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast.error("File is too large — please upload a photo under 500KB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const updatedData = [...worksheetData];
+      (updatedData[index] as any).varianceEvidenceBase64 = reader.result as string;
+      (updatedData[index] as any).varianceEvidenceFileName = file.name;
+      setWorksheetData(updatedData);
+      toast.success("Photo evidence attached");
+    };
+    reader.onerror = () => toast.error("Could not read this photo — please try again.");
+    reader.readAsDataURL(file);
+  };
+
   const handleLoadWorksheet = () => {
     if (!selectedWasherId || !selectedMonth) {
       toast.error("Please select washer and month");
@@ -177,6 +197,30 @@ export function MonthEndVerification() {
         );
       }
     });
+
+    // Persist the real verification event itself - previously only the
+    // resulting stock number was saved; the actual verification record
+    // (who counted what, variance reasons, photo evidence) never existed
+    // anywhere after this point, discarded the moment the page reloaded.
+    try {
+      const record = {
+        id: `MEV-${Date.now()}`,
+        washerId: selectedWasherId,
+        month: selectedMonth,
+        verifiedAt: new Date().toISOString(),
+        city,
+        items: worksheetData.map((row: any) => ({
+          itemName: row.itemName,
+          physicalCount: row.physicalCount,
+          variance: row.variance,
+          varianceReason: row.varianceReason || undefined,
+          varianceEvidenceBase64: row.varianceEvidenceBase64 || undefined,
+          varianceEvidenceFileName: row.varianceEvidenceFileName || undefined,
+        })),
+      };
+      const existing = JSON.parse(localStorage.getItem("cleancar_month_end_verifications") || "[]");
+      localStorage.setItem("cleancar_month_end_verifications", JSON.stringify([record, ...existing]));
+    } catch {}
 
     toast.success("Month-end verification completed successfully! Carry-forward posted for next month.");
   };
@@ -280,6 +324,7 @@ export function MonthEndVerification() {
                       <TableHead className="text-right">Physical Count *</TableHead>
                       <TableHead className="text-right">Variance</TableHead>
                       <TableHead className="min-w-[200px]">Variance Reason</TableHead>
+                      <TableHead>Evidence</TableHead>
                       <TableHead className="text-right">Verified Consumption</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -347,6 +392,22 @@ export function MonthEndVerification() {
                               </Select>
                             ) : (
                               <span className="text-xs text-gray-400">Not required</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {needsReason && row.physicalCount > 0 ? (
+                              (row as any).varianceEvidenceBase64 ? (
+                                <a href={(row as any).varianceEvidenceBase64} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">
+                                  View Photo
+                                </a>
+                              ) : (
+                                <label className="text-xs text-gray-500 underline cursor-pointer">
+                                  Add Photo
+                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleVarianceEvidenceUpload(index, e)} />
+                                </label>
+                              )
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
                             )}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-blue-600">

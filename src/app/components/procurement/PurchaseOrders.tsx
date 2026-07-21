@@ -138,6 +138,28 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);
   };
 
+  const handleAttachPODocument = (poNumber: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast.error("File is too large — please upload a file under 500KB.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const updated = purchaseOrders.map(p => p.poNumber === poNumber
+        ? { ...p, attachmentFileName: file.name, attachmentFileType: file.type, attachmentFileBase64: reader.result as string }
+        : p
+      );
+      setPurchaseOrders(updated);
+      try { localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updated)); } catch {}
+      toast.success("Document attached to " + poNumber);
+    };
+    reader.onerror = () => toast.error("Could not read this file — please try again.");
+    reader.readAsDataURL(file);
+  };
+
   const handleApprovePO = (po: any) => {
     const updated = purchaseOrders.map(p => p.poNumber === po.poNumber ? { ...p, status: "Approved", approvedBy: "Procurement Manager", approvedAt: new Date().toISOString() } : p);
     setPurchaseOrders(updated);
@@ -250,11 +272,21 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                     <p className="font-bold text-lg">₹{po.amount.toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {po.status === "Pending Approval" && (
                     <Button size="sm" onClick={() => handleApprovePO(po)} className="bg-green-600 hover:bg-green-700">
                       Approve
                     </Button>
+                  )}
+                  {po.attachmentFileBase64 ? (
+                    <a href={po.attachmentFileBase64} download={po.attachmentFileName} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline px-1">
+                      View Copy
+                    </a>
+                  ) : (
+                    <label className="text-xs text-gray-500 underline cursor-pointer px-1">
+                      Attach Copy
+                      <input type="file" className="hidden" accept="image/*,.pdf" onChange={(e) => handleAttachPODocument(po.poNumber, e)} />
+                    </label>
                   )}
                   <Button size="sm" variant="outline" onClick={() => handleViewPO(po.poNumber)}>
                     <FileText className="w-4 h-4 mr-1" />
