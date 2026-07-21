@@ -24,14 +24,14 @@ import {
   type PlanType,
 } from "../../data/subscriptionPlans";
 import { detectVehicleCategory } from "./carModelLookup";
-import { ChevronLeft, Check } from "lucide-react";
+import { ChevronLeft, Check, Car } from "lucide-react";
 import { toast } from "sonner";
 
 const TIME_SLOTS = ["6:00 AM - 8:00 AM", "8:00 AM - 10:00 AM", "4:00 PM - 6:00 PM", "6:00 PM - 8:00 PM"];
 
 export function CustomerPortalBooking() {
   const { loggedInCustomerId } = useCustomerPortalAuth();
-  const { customers } = useCustomers();
+  const { customers, updateCustomer } = useCustomers();
   const { createJob } = useJobs();
   const navigate = useNavigate();
 
@@ -40,21 +40,61 @@ export function CustomerPortalBooking() {
     [customers, loggedInCustomerId]
   );
 
+  // Real saved vehicles - uses the real savedVehicles list if the
+  // customer has one, otherwise falls back to their single legacy
+  // vehicleDetails so existing customers still get a real prefill
+  // instead of an empty list.
+  const savedVehicleList = useMemo(() => {
+    if (!customer) return [];
+    if (customer.savedVehicles && customer.savedVehicles.length > 0) return customer.savedVehicles;
+    if (customer.vehicleDetails) {
+      return [{ id: "legacy", ...customer.vehicleDetails }];
+    }
+    return [];
+  }, [customer]);
+
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+
   const [step, setStep] = useState(1);
   const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory | "">("");
   const [modelInput, setModelInput] = useState("");
   const [plan, setPlan] = useState<PlanType | "">("");
-  const [regNumber, setRegNumber] = useState(customer?.vehicleDetails?.registrationNumber || "");
-  const [vehicleBrand, setVehicleBrand] = useState(customer?.vehicleDetails?.brand || "");
-  const [vehicleColor, setVehicleColor] = useState(customer?.vehicleDetails?.color || "");
+  const [regNumber, setRegNumber] = useState("");
+  const [vehicleBrand, setVehicleBrand] = useState("");
+  const [vehicleColor, setVehicleColor] = useState("");
   const [scheduledDate, setScheduledDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[0]);
   const [submitting, setSubmitting] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [isNewVehicle, setIsNewVehicle] = useState(savedVehicleList.length === 0);
+  // Real service address for this booking - defaults to the saved
+  // profile address, but editable per-booking without changing the
+  // customer's saved profile.
+  const [serviceAddressLine1, setServiceAddressLine1] = useState(customer?.address?.line1 || "");
+  const [serviceArea, setServiceArea] = useState(customer?.address?.area || "");
+  const [servicePinCode, setServicePinCode] = useState(customer?.address?.pinCode || "");
+  const [editingAddress, setEditingAddress] = useState(false);
   const [vehicleQueue, setVehicleQueue] = useState<Array<{
     vehicleCategory: VehicleCategory; modelInput: string; plan: PlanType;
     regNumber: string; vehicleBrand: string; vehicleColor: string; selectedAddons: string[];
   }>>([]);
+
+  const selectSavedVehicle = (v: { id: string; category: string; brand: string; color: string; registrationNumber: string }) => {
+    setSelectedVehicleId(v.id);
+    setIsNewVehicle(false);
+    setVehicleCategory(v.category as VehicleCategory);
+    setVehicleBrand(v.brand);
+    setVehicleColor(v.color);
+    setRegNumber(v.registrationNumber);
+    setModelInput(v.brand);
+    setPlan("");
+  };
+
+  const startNewVehicle = () => {
+    setSelectedVehicleId("");
+    setIsNewVehicle(true);
+    setVehicleCategory(""); setVehicleBrand(""); setVehicleColor(""); setRegNumber(""); setModelInput(""); setPlan("");
+  };
 
   const toggleAddon = (id: string) => {
     setSelectedAddons((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]);
@@ -85,6 +125,7 @@ export function CustomerPortalBooking() {
   const resetVehicleFields = () => {
     setModelInput(""); setVehicleCategory(""); setPlan(""); setSelectedAddons([]);
     setRegNumber(""); setVehicleBrand(""); setVehicleColor("");
+    setSelectedVehicleId(""); setIsNewVehicle(savedVehicleList.length === 0);
   };
 
   const addAnotherVehicle = () => {
@@ -133,10 +174,10 @@ export function CustomerPortalBooking() {
           registration: v.regNumber,
         },
         location: {
-          addressLine1: customer.address?.line1 || "",
-          area: customer.address?.area || "",
+          addressLine1: serviceAddressLine1,
+          area: serviceArea,
           city: customer.address?.city || "",
-          pinCode: customer.address?.pinCode || "",
+          pinCode: servicePinCode,
         },
         serviceDetails: {
           addons: v.selectedAddons.map((id) => {
@@ -147,6 +188,25 @@ export function CustomerPortalBooking() {
         },
       } as any);
     });
+
+    // Save any genuinely new vehicle used in this booking to the
+    // customer's real saved vehicles list, so it's available to pick
+    // from directly next time, instead of retyping it again.
+    const alreadySaved = new Set(savedVehicleList.map((v: any) => v.registrationNumber));
+    const newVehiclesToSave = allVehicles
+      .filter((v) => !alreadySaved.has(v.regNumber))
+      .map((v) => ({
+        id: `VEH-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        category: v.vehicleCategory,
+        brand: v.vehicleBrand,
+        color: v.vehicleColor,
+        registrationNumber: v.regNumber,
+      }));
+    if (newVehiclesToSave.length > 0) {
+      updateCustomer(customer.customerId, {
+        savedVehicles: [...savedVehicleList, ...newVehiclesToSave],
+      });
+    }
 
     setTimeout(() => {
       toast.success(
@@ -184,6 +244,33 @@ export function CustomerPortalBooking() {
                 ))}
               </div>
             )}
+            {savedVehicleList.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Choose your vehicle</p>
+                <div className="space-y-2">
+                  {savedVehicleList.map((v: any) => (
+                    <button
+                      key={v.id}
+                      onClick={() => selectSavedVehicle(v)}
+                      className={`w-full text-left p-3 rounded-xl border flex items-center gap-3 ${selectedVehicleId === v.id ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"}`}
+                    >
+                      <Car className="w-5 h-5 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{v.brand} · {v.color}</p>
+                        <p className="text-xs text-gray-500">{v.registrationNumber} · {v.category}</p>
+                      </div>
+                    </button>
+                  ))}
+                  <button
+                    onClick={startNewVehicle}
+                    className={`w-full text-left p-3 rounded-xl border text-sm ${isNewVehicle ? "border-blue-500 bg-blue-50 text-blue-700" : "border-dashed border-gray-300 text-gray-600"}`}
+                  >
+                    + Add a different vehicle
+                  </button>
+                </div>
+              </div>
+            )}
+            {isNewVehicle && (
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">What car do you drive?</p>
               <input
@@ -208,6 +295,7 @@ export function CustomerPortalBooking() {
                 )
               )}
             </div>
+            )}
 
             {vehicleCategory && (
               <div>
@@ -353,6 +441,34 @@ export function CustomerPortalBooking() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Location for this wash - real, always shown, even for a single vehicle */}
+            <div className="bg-white rounded-xl border p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-medium text-gray-700">Wash Location</p>
+                {!editingAddress && (
+                  <button onClick={() => setEditingAddress(true)} className="text-xs text-blue-600">Change for this booking</button>
+                )}
+              </div>
+              {!editingAddress ? (
+                <p className="text-sm text-gray-600">
+                  {serviceAddressLine1}, {serviceArea} {servicePinCode}
+                </p>
+              ) : (
+                <div className="space-y-2 mt-2">
+                  <input value={serviceAddressLine1} onChange={(e) => setServiceAddressLine1(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Address line" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={serviceArea} onChange={(e) => setServiceArea(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Area" />
+                    <input value={servicePinCode} onChange={(e) => setServicePinCode(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Pin code" />
+                  </div>
+                  <button onClick={() => setEditingAddress(false)} className="text-xs text-blue-600">Done</button>
+                  <p className="text-xs text-gray-400">This only changes the address for this booking — your saved profile address stays the same.</p>
+                </div>
+              )}
             </div>
 
             {/* Summary */}

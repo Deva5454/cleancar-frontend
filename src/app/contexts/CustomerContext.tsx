@@ -37,6 +37,17 @@ export interface Customer {
     color: string;
     registrationNumber: string;
   };
+  // Real multiple-vehicle support - a customer with more than one car can
+  // save each one here and pick from a real list at booking time, instead
+  // of retyping details every time. vehicleDetails above is kept as-is for
+  // backward compatibility with existing customers who only ever had one.
+  savedVehicles?: Array<{
+    id: string;
+    category: string;
+    brand: string;
+    color: string;
+    registrationNumber: string;
+  }>;
   leadSource?: string; // "Referral", "Google Ads", "Walk-in", etc.
   status: "Lead" | "Demo Scheduled" | "Active" | "Inactive" | "Churned";
   createdAt: string;
