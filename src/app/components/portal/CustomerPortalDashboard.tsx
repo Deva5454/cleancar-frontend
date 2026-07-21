@@ -76,7 +76,7 @@ function JobStatusStrip({ status }: { status: string }) {
 
 export function CustomerPortalDashboard() {
   const { loggedInCustomerId, logout } = useCustomerPortalAuth();
-  const { customers } = useCustomers();
+  const { customers, updateCustomer } = useCustomers();
   const { getJobsByCustomerId, updateJob, createJob } = useJobs();
   const { getSubscriptionsByCustomerId } = useCustomerSubscriptions();
   const navigate = useNavigate();
@@ -87,6 +87,13 @@ export function CustomerPortalDashboard() {
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAddressLine1, setEditAddressLine1] = useState("");
+  const [editArea, setEditArea] = useState("");
+  const [editPinCode, setEditPinCode] = useState("");
   const [notifPanelOpen, setNotifPanelOpen] = useState(false);
   const [lastViewedNotifAt, setLastViewedNotifAt] = useState(() => localStorage.getItem("cc360_portal_notif_last_viewed") || "");
   const [ratingJobId, setRatingJobId] = useState<string | null>(null);
@@ -272,6 +279,36 @@ export function CustomerPortalDashboard() {
     refreshRefunds();
   };
 
+  const openEditProfile = () => {
+    setEditFirstName(customer.firstName || "");
+    setEditLastName(customer.lastName || "");
+    setEditEmail(customer.email || "");
+    setEditAddressLine1(customer.address?.line1 || "");
+    setEditArea(customer.address?.area || "");
+    setEditPinCode(customer.address?.pinCode || "");
+    setEditingProfile(true);
+  };
+
+  const saveProfileEdits = () => {
+    if (!editFirstName.trim()) {
+      toast.error("First name can't be empty");
+      return;
+    }
+    updateCustomer(customer.customerId, {
+      firstName: editFirstName,
+      lastName: editLastName,
+      email: editEmail,
+      address: {
+        ...customer.address,
+        line1: editAddressLine1,
+        area: editArea,
+        pinCode: editPinCode,
+      },
+    });
+    toast.success("Profile updated.");
+    setEditingProfile(false);
+  };
+
   const openRatingPrompt = (job: any) => {
     setRatingJobId(job.jobId);
     setSelectedStars(0);
@@ -320,7 +357,13 @@ export function CustomerPortalDashboard() {
     };
   }, [menuOpen]);
 
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
   const handleLogout = () => {
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
     logout();
     navigate("/portal/login");
   };
@@ -741,10 +784,31 @@ export function CustomerPortalDashboard() {
         </div>
       )}
 
-      {/* My Account panel */}
+      {/* Logout confirmation */}
+      {logoutConfirmOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-40 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <LogOut className="w-5 h-5 text-gray-700" />
+              <h3 className="font-semibold text-gray-900">Logout</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Are you sure you want to logout?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setLogoutConfirmOpen(false)} className="flex-1 border rounded-xl py-2.5 text-sm font-medium text-gray-700">
+                Cancel
+              </button>
+              <button onClick={confirmLogout} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-medium">
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* My Account panel - now genuinely editable */}
       {accountPanelOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-30 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">My Account</h3>
               <button onClick={() => setAccountPanelOpen(false)}><X className="w-5 h-5 text-gray-400" /></button>
@@ -762,37 +826,84 @@ export function CustomerPortalDashboard() {
               </div>
             </div>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between border-b pb-2">
-                <span className="text-gray-500">Phone</span>
-                <span className="text-gray-900 font-medium">{customer.phone}</span>
-              </div>
-              {customer.email && (
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-500">Email</span>
-                  <span className="text-gray-900 font-medium">{customer.email}</span>
+            {!editingProfile ? (
+              <>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-gray-500">Phone</span>
+                    <span className="text-gray-900 font-medium">{customer.phone}</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-gray-500">Email</span>
+                    <span className="text-gray-900 font-medium">{customer.email || "Not added"}</span>
+                  </div>
+                  {customer.vehicleDetails && (
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="text-gray-500">Vehicle</span>
+                      <span className="text-gray-900 font-medium text-right">
+                        {customer.vehicleDetails.brand} · {customer.vehicleDetails.color}
+                        <br />
+                        <span className="text-xs text-gray-500">{customer.vehicleDetails.registrationNumber}</span>
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Address</span>
+                    <span className="text-gray-900 font-medium text-right">
+                      {customer.address?.line1}
+                      {customer.address?.line2 ? `, ${customer.address.line2}` : ""}
+                      <br />
+                      {customer.address?.area}, {customer.address?.city} {customer.address?.pinCode}
+                    </span>
+                  </div>
                 </div>
-              )}
-              {customer.vehicleDetails && (
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-gray-500">Vehicle</span>
-                  <span className="text-gray-900 font-medium text-right">
-                    {customer.vehicleDetails.brand} · {customer.vehicleDetails.color}
-                    <br />
-                    <span className="text-xs text-gray-500">{customer.vehicleDetails.registrationNumber}</span>
-                  </span>
+                <button
+                  onClick={() => openEditProfile()}
+                  className="w-full border border-blue-200 text-blue-700 rounded-xl py-2.5 font-medium mt-4 text-sm"
+                >
+                  Edit Details
+                </button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">First Name</label>
+                    <input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Last Name</label>
+                    <input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
                 </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-gray-500">Address</span>
-                <span className="text-gray-900 font-medium text-right">
-                  {customer.address?.line1}
-                  {customer.address?.line2 ? `, ${customer.address.line2}` : ""}
-                  <br />
-                  {customer.address?.area}, {customer.address?.city} {customer.address?.pinCode}
-                </span>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Email</label>
+                  <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="you@example.com" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Address Line 1</label>
+                  <input value={editAddressLine1} onChange={(e) => setEditAddressLine1(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Area</label>
+                    <input value={editArea} onChange={(e) => setEditArea(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Pin Code</label>
+                    <input value={editPinCode} onChange={(e) => setEditPinCode(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setEditingProfile(false)} className="flex-1 border rounded-xl py-2.5 text-sm font-medium text-gray-700">
+                    Cancel
+                  </button>
+                  <button onClick={saveProfileEdits} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-medium">
+                    Save
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
