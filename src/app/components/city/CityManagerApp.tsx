@@ -40,6 +40,7 @@ import {
   Activity,
   AlertCircle,
   LogOut,
+  Package,
 } from "lucide-react";
 import { cityManagerService } from "../../services/cityManagerService";
 import { operationsManagerService } from "../../services/operationsManagerService";
@@ -49,6 +50,7 @@ import { useRole } from "../../contexts/RoleContext";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { useJobs } from "../../contexts/JobContext";
 import { useCity } from "../../contexts/CityContext";
+import { useInventory } from "../../contexts/InventoryContext";
 import { organizationHierarchyService } from "../../services/organizationHierarchyService";
 import { CityManagerPincodeManagement } from "./CityManagerPincodeManagement";
 import { WasherGpsApprovals } from "./WasherGpsApprovals";
@@ -69,6 +71,7 @@ type Screen =
   | "WASHER_GPS_APPROVALS"
   | "TEAM_OPERATIONS"
   | "JOB_APPROVALS"
+  | "BRANCH_TRANSFERS"
   | "LEADS_CONVERSION";
 
 export function CityManagerApp() {
@@ -177,6 +180,8 @@ export function CityManagerApp() {
         return <CMTeamOperationsTab />;
       case "JOB_APPROVALS":
         return <CMJobApprovalsTab />;
+      case "BRANCH_TRANSFERS":
+        return <CMBranchTransfersTab />;
       case "LEADS_CONVERSION":
         return <CMLeadsConversionTab />;
       case "EXIT_VERIFY":
@@ -314,6 +319,7 @@ export function CityManagerApp() {
             // and data OM would use.
             { id: "TEAM_OPERATIONS", label: "Team Operations", icon: Users },
             { id: "JOB_APPROVALS", label: "Job Approvals", icon: CheckCircle, badge: pendingJobApprovals },
+            { id: "BRANCH_TRANSFERS", label: "Branch Transfers", icon: Package },
             { id: "EXIT_VERIFY", label: "Exit Verify", icon: LogOut, badge: pendingCMExits.length },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1217,6 +1223,66 @@ function CMTeamOperationsTab() {
               )}
             </div>
           </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CMBranchTransfersTab() {
+  const { city } = useCity();
+  const { inventory, stockTransactions, approveTransaction } = useInventory();
+
+  const branchTransfers = stockTransactions
+    .filter((t: any) => t.toLocation === "Branch" && t.cityId === city)
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const handleApprove = (transactionId: string) => {
+    approveTransaction(transactionId, "City Manager");
+    toast.success("Branch transfer approved");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">Branch Transfers</h2>
+        <p className="text-sm text-gray-500">
+          Real visibility into every Main Store → Branch Store transfer, with approval rights over this specific movement — not general access to either store's day-to-day stock.
+        </p>
+      </div>
+      {branchTransfers.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-xl border">
+          <p className="font-medium text-gray-700">No branch transfers yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {branchTransfers.map((t: any) => {
+            const item = inventory.find((i: any) => i.itemId === t.itemId);
+            return (
+              <Card key={t.transactionId} className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{item?.itemName || t.itemId}</p>
+                  <p className="text-sm text-gray-500">
+                    Challan {t.challanNumber} · Sent {t.quantitySent ?? t.quantity} · Requested by {t.requestedBy || "—"}
+                  </p>
+                  {t.quantityReceived !== undefined && (
+                    <p className="text-xs text-gray-400">
+                      Received {t.quantityReceived}
+                      {(t.damagedQuantity ?? 0) > 0 && <span className="text-red-600 ml-1">· {t.damagedQuantity} damaged</span>}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={t.status === "Completed" ? "default" : t.status === "Approved" ? "secondary" : "outline"}>
+                    {t.status === "Approved" ? "In Transit" : t.status}
+                  </Badge>
+                  {t.status === "Pending" && (
+                    <Button size="sm" onClick={() => handleApprove(t.transactionId)}>Approve</Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

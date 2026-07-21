@@ -144,6 +144,8 @@ import { PurchaseOrderCreation } from "./components/store-manager/PurchaseOrderC
 import { MOQManagement } from "./components/store-manager/MOQManagement";
 import { InventoryMonitoring } from "./components/store-manager/InventoryMonitoring";
 import { VendorRequest } from "./components/store-manager/VendorRequest";
+import { BranchTransferOut } from "./components/store-manager/BranchTransferOut";
+import { BranchStoreDashboard } from "./components/store-manager/BranchStoreDashboard";
 // Analytics imports - NOW LAZY
 // import { UnitEconomicsDashboard } from "./components/analytics/UnitEconomicsDashboard"; // NOW LAZY
 // import { CustomerLTVAnalysis } from "./components/analytics/CustomerLTVAnalysis"; // NOW LAZY
@@ -487,6 +489,8 @@ export const router = createBrowserRouter([
       { path: "store-manager/moq", element: <MOQManagement /> },
       { path: "store-manager/inventory", element: <InventoryMonitoring /> },
       { path: "store-manager/vendor-request", element: <VendorRequest /> },
+      { path: "store-manager/branch-transfer", element: <BranchTransferOut /> },
+      { path: "store-manager/branch-store", element: <BranchStoreDashboard /> },
       {
         path: "analytics",
         element: <GlobalFiltersProvider><Outlet /></GlobalFiltersProvider>,

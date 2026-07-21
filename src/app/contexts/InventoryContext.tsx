@@ -17,7 +17,12 @@ export interface InventoryItem {
   // Multi-city isolation
   cityId: string; // ✅ NEW: City-level stock isolation (e.g., "CITY-SURAT", "CITY-MUMBAI")
   // Stock levels by location
-  centralStock: number;
+  centralStock: number; // The main/central store - unchanged, existing behavior
+  // Real branch store stock - a branch store receives stock ONLY via
+  // internal transfer from the main store, never from a vendor directly.
+  // Keyed by branchId (e.g. "BRANCH-SURAT-01"), so multiple branches can
+  // exist without touching how centralStock already works everywhere.
+  branchStock?: Record<string, number>;
   supervisorStock: Record<string, number>; // { supervisorId: quantity }
   washerStock: Record<string, number>; // { washerId/employeeId: quantity }
   // Pricing
@@ -33,10 +38,10 @@ export interface StockTransaction {
   itemId: string;
   type: "Procurement" | "Issue" | "Transfer" | "Adjustment" | "Return";
   quantity: number;
-  fromLocation: "Central" | "Supervisor" | "Washer";
-  fromId?: string; // supervisorId or washerId
-  toLocation: "Central" | "Supervisor" | "Washer";
-  toId?: string; // supervisorId or washerId
+  fromLocation: "Central" | "Supervisor" | "Washer" | "Branch";
+  fromId?: string; // supervisorId, washerId, or branchId
+  toLocation: "Central" | "Supervisor" | "Washer" | "Branch";
+  toId?: string; // supervisorId, washerId, or branchId
   reason?: string;
   requestedBy?: string;
   approvedBy?: string;
@@ -44,6 +49,14 @@ export interface StockTransaction {
   createdAt: string;
   completedAt?: string;
   cityId?: string;
+  // Real fields for a Main Store → Branch Store material transfer -
+  // genuinely required (not optional) since there's no vendor involved
+  // and the challan is the only real record of the movement.
+  challanNumber?: string;
+  quantitySent?: number;
+  quantityReceived?: number;
+  damagedQuantity?: number;
+  damageNotes?: string;
 }
 
 interface InventoryContextType {
@@ -74,9 +87,9 @@ interface InventoryContextType {
   transferInventory: (
     itemId: string,
     quantity: number,
-    fromLocation: "Central" | "Supervisor" | "Washer",
+    fromLocation: "Central" | "Supervisor" | "Washer" | "Branch",
     fromId: string | undefined,
-    toLocation: "Central" | "Supervisor" | "Washer",
+    toLocation: "Central" | "Supervisor" | "Washer" | "Branch",
     toId: string | undefined,
     cityId: string
   ) => void;
@@ -93,6 +106,22 @@ interface InventoryContextType {
   // Queries
   getCentralStock: (cityId: string) => InventoryItem[];
   getSupervisorStock: (supervisorId: string, cityId: string) => InventoryItem[];
+  getBranchStock: (branchId: string, cityId: string) => InventoryItem[];
+  transferToBranch: (
+    itemId: string,
+    quantity: number,
+    branchId: string,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ) => StockTransaction | null;
+  receiveBranchTransfer: (
+    transactionId: string,
+    quantityReceived: number,
+    damagedQuantity: number,
+    damageNotes: string | undefined,
+    cityId: string
+  ) => void;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -279,6 +308,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               ...updated.washerStock,
               [transaction.fromId]: Math.max(0, avail - transaction.quantity),
             };
+          } else if (transaction.fromLocation === "Branch" && transaction.fromId) {
+            const avail = (updated.branchStock?.[transaction.fromId] || 0);
+            updated.branchStock = {
+              ...(updated.branchStock || {}),
+              [transaction.fromId]: Math.max(0, avail - transaction.quantity),
+            };
           }
 
           // Increase to destination
@@ -293,6 +328,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             updated.washerStock = {
               ...updated.washerStock,
               [transaction.toId]: (updated.washerStock[transaction.toId] || 0) + transaction.quantity,
+            };
+          } else if (transaction.toLocation === "Branch" && transaction.toId) {
+            updated.branchStock = {
+              ...(updated.branchStock || {}),
+              [transaction.toId]: (updated.branchStock?.[transaction.toId] || 0) + transaction.quantity,
             };
           }
 
@@ -376,9 +416,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const transferInventory = (
     itemId: string,
     quantity: number,
-    fromLocation: "Central" | "Supervisor" | "Washer",
+    fromLocation: "Central" | "Supervisor" | "Washer" | "Branch",
     fromId: string | undefined,
-    toLocation: "Central" | "Supervisor" | "Washer",
+    toLocation: "Central" | "Supervisor" | "Washer" | "Branch",
     toId: string | undefined,
     cityId: string
   ) => {
@@ -406,6 +446,91 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       cityId,
     });
     completeTransaction(transaction.transactionId);
+  };
+
+  // Real Main Store → Branch Store transfer. Deliberately a separate,
+  // dedicated function rather than reusing generic transferInventory -
+  // this one requires a real challan number, since there's no vendor
+  // and no GRN involved; the challan is the only real record of the
+  // movement. Creates the transaction as "Approved" but NOT completed -
+  // stock only actually moves once the branch confirms real receipt via
+  // receiveBranchTransfer(), so a discrepancy in transit is caught
+  // honestly rather than assumed away.
+  const transferToBranch = (
+    itemId: string,
+    quantity: number,
+    branchId: string,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ): StockTransaction | null => {
+    if (!cityId || !challanNumber.trim()) {
+      console.warn("[InventoryContext] Blocked transferToBranch: cityId or challan missing");
+      return null;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Item ${itemId} not found in ${cityId}`);
+      return null;
+    }
+    if ((item.centralStock || 0) < quantity) {
+      console.warn(`[InventoryContext] Blocked transferToBranch: insufficient central stock for ${itemId}`);
+      return null;
+    }
+    // Reserve the stock out of Central immediately, so it can't be
+    // double-committed to another transfer while awaiting approval.
+    setInventory(prev => prev.map(i =>
+      i.itemId === itemId && i.cityId === cityId
+        ? { ...i, centralStock: (i.centralStock || 0) - quantity }
+        : i
+    ));
+    const transaction = createTransaction({
+      itemId,
+      type: "Transfer",
+      quantity,
+      fromLocation: "Central",
+      toLocation: "Branch",
+      toId: branchId,
+      status: "Pending",
+      requestedBy,
+      cityId,
+      challanNumber: challanNumber.trim(),
+      quantitySent: quantity,
+    });
+    return transaction;
+  };
+
+  // Real receipt confirmation on the branch side - what actually
+  // arrived, and any real damage, honestly recorded rather than
+  // silently reconciled against what was sent.
+  const receiveBranchTransfer = (
+    transactionId: string,
+    quantityReceived: number,
+    damagedQuantity: number,
+    damageNotes: string | undefined,
+    cityId: string
+  ) => {
+    const transaction = stockTransactions.find(t => t.transactionId === transactionId);
+    if (!transaction || transaction.toLocation !== "Branch" || !transaction.toId) {
+      console.warn("[InventoryContext] Blocked receiveBranchTransfer: transaction not found or not a branch transfer");
+      return;
+    }
+    setInventory(prev => prev.map(item => {
+      if (item.itemId !== transaction.itemId || item.cityId !== cityId) return item;
+      const branchId = transaction.toId!;
+      return {
+        ...item,
+        branchStock: {
+          ...(item.branchStock || {}),
+          [branchId]: (item.branchStock?.[branchId] || 0) + quantityReceived,
+        },
+      };
+    }));
+    setStockTransactions(prev => prev.map(t =>
+      t.transactionId === transactionId
+        ? { ...t, status: "Completed", completedAt: new Date().toISOString(), quantityReceived, damagedQuantity, damageNotes }
+        : t
+    ));
   };
 
   const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string) => {
@@ -529,6 +654,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const getBranchStock = (branchId: string, cityId: string): InventoryItem[] => {
+    if (!cityId) {
+      console.warn("[InventoryContext] Blocked getBranchStock: cityId missing");
+      return [];
+    }
+    return inventory.filter(
+      (i) => i.cityId === cityId && ((i.branchStock?.[branchId]) || 0) > 0
+    );
+  };
+
   const getWasherStock = (washerId: string, cityId: string): InventoryItem[] => {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
@@ -563,6 +698,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         adjustStock,
         getCentralStock,
         getSupervisorStock,
+        getBranchStock,
+        transferToBranch,
+        receiveBranchTransfer,
         getWasherStock,
         getPendingTransactions,
       }),

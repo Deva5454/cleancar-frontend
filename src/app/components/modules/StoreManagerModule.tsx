@@ -251,6 +251,8 @@ export function StoreManagerModule() {
                   { to:"/store-manager/moq",       icon:<BarChart3 className="w-4 h-4 mr-2"/>, label:"Manage MOQ" },
                   { to:"/store-manager/purchase-order", icon:<ShoppingCart className="w-4 h-4 mr-2"/>, label:"Create PO" },
                   { to:"/store-manager/vendor-request", icon:<Users className="w-4 h-4 mr-2"/>, label:"Request Vendor" },
+                  { to:"/store-manager/branch-transfer", icon:<Package className="w-4 h-4 mr-2"/>, label:"Send to Branch" },
+                  { to:"/store-manager/branch-store", icon:<Package className="w-4 h-4 mr-2"/>, label:"Branch Store" },
                 ].map(a => (
                   <Link key={a.to} to={a.to}>
                     <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
