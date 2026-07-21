@@ -21,6 +21,7 @@ import {
   CURRENT_PLAN_VERSION,
   ADD_ON_SERVICES,
   getAddonPrice,
+  VEHICLE_CATEGORIES,
   type VehicleCategory,
   type PlanType,
 } from "../../data/subscriptionPlans";
@@ -87,12 +88,24 @@ export function CustomerPortalBooking() {
   const selectSavedVehicle = (v: { id: string; category: string; brand: string; color: string; registrationNumber: string }) => {
     setSelectedVehicleId(v.id);
     setIsNewVehicle(false);
-    setVehicleCategory(v.category as VehicleCategory);
+    // The category on file might be real (from a booking made through
+    // this same picker) or legacy free-text (e.g. "Sedan" from an older
+    // part of the app, not one of the real pricing categories). Only
+    // trust it directly if it's a real, valid category; otherwise fall
+    // back to detecting it from the brand name, the same real detection
+    // used for a brand-new vehicle.
+    const validCategory = VEHICLE_CATEGORIES.includes(v.category as VehicleCategory)
+      ? (v.category as VehicleCategory)
+      : (detectVehicleCategory(v.brand) || "");
+    setVehicleCategory(validCategory);
     setVehicleBrand(v.brand);
     setVehicleColor(v.color);
     setRegNumber(v.registrationNumber);
     setModelInput(v.brand);
     setPlan("");
+    if (!validCategory) {
+      toast.error("We couldn't confirm this vehicle's category — please re-check the model below.");
+    }
   };
 
   const startNewVehicle = () => {

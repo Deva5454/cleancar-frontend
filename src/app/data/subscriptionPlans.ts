@@ -475,7 +475,15 @@ export function getSubscriptionPrice(
   vehicleCategory: VehicleCategory,
   plan: PlanType,
 ): number | "NA" {
-  return CURRENT_PLAN_VERSION.pricingMatrix[vehicleCategory][plan];
+  // Defensive: a caller can pass a category that isn't a real key in the
+  // pricing matrix (e.g. legacy free-text vehicle data like "Sedan"
+  // instead of the real "SUV / MUV / Sedan"). Previously this crashed
+  // the whole page with "Cannot read properties of undefined" - now it
+  // returns "NA" honestly, the same way an unpriced combination already
+  // does, instead of throwing.
+  const categoryPricing = CURRENT_PLAN_VERSION.pricingMatrix[vehicleCategory];
+  if (!categoryPricing) return "NA";
+  return categoryPricing[plan] ?? "NA";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
