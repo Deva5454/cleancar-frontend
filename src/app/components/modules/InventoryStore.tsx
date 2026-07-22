@@ -10,10 +10,15 @@ import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useEffect, useState } from "react";
+import { useEmployee } from "../../contexts/EmployeeContext";
+import { useCity } from "../../contexts/CityContext";
 import { logger } from "../../services/logger";
 
 export function InventoryStore() {
   const { inventory, getLowStockItems } = useInventory();
+  const { getEmployeesByRole } = useEmployee();
+  const { city } = useCity();
+  const washers = getEmployeesByRole("Washer").filter((w: any) => (w.city === city || w.workLocation === city || w.cityId === city));
   const [isLoading, setIsLoading] = useState(true);
 
   // Listen for inventory updates
@@ -34,7 +39,8 @@ export function InventoryStore() {
   const totalValue = inventory.reduce((sum: number, item: any) => {
     const currentStock = item.centralStock +
       Object.values(item.supervisorStock as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0) +
-      Object.values(item.washerStock as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0);
+      Object.values(item.washerStock as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0) +
+      Object.values((item.branchStock || {}) as Record<string, number>).reduce((s: number, qty: number) => s + qty, 0);
     return sum + (currentStock * (item.unitCost || 0));
   }, 0);
   const lowStockItems = getLowStockItems();
@@ -205,6 +211,7 @@ export function InventoryStore() {
       <Tabs defaultValue="inventory" className="space-y-4">
         <TabsList>
           <TabsTrigger value="inventory">Stock Ledger</TabsTrigger>
+          <TabsTrigger value="washers">Washer Stock</TabsTrigger>
           <TabsTrigger value="vendors">Vendors</TabsTrigger>
           <TabsTrigger value="po">Purchase Orders</TabsTrigger>
           <TabsTrigger value="grn">GRN</TabsTrigger>
@@ -245,7 +252,8 @@ export function InventoryStore() {
                     {inventory.map((item: any) => {
                     const currentStock = item.centralStock +
                       Object.values(item.supervisorStock as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0) +
-                      Object.values(item.washerStock as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0);
+                      Object.values(item.washerStock as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0) +
+                      Object.values((item.branchStock || {}) as Record<string, number>).reduce((sum: number, qty: number) => sum + qty, 0);
                     const isLowStock = currentStock < item.reorderLevel;
                     const totalValue = currentStock * item.unitCost;
                     return (
@@ -269,6 +277,51 @@ export function InventoryStore() {
                   })}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="washers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Washer Stock Overview</CardTitle>
+              <p className="text-sm text-gray-500 mt-1">Real stock in hand for every washer, item by item</p>
+            </CardHeader>
+            <CardContent>
+              {washers.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No washers found for this city.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Washer</TableHead>
+                        {inventory.filter((i: any) => i.cityId === city).map((i: any) => (
+                          <TableHead key={i.itemId} className="text-right whitespace-nowrap">{i.itemName}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {washers.map((w: any) => {
+                        const washerId = w.employeeId || w.id;
+                        return (
+                          <TableRow key={washerId}>
+                            <TableCell className="font-medium whitespace-nowrap">{w.fullName || `${w.firstName} ${w.lastName}`}</TableCell>
+                            {inventory.filter((i: any) => i.cityId === city).map((i: any) => {
+                              const qty = i.washerStock?.[washerId] || 0;
+                              return (
+                                <TableCell key={i.itemId} className={`text-right ${qty === 0 ? "text-gray-300" : "font-medium"}`}>
+                                  {qty || "—"}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

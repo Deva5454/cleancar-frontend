@@ -25,10 +25,10 @@ import { Package, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
-  const { inventory, stockTransactions, receiveBranchTransfer } = useInventory();
+  const { inventory, stockTransactions, receiveBranchTransfer, transferBranchToSupervisor } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
-  const { getEmployeeById } = useEmployee();
+  const { getEmployeeById, getEmployeesByRole } = useEmployee();
   const branches = getBranchesForCity(city);
 
   // Real branch resolution: an explicit prop wins (for any future
@@ -43,6 +43,37 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
     : branches[0];
 
   const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [sendItemId, setSendItemId] = useState("");
+  const [sendSupervisorId, setSendSupervisorId] = useState("");
+  const [sendQty, setSendQty] = useState("");
+  const [sendChallan, setSendChallan] = useState("");
+
+  const supervisors = getEmployeesByRole("Supervisor");
+
+  const branchStockItemsForSend = useMemo(
+    () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.branchStock?.[activeBranch.id]) || 0) > 0) : [],
+    [inventory, city, activeBranch]
+  );
+
+  const handleSendToSupervisor = () => {
+    if (!activeBranch || !sendItemId || !sendSupervisorId || !sendQty || !sendChallan.trim()) {
+      toast.error("Select an item, supervisor, quantity, and enter a real challan number");
+      return;
+    }
+    const qty = parseInt(sendQty, 10);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    const result = transferBranchToSupervisor(sendItemId, qty, activeBranch.id, sendSupervisorId, sendChallan, currentUser?.name || "Branch Manager", city);
+    if (!result) {
+      toast.error("Could not create transfer — check that branch stock is sufficient");
+      return;
+    }
+    toast.success(`Sent to supervisor — challan ${sendChallan}, awaiting their confirmation`);
+    setSendItemId(""); setSendSupervisorId(""); setSendQty(""); setSendChallan("");
+  };
+
   const [qtyReceived, setQtyReceived] = useState("");
   const [qtyDamaged, setQtyDamaged] = useState("0");
   const [damageNotes, setDamageNotes] = useState("");
@@ -160,6 +191,47 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
                 ))}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Send to Supervisor</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {branchStockItemsForSend.length === 0 ? (
+            <p className="text-sm text-gray-400">No branch stock available to send.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Item</Label>
+                  <select className="w-full border rounded-lg px-3 py-2 text-sm" value={sendItemId} onChange={(e) => setSendItemId(e.target.value)}>
+                    <option value="">Select item</option>
+                    {branchStockItemsForSend.map((i: any) => (
+                      <option key={i.itemId} value={i.itemId}>{i.itemName} (available: {i.branchStock?.[activeBranch.id]})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Supervisor</Label>
+                  <select className="w-full border rounded-lg px-3 py-2 text-sm" value={sendSupervisorId} onChange={(e) => setSendSupervisorId(e.target.value)}>
+                    <option value="">Select supervisor</option>
+                    {supervisors.map((s: any) => (
+                      <option key={s.employeeId || s.id} value={s.employeeId || s.id}>{s.fullName || `${s.firstName} ${s.lastName}`}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Quantity</Label>
+                  <Input type="number" value={sendQty} onChange={(e) => setSendQty(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <Label>Challan Number *</Label>
+                  <Input value={sendChallan} onChange={(e) => setSendChallan(e.target.value)} placeholder="CHL-2026-001" />
+                </div>
+              </div>
+              <Button onClick={handleSendToSupervisor} className="w-full">Send to Supervisor</Button>
+            </>
           )}
         </CardContent>
       </Card>

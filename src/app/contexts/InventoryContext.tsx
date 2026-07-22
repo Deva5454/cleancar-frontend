@@ -122,6 +122,22 @@ interface InventoryContextType {
     damageNotes: string | undefined,
     cityId: string
   ) => void;
+  transferBranchToSupervisor: (
+    itemId: string,
+    quantity: number,
+    branchId: string,
+    supervisorId: string,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ) => StockTransaction | null;
+  receiveSupervisorTransfer: (
+    transactionId: string,
+    quantityReceived: number,
+    damagedQuantity: number,
+    damageNotes: string | undefined,
+    cityId: string
+  ) => void;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -533,6 +549,85 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     ));
   };
 
+  // Real Branch Store → Supervisor transfer - the missing link between a
+  // branch receiving stock from the main store and that stock actually
+  // reaching a supervisor's own hands. Mirrors transferToBranch() exactly:
+  // same real challan requirement, same real stock reservation on send,
+  // same real damage-honest receipt confirmation.
+  const transferBranchToSupervisor = (
+    itemId: string,
+    quantity: number,
+    branchId: string,
+    supervisorId: string,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ): StockTransaction | null => {
+    if (!cityId || !challanNumber.trim()) {
+      console.warn("[InventoryContext] Blocked transferBranchToSupervisor: cityId or challan missing");
+      return null;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Item ${itemId} not found in ${cityId}`);
+      return null;
+    }
+    if ((item.branchStock?.[branchId] || 0) < quantity) {
+      console.warn(`[InventoryContext] Blocked transferBranchToSupervisor: insufficient branch stock for ${itemId}`);
+      return null;
+    }
+    setInventory(prev => prev.map(i =>
+      i.itemId === itemId && i.cityId === cityId
+        ? { ...i, branchStock: { ...(i.branchStock || {}), [branchId]: (i.branchStock?.[branchId] || 0) - quantity } }
+        : i
+    ));
+    const transaction = createTransaction({
+      itemId,
+      type: "Transfer",
+      quantity,
+      fromLocation: "Branch",
+      fromId: branchId,
+      toLocation: "Supervisor",
+      toId: supervisorId,
+      status: "Pending",
+      requestedBy,
+      cityId,
+      challanNumber: challanNumber.trim(),
+      quantitySent: quantity,
+    });
+    return transaction;
+  };
+
+  const receiveSupervisorTransfer = (
+    transactionId: string,
+    quantityReceived: number,
+    damagedQuantity: number,
+    damageNotes: string | undefined,
+    cityId: string
+  ) => {
+    const transaction = stockTransactions.find(t => t.transactionId === transactionId);
+    if (!transaction || transaction.toLocation !== "Supervisor" || !transaction.toId || transaction.fromLocation !== "Branch") {
+      console.warn("[InventoryContext] Blocked receiveSupervisorTransfer: transaction not found or not a branch-to-supervisor transfer");
+      return;
+    }
+    setInventory(prev => prev.map(item => {
+      if (item.itemId !== transaction.itemId || item.cityId !== cityId) return item;
+      const supervisorId = transaction.toId!;
+      return {
+        ...item,
+        supervisorStock: {
+          ...item.supervisorStock,
+          [supervisorId]: (item.supervisorStock[supervisorId] || 0) + quantityReceived,
+        },
+      };
+    }));
+    setStockTransactions(prev => prev.map(t =>
+      t.transactionId === transactionId
+        ? { ...t, status: "Completed", completedAt: new Date().toISOString(), quantityReceived, damagedQuantity, damageNotes }
+        : t
+    ));
+  };
+
   const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string) => {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
@@ -701,6 +796,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         getBranchStock,
         transferToBranch,
         receiveBranchTransfer,
+        transferBranchToSupervisor,
+        receiveSupervisorTransfer,
         getWasherStock,
         getPendingTransactions,
       }),
