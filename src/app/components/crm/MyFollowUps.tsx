@@ -812,7 +812,7 @@ export function MyFollowUps() {
                 </div>
 
                 {/* Inline Action Panel */}
-                {activeActionPanel?.leadId === lead.id && (
+                {activeActionPanel && activeActionPanel.leadId === lead.id && (
                   <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                     {activeActionPanel.action === "call" && (
                       <LogCallPanel

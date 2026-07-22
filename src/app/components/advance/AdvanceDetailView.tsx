@@ -218,7 +218,10 @@ export function AdvanceDetailView() {
                     <CardContent className="p-4">
                       <p className="text-sm text-gray-600 mb-1">Monthly Deduction</p>
                       <p className="text-xl font-bold text-blue-900">
-                        ₹{Math.round(advance.amount / advance.repaymentPeriod).toLocaleString()}
+                        ₹{(() => {
+                          const period = Number(advance.repaymentPeriod) || 1;
+                          return Math.round(advance.amount / period).toLocaleString();
+                        })()}
                       </p>
                     </CardContent>
                   </Card>

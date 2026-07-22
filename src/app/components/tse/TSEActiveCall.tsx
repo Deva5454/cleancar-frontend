@@ -715,11 +715,12 @@ export function TSEActiveCall({ lead, onEndCall, onCancel }: TSEActiveCallProps)
                   const disc = BUNDLE_DISCOUNTS[multiMonthMonths as keyof typeof BUNDLE_DISCOUNTS];
                   const pack4Hatchback = 1020;
                   const bundle = calculateBundlePrice(pack4Hatchback, multiMonthMonths as any);
+                  if (!bundle) return null;
                   return (
                     <div>
                       <p className="font-semibold text-green-800">Pack of 4 example (Hatchback, Shampoo):</p>
                       <p>₹{pack4Hatchback}/pack × {multiMonthMonths} months = ₹{pack4Hatchback * multiMonthMonths}</p>
-                      <p className="font-bold text-green-700">{(disc*100).toFixed(0)}% off → Total: ₹{bundle.totalPrice} (save ₹{bundle.savings})</p>
+                      <p className="font-bold text-green-700">{(disc*100).toFixed(0)}% off → Total: ₹{bundle.totalPrice} (save ₹{bundle.savingsVsSingleMonth})</p>
                       <p className="text-gray-500 mt-1">Priority scheduling · {(4*multiMonthMonths)} total visits</p>
                     </div>
                   );

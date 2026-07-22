@@ -207,8 +207,8 @@ export function CRMLeadManagementWithFilters() {
     }
 
     return [...filteredLeads].sort((a, b) => {
-      const aValue = a[sortState.key as keyof Lead];
-      const bValue = b[sortState.key as keyof Lead];
+      const aValue = a[sortState.key as keyof Lead] ?? "";
+      const bValue = b[sortState.key as keyof Lead] ?? "";
 
       if (aValue === bValue) return 0;
 

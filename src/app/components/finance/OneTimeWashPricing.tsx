@@ -184,7 +184,7 @@ export function OneTimeWashPricing() {
           <div className="mt-6 space-y-4">
             <h3 className="font-semibold text-lg">Pricing by Vehicle Category</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {Object.entries(groupedPricing).map(([category, pricingList]) => (
+              {Object.entries(groupedPricing).map(([category, pricingList]: [string, typeof ONE_TIME_WASH_PRICING]) => (
                 <Card key={category}>
                   <CardHeader>
                     <CardTitle className="text-base">{category}</CardTitle>

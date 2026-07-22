@@ -466,7 +466,7 @@ export function FinanceAnalyticsDashboard() {
                 {typeData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
-                      <Pie data={typeData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={4} dataKey="value" isAnimationActive={false} label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                      <Pie data={typeData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={4} dataKey="value" isAnimationActive={false} label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}>
                         {typeData.map((entry) => (<Cell key={`cell-${entry.name}`} fill={entry.color} />))}
                       </Pie>
                       <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString("en-IN")}`, ""]} />

@@ -466,7 +466,7 @@ export function SupervisorAppConnected() {
         }, {} as Record<string, string[]>);
 
       const summaryText = Object.entries(summary)
-        .map(([name, cars]) => `${name}: ${cars.join(", ")}`)
+        .map(([name, cars]: [string, string[]]) => `${name}: ${cars.join(", ")}`)
         .join("\n");
 
       toast.success(`? Car Auto-Assignment Completed\n\nAbsent Washer: ${selectedAbsentWasher?.name}\nTotal Cars Reassigned: ${assignments.length}\n\nNew Assignments:\n${summaryText}\n\nIn production: This would update the database and notify assigned washers.`);

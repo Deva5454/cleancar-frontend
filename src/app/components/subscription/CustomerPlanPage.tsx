@@ -874,10 +874,11 @@ export function CustomerPlanPage() {
       // G5 FIX: Do NOT fully convert referral at checkout — credit fires on first completed wash.
       // JobContext.completeJob() looks for status "converted_pending_wash" and calls convertReferral() then.
       if(referralResult?.valid && referralResult.code) {
+        const referralCode = referralResult.code;
         try {
           const records = planSyncService.getReferralRecords();
           const updated = records.map((r: any) =>
-            r.referralCode.toUpperCase() === referralResult.code.toUpperCase()
+            r.referralCode.toUpperCase() === referralCode.toUpperCase()
               ? { ...r, status: "converted_pending_wash", refereeCustomerId: customerId, refereeName: custName, orderAmount: finalTotal, pendingWashAt: now.toISOString() }
               : r
           );

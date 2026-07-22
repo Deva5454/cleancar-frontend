@@ -158,6 +158,7 @@ export function AccountsPayrollProcessing() {
 
   // Calculate adjustments for this month
   useEffect(() => {
+    if (!snapshot) return;
     // In production, fetch actual advances data from advanceManagementService
     const advances = 0; // Placeholder
 

@@ -58,6 +58,17 @@ export function WelcomeScreen() {
     };
   }, [customers, getTotalMRR, allJobs, employees, attendanceRecords]);
 
+  // Real guard - roleConfig can genuinely be undefined for an
+  // unrecognized role. This is the first screen after login, so a
+  // crash here would be the worst possible first impression.
+  if (!roleConfig) {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        <p>We couldn't load your role configuration. Please contact your administrator.</p>
+      </div>
+    );
+  }
+
   const systemFeatures = [
     { icon: Users, title: "11 User Roles", description: "Fully customized access for each role", color: "bg-blue-50 text-blue-600" },
     { icon: BarChart3, title: "10 Modules", description: "Complete business coverage", color: "bg-green-50 text-green-600" },

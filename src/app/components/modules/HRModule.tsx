@@ -224,7 +224,7 @@ function HRModule() {
     payrollConfiguration: 0,
   });
 
-  const canSeeFinancials = roleConfig.canSeeFinancials;
+  const canSeeFinancials = roleConfig?.canSeeFinancials ?? false;
   const isHRorAdmin = ["HR", "Super Admin", "Admin"].includes(currentRole);
 
   // Calculate badge counts for quick action cards

@@ -290,6 +290,8 @@ function getStatusConfig(status: WasherOperationalView["status"]) {
       return { color: "bg-red-100 text-red-700 border-red-300", label: "Absent" };
     case "LEAVE":
       return { color: "bg-blue-100 text-blue-700 border-blue-300", label: "Leave" };
+    default:
+      return { color: "bg-gray-100 text-gray-700 border-gray-300", label: "Unknown" };
   }
 }
 
@@ -303,5 +305,7 @@ function getPerformanceConfig(performance: WasherOperationalView["performance"])
       return { color: "bg-yellow-600 text-white", label: "Below Target" };
     case "CRITICAL":
       return { color: "bg-red-600 text-white", label: "Critical" };
+    default:
+      return { color: "bg-gray-500 text-white", label: "Unknown" };
   }
 }

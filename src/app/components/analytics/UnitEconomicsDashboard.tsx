@@ -310,7 +310,7 @@ function UnitEconomicsDashboard() {
       profit,
       margin: parseFloat(margin),
     };
-  }).filter(Boolean), [activeSubscriptions, costPerWash]);
+  }).filter((p): p is NonNullable<typeof p> => p !== null), [activeSubscriptions, costPerWash]);
 
   // Calculate store performance by pincode from real data
   const storePerformance = useMemo(() => {
@@ -821,7 +821,7 @@ function UnitEconomicsDashboard() {
               <tbody>
                 {subscriptionProfitability.map((plan) => (
                   <tr key={plan.id} className="border-b hover:bg-gray-50">
-                    <td className="p-3 font-medium">{plan.plan}</td>
+                    <td className="p-3 font-medium">{String(plan.plan)}</td>
                     <td className="p-3 text-right">₹{safeNum(plan.price)}</td>
                     <td className="p-3 text-right">{plan.avgWashes}</td>
                     <td className="p-3 text-right">{plan.customers}</td>
