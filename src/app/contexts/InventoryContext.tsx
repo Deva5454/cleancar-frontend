@@ -6,6 +6,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef} from "react";
 import { useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
+import { seedUniformAndMachineSupplyChain } from "../services/uniformAndMachineSupplyChainSeed";
 
 // Types
 export interface InventoryItem {
@@ -148,6 +149,7 @@ const DEFAULT_CITY = "CITY-SURAT"; // Backward compatibility default
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
+    seedUniformAndMachineSupplyChain();
     // Load from storage with city-id backfill for legacy data
     const storedInventory = DataService.get<InventoryItem>("INVENTORY_ITEMS");
     const normalized = storedInventory.map(item => ({

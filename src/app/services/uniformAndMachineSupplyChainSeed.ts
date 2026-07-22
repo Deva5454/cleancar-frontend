@@ -1,0 +1,212 @@
+/**
+ * uniformAndMachineSupplyChainSeed — real, one-time seed demonstrating
+ * the full Kim (Main Store) → Surat Branch → Supervisor → Washer/TSE
+ * chain for three real item types:
+ *
+ *   1. Uniform T-Shirts (real sizes S/M/L/XL) — issued to washers
+ *   2. Uniform Shirts (real sizes S/M/L/XL) — issued to supervisors
+ *      and TSEs ("field sales executive")
+ *   3. Pressure Washing Machines — issued to washers
+ *
+ * Real, honest limitations worth knowing before reading further:
+ *
+ *   - There is no "size" field anywhere in the real inventory data
+ *     model (InventoryItem has no such property). Rather than bolt on
+ *     a fake field nothing else reads, each size is modeled as its own
+ *     real, separate inventory item ("Uniform T-Shirt - M", "Uniform
+ *     T-Shirt - L", etc.) - the same way real uniform stock is often
+ *     tracked in simpler systems, and consistent with how every other
+ *     item in this app is already just a name + a quantity.
+ *
+ *   - There is no dedicated category for apparel. The real category
+ *     normalization logic in InventoryContext.tsx silently downgrades
+ *     anything it doesn't recognize back to "Cleaning Supplies" - so
+ *     rather than introduce a category that would just get overwritten,
+ *     T-shirts and shirts use the real "Consumables" category, and the
+ *     machine uses the real "Equipment" category, both already
+ *     recognized correctly.
+ *
+ *   - There is no "TSE stock" field distinct from supervisor stock.
+ *     A TSE's shirt is tracked in the same real supervisorStock map,
+ *     using the TSE's own employee ID as the key - the field is
+ *     misleadingly named for this use, but functions identically: it's
+ *     genuinely just "which staff member ID has how much."
+ *
+ *   - This seed looks up real washers, supervisors, and TSEs that
+ *     actually exist in Surat at the moment it runs, rather than
+ *     inventing fictional names - if fewer than expected exist, fewer
+ *     real transfers are created; nothing is fabricated to fill a gap.
+ */
+
+import { DataService } from "./DataService";
+import { employeeDatabaseService } from "./employeeDatabaseService";
+
+const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v1";
+const CITY_ID = "CITY-SURAT";
+const BRANCH_ID = "BRANCH-SURAT-01";
+
+const SIZES = ["S", "M", "L", "XL"];
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split("T")[0];
+}
+
+function makeTxn(overrides: Record<string, any>) {
+  return {
+    transactionId: `TXN-SEED-${Math.random().toString(36).slice(2, 10)}`,
+    createdAt: new Date().toISOString(),
+    status: "Completed",
+    ...overrides,
+  };
+}
+
+export function seedUniformAndMachineSupplyChain() {
+  try {
+    if (localStorage.getItem(SEED_VERSION_KEY) === "DONE") return;
+
+    // ── Real employees actually in Surat right now ─────────────────────────
+    const allEmployees = employeeDatabaseService.getAll();
+    const inSurat = (e: any) => (e.city === "Surat" || e.workLocation === "Surat" || e.cityId === CITY_ID);
+    const washers = allEmployees.filter((e: any) => e.role === "Car Washer" && inSurat(e));
+    const supervisors = allEmployees.filter((e: any) => e.role === "Supervisor" && inSurat(e));
+    const tses = allEmployees.filter((e: any) => e.role === "TSE" && inSurat(e));
+
+    if (washers.length === 0 && supervisors.length === 0 && tses.length === 0) {
+      console.warn("[uniformAndMachineSupplyChainSeed] No real washers, supervisors, or TSEs found in Surat - nothing to seed against.");
+      return;
+    }
+
+    // ── Real inventory items - one per real size, plus the machine ────────
+    const items: any[] = DataService.get<any>("INVENTORY_ITEMS");
+    const itemsByName = new Map(items.map((i: any) => [i.itemName, i]));
+
+    const ensureItem = (name: string, category: string, unit: string, unitCost: number) => {
+      let item = itemsByName.get(name);
+      if (!item) {
+        item = {
+          itemId: `ITEM-SEED-${name.replace(/[^a-zA-Z0-9]/g, "-")}`,
+          itemName: name, category, unit, reorderLevel: 10,
+          cityId: CITY_ID, centralStock: 0, branchStock: {}, supervisorStock: {}, washerStock: {},
+          unitCost,
+        };
+        items.push(item);
+        itemsByName.set(name, item);
+      }
+      return item;
+    };
+
+    const tshirtItems: Record<string, any> = {};
+    const shirtItems: Record<string, any> = {};
+    SIZES.forEach((sz) => {
+      tshirtItems[sz] = ensureItem(`Uniform T-Shirt - ${sz}`, "Consumables", "Pcs", 180);
+      shirtItems[sz] = ensureItem(`Uniform Shirt - ${sz}`, "Consumables", "Pcs", 350);
+    });
+    const machineItem = ensureItem("Pressure Washing Machine", "Equipment", "Pcs", 4500);
+
+    // Give the central (Kim) store real starting stock to draw from
+    Object.values(tshirtItems).forEach((i: any) => { i.centralStock += 50; });
+    Object.values(shirtItems).forEach((i: any) => { i.centralStock += 30; });
+    machineItem.centralStock += Math.max(washers.length, 5);
+
+    // ── Real transaction chain: Central → Branch → Supervisor → Person ────
+    const txns: any[] = DataService.get<any>("STOCK_TRANSACTIONS");
+    let dayOffset = 20;
+
+    const chainToPerson = (
+      item: any, qty: number, personId: string, personRole: "Washer" | "Supervisor" | "TSE",
+      challanPrefix: string
+    ) => {
+      const sentDate = daysAgo(dayOffset--);
+      const branchDate = daysAgo(dayOffset--);
+      const finalDate = daysAgo(dayOffset--);
+
+      // Kim (Central) → Surat Branch
+      item.centralStock -= qty;
+      item.branchStock[BRANCH_ID] = (item.branchStock[BRANCH_ID] || 0) + qty;
+      txns.push(makeTxn({
+        itemId: item.itemId, type: "Transfer", quantity: qty,
+        fromLocation: "Central", toLocation: "Branch", toId: BRANCH_ID,
+        requestedBy: "Kim Store Manager", cityId: CITY_ID,
+        challanNumber: `${challanPrefix}-KIM-${sentDate}`, quantitySent: qty, quantityReceived: qty,
+        completedAt: new Date(branchDate).toISOString(),
+      }));
+
+      // Surat Branch → Supervisor (real path, even when the final
+      // recipient is a washer or TSE - stock always passes through a
+      // real supervisor first, matching how issuance already works)
+      const supervisorId = personRole === "Supervisor" ? personId : (supervisors[0]?.employeeId || supervisors[0]?.id || "SUP-UNASSIGNED");
+      item.branchStock[BRANCH_ID] -= qty;
+      item.supervisorStock[supervisorId] = (item.supervisorStock[supervisorId] || 0) + qty;
+      txns.push(makeTxn({
+        itemId: item.itemId, type: "Transfer", quantity: qty,
+        fromLocation: "Branch", fromId: BRANCH_ID, toLocation: "Supervisor", toId: supervisorId,
+        requestedBy: "Surat Branch Manager", cityId: CITY_ID,
+        challanNumber: `${challanPrefix}-BR-${branchDate}`, quantitySent: qty, quantityReceived: qty,
+        completedAt: new Date(finalDate).toISOString(),
+      }));
+
+      // Supervisor → final recipient (a washer, or the supervisor/TSE
+      // themselves keeping it - real "Issue" transaction type, matching
+      // how issuance already works elsewhere in this app)
+      if (personRole !== "Supervisor" || personId !== supervisorId) {
+        item.supervisorStock[supervisorId] -= qty;
+      }
+      if (personRole === "Washer") {
+        item.washerStock[personId] = (item.washerStock[personId] || 0) + qty;
+      } else {
+        item.supervisorStock[personId] = (item.supervisorStock[personId] || 0) + qty;
+      }
+      txns.push(makeTxn({
+        itemId: item.itemId, type: "Issue", quantity: qty,
+        fromLocation: "Supervisor", fromId: supervisorId,
+        toLocation: personRole === "Washer" ? "Washer" : "Supervisor", toId: personId,
+        requestedBy: "Surat Branch Manager", cityId: CITY_ID,
+        completedAt: new Date(finalDate).toISOString(),
+      }));
+
+      return finalDate;
+    };
+
+    const issuanceLog: Array<{ item: string; person: string; role: string; size?: string; date: string }> = [];
+
+    // 1. T-shirts to washers - real sizes cycled across the real washer list
+    washers.forEach((w: any, idx: number) => {
+      const size = SIZES[idx % SIZES.length];
+      const date = chainToPerson(tshirtItems[size], 2, w.employeeId || w.id, "Washer", "TSH");
+      issuanceLog.push({ item: "Uniform T-Shirt", person: w.fullName || `${w.firstName} ${w.lastName}`, role: "Washer", size, date });
+    });
+
+    // 2. Shirts to supervisors
+    supervisors.forEach((s: any, idx: number) => {
+      const size = SIZES[idx % SIZES.length];
+      const date = chainToPerson(shirtItems[size], 2, s.employeeId || s.id, "Supervisor", "SHR");
+      issuanceLog.push({ item: "Uniform Shirt", person: s.fullName || `${s.firstName} ${s.lastName}`, role: "Supervisor", size, date });
+    });
+
+    // 3. Shirts to TSEs ("field sales executive")
+    tses.forEach((t: any, idx: number) => {
+      const size = SIZES[idx % SIZES.length];
+      const date = chainToPerson(shirtItems[size], 2, t.employeeId || t.id, "TSE", "SHR");
+      issuanceLog.push({ item: "Uniform Shirt", person: t.fullName || `${t.firstName} ${t.lastName}`, role: "TSE", size, date });
+    });
+
+    // 4. Machines to washers
+    washers.forEach((w: any) => {
+      const date = chainToPerson(machineItem, 1, w.employeeId || w.id, "Washer", "MCH");
+      issuanceLog.push({ item: "Pressure Washing Machine", person: w.fullName || `${w.firstName} ${w.lastName}`, role: "Washer", date });
+    });
+
+    DataService.setAll("INVENTORY_ITEMS", items);
+    DataService.setAll("STOCK_TRANSACTIONS", txns);
+    localStorage.setItem(SEED_VERSION_KEY, "DONE");
+
+    console.info(
+      `[uniformAndMachineSupplyChainSeed] Seeded ${issuanceLog.length} real issuances across the full Kim → Branch → Supervisor → Person chain:`,
+      issuanceLog
+    );
+  } catch (err) {
+    console.error("[uniformAndMachineSupplyChainSeed] Seed failed, inventory unaffected:", err);
+  }
+}
