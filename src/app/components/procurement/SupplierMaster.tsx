@@ -106,6 +106,42 @@ export function SupplierMaster() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterCity, setFilterCity] = useState("all");
+  const [filterRating, setFilterRating] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Real filtering - previously filterStatus/filterCategory updated state
+  // that was never actually applied to the list, and City/Rating/Search
+  // had no state at all, so nothing any of these controls did ever
+  // changed what was on screen.
+  const filteredSuppliers = suppliers.filter((s: any) => {
+    if (filterStatus !== "all" && s.status.toLowerCase() !== filterStatus) return false;
+    if (filterCategory !== "all" && !s.categories.some((c: string) => c.toLowerCase().includes(filterCategory))) return false;
+    if (filterCity !== "all" && !(s.city || "").toLowerCase().includes(filterCity)) return false;
+    if (filterRating !== "all") {
+      if (filterRating === "below3" && s.rating >= 3) return false;
+      if (filterRating !== "below3" && s.rating < Number(filterRating)) return false;
+    }
+    if (searchTerm.trim() && !s.companyName.toLowerCase().includes(searchTerm.trim().toLowerCase())) return false;
+    return true;
+  });
+
+  const handleExportSuppliers = () => {
+    const csvContent = [
+      ["Supplier ID", "Company Name", "Contact Person", "Phone", "Email", "Location", "GST Number", "Payment Terms", "Credit Limit", "Outstanding", "Rating", "Status"],
+      ...filteredSuppliers.map((s: any) => [
+        s.id, s.companyName, s.contactPerson, s.phone, s.email, s.city, s.gst, s.paymentTerms,
+        s.creditLimit || "Not set", s.outstanding || "—", s.rating, s.status,
+      ]),
+    ].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "supplier_master.csv";
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const handleAddSupplier = () => {
     if (!formData.companyName.trim() || !formData.contactPerson.trim() || !formData.phone.trim() || !formData.gstNumber.trim()) {
@@ -192,7 +228,7 @@ export function SupplierMaster() {
           <p className="text-sm text-gray-500 mt-1">Complete supplier registry and management</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExportSuppliers}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -238,7 +274,7 @@ export function SupplierMaster() {
             </div>
             <div className="space-y-2">
               <Label>City</Label>
-              <Select>
+              <Select value={filterCity} onValueChange={setFilterCity}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Cities" />
                 </SelectTrigger>
@@ -252,7 +288,7 @@ export function SupplierMaster() {
             </div>
             <div className="space-y-2">
               <Label>Rating</Label>
-              <Select>
+              <Select value={filterRating} onValueChange={setFilterRating}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Ratings" />
                 </SelectTrigger>
@@ -267,7 +303,7 @@ export function SupplierMaster() {
             </div>
             <div className="space-y-2">
               <Label>Search</Label>
-              <Input placeholder="Supplier name..." />
+              <Input placeholder="Supplier name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
           </div>
         </CardContent>
@@ -276,7 +312,7 @@ export function SupplierMaster() {
       {/* Supplier Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Supplier Registry — {suppliers.length} Active</CardTitle>
+          <CardTitle className="text-base">Supplier Registry — {filteredSuppliers.length} {filteredSuppliers.length === suppliers.length ? "Active" : `of ${suppliers.length}`}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -297,7 +333,14 @@ export function SupplierMaster() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {suppliers.map((supplier) => (
+              {filteredSuppliers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={11} className="text-center text-sm text-gray-400 py-8">
+                    No suppliers match these filters.
+                  </TableCell>
+                </TableRow>
+              )}
+              {filteredSuppliers.map((supplier) => (
                 <TableRow key={supplier.id} className="hover:bg-gray-50">
                   <TableCell className="font-medium">{supplier.id}</TableCell>
                   <TableCell>
@@ -321,7 +364,7 @@ export function SupplierMaster() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {supplier.categories.map((cat, idx) => (
+                      {supplier.categories.map((cat: any, idx: any) => (
                         <Badge key={idx} variant="outline" className="text-xs">
                           {cat}
                         </Badge>
@@ -335,16 +378,18 @@ export function SupplierMaster() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    ₹{(supplier.creditLimit / 1000).toFixed(0)}K
+                    {supplier.creditLimit > 0 ? `₹${(supplier.creditLimit / 1000).toFixed(0)}K` : <span className="text-gray-400">Not set</span>}
                   </TableCell>
                   <TableCell className="text-right">
                     <div>
                       <p className="font-medium text-gray-900">
-                        ₹{(supplier.outstanding / 1000).toFixed(0)}K
+                        {supplier.creditLimit > 0 ? `₹${(supplier.outstanding / 1000).toFixed(0)}K` : <span className="text-gray-400">—</span>}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {((supplier.outstanding / supplier.creditLimit) * 100).toFixed(0)}% used
-                      </p>
+                      {supplier.creditLimit > 0 && (
+                        <p className="text-xs text-gray-500">
+                          {((supplier.outstanding / supplier.creditLimit) * 100).toFixed(0)}% used
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
