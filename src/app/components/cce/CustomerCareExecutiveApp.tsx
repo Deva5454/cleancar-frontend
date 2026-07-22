@@ -15,7 +15,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Card } from "../ui/card";
 import { toast } from "sonner";
 import { useSearchParams } from 'react-router-dom';
 import { Card } from '../ui/card';
@@ -44,8 +43,10 @@ import {
   Send,
   ArrowLeft,
   Sparkles,
+  Package,
 } from 'lucide-react';
 import { CCEComplaintQueue } from './CCEComplaintQueue';
+import { CCEPackBooking } from './CCEPackBooking';
 import { customerCareExecutiveService } from '../../services/customerCareExecutiveService';
 import type {
   Complaint,
@@ -63,7 +64,7 @@ import {
   CCE_SCRIPTS,
 } from '../../constants/customerCareExecutive.constants';
 
-type ScreenType = 'QUEUE' | 'ACTIVE_COMPLAINT' | 'CRM_UPDATE' | 'DASHBOARD';
+type ScreenType = 'QUEUE' | 'ACTIVE_COMPLAINT' | 'CRM_UPDATE' | 'DASHBOARD' | 'PACK_BOOKING';
 type TabType = 'complaints' | 'performance';
 
 export function CustomerCareExecutiveApp() {
@@ -326,6 +327,15 @@ export function CustomerCareExecutiveApp() {
           >
             <BarChart3 className="w-4 h-4 mr-2" />
             Performance Dashboard
+          </Button>
+          <Button
+            variant={currentScreen === 'PACK_BOOKING' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setCurrentScreen('PACK_BOOKING')}
+            className={currentScreen === 'PACK_BOOKING' ? 'bg-white text-blue-700' : 'text-white hover:bg-white/20'}
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Book Pack Visit
           </Button>
         </div>
       </div>
@@ -651,6 +661,12 @@ export function CustomerCareExecutiveApp() {
                 </>
               )}
             </Card>
+          </div>
+        )}
+
+        {currentScreen === 'PACK_BOOKING' && (
+          <div className="h-full overflow-y-auto">
+            <CCEPackBooking />
           </div>
         )}
 

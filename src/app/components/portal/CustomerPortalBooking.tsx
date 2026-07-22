@@ -224,6 +224,13 @@ export function CustomerPortalBooking() {
         ? Math.round((vehiclePrice / preDiscountTotal) * appliedCode.discount)
         : 0;
       const matchingSub = activeSubs.find((s: any) => s.packageType === v.plan);
+      // A pack (visitsTotal defined) is paid in full upfront - a booking
+      // that correctly links to one with visits still remaining is
+      // already paid for, not pending. Previously every pack-linked
+      // booking showed as Pending regardless, risking the customer being
+      // asked to pay again at the door for a wash they'd already paid for.
+      const isPrepaidPackVisit = matchingSub?.visitsTotal !== undefined
+        && (matchingSub.visitsUsed || 0) < matchingSub.visitsTotal;
 
       createJob({
         customerId: customer.customerId,
@@ -232,7 +239,7 @@ export function CustomerPortalBooking() {
         timeSlot,
         status: "Unassigned",
         jobType: "Regular",
-        paymentStatus: "Pending",
+        paymentStatus: isPrepaidPackVisit ? "Paid" : "Pending",
         packageName: `${PLAN_TIER_NAMES[v.plan] || v.plan}`,
         packageType: v.plan,
         discountCode: appliedCode?.code,
