@@ -525,12 +525,6 @@ export function CustomerPlanPage() {
   const [referralResult,setReferralResult]=useState<{valid:boolean;discount:number;error?:string;code?:string}|null>(null);
   // Auto-apply active promotions
   const activePromos = planSyncService.getActiveAutoPromotions();
-  const promoDiscount = activePromos.reduce((s,p)=>{
-    if(p.type==="percent") return s + Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100);
-    if(p.type==="flat") return s + p.value;
-    return s;
-  }, 0);
-
   const { recordRevenue } = useFinance();
   const { addCustomer, customers, addLead } = useCustomers();
   const { createSubscription } = useCustomerSubscriptions();
@@ -554,6 +548,18 @@ export function CustomerPlanPage() {
   const getAddonPrice=(id:string)=>{ const a=cfg.addons.find(a=>a.id===id); if(!a)return 0; const p=(a as any).prices; return p?(p[vehicleCat]??a.price):a.price; };
   const planPrice=useMemo(()=>{ if(!selectedPlan||!activeCat)return 0; return cfg.monthlyPlans.find(p=>p.id===selectedPlan)?.prices[activeCat]??0; },[selectedPlan,activeCat,cfg.monthlyPlans]);
   const packPrice=useMemo(()=>{ const p=cfg.packs.find(p=>p.id===selectedPack); if(!p)return 0; const n=(p as any).prices; if(n){const w=n[_washRef.current]??n.shampoo??n.waterWash??Object.values(n)[0]; if(w&&typeof w==="object"){const _c=vehicleCat; const cp=(w as any)[_c]??(w as any).hatchback??0; return typeof cp==="number"?cp:0;}} return typeof(p as any).price==="number"?(p as any).price:0; },[selectedPack,_washRef.current,cfg.packs,activeCat]);
+
+  // Real bug fix: this previously sat right after activePromos was
+  // computed (before planPrice/packPrice existed at all), causing a
+  // genuine ReferenceError the moment a real active promotion existed
+  // (an empty activePromos array never actually runs this callback, so
+  // the bug stayed dormant until a real promotion made it execute).
+  const promoDiscount = activePromos.reduce((s,p)=>{
+    if(p.type==="percent") return s + Math.round((planMode==="monthly"?planPrice:packPrice)*p.value/100);
+    if(p.type==="flat") return s + p.value;
+    return s;
+  }, 0);
+
   const addonTotal=useMemo(()=>{ const ind=addons.reduce((s,id)=>{ const inB=(cfg as any).comboBundles?.some((b:any)=>b.addonIds.includes(id)&&b.addonIds.every((bid:string)=>addons.includes(bid))); if(inB)return s; const f=addonFreq[id]?parseInt(addonFreq[id]):1; return s+getAddonPrice(id)*(isNaN(f)?1:f); },0); const bt=((cfg as any).comboBundles||[]).reduce((s:number,b:any)=>{ const aS=b.addonIds.every((id:string)=>addons.includes(id)); if(!aS)return s; const bp=b.prices?.[vehicleCat]??b.prices?.hatchback??0; const f=bundleFreq[b.id]?parseInt(bundleFreq[b.id]):1; return s+bp*(isNaN(f)?1:f); },0); return ind+bt; },[addons,addonFreq,bundleFreq,cfg.addons,selectedPlan,activeCat]);
   // Commitment duration only applies to monthly subscriptions, not visit packs
   const commitMonths = planMode==="monthly" ? (commitment==="3month"?3:commitment==="6month"?6:commitment==="12month"?12:1) : 1;
