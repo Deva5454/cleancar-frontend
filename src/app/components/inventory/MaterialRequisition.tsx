@@ -3,7 +3,17 @@ import { BackButton } from "../ui/back-button";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "../ui/dialog";
 import { Plus, FileText, Package, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
 import { mockMRFs, mockPurchaseRequests } from "../../lib/materialRequisition";
 import { useInventory } from "../../contexts/InventoryContext";
@@ -11,15 +21,59 @@ import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 
 export function MaterialRequisition() {
-  const { currentRole } = useRole();
+  const { currentRole, currentUser } = useRole();
   const { stockTransactions, getPendingTransactions, procureInventory,
-          getCentralStock, inventory } = useInventory();
+          getCentralStock, inventory, createTransaction, approveTransaction, completeTransaction } = useInventory();
   const { city, cityInfo } = useCity();
   const { employees } = useEmployee();
 
+  const [showNewMRF, setShowNewMRF] = useState(false);
+  const [mrfItemId, setMrfItemId] = useState("");
+  const [mrfQuantity, setMrfQuantity] = useState("");
+
+  const handleCreateMRF = () => {
+    if (!mrfItemId || !mrfQuantity) {
+      toast.error("Select an item and enter a quantity");
+      return;
+    }
+    const qty = parseFloat(mrfQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    // Real MRF - creates a genuine Pending transaction, the same real
+    // record type this screen already reads its list from. Previously
+    // this button had no handler at all.
+    createTransaction({
+      itemId: mrfItemId,
+      type: "Transfer",
+      quantity: qty,
+      fromLocation: "Central",
+      toLocation: "Supervisor",
+      status: "Pending",
+      requestedBy: currentUser?.name || currentRole,
+      cityId: city,
+    });
+    toast.success("Material Requisition Form submitted");
+    setShowNewMRF(false);
+    setMrfItemId(""); setMrfQuantity("");
+  };
+
+  const handleApproveMRF = (transactionId: string) => {
+    approveTransaction(transactionId, currentUser?.name || currentRole);
+    toast.success("MRF approved");
+  };
+
+  const handleIssueMRF = (transactionId: string) => {
+    // Real fix: previously this button had no handler - stock never
+    // actually moved even after an MRF was "approved."
+    completeTransaction(transactionId);
+    toast.success("Material issued for this MRF");
+  };
+
   // Derive MRFs from pending stock transactions
-  const liveMRFs = getPendingTransactions(city).map(t => {
-    const item = inventory.find(i => i.itemId === t.itemId && i.cityId === city);
+  const liveMRFs = getPendingTransactions(city).map((t: any) => {
+    const item = inventory.find((i: any) => i.itemId === t.itemId && i.cityId === city);
     return {
       id: t.transactionId,
       itemName: item?.itemName || t.itemId,
@@ -35,6 +89,13 @@ export function MaterialRequisition() {
   // with no real requisitions yet look like it had them. An empty list is
   // the honest state; the UI shows a proper "no requisitions yet" message.
   const displayMRFs = liveMRFs;
+
+  const realActivePOCount = (() => {
+    try {
+      const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+      return pos.filter((po: any) => po.status !== "Delivered" && po.status !== "Rejected").length;
+    } catch { return 0; }
+  })();
   
   const canCreateMRF = ["Supervisor", "Operations Manager", "Store Manager"].includes(currentRole);
   const canApproveMRF = ["Store Manager"].includes(currentRole);
@@ -50,7 +111,7 @@ export function MaterialRequisition() {
           <p className="text-sm text-gray-600 mt-1">Request and track material requirements</p>
         </div>
         {canCreateMRF && (
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowNewMRF(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New MRF
           </Button>
@@ -68,7 +129,7 @@ export function MaterialRequisition() {
             {displayMRFs.length === 0 && (
               <p className="text-sm text-gray-400 italic py-4 text-center">No requisitions yet.</p>
             )}
-            {displayMRFs.map((mrf) => (
+            {displayMRFs.map((mrf: any) => (
               <div 
                 key={mrf.id} 
                 className={`p-4 rounded-lg border-2 ${
@@ -102,13 +163,13 @@ export function MaterialRequisition() {
                     </p>
                   </div>
                   {canApproveMRF && mrf.status === "Pending" && (
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => handleApproveMRF(mrf.id)}>
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Approve
                     </Button>
                   )}
                   {canApproveMRF && mrf.status === "Approved" && (
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => handleIssueMRF(mrf.id)}>
                       <Package className="w-4 h-4 mr-1" />
                       Issue Material
                     </Button>
@@ -116,7 +177,7 @@ export function MaterialRequisition() {
                 </div>
                 <div className="bg-white/50 p-3 rounded">
                   <p className="text-sm font-medium mb-2">Requested Items:</p>
-                  {mrf.items.map((item, idx) => (
+                  {mrf.items.map((item: any, idx: any) => (
                     <div key={idx} className="flex items-center justify-between py-1 text-sm">
                       <span className="text-gray-700">{item.itemName}</span>
                       <span className="font-medium">{item.quantity} {item.unit}</span>
@@ -224,12 +285,42 @@ export function MaterialRequisition() {
             </div>
             <div className="p-4 bg-purple-50 rounded-lg">
               <p className="text-sm text-gray-600">Active POs</p>
-              <p className="text-2xl font-bold text-gray-400">Not tracked yet</p>
-              <p className="text-xs text-gray-500 mt-1">Purchase order tracking not yet built</p>
+              <p className="text-2xl font-bold text-purple-600">{realActivePOCount}</p>
+              <p className="text-xs text-gray-500 mt-1">Not yet delivered</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* New MRF Dialog - real form, previously the button had no handler at all */}
+      <Dialog open={showNewMRF} onOpenChange={setShowNewMRF}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Material Requisition</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Item</Label>
+              <Select value={mrfItemId} onValueChange={setMrfItemId}>
+                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                <SelectContent>
+                  {inventory.filter((i: any) => i.cityId === city).map((i: any) => (
+                    <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.unit})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Quantity</Label>
+              <Input type="number" value={mrfQuantity} onChange={(e) => setMrfQuantity(e.target.value)} placeholder="0" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewMRF(false)}>Cancel</Button>
+            <Button onClick={handleCreateMRF}>Submit MRF</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

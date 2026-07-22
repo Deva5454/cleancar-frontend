@@ -1,5 +1,6 @@
 import { Plus, Download, Package, AlertTriangle, TrendingUp, Users, FileText, Truck } from "lucide-react";
 import { useInventory } from "../../contexts/InventoryContext";
+import { gstComplianceService } from "../../services/gstComplianceService";
 import { useEventListener } from "../../contexts/EventSystem";
 import { BackButton } from "../ui/back-button";
 import { Link } from "react-router-dom";
@@ -38,10 +39,54 @@ export function InventoryStore() {
   }, 0);
   const lowStockItems = getLowStockItems();
 
-  // Real data from contexts (vendors, POs, GRN will come from their respective contexts when implemented)
-  const vendors: any[] = [];
-  const purchaseOrders: any[] = [];
-  const grn: any[] = [];
+  const handleExport = () => {
+    const csvContent = [
+      ["Item", "Category", "Central Stock", "Reorder Level", "Unit Cost", "Unit"],
+      ...inventory.map((i: any) => [i.itemName, i.category, i.centralStock, i.reorderLevel, i.unitCost, i.unit]),
+    ].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "inventory_export.csv";
+    a.click();
+  };
+
+  // Real data - the exact same vendors, purchase orders, and GRN
+  // records that Procurement and Store Manager already read and write.
+  // Previously these three tabs were hardcoded to empty arrays with a
+  // comment admitting they were never actually connected.
+  const realPOs: any[] = (() => {
+    try { return JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]"); } catch { return []; }
+  })();
+  const realGRNs: any[] = (() => {
+    try { return JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]"); } catch { return []; }
+  })();
+  const vendors = gstComplianceService.getVendors().map((v: any) => ({
+    id: v.id,
+    name: v.name,
+    gst: v.gstin,
+    contact: v.contactPhone,
+    status: v.status,
+    totalPOs: realPOs.filter((po: any) => po.supplier === v.name).length,
+  }));
+  const purchaseOrders = realPOs.map((po: any) => ({
+    id: po.poNumber,
+    vendor: po.supplier,
+    items: po.items,
+    amount: po.amount,
+    date: po.date,
+    approver: po.approvedBy || "—",
+    status: po.status,
+  }));
+  const grn = realGRNs.map((g: any) => ({
+    id: g.grnNumber,
+    po: g.challanNumber || "—",
+    receivedQty: g.totalAccepted || 0,
+    expectedQty: (g.totalAccepted || 0) + (g.totalRejected || 0),
+    date: g.grnDate,
+    status: g.status,
+  }));
 
   return (
     <div className="space-y-6">
@@ -52,14 +97,16 @@ export function InventoryStore() {
           <p className="text-sm text-gray-500 mt-1">Manage stock, vendors, and procurement</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Create PO
-          </Button>
+          <Link to="/procurement">
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Create PO
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -237,7 +284,7 @@ export function InventoryStore() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Users className="w-16 h-16 text-gray-300 mb-4" />
                   <p className="text-gray-500 text-lg">No vendors registered</p>
-                  <p className="text-gray-400 text-sm mt-1">Vendor management will be available here</p>
+                  <p className="text-gray-400 text-sm mt-1">Add vendors from Procurement → Supplier Master</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -259,7 +306,9 @@ export function InventoryStore() {
                       <div className="text-right">
                         <Badge variant="secondary">{vendor.status}</Badge>
                         <p className="text-sm text-gray-600 mt-2">{vendor.totalPOs} POs</p>
-                        <Button size="sm" variant="outline" className="mt-2">View Details</Button>
+                        <Link to={`/procurement/supplier/${vendor.id}`}>
+                          <Button size="sm" variant="outline" className="mt-2">View Details</Button>
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -280,7 +329,7 @@ export function InventoryStore() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <FileText className="w-16 h-16 text-gray-300 mb-4" />
                   <p className="text-gray-500 text-lg">No purchase orders</p>
-                  <p className="text-gray-400 text-sm mt-1">Purchase order management will be available here</p>
+                  <p className="text-gray-400 text-sm mt-1">Create a PO from Procurement → Purchase Orders</p>
                 </div>
               ) : (
                 <Table>
@@ -342,7 +391,7 @@ export function InventoryStore() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Truck className="w-16 h-16 text-gray-300 mb-4" />
                   <p className="text-gray-500 text-lg">No goods receipt notes</p>
-                  <p className="text-gray-400 text-sm mt-1">GRN management will be available here</p>
+                  <p className="text-gray-400 text-sm mt-1">Record a GRN from Store Manager → GRN Entry</p>
                 </div>
               ) : (
                 <div className="space-y-3">
