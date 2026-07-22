@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Plus, Truck, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
+import { seedMaterialReceiveImport } from "../../services/materialReceiveImportSeed";
 import { GRNCreationDialog } from "./GRNCreationDialog";
 
 // ── Historic seed data ────────────────────────────────────────────────────────
@@ -118,6 +119,7 @@ const seedGRNs = () => {
 
 const loadGRNs = (): any[] => {
   seedGRNs();
+  seedMaterialReceiveImport();
   try {
     const raw = localStorage.getItem("cleancar_grn_records");
     return raw ? JSON.parse(raw) : HISTORIC_GRNS;
