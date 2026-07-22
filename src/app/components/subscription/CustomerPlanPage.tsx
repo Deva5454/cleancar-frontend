@@ -2,6 +2,7 @@
 // Classy, colorful, interactive checkout with glassmorphism, gradients & animations
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { CAR_MANUFACTURERS } from "../../data/carManufacturers";
 import { useFinance } from "../../contexts/FinanceContext";
 import { useCustomers } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions } from "../../contexts/AppProvider";
@@ -452,6 +453,8 @@ export function CustomerPlanPage() {
   const [pageMode, setPageMode] = useState<"buy" | "reschedule" | "cancel">("buy");
   const [step, setStep] = useState(1);
   const [carModel, setCarModel] = useState("");
+  const [selectedManufacturerId, setSelectedManufacturerId] = useState("");
+  const [selectedModelName, setSelectedModelName] = useState("");
   const [detectedCat, setDetectedCat] = useState<string|null>(null);
   const [catConfirmed, setCatConfirmed] = useState(false);
   const [pincode, setPincode] = useState("");
@@ -535,7 +538,14 @@ export function CustomerPlanPage() {
   const { city } = useCity();
 
   useEffect(()=>{ const fn=()=>setCfg(loadConfig()); window.addEventListener("storage",fn); window.addEventListener("planConfigUpdated",fn); return()=>{ window.removeEventListener("storage",fn); window.removeEventListener("planConfigUpdated",fn); }; },[]);
-  useEffect(()=>{ if(carModel.trim().length<2){setDetectedCat(null);setCatConfirmed(false);return;} const v=carModel.toLowerCase().trim(); let f:string|null=null; for(const[k,c] of Object.entries(cfg.carModelMap)){if(v.includes(k)){f=c;break;}} setDetectedCat(f||(carModel.trim().length>=3?"hatchback":null)); setCatConfirmed(false); },[carModel,cfg.carModelMap]);
+  useEffect(() => {
+    if (!selectedManufacturerId || !selectedModelName) { setDetectedCat(null); setCatConfirmed(false); return; }
+    const manufacturer = CAR_MANUFACTURERS.find((m) => m.id === selectedManufacturerId);
+    const model = manufacturer?.models.find((mo) => mo.name === selectedModelName);
+    setCarModel(model ? `${manufacturer!.name} ${model.name}` : "");
+    setDetectedCat(model ? model.category : null);
+    setCatConfirmed(!!model);
+  }, [selectedManufacturerId, selectedModelName]);
   useEffect(()=>{ if(pincode.length!==6){setPincodeStatus(null);return;} setPincodeStatus(cfg.serviceablePincodes.some(p=>p.code===pincode)?"ok":"waitlist"); },[pincode,cfg.serviceablePincodes]);
 
   const activeCat = detectedCat;
@@ -1093,30 +1103,52 @@ export function CustomerPlanPage() {
             <div style={{background:"rgba(255,255,255,0.8)",backdropFilter:"blur(16px)",borderRadius:24,padding:"32px",border:"1px solid rgba(255,255,255,0.8)",boxShadow:"0 8px 32px rgba(99,102,241,0.08)"}}>
               <SectionHead n={1} total={6} title="Tell us about your car" sub="We'll detect your vehicle type automatically from the model name." />
 
-              {/* Model input with glow */}
+              {/* Manufacturer + Model selection */}
               <div style={{marginBottom:24}}>
-                <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Car model or brand name</label>
-                <div style={{position:"relative"}}>
-                  <span style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",fontSize:18}}>🚗</span>
-                  <input className="cpp-input" value={carModel} onChange={e=>setCarModel(e.target.value)}
-                    placeholder="Swift, Creta, Fortuner, Innova…"
-                    style={{paddingLeft:48,border:`2px solid ${detectedCat?"#6366f1":"rgba(148,163,184,0.3)"}`,boxShadow:detectedCat?"0 0 0 4px rgba(99,102,241,0.1)":undefined}} />
-                </div>
-                {detectedCat && (
-                  <div style={{marginTop:12,padding:"12px 16px",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",border:"2px solid #c7d2fe",borderRadius:14,display:"flex",alignItems:"center",gap:12}}>
-                    <span style={{fontSize:28}}>{cfg.vehicleCategories.find(c=>c.id===detectedCat)?.icon}</span>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:700,color:"#4338ca"}}>Detected: {cfg.vehicleCategories.find(c=>c.id===detectedCat)?.label}</div>
-                      <div style={{fontSize:12,color:"#6366f1"}}>Tap below to change if incorrect</div>
-                    </div>
-                    <div style={{marginLeft:"auto",fontSize:20}}>✅</div>
-                  </div>
-                )}
+                <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Car manufacturer</label>
+                <select
+                  className="cpp-input"
+                  value={selectedManufacturerId}
+                  onChange={e => { setSelectedManufacturerId(e.target.value); setSelectedModelName(""); }}
+                  style={{border:`2px solid ${selectedManufacturerId?"#6366f1":"rgba(148,163,184,0.3)"}`}}
+                >
+                  <option value="">Select manufacturer</option>
+                  {CAR_MANUFACTURERS.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
               </div>
+
+              {selectedManufacturerId && (
+                <div style={{marginBottom:24}}>
+                  <label style={{display:"block",fontSize:13,fontWeight:700,color:"#374151",marginBottom:8}}>Model</label>
+                  <select
+                    className="cpp-input"
+                    value={selectedModelName}
+                    onChange={e => setSelectedModelName(e.target.value)}
+                    style={{border:`2px solid ${selectedModelName?"#6366f1":"rgba(148,163,184,0.3)"}`,boxShadow:selectedModelName?"0 0 0 4px rgba(99,102,241,0.1)":undefined}}
+                  >
+                    <option value="">Select model</option>
+                    {CAR_MANUFACTURERS.find(m => m.id === selectedManufacturerId)?.models.map(mo => (
+                      <option key={mo.name} value={mo.name}>{mo.name}</option>
+                    ))}
+                  </select>
+                  {detectedCat && (
+                    <div style={{marginTop:12,padding:"12px 16px",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",border:"2px solid #c7d2fe",borderRadius:14,display:"flex",alignItems:"center",gap:12}}>
+                      <span style={{fontSize:28}}>{cfg.vehicleCategories.find(c=>c.id===detectedCat)?.icon}</span>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:700,color:"#4338ca"}}>{cfg.vehicleCategories.find(c=>c.id===detectedCat)?.label}</div>
+                        <div style={{fontSize:12,color:"#6366f1"}}>Pricing category for your {selectedModelName}</div>
+                      </div>
+                      <div style={{marginLeft:"auto",fontSize:20}}>✅</div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Vehicle type cards */}
               <div style={{marginBottom:24}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:12}}>Or select your vehicle type</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#374151",marginBottom:12}}>Don't see your car above? Select your vehicle type directly</div>
                 <div className="cpp-vehicle-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                   {cfg.vehicleCategories.map((cat,i)=>{
                     const gradients=["linear-gradient(135deg,#eff6ff,#dbeafe)","linear-gradient(135deg,#f0fdf4,#dcfce7)","linear-gradient(135deg,#fffbeb,#fef3c7)"];
