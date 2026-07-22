@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { ConfirmationModal } from "../shared/ConfirmationModal";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { employeeSalaryService } from "../../services/employeeSalaryService";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useRole } from "../../contexts/RoleContext";
 import { getStatusDisplay } from "../../utils/payrollWorkflow";
@@ -56,6 +57,7 @@ interface EmployeePayroll {
   employeeName: string;
   role: string;
   department: string;
+  dateOfJoining?: string;
   baseSalary: number;
   incentive: number;
   grossSalary: number;
@@ -65,6 +67,26 @@ interface EmployeePayroll {
   anomalyReason?: string;
   reviewStatus: ReviewStatus;
   reviewLog: ReviewLogEntry[];
+  // Real, honest flag - true only when this employee actually has a real
+  // salary structure assigned via employeeSalaryService. When false,
+  // every figure below is a placeholder, not a real calculated amount -
+  // the screen and export both need to say so plainly, not silently
+  // show a number that looks real but isn't.
+  hasRealSalaryStructure: boolean;
+  hra?: number;
+  employeePF?: number;
+  employerPF?: number;
+  employeeESIC?: number;
+  employerESIC?: number;
+  professionalTax?: number;
+  // From the real PayrollRun for this month, when one exists - separate
+  // from the salary structure, since a run may not exist yet even when
+  // a structure does.
+  hasRealPayrollRun: boolean;
+  daysWorked?: number;
+  totalDays?: number;
+  advances?: number;
+  tds?: number;
 }
 
 interface PayrollSummary {
@@ -166,25 +188,53 @@ function StatusTracker({ currentStatus }: StatusTrackerProps) {
 export function PayrollReviewApproval() {
   const navigate = useNavigate();
   const dbEmps = employeeDatabaseService.getAll();
-  // Note: EmployeeDatabaseRecord has no salary field — real figures live in
-  // employeeSalaryService. This mock default (18000) is what every one of
-  // these rows already evaluated to at runtime before this fix (accessing
-  // a nonexistent property just returns undefined, which `|| 18000` then
-  // fell back to) — making that explicit rather than pretending a
-  // `baseSalary` field exists on the employee record.
-  const MOCK_BASE_SALARY = 18000;
-  const [employees, setEmployees] = useState<EmployeePayroll[]>(dbEmps.slice(0,25).map(emp => ({
-    employeeId: emp.employeeId || emp.id || emp.tempId,
-    employeeName: emp.firstName+" "+emp.lastName,
-    role: emp.role || emp.designation || "Employee", department: emp.department||"Operations",
-    baseSalary: MOCK_BASE_SALARY, incentive: 0,
-    grossSalary: MOCK_BASE_SALARY,
-    deductions: Math.round(MOCK_BASE_SALARY*0.12),
-    netPay: Math.round(MOCK_BASE_SALARY*0.88),
-    hasAnomaly: false,
-    reviewStatus: "Pending",
-    reviewLog: [],
-  })));
+  // Real fix: previously every employee row used a flat MOCK_BASE_SALARY
+  // (₹18,000) regardless of who they actually were, because
+  // EmployeeDatabaseRecord has no salary field of its own. Now pulls the
+  // real, calculated salary structure per employee from
+  // employeeSalaryService, with an honest flag (hasRealSalaryStructure)
+  // for anyone who genuinely doesn't have one assigned yet.
+  const { payrollRuns, getPayrollForMonth, getPayrollByEmployee, sendToReview, approvePayroll } = usePayroll();
+  const currentMonthKeyForData = "2026-04";
+  const [employees, setEmployees] = useState<EmployeePayroll[]>(dbEmps.slice(0,25).map(emp => {
+    const employeeId = emp.employeeId || emp.id || emp.tempId;
+    const realSalary = employeeSalaryService.getActiveEmployeeSalary(employeeId);
+    const realRun = getPayrollByEmployee(employeeId).find((r: any) => r.month === currentMonthKeyForData);
+
+    // Honest fallback: an employee with no real salary structure assigned
+    // yet gets zeros, not a fabricated flat number that looks like a real
+    // calculated figure. hasRealSalaryStructure tells the UI and export
+    // to say so plainly rather than silently showing ₹0 as if it were real.
+    const sc = realSalary?.salaryComponents;
+    const baseSalary = sc?.basic ?? 0;
+    const grossSalary = sc?.monthlyGross ?? 0;
+    const deductions = sc?.totalDeductions ?? 0;
+    const netPay = sc?.netTakeHome ?? 0;
+
+    return {
+      employeeId,
+      employeeName: emp.firstName + " " + emp.lastName,
+      role: emp.role || emp.designation || "Employee",
+      department: emp.department || "Operations",
+      dateOfJoining: emp.dateOfJoining,
+      baseSalary, incentive: 0, grossSalary, deductions, netPay,
+      hasAnomaly: false,
+      reviewStatus: "Pending" as ReviewStatus,
+      reviewLog: [],
+      hasRealSalaryStructure: !!sc,
+      hra: sc?.hra,
+      employeePF: sc?.employeePF,
+      employerPF: sc?.employerPF,
+      employeeESIC: sc?.employeeESIC,
+      employerESIC: sc?.employerESIC,
+      professionalTax: sc?.professionalTax,
+      hasRealPayrollRun: !!realRun,
+      daysWorked: realRun?.daysWorked,
+      totalDays: realRun?.totalDays,
+      advances: realRun?.advances,
+      tds: realRun?.tds,
+    };
+  }));
   const [viewingEmployee, setViewingEmployee] = useState<EmployeePayroll | null>(null);
   const [openViewInEditMode, setOpenViewInEditMode] = useState(false);
   // Summary used to be a separate useState that was initialized once and
@@ -196,7 +246,11 @@ export function PayrollReviewApproval() {
     totalGrossSalary: employees.reduce((s, e) => s + e.grossSalary, 0),
     totalDeductions: employees.reduce((s, e) => s + e.deductions, 0),
     totalNetPayable: employees.reduce((s, e) => s + e.netPay, 0),
-    totalEmployerContributions: Math.round(employees.reduce((s, e) => s + e.grossSalary, 0) * 0.0975), // PF+ESIC+LWF employer share, matching the existing 12% employee-side approximation used above
+    totalEmployerContributions: Math.round(employees.reduce((s, e) => {
+      if (e.hasRealSalaryStructure) return s + (e.employerPF || 0) + (e.employerESIC || 0);
+      // Approximation, only for an employee with no real salary structure yet
+      return s + e.grossSalary * 0.0975;
+    }, 0)),
     totalExpense: 0,
     month: "04",
     year: "2026",
@@ -211,7 +265,6 @@ export function PayrollReviewApproval() {
     employerESIC: 0,
     employerLWF: 0,
   });
-  const { payrollRuns, getPayrollForMonth, sendToReview, approvePayroll } = usePayroll();
   const { currentUser, currentRole } = useRole();
   const canReview = currentRole === "HR" || currentRole === "Super Admin";
   const currentMonthKey = "2026-04";
@@ -231,17 +284,37 @@ export function PayrollReviewApproval() {
   const anomalyCount = employees.filter((e) => e.hasAnomaly).length;
 
   const handleExportReport = () => {
+    const header = [
+      "E-Code", "Name", "Department", "Role", "Date of Joining",
+      "Basic", "HRA", "Gross Salary",
+      "Employee PF", "Employer PF", "Employee ESIC", "Employer ESIC", "Professional Tax",
+      "Days Worked", "Total Days", "Advances", "TDS",
+      "Total Deductions", "Net Take Home (Salary)",
+      "Salary Structure Assigned?", "Payroll Run This Month?",
+      "Review Status",
+    ];
+    const rows = employees.map((e) => [
+      e.employeeId, e.employeeName, e.department, e.role, e.dateOfJoining || "—",
+      e.baseSalary, e.hra ?? "—", e.grossSalary,
+      e.employeePF ?? "—", e.employerPF ?? "—", e.employeeESIC ?? "—", e.employerESIC ?? "—", e.professionalTax ?? "—",
+      e.daysWorked ?? "—", e.totalDays ?? "—", e.advances ?? "—", e.tds ?? "—",
+      e.deductions, e.netPay,
+      e.hasRealSalaryStructure ? "Yes" : "No — using ₹0 placeholder",
+      e.hasRealPayrollRun ? "Yes" : "No",
+      e.reviewStatus,
+    ]);
     const csvContent = [
-      ["Employee ID", "Name", "Role", "Department", "Base Salary", "Incentive", "Gross Salary", "Deductions", "Net Pay", "Review Status"],
-      ...employees.map((e) => [
-        e.employeeId, e.employeeName, e.role, e.department,
-        e.baseSalary, e.incentive, e.grossSalary, e.deductions, e.netPay, e.reviewStatus,
-      ]),
+      header,
+      ...rows,
       [],
       ["Total Gross Salary", summary.totalGrossSalary],
       ["Total Deductions", summary.totalDeductions],
       ["Net Salary Payable", summary.totalNetPayable],
       ["Employer Contributions", summary.totalEmployerContributions],
+      [],
+      ["Note: Gratuity Provision, Leave Provision, LWF, Monthly Bonus, and Arrears are not included above."],
+      ["These are not currently tracked as real, persisted per-employee figures anywhere in the system —"],
+      ["including them here would mean showing a fabricated or repeated number, not a genuine one."],
     ].map((row) => row.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -524,7 +597,14 @@ export function PayrollReviewApproval() {
                         <AlertTriangle className="w-4 h-4 text-red-600" />
                       )}
                       <div>
-                        <div className="font-medium">{employee.employeeName}</div>
+                        <div className="font-medium flex items-center gap-1.5">
+                          {employee.employeeName}
+                          {!employee.hasRealSalaryStructure && (
+                            <span title="No real salary structure assigned yet - figures shown are placeholders">
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500">
                           {employee.employeeId}
                         </div>
