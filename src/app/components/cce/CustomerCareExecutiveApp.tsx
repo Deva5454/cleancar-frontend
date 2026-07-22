@@ -46,7 +46,7 @@ import {
   Package,
 } from 'lucide-react';
 import { CCEComplaintQueue } from './CCEComplaintQueue';
-import { CCEPackBooking } from './CCEPackBooking';
+import { CCECustomerService } from './CCECustomerService';
 import { customerCareExecutiveService } from '../../services/customerCareExecutiveService';
 import type {
   Complaint,
@@ -64,7 +64,7 @@ import {
   CCE_SCRIPTS,
 } from '../../constants/customerCareExecutive.constants';
 
-type ScreenType = 'QUEUE' | 'ACTIVE_COMPLAINT' | 'CRM_UPDATE' | 'DASHBOARD' | 'PACK_BOOKING';
+type ScreenType = 'QUEUE' | 'ACTIVE_COMPLAINT' | 'CRM_UPDATE' | 'DASHBOARD' | 'CUSTOMER_SERVICE';
 type TabType = 'complaints' | 'performance';
 
 export function CustomerCareExecutiveApp() {
@@ -329,13 +329,13 @@ export function CustomerCareExecutiveApp() {
             Performance Dashboard
           </Button>
           <Button
-            variant={currentScreen === 'PACK_BOOKING' ? 'secondary' : 'ghost'}
+            variant={currentScreen === 'CUSTOMER_SERVICE' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setCurrentScreen('PACK_BOOKING')}
-            className={currentScreen === 'PACK_BOOKING' ? 'bg-white text-blue-700' : 'text-white hover:bg-white/20'}
+            onClick={() => setCurrentScreen('CUSTOMER_SERVICE')}
+            className={currentScreen === 'CUSTOMER_SERVICE' ? 'bg-white text-blue-700' : 'text-white hover:bg-white/20'}
           >
             <Package className="w-4 h-4 mr-2" />
-            Book Plan Visit
+            Customer Service
           </Button>
         </div>
       </div>
@@ -664,9 +664,9 @@ export function CustomerCareExecutiveApp() {
           </div>
         )}
 
-        {currentScreen === 'PACK_BOOKING' && (
+        {currentScreen === 'CUSTOMER_SERVICE' && (
           <div className="h-full overflow-y-auto">
-            <CCEPackBooking />
+            <CCECustomerService />
           </div>
         )}
 
