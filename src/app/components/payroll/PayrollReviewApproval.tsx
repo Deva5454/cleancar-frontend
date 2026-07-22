@@ -230,6 +230,28 @@ export function PayrollReviewApproval() {
 
   const anomalyCount = employees.filter((e) => e.hasAnomaly).length;
 
+  const handleExportReport = () => {
+    const csvContent = [
+      ["Employee ID", "Name", "Role", "Department", "Base Salary", "Incentive", "Gross Salary", "Deductions", "Net Pay", "Review Status"],
+      ...employees.map((e) => [
+        e.employeeId, e.employeeName, e.role, e.department,
+        e.baseSalary, e.incentive, e.grossSalary, e.deductions, e.netPay, e.reviewStatus,
+      ]),
+      [],
+      ["Total Gross Salary", summary.totalGrossSalary],
+      ["Total Deductions", summary.totalDeductions],
+      ["Net Salary Payable", summary.totalNetPayable],
+      ["Employer Contributions", summary.totalEmployerContributions],
+    ].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `payroll_review_${summary.year}-${summary.month}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleHRApproval = () => {
     const pendingOrRejected = employees.filter(e => e.reviewStatus !== "Approved");
     if (pendingOrRejected.length > 0) {
@@ -374,7 +396,7 @@ export function PayrollReviewApproval() {
             )}
           </div>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportReport}>
           <Download className="w-4 h-4 mr-2" />
           Export Report
         </Button>
