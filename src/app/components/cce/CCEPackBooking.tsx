@@ -1,17 +1,20 @@
 /**
- * CCEPackBooking — a real screen for booking the next visit of an
- * existing customer's pack (Pack of 2 / Pack of 4), for phone-in
- * customers. Previously no staff-facing tool existed for this at all -
- * only the customer's own self-booking in the portal could correctly
- * link a subsequent pack visit to the subscription.
+ * CCEPackBooking — a real screen for booking the next wash of an
+ * existing customer's already-paid plan (Pack of 2, Pack of 4, or a
+ * Monthly/Quarterly/Annual subscription), for phone-in customers.
+ * Previously no staff-facing tool existed for this at all - only the
+ * customer's own self-booking in the portal could correctly link a
+ * subsequent visit to the subscription.
  *
- * A pack strictly belongs to one specific vehicle - the vehicle is
- * shown, not chosen, taken from the pack's own first real job record.
+ * A plan strictly belongs to one specific vehicle - the vehicle is
+ * shown, not chosen, taken from the plan's own first real job record.
  *
- * The job created here is marked paymentStatus: "Paid" from the start,
- * since the customer already paid for every visit when they bought the
- * pack - fixing the real gap where a pack-linked booking would
- * otherwise show as "Pending" and risk being charged again at the door.
+ * The job created here is marked paymentStatus: "Paid" whenever the
+ * plan is genuinely prepaid - a pack with real visits remaining, or a
+ * monthly plan with its current cycle paid - using the same shared
+ * rule used everywhere else a job can be created against a
+ * subscription, so this can never drift out of sync with the rest of
+ * the app.
  */
 
 import { useState } from "react";
@@ -20,6 +23,7 @@ import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionCon
 import { useJobs } from "../../contexts/JobContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
+import { isPrepaidSubscriptionVisit } from "../../lib/subscriptionPaymentStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -36,6 +40,8 @@ import { toast } from "sonner";
 // portal, where a "4:00 PM" slot would throw and a "6:00 PM" slot would
 // be silently misread as if it were 6 AM.
 const VALID_TIME_SLOTS = ["06:00", "07:00", "08:00"];
+
+const isPack = (sub: any) => sub.visitsTotal !== undefined;
 
 export function CCEPackBooking() {
   const { customers } = useCustomers();
@@ -62,33 +68,36 @@ export function CCEPackBooking() {
     setSelectedSubId("");
   };
 
-  const packSubscriptions = foundCustomer
+  // Every real subscription type where multiple washes are paid for in
+  // advance - a pack (visitsTotal defined) or a Monthly/Quarterly/Annual
+  // plan (billingCycle defined). A one-time, non-recurring purchase
+  // doesn't belong here, since there's nothing further to book against it.
+  const bookableSubscriptions = foundCustomer
     ? getSubscriptionsByCustomerId(foundCustomer.customerId).filter(
-        (s: any) => (s.frequency === "Pack of 2" || s.frequency === "Pack of 4") && s.visitsTotal !== undefined
+        (s: any) => s.visitsTotal !== undefined || !!s.billingCycle
       )
     : [];
 
-  const selectedSub: any = packSubscriptions.find((s: any) => s.subscriptionId === selectedSubId);
+  const selectedSub: any = bookableSubscriptions.find((s: any) => s.subscriptionId === selectedSubId);
 
-  // The vehicle a pack belongs to - taken from its own first real job,
-  // since that's the actual vehicle captured when the pack was bought,
-  // not guessed from whichever vehicle happens to be on file today.
-  const packVehicle = selectedSub
+  // The vehicle a plan belongs to - taken from its own first real job,
+  // since that's the actual vehicle captured when it was bought, not
+  // guessed from whichever vehicle happens to be on file today.
+  const planVehicle = selectedSub
     ? allJobs.find((j: any) => j.subscriptionId === selectedSub.subscriptionId)?.vehicleDetails
     : null;
 
-  const visitsRemaining = selectedSub ? Math.max(0, (selectedSub.visitsTotal || 0) - (selectedSub.visitsUsed || 0)) : 0;
-  const isBookable = selectedSub && selectedSub.status === "Active" && visitsRemaining > 0;
+  const isBookable = selectedSub ? isPrepaidSubscriptionVisit(selectedSub) : false;
 
   const isSunday = scheduledDate ? new Date(scheduledDate).getDay() === 0 : false;
 
   const handleBookVisit = () => {
-    if (!foundCustomer || !selectedSub || !packVehicle) {
-      toast.error("Select a customer and an active pack first");
+    if (!foundCustomer || !selectedSub || !planVehicle) {
+      toast.error("Select a customer and an active, paid plan first");
       return;
     }
     if (!isBookable) {
-      toast.error("This pack has no visits remaining, or isn't active");
+      toast.error("This plan isn't active or paid, or has no visits remaining");
       return;
     }
     if (isSunday) {
@@ -103,13 +112,11 @@ export function CCEPackBooking() {
         timeSlot,
         status: "Unassigned",
         jobType: "Regular",
-        // Already paid for as part of the pack purchase - the real fix
-        // for the gap where a pack-linked booking would otherwise show
-        // as Pending and risk being charged again at the door.
+        // Real, shared rule - already verified true by isBookable above.
         paymentStatus: "Paid",
         packageName: selectedSub.packageName,
         packageType: selectedSub.packageType,
-        vehicleDetails: packVehicle,
+        vehicleDetails: planVehicle,
         location: {
           addressLine1: foundCustomer.address?.line1 || "",
           area: foundCustomer.address?.area || "",
@@ -118,9 +125,9 @@ export function CCEPackBooking() {
         },
         serviceDetails: {},
         cityId: city,
-        notes: `Pack visit booked by CCE (${currentUser?.name || "CCE"}) via phone`,
+        notes: `Visit booked by CCE (${currentUser?.name || "CCE"}) via phone`,
       } as any);
-      toast.success(`Wash booked for ${scheduledDate} — visit will count toward this pack`);
+      toast.success(`Wash booked for ${scheduledDate} — visit will count toward this plan`);
       setSelectedSubId("");
     } catch (err: any) {
       toast.error(err?.message || "Could not book this visit — please try a different date or time");
@@ -131,9 +138,9 @@ export function CCEPackBooking() {
     <div className="p-4 space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <Package className="w-5 h-5 text-blue-600" /> Book a Pack Visit
+          <Package className="w-5 h-5 text-blue-600" /> Book a Plan Visit
         </h1>
-        <p className="text-sm text-gray-500">For an existing customer calling to schedule their next pack wash</p>
+        <p className="text-sm text-gray-500">For an existing customer calling to schedule their next wash — pack or monthly plan</p>
       </div>
 
       <Card>
@@ -159,13 +166,13 @@ export function CCEPackBooking() {
             <CardTitle className="text-base">{foundCustomer.firstName} {foundCustomer.lastName}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {packSubscriptions.length === 0 ? (
-              <p className="text-sm text-gray-400">This customer has no pack subscriptions.</p>
+            {bookableSubscriptions.length === 0 ? (
+              <p className="text-sm text-gray-400">This customer has no pack or monthly plan subscriptions.</p>
             ) : (
               <div className="space-y-2">
-                {packSubscriptions.map((sub: any) => {
-                  const remaining = Math.max(0, (sub.visitsTotal || 0) - (sub.visitsUsed || 0));
-                  const bookable = sub.status === "Active" && remaining > 0;
+                {bookableSubscriptions.map((sub: any) => {
+                  const bookable = isPrepaidSubscriptionVisit(sub);
+                  const remaining = isPack(sub) ? Math.max(0, (sub.visitsTotal || 0) - (sub.visitsUsed || 0)) : null;
                   return (
                     <button
                       key={sub.subscriptionId}
@@ -179,12 +186,22 @@ export function CCEPackBooking() {
                         <p className="font-medium text-gray-900">{sub.packageName}</p>
                         <Badge variant={bookable ? "default" : "secondary"}>{sub.status}</Badge>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {sub.visitsUsed || 0} of {sub.visitsTotal} visits used · {remaining} remaining · expires {sub.visitsExpiry || "—"}
-                      </p>
+                      {isPack(sub) ? (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {sub.visitsUsed || 0} of {sub.visitsTotal} visits used · {remaining} remaining · expires {sub.visitsExpiry || "—"}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {sub.billingCycle} plan · started {sub.startDate || "—"} · renews {sub.renewalDate || "—"} · payment {sub.paymentStatus || "Unknown"}
+                        </p>
+                      )}
                       {!bookable && (
                         <p className="text-xs text-red-600 mt-1">
-                          {sub.status !== "Active" ? "This pack is no longer active" : "No visits remaining on this pack"}
+                          {sub.status !== "Active"
+                            ? "This plan is no longer active"
+                            : isPack(sub)
+                              ? "No visits remaining on this pack"
+                              : "This plan's current cycle isn't marked as paid"}
                         </p>
                       )}
                     </button>
@@ -197,10 +214,10 @@ export function CCEPackBooking() {
               <div className="border-t pt-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
                   <Car className="w-4 h-4 text-gray-400" />
-                  {packVehicle ? (
-                    <span>{packVehicle.brand} · {packVehicle.category} · {packVehicle.registration}</span>
+                  {planVehicle ? (
+                    <span>{planVehicle.brand} · {planVehicle.category} · {planVehicle.registration}</span>
                   ) : (
-                    <span className="text-gray-400">Vehicle details not found for this pack</span>
+                    <span className="text-gray-400">Vehicle details not found for this plan</span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -224,7 +241,7 @@ export function CCEPackBooking() {
                     </Select>
                   </div>
                 </div>
-                <Button onClick={handleBookVisit} disabled={!packVehicle || isSunday} className="w-full">
+                <Button onClick={handleBookVisit} disabled={!planVehicle || isSunday} className="w-full">
                   Book This Visit
                 </Button>
               </div>

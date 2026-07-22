@@ -26,6 +26,7 @@ import {
   type PlanType,
 } from "../../data/subscriptionPlans";
 import { detectVehicleCategory } from "./carModelLookup";
+import { isPrepaidSubscriptionVisit } from "../../lib/subscriptionPaymentStatus";
 import { planSyncService } from "../../services/planSyncService";
 import { ChevronLeft, Check, Car } from "lucide-react";
 import { toast } from "sonner";
@@ -224,13 +225,13 @@ export function CustomerPortalBooking() {
         ? Math.round((vehiclePrice / preDiscountTotal) * appliedCode.discount)
         : 0;
       const matchingSub = activeSubs.find((s: any) => s.packageType === v.plan);
-      // A pack (visitsTotal defined) is paid in full upfront - a booking
-      // that correctly links to one with visits still remaining is
-      // already paid for, not pending. Previously every pack-linked
-      // booking showed as Pending regardless, risking the customer being
-      // asked to pay again at the door for a wash they'd already paid for.
-      const isPrepaidPackVisit = matchingSub?.visitsTotal !== undefined
-        && (matchingSub.visitsUsed || 0) < matchingSub.visitsTotal;
+      // Shared real rule: a pack is prepaid while visits remain; a
+      // monthly/quarterly/annual plan is prepaid while its own
+      // paymentStatus is "Paid" for the current cycle. Previously only
+      // packs were covered here - a booking against an active monthly
+      // subscription still showed as Pending, same risk of being
+      // charged again at the door.
+      const isPrepaidVisit = isPrepaidSubscriptionVisit(matchingSub);
 
       createJob({
         customerId: customer.customerId,
@@ -239,7 +240,7 @@ export function CustomerPortalBooking() {
         timeSlot,
         status: "Unassigned",
         jobType: "Regular",
-        paymentStatus: isPrepaidPackVisit ? "Paid" : "Pending",
+        paymentStatus: isPrepaidVisit ? "Paid" : "Pending",
         packageName: `${PLAN_TIER_NAMES[v.plan] || v.plan}`,
         packageType: v.plan,
         discountCode: appliedCode?.code,

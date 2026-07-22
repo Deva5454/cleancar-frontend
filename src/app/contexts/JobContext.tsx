@@ -12,7 +12,8 @@ import { recordFirstWashDate } from "../services/firstWashReminderService";
 import { getBundleBySubscriptionId, recordBundleVisit, recordBundleFirstWash } from "../services/multiMonthBundleService";
 import { markOfferCompleted } from "../services/complimentary2WService";
 import { createUpsellTask, createPackUpsellTask } from "../services/tatTrackingService";
-import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow, sendBeforeAfterPhotos } from "../services/whatsappService";
+import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow, sendBeforeAfterPhotos, sendPackPurchaseConfirmed } from "../services/whatsappService";
+import { isPrepaidSubscriptionVisit } from "../lib/subscriptionPaymentStatus";
 
 // Types
 export interface Job {
@@ -326,6 +327,12 @@ export function JobProvider({ children }: { children: ReactNode }) {
       const hour = parseInt(rawSlot.split(":")[0], 10);
       const safeSlot = (hour >= 5 && hour < 9) ? rawSlot : "06:00";
       try {
+        // Real fix: look up the actual subscription record rather than
+        // assuming it's paid - this listener could theoretically fire
+        // for a subscription that isn't yet paid.
+        const allSubs: any[] = DataService.get<any>("SUBSCRIPTIONS");
+        const realSub = allSubs.find((s: any) => s.subscriptionId === d.subscriptionId);
+        const jobPaymentStatus = isPrepaidSubscriptionVisit(realSub) ? "Paid" : "Pending";
         createJob({
           customerId: d.customerId,
           subscriptionId: d.subscriptionId,
@@ -333,6 +340,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           timeSlot: safeSlot,
           status: "Unassigned",
           jobType: "Regular",
+          paymentStatus: jobPaymentStatus,
           packageName: d.packageName || "Subscription Wash",
           packageType: d.packageType,
           frequency: d.frequency,
@@ -343,6 +351,20 @@ export function JobProvider({ children }: { children: ReactNode }) {
           priorityRank: 3, // Regular subscription job
         } as any);
         console.log("[JobContext] Auto-created job from subscription:", d.subscriptionId);
+
+        // Real purchase confirmation - previously the customer only got
+        // a payment invoice here, never an actual plan summary.
+        const allCustomersForConfirm: any[] = DataService.get<any>("CUSTOMERS");
+        const custForConfirm = allCustomersForConfirm.find((c: any) => c.customerId === d.customerId);
+        if (custForConfirm?.phone && realSub?.renewalDate) {
+          sendPackPurchaseConfirmed(
+            custForConfirm.phone,
+            custForConfirm.firstName || "Customer",
+            d.packageName || "Subscription",
+            realSub.startDate || dateStr,
+            realSub.renewalDate,
+          ).catch(() => {});
+        }
       } catch (err: any) {
         console.warn("[JobContext] Could not auto-create job:", err?.message);
       }
@@ -368,6 +390,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
           timeSlot: safeSlot,
           status: "Unassigned",
           jobType: "Regular",
+          // Always already paid - this listener only ever fires for a
+          // pack the customer just paid for in full.
+          paymentStatus: "Paid",
           packageName: d.packageName || "Pack Visit",
           packageType: d.packageType,
           packVariant: d.packVariant || "shampoo",
@@ -379,6 +404,23 @@ export function JobProvider({ children }: { children: ReactNode }) {
           priorityRank: 1, // Multi-month bundle â€” highest priority (C2 decision: bundle > urgent wash)
         } as any);
         console.log("[JobContext] Auto-created pack visit job:", d.subscriptionId);
+
+        // Real purchase confirmation - previously the customer only got
+        // a payment invoice here, never an actual plan summary.
+        const allSubsForConfirm: any[] = DataService.get<any>("SUBSCRIPTIONS");
+        const realPackSub = allSubsForConfirm.find((s: any) => s.subscriptionId === d.subscriptionId);
+        const allCustomersForPackConfirm: any[] = DataService.get<any>("CUSTOMERS");
+        const custForPackConfirm = allCustomersForPackConfirm.find((c: any) => c.customerId === d.customerId);
+        if (custForPackConfirm?.phone && realPackSub?.visitsExpiry) {
+          sendPackPurchaseConfirmed(
+            custForPackConfirm.phone,
+            custForPackConfirm.firstName || "Customer",
+            d.packageName || "Pack",
+            realPackSub.startDate || dateStr,
+            realPackSub.visitsExpiry,
+            d.totalVisits,
+          ).catch(() => {});
+        }
       } catch (err: any) {
         console.warn("[JobContext] Could not auto-create pack job:", err?.message);
       }
@@ -465,14 +507,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
       } catch(e) { console.warn("[Scheduler] Bundle scheduler error:", e); }
 
       try {
-        // 2. Pack expiry reminders (7 days, 3 days, last day)
-        const { sendPackExpiry7Days, sendPackExpiry3Days, sendPackExpiryLastDay } = await import("../services/whatsappService");
+        // 2. Pack expiry reminders (7 days, 3 days, last day, and lapse)
+        const { sendPackExpiry7Days, sendPackExpiry3Days, sendPackExpiryLastDay, sendPackExpiredLapse } = await import("../services/whatsappService");
         const allSubs = DataService.get<any>("SUBSCRIPTIONS") || [];
         const allCustomers = DataService.get<any>("CUSTOMERS") || [];
         const reminded7  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_7d")  || "[]"));
         const reminded3  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_3d")  || "[]"));
         const remindedL  = new Set<string>(JSON.parse(localStorage.getItem("cc360_expiry_reminded_last") || "[]"));
         const todayDate  = new Date(today);
+        let subsChanged = false;
 
         allSubs.filter((s: any) => s.status === "Active" && s.visitsExpiry).forEach((s: any) => {
           const expiry    = new Date(s.visitsExpiry);
@@ -495,8 +538,21 @@ export function JobProvider({ children }: { children: ReactNode }) {
             sendPackExpiryLastDay(cust.phone, name, packName, remaining).catch(()=>{});
             remindedL.add(s.subscriptionId);
             localStorage.setItem("cc360_expiry_reminded_last", JSON.stringify([...remindedL]));
+          } else if (daysLeft < -1) {
+            // Real fix: previously nothing happened once expiry genuinely
+            // passed - the subscription stayed "Active" forever with
+            // unused visits that could never actually be booked again.
+            // Reuses the same real "Exhausted" status already used when
+            // a pack's visits run out, since both mean the same thing:
+            // this pack can no longer be used.
+            s.status = "Exhausted";
+            subsChanged = true;
+            if (remaining > 0) {
+              sendPackExpiredLapse(cust.phone, name, packName, remaining).catch(()=>{});
+            }
           }
         });
+        if (subsChanged) DataService.setAll("SUBSCRIPTIONS", allSubs);
         console.info("[Scheduler] Pack expiry reminders checked");
       } catch(e) { console.warn("[Scheduler] Pack expiry error:", e); }
 
@@ -1201,6 +1257,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
   ): Job[] => {
     const generatedJobs: Job[] = [];
+    // Real fix: previously every job created here had no payment status
+    // at all, even though the customer had already paid at signup -
+    // whether via a pack (paid upfront for N visits) or a monthly plan
+    // (paid for the current billing cycle).
+    const allSubs: any[] = DataService.get<any>("SUBSCRIPTIONS");
+    const realSub = allSubs.find((s: any) => s.subscriptionId === subscriptionId);
+    const jobPaymentStatus = isPrepaidSubscriptionVisit(realSub) ? "Paid" : "Pending";
     for (let i = 0; i < count; i++) {
       const job = createJob({
         customerId,
@@ -1209,6 +1272,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
         timeSlot: subscriptionData?.timeSlot || "07:00 - 08:00",
         status: "Unassigned",
         jobType: "Regular",
+        paymentStatus: jobPaymentStatus,
         packageName:   subscriptionData?.packageName || "Standard Package",
         customerName:  subscriptionData?.customerName,
         customerPhone: subscriptionData?.customerPhone,

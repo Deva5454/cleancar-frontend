@@ -335,7 +335,7 @@ export function CustomerCareExecutiveApp() {
             className={currentScreen === 'PACK_BOOKING' ? 'bg-white text-blue-700' : 'text-white hover:bg-white/20'}
           >
             <Package className="w-4 h-4 mr-2" />
-            Book Pack Visit
+            Book Plan Visit
           </Button>
         </div>
       </div>

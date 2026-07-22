@@ -464,6 +464,56 @@ export async function sendPackExpiryLastDay(
   ].join("\n"));
 }
 
+/**
+ * Real plan/pack purchase confirmation - previously the only message a
+ * customer got at purchase was a payment invoice, with no summary of
+ * the actual plan: start date, end date, and how many washes it covers.
+ */
+export async function sendPackPurchaseConfirmed(
+  phone: string,
+  customerName: string,
+  packageName: string,
+  startDate: string,
+  endDate: string,
+  totalVisits?: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName}! 🎉`,
+    ``,
+    `Your *${packageName}* is now active.`,
+    `Valid: *${startDate}* to *${endDate}*.`,
+    totalVisits ? `Includes *${totalVisits} wash${totalVisits !== 1 ? "es" : ""}*.` : ``,
+    ``,
+    `We'll remind you before it expires — no action needed right now.`,
+    `Questions? Call *080 48 79 45 45*.`,
+    `— 24/9 Carwashing`,
+  ].filter(Boolean).join("\n"), "pack_purchase_confirmed", { background: true });
+}
+
+/**
+ * Real expiry-lapse message - previously nothing was sent once the
+ * expiry date actually passed with visits still remaining; the last
+ * real message was the "expires today" warning, then silence.
+ */
+export async function sendPackExpiredLapse(
+  phone: string,
+  customerName: string,
+  packageName: string,
+  visitsForfeited: number
+): Promise<WAResult> {
+  return sendWhatsApp(phone, [
+    `Hi ${customerName},`,
+    ``,
+    `Your *${packageName}* has expired.`,
+    visitsForfeited > 0
+      ? `*${visitsForfeited} unused wash${visitsForfeited !== 1 ? "es were" : " was"}* forfeited, as per the pack's validity terms.`
+      : `All washes were used — thank you!`,
+    ``,
+    `Ready for another pack? Call *080 48 79 45 45* or reply RENEW.`,
+    `— 24/9 Carwashing`,
+  ].join("\n"), "pack_expired_lapse", { background: true });
+}
+
 // ── Reschedule Notifications ──────────────────────────────────────────────────
 
 export async function sendRescheduleConfirmed(
