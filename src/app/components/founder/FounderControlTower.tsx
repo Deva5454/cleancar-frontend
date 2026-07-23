@@ -29,6 +29,7 @@ import {
   ChevronDown,
   Receipt,
   Info,
+  Beaker,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { useGlobalFilters } from "../navigation/GlobalFilterBar";
@@ -981,6 +982,12 @@ function FounderControlTower() {
               <Button variant="outline" className="w-full">
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Cash Flow
+              </Button>
+            </Link>
+            <Link to="/admin/dilution-recipes">
+              <Button variant="outline" className="w-full">
+                <Beaker className="w-4 h-4 mr-2" />
+                Dilution Recipes
               </Button>
             </Link>
           </div>
