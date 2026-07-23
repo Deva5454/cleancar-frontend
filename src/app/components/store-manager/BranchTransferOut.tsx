@@ -14,6 +14,7 @@ import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { getBranchesForCity } from "../../config/branchStores";
+import { isRawConcentrateItem } from "../../services/dilutionRecipeService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -48,7 +49,7 @@ export function BranchTransferOut() {
     return <Navigate to="/store-manager/branch-store" replace />;
   }
 
-  const centralItems = inventory.filter((i: any) => i.cityId === city && (i.centralStock || 0) > 0);
+  const centralItems = inventory.filter((i: any) => i.cityId === city && (i.centralStock || 0) > 0 && !isRawConcentrateItem(i));
   const recentTransfers = stockTransactions
     .filter((t: any) => t.toLocation === "Branch" && t.cityId === city)
     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

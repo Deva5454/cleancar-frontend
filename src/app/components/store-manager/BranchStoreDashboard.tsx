@@ -15,6 +15,7 @@ import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { getBranchesForCity, type BranchStore } from "../../config/branchStores";
+import { isRawConcentrateItem } from "../../services/dilutionRecipeService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -52,7 +53,7 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
   const supervisors = getEmployeesByRole("Supervisor");
 
   const branchStockItemsForSend = useMemo(
-    () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.branchStock?.[activeBranch.id]) || 0) > 0) : [],
+    () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.branchStock?.[activeBranch.id]) || 0) > 0 && !isRawConcentrateItem(i)) : [],
     [inventory, city, activeBranch]
   );
 

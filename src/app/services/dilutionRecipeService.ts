@@ -31,6 +31,17 @@ export interface DilutionRecipe {
 
 const STORAGE_KEY = "DILUTION_RECIPES";
 
+/**
+ * Real, confirmed business rule: any liquid cleaning concentrate
+ * (tracked in litres) is never directly transferable between
+ * locations - only its bottled, diluted form moves through the real
+ * Kim → Branch → Supervisor → Washer chain. Litres are only ever
+ * counted at the moment of purchase.
+ */
+export function isRawConcentrateItem(item: { unit?: string; category?: string }): boolean {
+  return item.unit === "L" && item.category === "Cleaning Supplies";
+}
+
 export function getDilutionRecipes(cityId?: string): DilutionRecipe[] {
   return DataService.get<DilutionRecipe>(STORAGE_KEY, cityId);
 }

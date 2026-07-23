@@ -52,6 +52,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Textarea } from "../ui/textarea";
 import { useInventory } from "../../contexts/InventoryContext";
+import { isRawConcentrateItem } from "../../services/dilutionRecipeService";
 import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useRole } from "../../contexts/RoleContext";
@@ -627,7 +628,7 @@ export function WasherIssuances() {
                     <SelectValue placeholder="Select material" />
                   </SelectTrigger>
                   <SelectContent>
-                    {inventory.filter((i: any) => i.cityId === city).map((i: any) => (
+                    {inventory.filter((i: any) => i.cityId === city && !isRawConcentrateItem(i)).map((i: any) => (
                       <SelectItem key={i.itemId} value={i.itemId}>
                         {i.itemName} ({i.unit}) — {i.centralStock} available
                       </SelectItem>
@@ -720,7 +721,7 @@ export function WasherIssuances() {
                   </tr>
                 </thead>
                 <tbody>
-                  {inventory.filter((i: any) => i.cityId === city).slice(0, 4).map((material: any) => (
+                  {inventory.filter((i: any) => i.cityId === city && !isRawConcentrateItem(i)).slice(0, 4).map((material: any) => (
                     <tr key={material.itemId}>
                       <td className="p-2 border text-sm font-medium">
                         {material.itemName}

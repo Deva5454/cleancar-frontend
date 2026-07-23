@@ -6,6 +6,16 @@
  *   Shampoo:   1L concentrate : 1L water, ₹1200/L, 30ml per wash
  *   Tyre Glow: 1L concentrate : 1L water, ₹1200/L, 30ml per wash
  *
+ * Real fix (v2): the earlier version of this seed created brand-new
+ * "Shampoo" / "Tyre Glow" concentrate items, unaware that this exact
+ * same real product already existed in the system under a different
+ * name - "Car Shampoo 5L" and "Tyre Shine 500ml," the real,
+ * pre-existing items every other screen (GRN, Stock Verification,
+ * Requisitions, Procurement) already references. Confirmed directly:
+ * these are genuinely the same real products. This version points the
+ * recipe at the real, existing item instead of creating a duplicate,
+ * and migrates/removes any duplicate the earlier version already made.
+ *
  * Every number here is genuinely editable afterward by Super Admin
  * on the real Dilution Recipes screen - this seed only sets the real
  * starting values, confirmed directly, not fixed defaults.
@@ -13,7 +23,7 @@
 
 import { DataService } from "./DataService";
 
-const SEED_VERSION_KEY = "cleancar_shampoo_tyreglow_recipe_seed_v1";
+const SEED_VERSION_KEY = "cleancar_shampoo_tyreglow_recipe_seed_v2";
 const CITY_ID = "CITY-SURAT";
 
 export function seedShampooTyreGlowRecipes() {
@@ -38,42 +48,66 @@ export function seedShampooTyreGlowRecipes() {
       return item;
     };
 
-    const recipes = DataService.get<any>("DILUTION_RECIPES");
-    const now = new Date().toISOString();
-
-    const buildRecipe = (productName: string) => {
-      const concentrateItem = ensureItem(productName, "Consumables", "L", 1200);
-      const bottledItem = ensureItem(`${productName} (Bottled 250ml)`, "Consumables", "Pcs", 0);
-      const emptyBottleItem = ensureItem(`${productName} - Empty Bottle`, "Consumables", "Pcs", 0);
-      // Give the concentrate some real starting stock so Bottling can
-      // actually be used right away, matching the same real approach
-      // as the earlier uniform/machine seed.
-      concentrateItem.centralStock += 20;
-
-      return {
-        recipeId: `RECIPE-SEED-${productName.replace(/[^a-zA-Z0-9]/g, "-")}`,
-        productName,
-        concentrateItemId: concentrateItem.itemId,
-        concentrateQtyLiters: 1,
-        waterQtyLiters: 1,
-        bottleSizeMl: 250,
-        bottledItemId: bottledItem.itemId,
-        emptyBottleItemId: emptyBottleItem.itemId,
-        mlPerWash: 30,
-        concentrateCostPerLiter: 1200,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      };
+    // Real migration: if the earlier version of this seed already ran
+    // and created a disconnected duplicate ("Shampoo" / "Tyre Glow"),
+    // fold its real stock into the genuine, pre-existing item and
+    // remove the duplicate, rather than leaving two parallel records
+    // for the same real product.
+    const mergeDuplicate = (duplicateName: string, realItem: any) => {
+      const dup = itemsByName.get(duplicateName);
+      if (!dup || dup === realItem) return;
+      realItem.centralStock = (realItem.centralStock || 0) + (dup.centralStock || 0);
+      const idx = items.findIndex((i: any) => i.itemId === dup.itemId);
+      if (idx >= 0) items.splice(idx, 1);
+      itemsByName.delete(duplicateName);
     };
 
-    const newRecipes = [buildRecipe("Shampoo"), buildRecipe("Tyre Glow")];
+    // Real, pre-existing concentrate items - confirmed the same real
+    // products as Shampoo and Tyre Glow, just under their original names.
+    const shampooConcentrate = ensureItem("Car Shampoo 5L", "Cleaning Supplies", "L", 1200);
+    const tyreGlowConcentrate = ensureItem("Tyre Shine 500ml", "Cleaning Supplies", "L", 1200);
+    mergeDuplicate("Shampoo", shampooConcentrate);
+    mergeDuplicate("Tyre Glow", tyreGlowConcentrate);
+    // Real, confirmed cost - overwrite whatever the pre-existing item
+    // had, since ₹1200/L is the real, current confirmed cost.
+    shampooConcentrate.unitCost = 1200;
+    tyreGlowConcentrate.unitCost = 1200;
+
+    const bottledShampoo = ensureItem("Shampoo (Bottled 250ml)", "Consumables", "Pcs", 0);
+    const emptyShampoo = ensureItem("Shampoo - Empty Bottle", "Consumables", "Pcs", 0);
+    const bottledTyreGlow = ensureItem("Tyre Glow (Bottled 250ml)", "Consumables", "Pcs", 0);
+    const emptyTyreGlow = ensureItem("Tyre Glow - Empty Bottle", "Consumables", "Pcs", 0);
+
+    const recipes: any[] = DataService.get<any>("DILUTION_RECIPES");
+    // Real migration: drop any recipe from the earlier version that
+    // pointed at the now-removed duplicate concentrate item.
+    const filteredRecipes = recipes.filter((r: any) => r.recipeId !== "RECIPE-SEED-Shampoo" && r.recipeId !== "RECIPE-SEED-Tyre-Glow");
+    const now = new Date().toISOString();
+
+    const newRecipes = [
+      {
+        recipeId: "RECIPE-SEED-Shampoo-v2", productName: "Shampoo",
+        concentrateItemId: shampooConcentrate.itemId,
+        concentrateQtyLiters: 1, waterQtyLiters: 1, bottleSizeMl: 250,
+        bottledItemId: bottledShampoo.itemId, emptyBottleItemId: emptyShampoo.itemId,
+        mlPerWash: 30, concentrateCostPerLiter: 1200,
+        isActive: true, createdAt: now, updatedAt: now,
+      },
+      {
+        recipeId: "RECIPE-SEED-TyreGlow-v2", productName: "Tyre Glow",
+        concentrateItemId: tyreGlowConcentrate.itemId,
+        concentrateQtyLiters: 1, waterQtyLiters: 1, bottleSizeMl: 250,
+        bottledItemId: bottledTyreGlow.itemId, emptyBottleItemId: emptyTyreGlow.itemId,
+        mlPerWash: 30, concentrateCostPerLiter: 1200,
+        isActive: true, createdAt: now, updatedAt: now,
+      },
+    ];
 
     DataService.setAll("INVENTORY_ITEMS", items);
-    DataService.setAll("DILUTION_RECIPES", [...recipes, ...newRecipes]);
+    DataService.setAll("DILUTION_RECIPES", [...filteredRecipes, ...newRecipes]);
     localStorage.setItem(SEED_VERSION_KEY, "DONE");
 
-    console.info("[shampooTyreGlowRecipeSeed] Real recipes added for Shampoo and Tyre Glow, both editable by Super Admin.");
+    console.info("[shampooTyreGlowRecipeSeed] Real recipes now point at the genuine, pre-existing Car Shampoo 5L / Tyre Shine 500ml items - no duplicate product records.");
   } catch (err) {
     console.error("[shampooTyreGlowRecipeSeed] Seed failed, recipes unaffected:", err);
   }
