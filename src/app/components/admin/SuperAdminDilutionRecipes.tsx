@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
 import {
   getDilutionRecipes, saveDilutionRecipe, setMlPerWash, calculateYield, calculateCostPerWash,
   type DilutionRecipe,
@@ -19,15 +20,15 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
-import { Beaker, Plus } from "lucide-react";
+import { Beaker, Plus, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 export function SuperAdminDilutionRecipes() {
+  const { currentRole } = useRole();
   const { inventory, addInventoryItem } = useInventory();
   const { city } = useCity();
   const [recipes, setRecipes] = useState<DilutionRecipe[]>(() => getDilutionRecipes(city));
   const [showNew, setShowNew] = useState(false);
-
   const [productName, setProductName] = useState("");
   const [concentrateItemId, setConcentrateItemId] = useState("");
   const [concentrateQty, setConcentrateQty] = useState("");
@@ -35,6 +36,26 @@ export function SuperAdminDilutionRecipes() {
   const [bottleSizeMl, setBottleSizeMl] = useState("250");
   const [mlPerWash, setMlPerWashInput] = useState("");
   const [concentrateCost, setConcentrateCost] = useState("");
+
+  // Real access restriction - previously this screen had none at all,
+  // even though mlPerWash is explicitly a SuperAdmin-only setting per
+  // the confirmed business rule. A Kim store manager (or anyone else
+  // with the URL) could reach this and change the fixed per-wash
+  // consumption amount, which was never the intent. Placed after every
+  // hook above, so hook count never changes between renders.
+  if (currentRole !== "Super Admin") {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 p-6 bg-white border rounded-lg shadow-sm max-w-md">
+          <Lock className="w-6 h-6 text-gray-400 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-900">Restricted</p>
+            <p className="text-sm text-gray-500">Dilution Recipes is available to Super Admin only.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const refresh = () => setRecipes(getDilutionRecipes(city));
 
