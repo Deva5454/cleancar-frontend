@@ -39,10 +39,22 @@ export function seedWasherStarterStock() {
       (e.city === "Surat" || e.workLocation === "Surat" || e.cityId === CITY_ID)
     );
 
+    const items: any[] = DataService.get<any>("INVENTORY_ITEMS");
+
+    // Real, provable migration: a washer marked "covered" with
+    // genuinely zero real stock anywhere is a contradiction - a real
+    // success would leave real stock behind. This catches anyone
+    // falsely marked covered by the earlier unconditional-completion
+    // bug, without needing to guess who was affected.
+    washers.forEach((w: any) => {
+      if (!coveredSet.has(w.id)) return;
+      const hasAnyStock = items.some((i: any) => (i.washerStock || {})[w.id] > 0);
+      if (!hasAnyStock) coveredSet.delete(w.id);
+    });
+
     const newWashers = washers.filter((w: any) => !coveredSet.has(w.id));
     if (newWashers.length === 0) return;
 
-    const items: any[] = DataService.get<any>("INVENTORY_ITEMS");
     const itemsByName = new Map(items.map((i: any) => [i.itemName, i]));
     const txns: any[] = DataService.get<any>("STOCK_TRANSACTIONS");
 
@@ -57,6 +69,7 @@ export function seedWasherStarterStock() {
     ];
 
     newWashers.forEach((washer: any) => {
+      let issuedAnyToThisWasher = false;
       starterIssues.forEach(({ name, qty }) => {
         const item = itemsByName.get(name);
         if (!item || (item.centralStock || 0) < qty) return; // honest - skip if genuinely not enough real stock
@@ -68,8 +81,13 @@ export function seedWasherStarterStock() {
           requestedBy: "Store Manager", cityId: CITY_ID,
           reason: "Starter issuance",
         }));
+        issuedAnyToThisWasher = true;
       });
-      coveredSet.add(washer.id);
+      // Real fix: only mark this washer covered if something was
+      // genuinely issued - previously this marked every washer covered
+      // unconditionally, meaning a washer who got nothing due to a
+      // timing issue would be permanently skipped on every future run.
+      if (issuedAnyToThisWasher) coveredSet.add(washer.id);
     });
 
     DataService.setAll("INVENTORY_ITEMS", items);

@@ -70,8 +70,16 @@ export function MyStock() {
     if (attemptedStarterIssue.current) return;
     if (!washerId || !cityId) return;
     if (myStock.length > 0) return;
-    const alreadyIssued = localStorage.getItem(`cleancar_washer_starter_${washerId}`) === "DONE";
-    if (alreadyIssued) return;
+    const flagKey = `cleancar_washer_starter_${washerId}`;
+    // Real, provable migration: "done" with genuinely zero real stock
+    // is a contradiction - a real success would leave real stock
+    // behind. Clears a stale flag left over from an earlier failed
+    // attempt (from before an underlying bug was fixed), so this
+    // washer can actually be retried now instead of being permanently
+    // skipped by a flag that was never actually true.
+    if (localStorage.getItem(flagKey) === "DONE") {
+      localStorage.removeItem(flagKey);
+    }
     attemptedStarterIssue.current = true;
 
     const starterItems = [
@@ -79,13 +87,23 @@ export function MyStock() {
       { name: "Uniform T-Shirt - M", qty: 1 },
       { name: "Microfiber Cloth Large", qty: 5 },
     ];
+    let issuedAny = false;
     starterItems.forEach(({ name, qty }) => {
       const item = inventory.find((i: any) => i.itemName === name && i.cityId === cityId);
       if (item && (item.centralStock || 0) >= qty) {
         issueInventory(item.itemId, qty, "Washer", washerId, "System (starter stock)", cityId);
+        issuedAny = true;
       }
     });
-    localStorage.setItem(`cleancar_washer_starter_${washerId}`, "DONE");
+    // Real fix: only mark done if something was genuinely issued -
+    // previously this marked itself done unconditionally, meaning a
+    // failed attempt (e.g. before an underlying bug was fixed) would
+    // permanently block ever retrying, even after that bug was fixed.
+    if (issuedAny) {
+      localStorage.setItem(flagKey, "DONE");
+    } else {
+      attemptedStarterIssue.current = false;
+    }
   }, [washerId, cityId, myStock.length, inventory, issueInventory]);
 
   const handleRequestReplenishment = () => {
