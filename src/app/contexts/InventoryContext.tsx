@@ -12,6 +12,7 @@ import { fixConcentrateNaming } from "../services/fixConcentrateNamingSeed";
 import { seedShampooTyreGlowRecipes } from "../services/shampooTyreGlowRecipeSeed";
 import { seedRemainingRecipes } from "../services/remainingRecipesSeed";
 import { seedSampleVerification } from "../services/sampleVerificationSeed";
+import { seedWasherStarterStock } from "../services/washerStarterStockSeed";
 
 // Types
 export interface InventoryItem {
@@ -197,6 +198,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     seedShampooTyreGlowRecipes();
     seedRemainingRecipes();
     seedSampleVerification();
+    seedWasherStarterStock();
     // Load from storage with city-id backfill for legacy data
     const storedInventory = DataService.get<InventoryItem>("INVENTORY_ITEMS");
     const normalized = storedInventory.map(item => ({
