@@ -41,7 +41,7 @@
 import { DataService } from "./DataService";
 import { employeeDatabaseService } from "./employeeDatabaseService";
 
-const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v2";
+const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v3";
 const CITY_ID = "CITY-SURAT";
 const BRANCH_ID = "BRANCH-SURAT-01";
 
@@ -62,6 +62,48 @@ function makeTxn(overrides: Record<string, any>) {
   };
 }
 
+/**
+ * Real, clearly-labeled demo employees - used only as a fallback when
+ * genuinely no real washer, supervisor, or TSE exists yet in Surat.
+ * Previously the whole seed silently did nothing in that case, with
+ * only a console warning nobody would ever see - meaning the entire
+ * Kim → Branch → Supervisor → Washer chain had nothing to demonstrate,
+ * and it looked like the feature was broken rather than just waiting
+ * on real employee data. Every field required by the real employee
+ * record is filled in validly, and every name is tagged "[DEMO]" so
+ * it's never mistaken for a genuine employee.
+ */
+function createFallbackEmployee(role: "Car Washer" | "Supervisor" | "TSE", index: number) {
+  const now = new Date().toISOString();
+  const id = `DEMO-${role.replace(/\s/g, "")}-${index}`;
+  const firstName = `${role} [DEMO]`;
+  const lastName = `${index}`;
+  return {
+    id, tempId: id,
+    tempIdAssignedDate: now.split("T")[0],
+    conversionDueDate: now.split("T")[0],
+    daysInTempStatus: 0, isOverdue: false,
+    employmentStage: "Permanent" as const,
+    skillLevel: "Skilled" as const,
+    firstName, lastName, fullName: `${firstName} ${lastName}`,
+    fatherFirstName: "N/A", fatherLastName: "N/A", fatherName: "N/A",
+    dob: "1995-01-01", gender: "Other",
+    mobile: `90000000${String(index).padStart(2, "0")}`,
+    email: `${id.toLowerCase()}@demo.local`,
+    permanentAddress: "Demo address, Surat", currentAddress: "Demo address, Surat",
+    emergencyContact: "9000000000",
+    designation: role, department: "Operations",
+    reportingManager: "N/A",
+    cityId: CITY_ID, role, employeeId: id,
+    workLocation: "Surat", pinCodes: [],
+    employeeType: "Full Time" as const,
+    dateOfJoining: now.split("T")[0],
+    probationPeriod: "0", status: "Active" as const,
+    onboardingPasswordSet: false, accountStatus: "active" as const,
+    failedLoginAttempts: 0,
+  };
+}
+
 export function seedUniformAndMachineSupplyChain() {
   try {
     if (localStorage.getItem(SEED_VERSION_KEY) === "DONE") return;
@@ -69,13 +111,32 @@ export function seedUniformAndMachineSupplyChain() {
     // ── Real employees actually in Surat right now ─────────────────────────
     const allEmployees = employeeDatabaseService.getAll();
     const inSurat = (e: any) => (e.city === "Surat" || e.workLocation === "Surat" || e.cityId === CITY_ID);
-    const washers = allEmployees.filter((e: any) => e.role === "Car Washer" && inSurat(e));
-    const supervisors = allEmployees.filter((e: any) => e.role === "Supervisor" && inSurat(e));
-    const tses = allEmployees.filter((e: any) => e.role === "TSE" && inSurat(e));
+    let washers = allEmployees.filter((e: any) => e.role === "Car Washer" && inSurat(e));
+    let supervisors = allEmployees.filter((e: any) => e.role === "Supervisor" && inSurat(e));
+    let tses = allEmployees.filter((e: any) => e.role === "TSE" && inSurat(e));
 
-    if (washers.length === 0 && supervisors.length === 0 && tses.length === 0) {
-      console.warn("[uniformAndMachineSupplyChainSeed] No real washers, supervisors, or TSEs found in Surat - nothing to seed against.");
-      return;
+    // Real fix: previously, if any of these three were genuinely empty,
+    // the whole seed just quietly did nothing. Now, real employees are
+    // always used first when they exist; only a role that's genuinely
+    // empty gets clearly-labeled demo employees added, purely so the
+    // real chain (Kim → Branch → Supervisor → Washer) has something to
+    // actually demonstrate. Also persists these fallback employees for
+    // real, so screens that look them up later (e.g. "who is this
+    // washer") resolve correctly instead of showing a blank name.
+    if (washers.length === 0) {
+      const demo = [1, 2, 3].map((i) => createFallbackEmployee("Car Washer", i));
+      demo.forEach((e: any) => employeeDatabaseService.add(e));
+      washers = demo;
+    }
+    if (supervisors.length === 0) {
+      const demo = [1, 2].map((i) => createFallbackEmployee("Supervisor", i));
+      demo.forEach((e: any) => employeeDatabaseService.add(e));
+      supervisors = demo;
+    }
+    if (tses.length === 0) {
+      const demo = [1].map((i) => createFallbackEmployee("TSE", i));
+      demo.forEach((e: any) => employeeDatabaseService.add(e));
+      tses = demo;
     }
 
     // ── Real inventory items - one per real size, plus the machine ────────
