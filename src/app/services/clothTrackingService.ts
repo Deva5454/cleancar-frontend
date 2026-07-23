@@ -348,6 +348,14 @@ class ClothTrackingService {
       .sort((a, b) => a.washesRemaining - b.washesRemaining);
   }
 
+  /** Real cloths currently held by one specific washer, sorted by whichever is closest to retirement. */
+  getClothsForWasher(washerId: string): Array<ClothItem & { washesRemaining: number }> {
+    return Array.from(this.loadClothMap().values())
+      .filter((c) => c.currentLocation === "Washer" && c.currentLocationId === washerId && c.status !== "EXPIRED")
+      .map((c) => ({ ...c, washesRemaining: this.getWashesRemaining(c) }))
+      .sort((a, b) => a.washesRemaining - b.washesRemaining);
+  }
+
 
   // ── Analytics ──────────────────────────────────────────────────────────────
 

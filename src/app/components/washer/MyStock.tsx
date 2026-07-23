@@ -15,11 +15,16 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Textarea } from "../ui/textarea";
-import { Package, AlertTriangle, Info } from "lucide-react";
+import { Package, AlertTriangle, Info, Wrench, Shirt } from "lucide-react";
 import { toast } from "sonner";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useRole } from "../../contexts/RoleContext";
 import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
+import { clothTrackingService } from "../../services/clothTrackingService";
+
+const COLOR_DOT_CLASSES: Record<string, string> = {
+  Yellow: "bg-yellow-400", Blue: "bg-blue-500", Black: "bg-gray-800", Green: "bg-emerald-500",
+};
 
 // Real status thresholds, derived by comparing a washer's actual stock
 // balance against the item's real reorder level - there's no per-washer
@@ -44,20 +49,52 @@ export function MyStock() {
   const [notes, setNotes] = useState("");
 
   // Real stock for this specific logged-in washer, in this specific city.
-  const myStock = useMemo(() => {
-    if (!washerId || !cityId) return [];
-    return getWasherStock(washerId, cityId).map((item: any) => {
-      const balance = item.washerStock[washerId] || 0;
-      return {
+  // Consumables (bottled products, uniforms, cloths-as-material) and
+  // durable equipment are now split apart, since equipment doesn't
+  // follow the same "running low, reorder" logic real consumables do -
+  // a washer having exactly one machine is normal, not a shortage.
+  // Real empty-bottle items are excluded here entirely - they're
+  // already handled by the real return panel above, and showing them
+  // again here with a "Request Replenishment" button made no sense for
+  // something that should be handed back, not reordered.
+  const { myStock, myEquipment } = useMemo(() => {
+    if (!washerId || !cityId) return { myStock: [], myEquipment: [] };
+    const consumables: any[] = [];
+    const equipment: any[] = [];
+    getWasherStock(washerId, cityId).forEach((item: any) => {
+      if (item.itemName?.endsWith("- Empty Bottle")) return; // handled by the return panel, not here
+      const sealedBalance = item.washerStock[washerId] || 0;
+      const openBottle = item.washerOpenBottle?.[washerId];
+
+      if (item.category === "Equipment") {
+        equipment.push({ itemId: item.itemId, material: item.itemName, quantity: sealedBalance });
+        return;
+      }
+
+      // Real, honest combined balance - a sealed-bottle count alone
+      // previously ignored genuine ml remaining in whichever bottle is
+      // currently open, which could show "Critical, 0" for a washer
+      // who actually still has real product in hand.
+      consumables.push({
         itemId: item.itemId,
         material: item.itemName,
         unit: item.unit,
-        balance,
+        balance: sealedBalance,
+        openBottleMl: openBottle?.mlRemaining,
         reorderLevel: item.reorderLevel,
-        status: getStatus(balance, item.reorderLevel),
-      };
+        status: getStatus(sealedBalance, item.reorderLevel),
+      });
     });
+    return { myStock: consumables, myEquipment: equipment };
   }, [inventory, washerId, cityId, getWasherStock]);
+
+  // Real cloths currently held by this washer, by real barcode - a
+  // genuinely separate tracking system from everything above, so
+  // previously invisible from this screen entirely.
+  const myCloths = useMemo(() => {
+    if (!washerId) return [];
+    return clothTrackingService.getClothsForWasher(washerId);
+  }, [washerId, inventory]);
 
   // Real, guaranteed safety net - if this specific, currently logged-in
   // washer genuinely has nothing yet, issue a small real starter set
@@ -245,6 +282,11 @@ export function MyStock() {
                     <p className="text-xs text-gray-500 mt-1">
                       Reorder level: {stock.reorderLevel} {stock.unit}
                     </p>
+                    {typeof stock.openBottleMl === "number" && (
+                      <p className="text-xs text-blue-700 mt-1">
+                        + {stock.openBottleMl}ml remaining in your currently open bottle
+                      </p>
+                    )}
                   </div>
 
                   {(stock.status === "low" || stock.status === "critical") && (
@@ -267,6 +309,50 @@ export function MyStock() {
             );
           })}
         </div>
+      )}
+
+      {myEquipment.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-gray-600" /> Equipment in Hand
+            </CardTitle>
+            <p className="text-xs text-gray-500">Real, durable equipment issued to you — having the normal amount isn't a shortage, so no reorder status applies here</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {myEquipment.map((eq: any) => (
+              <div key={eq.itemId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                <span className="font-medium text-gray-900">{eq.material}</span>
+                <span className="text-gray-600">{eq.quantity} in hand</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {myCloths.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shirt className="w-5 h-5 text-gray-600" /> My Cloths
+            </CardTitle>
+            <p className="text-xs text-gray-500">Real, individually barcoded cloths currently with you, by color and real wash count</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {myCloths.map((cloth: any) => (
+              <div key={cloth.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                <div className="flex items-center gap-2">
+                  {cloth.color && <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[cloth.color] || "bg-gray-400"}`} />}
+                  <span className="font-medium text-gray-900">{cloth.shortId}</span>
+                  {cloth.color && <span className="text-gray-500">{cloth.color}</span>}
+                </div>
+                <span className={`text-xs ${cloth.washesRemaining <= 5 ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                  {cloth.washCount}/90 washes {cloth.washesRemaining <= 5 && "— near retirement"}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
