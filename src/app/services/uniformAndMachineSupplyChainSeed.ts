@@ -41,7 +41,7 @@
 import { DataService } from "./DataService";
 import { employeeDatabaseService } from "./employeeDatabaseService";
 
-const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v1";
+const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v2";
 const CITY_ID = "CITY-SURAT";
 const BRANCH_ID = "BRANCH-SURAT-01";
 
@@ -105,13 +105,27 @@ export function seedUniformAndMachineSupplyChain() {
     });
     const machineItem = ensureItem("Pressure Washing Machine", "Equipment", "Pcs", 4500);
 
-    // Give the central (Kim) store real starting stock to draw from
-    Object.values(tshirtItems).forEach((i: any) => { i.centralStock += 50; });
-    Object.values(shirtItems).forEach((i: any) => { i.centralStock += 30; });
+    const txns: any[] = DataService.get<any>("STOCK_TRANSACTIONS");
+
+    // Real receipt at Kim - exact quantities confirmed by the business,
+    // not an arbitrary demo number. T-shirts: 20 each of M/L/XL (no S
+    // size received). Shirts: 10 each of S/M/L (no XL size received).
+    const REAL_TSHIRT_RECEIPT: Record<string, number> = { M: 20, L: 20, XL: 20 };
+    const REAL_SHIRT_RECEIPT: Record<string, number> = { S: 10, M: 10, L: 10 };
+    const recordRealReceipt = (item: any, qty: number, supplierName: string) => {
+      if (qty <= 0) return;
+      item.centralStock += qty;
+      txns.push(makeTxn({
+        itemId: item.itemId, type: "Procurement", quantity: qty,
+        fromLocation: "Central", toLocation: "Central", cityId: CITY_ID,
+        supplierId: supplierName, completedAt: new Date(daysAgo(25)).toISOString(),
+      }));
+    };
+    Object.entries(REAL_TSHIRT_RECEIPT).forEach(([sz, qty]) => recordRealReceipt(tshirtItems[sz], qty, "Uniform Supplier"));
+    Object.entries(REAL_SHIRT_RECEIPT).forEach(([sz, qty]) => recordRealReceipt(shirtItems[sz], qty, "Uniform Supplier"));
     machineItem.centralStock += Math.max(washers.length, 5);
 
     // ── Real transaction chain: Central → Branch → Supervisor → Person ────
-    const txns: any[] = DataService.get<any>("STOCK_TRANSACTIONS");
     let dayOffset = 20;
 
     const chainToPerson = (

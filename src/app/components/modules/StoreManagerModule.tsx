@@ -267,6 +267,7 @@ export function StoreManagerModule() {
                   { to:"/store-manager/branch-transfer", icon:<Package className="w-4 h-4 mr-2"/>, label:"Send to Branch" },
                   { to:"/store-manager/branch-store", icon:<Package className="w-4 h-4 mr-2"/>, label:"Branch Store" },
                   { to:"/store-manager/bottling", icon:<Package className="w-4 h-4 mr-2"/>, label:"Bottling" },
+                  { to:"/store-manager/uniform-receipt", icon:<Package className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
                 ].map(a => (
                   <Link key={a.to} to={a.to}>
                     <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>

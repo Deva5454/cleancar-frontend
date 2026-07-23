@@ -147,6 +147,7 @@ import { VendorRequest } from "./components/store-manager/VendorRequest";
 import { BranchTransferOut } from "./components/store-manager/BranchTransferOut";
 import { BranchStoreDashboard } from "./components/store-manager/BranchStoreDashboard";
 import { KimBottlingScreen } from "./components/store-manager/KimBottlingScreen";
+import { KimUniformReceiptScreen } from "./components/store-manager/KimUniformReceiptScreen";
 import { SuperAdminDilutionRecipes } from "./components/admin/SuperAdminDilutionRecipes";
 // Analytics imports - NOW LAZY
 // import { UnitEconomicsDashboard } from "./components/analytics/UnitEconomicsDashboard"; // NOW LAZY
@@ -494,6 +495,7 @@ export const router = createBrowserRouter([
       { path: "store-manager/branch-transfer", element: <BranchTransferOut /> },
       { path: "store-manager/branch-store", element: <BranchStoreDashboard /> },
       { path: "store-manager/bottling", element: <KimBottlingScreen /> },
+      { path: "store-manager/uniform-receipt", element: <KimUniformReceiptScreen /> },
       { path: "admin/dilution-recipes", element: <SuperAdminDilutionRecipes /> },
       {
         path: "analytics",
