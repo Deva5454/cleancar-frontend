@@ -140,7 +140,6 @@ import { SalesSummaryReport } from "./components/accounts/SalesSummaryReport";
 import { RCMReport } from "./components/accounts/RCMReport";
 import { StoreManagerModule } from "./components/modules/StoreManagerModule";
 import { GRNEntry } from "./components/store-manager/GRNEntry";
-import { PurchaseOrderCreation } from "./components/store-manager/PurchaseOrderCreation";
 import { MOQManagement } from "./components/store-manager/MOQManagement";
 import { InventoryMonitoring } from "./components/store-manager/InventoryMonitoring";
 import { VendorRequest } from "./components/store-manager/VendorRequest";
@@ -493,7 +492,7 @@ export const router = createBrowserRouter([
       { path: "hr/intelligence-dashboard", element: <HRIntelligenceDashboard /> },
       { path: "store-manager", element: <StoreManagerModule /> },
       { path: "store-manager/grn-entry", element: <GRNEntry /> },
-      { path: "store-manager/purchase-order", element: <PurchaseOrderCreation /> },
+      { path: "store-manager/purchase-order", element: <Navigate to="/procurement" state={{ tab: "purchase-orders" }} replace /> },
       { path: "store-manager/moq", element: <MOQManagement /> },
       { path: "store-manager/inventory", element: <InventoryMonitoring /> },
       { path: "store-manager/vendor-request", element: <VendorRequest /> },

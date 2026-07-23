@@ -10,7 +10,7 @@ import { Input } from "../ui/input";
 import {
   AlertCircle, AlertTriangle, BarChart3, FileText, Package,
   ShoppingCart, TrendingUp, TrendingDown, Users, Search,
-  Edit2, Check, X, CheckCircle, Clock,
+  Edit2, Check, X, CheckCircle, Clock, Truck, Shirt, Recycle, Sparkles, Layers,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -257,27 +257,54 @@ export function StoreManagerModule() {
           </div>
           <Card>
             <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { to:"/store-manager/inventory", icon:<Package className="w-4 h-4 mr-2"/>, label:"View Inventory" },
-                  { to:"/store-manager/moq",       icon:<BarChart3 className="w-4 h-4 mr-2"/>, label:"Manage MOQ" },
-                  { to:"/store-manager/purchase-order", icon:<ShoppingCart className="w-4 h-4 mr-2"/>, label:"Create PO" },
-                  { to:"/store-manager/vendor-request", icon:<Users className="w-4 h-4 mr-2"/>, label:"Request Vendor" },
-                  { to:"/store-manager/branch-transfer", icon:<Package className="w-4 h-4 mr-2"/>, label:"Send to Branch" },
-                  { to:"/store-manager/branch-store", icon:<Package className="w-4 h-4 mr-2"/>, label:"Branch Store" },
-                  { to:"/store-manager/bottling", icon:<Package className="w-4 h-4 mr-2"/>, label:"Bottling" },
-                  { to:"/store-manager/uniform-receipt", icon:<Package className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
-                  { to:"/cloth-tracking/receive-fabric", icon:<Package className="w-4 h-4 mr-2"/>, label:"Receive Fabric" },
-                  { to:"/cloth-tracking/chain-movement", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Chain Movement" },
-                  { to:"/cloth-tracking/return-journey", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Return Journey" },
-                  { to:"/cloth-tracking/laundry", icon:<Package className="w-4 h-4 mr-2"/>, label:"Laundry" },
-                  { to:"/cloth-tracking/fleet", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Fleet" },
-                ].map(a => (
-                  <Link key={a.to} to={a.to}>
-                    <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
-                  </Link>
-                ))}
+            <CardContent className="space-y-5">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Inventory &amp; Procurement</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { to:"/store-manager/inventory", icon:<Package className="w-4 h-4 mr-2"/>, label:"View Inventory" },
+                    { to:"/store-manager/moq",       icon:<BarChart3 className="w-4 h-4 mr-2"/>, label:"Manage MOQ" },
+                    { to:"/store-manager/purchase-order", icon:<ShoppingCart className="w-4 h-4 mr-2"/>, label:"Create PO" },
+                    { to:"/store-manager/vendor-request", icon:<Users className="w-4 h-4 mr-2"/>, label:"Request Vendor" },
+                  ].map(a => (
+                    <Link key={a.to} to={a.to}>
+                      <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Branch Supply Chain</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { to:"/store-manager/branch-transfer", icon:<Truck className="w-4 h-4 mr-2"/>, label:"Send to Branch" },
+                    { to:"/store-manager/branch-store", icon:<Truck className="w-4 h-4 mr-2"/>, label:"Branch Store" },
+                    { to:"/store-manager/bottling", icon:<Sparkles className="w-4 h-4 mr-2"/>, label:"Bottling" },
+                    { to:"/store-manager/uniform-receipt", icon:<Shirt className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
+                  ].map(a => (
+                    <Link key={a.to} to={a.to}>
+                      <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cloth Tracking</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { to:"/cloth-tracking/receive-fabric", icon:<Shirt className="w-4 h-4 mr-2"/>, label:"Receive Fabric" },
+                    { to:"/cloth-tracking/chain-movement", icon:<Truck className="w-4 h-4 mr-2"/>, label:"Cloth Chain Movement" },
+                    { to:"/cloth-tracking/return-journey", icon:<Recycle className="w-4 h-4 mr-2"/>, label:"Cloth Return Journey" },
+                    { to:"/cloth-tracking/laundry", icon:<Sparkles className="w-4 h-4 mr-2"/>, label:"Laundry" },
+                    { to:"/cloth-tracking/fleet", icon:<Layers className="w-4 h-4 mr-2"/>, label:"Cloth Fleet" },
+                  ].map(a => (
+                    <Link key={a.to} to={a.to}>
+                      <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
