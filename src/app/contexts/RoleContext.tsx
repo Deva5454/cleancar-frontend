@@ -209,7 +209,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         name:       session.employeeName,
         email:      "",
         city:       cityNameFromId(session.cityId),
-        cityId:     session.cityId || "CITY-SURAT",
+        cityId:     cityIdFromName(session.cityId) || "CITY-SURAT",
         role:       currentRole,
       };
     }

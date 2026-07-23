@@ -5,6 +5,22 @@
 
 import { employeeDatabaseService } from "./employeeDatabaseService";
 
+/**
+ * Real, previously-missing conversion - employee.workLocation on a real
+ * employee record is a city NAME ("Surat"), not the real "CITY-SURAT"
+ * format every inventory item actually uses. Without this, a real,
+ * properly logged-in user's session.cityId would never match their own
+ * real stock records anywhere in the system.
+ */
+function cityIdFromWorkLocation(workLocation?: string): string {
+  if (!workLocation) return "CITY-SURAT";
+  if (workLocation.startsWith("CITY-")) return workLocation;
+  const normalized = workLocation.trim().toUpperCase();
+  if (normalized.includes("MUMBAI")) return "CITY-MUMBAI";
+  if (normalized.includes("AHMEDABAD")) return "CITY-AHMEDABAD";
+  return "CITY-SURAT";
+}
+
 export interface AuthCredentials {
   loginMobile: string;
   password: string;
@@ -153,7 +169,7 @@ class AuthServiceClass {
       employeeId: employee.id,
       employeeName: employee.fullName,
       role: employee.designation,
-      cityId: employee.workLocation,
+      cityId: cityIdFromWorkLocation(employee.workLocation),
     };
   }
 
