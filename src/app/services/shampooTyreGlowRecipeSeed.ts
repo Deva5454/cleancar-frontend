@@ -23,7 +23,7 @@
 
 import { DataService } from "./DataService";
 
-const SEED_VERSION_KEY = "cleancar_shampoo_tyreglow_recipe_seed_v2";
+const SEED_VERSION_KEY = "cleancar_shampoo_tyreglow_recipe_seed_v3";
 const CITY_ID = "CITY-SURAT";
 
 export function seedShampooTyreGlowRecipes() {
@@ -77,6 +77,19 @@ export function seedShampooTyreGlowRecipes() {
     const emptyShampoo = ensureItem("Shampoo - Empty Bottle", "Consumables", "Pcs", 0);
     const bottledTyreGlow = ensureItem("Tyre Glow (Bottled 250ml)", "Consumables", "Pcs", 0);
     const emptyTyreGlow = ensureItem("Tyre Glow - Empty Bottle", "Consumables", "Pcs", 0);
+
+    // Real starting bottled stock - one real batch each, using the
+    // same real yield math the actual Bottling screen uses, so
+    // there's genuine stock ready to send to a branch immediately.
+    const realYield = Math.floor(((1 + 1) * 1000) / 250);
+    if (shampooConcentrate.centralStock >= 1 && bottledShampoo.centralStock === 0) {
+      shampooConcentrate.centralStock -= 1;
+      bottledShampoo.centralStock += realYield;
+    }
+    if (tyreGlowConcentrate.centralStock >= 1 && bottledTyreGlow.centralStock === 0) {
+      tyreGlowConcentrate.centralStock -= 1;
+      bottledTyreGlow.centralStock += realYield;
+    }
 
     const recipes: any[] = DataService.get<any>("DILUTION_RECIPES");
     // Real migration: drop any recipe from the earlier version that

@@ -16,6 +16,7 @@ import {
 import { Search, Eye, FileText, AlertTriangle, TrendingDown, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useInventory, type InventoryItem } from "../../contexts/InventoryContext";
+import { getBranchesForCity } from "../../config/branchStores";
 import { useCity } from "../../contexts/CityContext";
 
 // ── Derived view type ────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ export function StockPosition() {
   // ✅ FIX 1: use `inventory` (correct export name) not `items`
   const { inventory, stockTransactions } = useInventory();
   const { city } = useCity();
+  const branches = getBranchesForCity(city);
 
   const [viewMode, setViewMode]         = useState<"item" | "location">("item");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -285,7 +287,7 @@ export function StockPosition() {
       {viewMode === "location" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Location View — Central Store ({city})</CardTitle>
+            <CardTitle className="text-base">Location View — Central &amp; Branch Store ({city})</CardTitle>
             <p className="text-xs text-gray-500">Stock breakdown by storage location</p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -306,6 +308,32 @@ export function StockPosition() {
                 ))}
               </div>
             </div>
+
+            {/* Real Branch Store breakdown - previously missing entirely */}
+            {branches.map((branch) => {
+              const branchItems = cityItems.filter((item) => ((item.branchStock || {})[branch.id] || 0) > 0);
+              return (
+                <div key={branch.id} className="border rounded-md p-4">
+                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-purple-600" />{branch.name}
+                  </h3>
+                  {branchItems.length === 0 ? (
+                    <p className="text-xs text-gray-400">No real stock currently at this branch.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {branchItems.map((item) => (
+                        <div key={item.itemId} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                          <span className="font-medium">{item.itemName}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold">{(item.branchStock || {})[branch.id]} {item.unit}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

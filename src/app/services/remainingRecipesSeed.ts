@@ -24,7 +24,7 @@
 
 import { DataService } from "./DataService";
 
-const SEED_VERSION_KEY = "cleancar_remaining_recipes_seed_v1";
+const SEED_VERSION_KEY = "cleancar_remaining_recipes_seed_v2";
 const CITY_ID = "CITY-SURAT";
 const PLACEHOLDER_COST_PER_LITER = 1200;
 const PLACEHOLDER_ML_PER_WASH = 30;
@@ -68,11 +68,22 @@ export function seedRemainingRecipes() {
       const bottledItem = ensureItem(`${productName} (Bottled 250ml)`, "Consumables", "Pcs", 0);
       const emptyBottleItem = ensureItem(`${productName} - Empty Bottle`, "Consumables", "Pcs", 0);
 
+      // Real starting bottled stock - one real batch, using the same
+      // real yield math the actual Bottling screen uses, so there's
+      // genuine stock ready to send to a branch immediately, not zero
+      // until someone manually bottles it first.
+      const concentrateQtyLiters = 1, waterQtyLiters = 1, bottleSizeMl = 250;
+      const realYield = Math.floor(((concentrateQtyLiters + waterQtyLiters) * 1000) / bottleSizeMl);
+      if (concentrateItem.centralStock >= concentrateQtyLiters && bottledItem.centralStock === 0) {
+        concentrateItem.centralStock -= concentrateQtyLiters;
+        bottledItem.centralStock += realYield;
+      }
+
       return {
         recipeId: `RECIPE-SEED-${productName.replace(/[^a-zA-Z0-9]/g, "-")}`,
         productName,
         concentrateItemId: concentrateItem.itemId,
-        concentrateQtyLiters: 1, waterQtyLiters: 1, bottleSizeMl: 250,
+        concentrateQtyLiters, waterQtyLiters, bottleSizeMl,
         bottledItemId: bottledItem.itemId, emptyBottleItemId: emptyBottleItem.itemId,
         mlPerWash: PLACEHOLDER_ML_PER_WASH,
         concentrateCostPerLiter: PLACEHOLDER_COST_PER_LITER,
