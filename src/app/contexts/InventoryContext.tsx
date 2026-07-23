@@ -9,6 +9,7 @@ import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
 import { seedUniformAndMachineSupplyChain } from "../services/uniformAndMachineSupplyChainSeed";
 import { seedShampooTyreGlowRecipes } from "../services/shampooTyreGlowRecipeSeed";
+import { seedRemainingRecipes } from "../services/remainingRecipesSeed";
 
 // Types
 export interface InventoryItem {
@@ -182,6 +183,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
     seedUniformAndMachineSupplyChain();
     seedShampooTyreGlowRecipes();
+    seedRemainingRecipes();
     // Load from storage with city-id backfill for legacy data
     const storedInventory = DataService.get<InventoryItem>("INVENTORY_ITEMS");
     const normalized = storedInventory.map(item => ({
