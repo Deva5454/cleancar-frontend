@@ -15,7 +15,8 @@ import { Plus, FileText, Package, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
-import { mockMRFs, mockPurchaseRequests } from "../../lib/materialRequisition";
+import { mockMRFs } from "../../lib/materialRequisition";
+import type { PurchaseRequest } from "../../lib/materialRequisition";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
@@ -101,6 +102,78 @@ export function MaterialRequisition() {
   const canApproveMRF = ["Store Manager"].includes(currentRole);
   const canCreatePR = ["Store Manager"].includes(currentRole);
   const canApprovePR = ["Super Admin", "Admin"].includes(currentRole);
+
+  // Real fix: previously this whole section only ever showed one
+  // hardcoded example, clearly labeled as fake. Now reads real,
+  // persisted purchase requests, and both real actions below (create,
+  // approve) genuinely create and update them.
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>(() => {
+    try { return JSON.parse(localStorage.getItem("cleancar_purchase_requests") || "[]"); } catch { return []; }
+  });
+  const [showNewPR, setShowNewPR] = useState(false);
+  const [prItems, setPrItems] = useState([{ itemName: "", quantity: "", unit: "", estimatedCost: "", vendorSuggestion: "" }]);
+  const [prPriority, setPrPriority] = useState<"High" | "Medium" | "Low">("Medium");
+
+  const addPrItemRow = () => setPrItems((prev) => [...prev, { itemName: "", quantity: "", unit: "", estimatedCost: "", vendorSuggestion: "" }]);
+  const removePrItemRow = (idx: number) => setPrItems((prev) => prev.filter((_, i) => i !== idx));
+  const updatePrItemRow = (idx: number, field: string, value: string) => {
+    setPrItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
+  };
+
+  const handleCreatePR = () => {
+    const validItems = prItems.filter((i) => i.itemName.trim() && i.quantity && parseFloat(i.quantity) > 0);
+    if (validItems.length === 0) {
+      toast.error("Add at least one item with a real name and quantity");
+      return;
+    }
+    const items = validItems.map((i) => ({
+      itemName: i.itemName.trim(), quantity: parseFloat(i.quantity), unit: i.unit.trim() || "Pcs",
+      estimatedCost: parseFloat(i.estimatedCost) || 0, vendorSuggestion: i.vendorSuggestion.trim() || undefined,
+    }));
+    const newPR: PurchaseRequest = {
+      id: `PR-${new Date().getFullYear()}-${String(purchaseRequests.length + 1).padStart(3, "0")}-${Date.now().toString().slice(-4)}`,
+      requestedBy: currentUser?.name || currentRole,
+      dateRequested: new Date().toISOString().split("T")[0],
+      priority: prPriority,
+      status: "Pending",
+      items,
+      totalEstimatedCost: items.reduce((s, i) => s + i.estimatedCost, 0),
+    };
+    const updated = [newPR, ...purchaseRequests];
+    setPurchaseRequests(updated);
+    localStorage.setItem("cleancar_purchase_requests", JSON.stringify(updated));
+    toast.success(`${newPR.id} submitted`);
+    setShowNewPR(false);
+    setPrItems([{ itemName: "", quantity: "", unit: "", estimatedCost: "", vendorSuggestion: "" }]);
+    setPrPriority("Medium");
+  };
+
+  const handleApprovePR = (pr: PurchaseRequest) => {
+    // Real approval - genuinely creates a real Purchase Order in the
+    // same real system Procurement and GRN already read from, not a
+    // separate, disconnected record.
+    const existingPOs = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+    const poNumber = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    const newPO = {
+      id: Date.now(),
+      po: poNumber,
+      vendor: pr.items[0]?.vendorSuggestion || "Multiple Vendors",
+      items: pr.items.length,
+      amount: pr.totalEstimatedCost,
+      status: "Pending Procurement Review",
+      date: new Date().toISOString().split("T")[0],
+    };
+    localStorage.setItem("cleancar_purchase_orders", JSON.stringify([...existingPOs, newPO]));
+
+    const updated = purchaseRequests.map((r) =>
+      r.id === pr.id
+        ? { ...r, status: "PO Issued" as const, approvedByAdmin: currentUser?.name || currentRole, poNumber, poIssuedOn: new Date().toISOString().split("T")[0] }
+        : r
+    );
+    setPurchaseRequests(updated);
+    localStorage.setItem("cleancar_purchase_requests", JSON.stringify(updated));
+    toast.success(`${poNumber} created from ${pr.id}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -200,22 +273,21 @@ export function MaterialRequisition() {
                 Purchase Requests
               </h3>
               {canCreatePR && (
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={() => setShowNewPR(true)}>
                   <Plus className="w-4 h-4 mr-1" />
                   New Purchase Request
                 </Button>
               )}
             </div>
             <div className="space-y-3">
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">
-                Purchase Request tracking isn't connected to real data yet — the list below and the "New Purchase Request" button don't create or show anything real. This needs a real backend before it's usable.
-              </div>
-              {mockPurchaseRequests.map((pr) => (
+              {purchaseRequests.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">No purchase requests yet.</p>
+              )}
+              {purchaseRequests.map((pr) => (
                 <div 
                   key={pr.id} 
-                  className="p-4 bg-purple-50 border-2 border-purple-200 rounded-lg opacity-60"
+                  className="p-4 bg-purple-50 border-2 border-purple-200 rounded-lg"
                 >
-                  <div className="text-xs text-purple-600 font-medium mb-1">EXAMPLE — not real data</div>
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -238,9 +310,12 @@ export function MaterialRequisition() {
                         ₹{(pr?.totalEstimatedCost ?? 0).toLocaleString()}
                       </p>
                       {canApprovePR && pr.status === "Pending" && (
-                        <Button size="sm" className="mt-2">
+                        <Button size="sm" className="mt-2" onClick={() => handleApprovePR(pr)}>
                           Approve & Issue PO
                         </Button>
+                      )}
+                      {pr.status === "PO Issued" && pr.poNumber && (
+                        <p className="text-xs text-green-600 mt-1">{pr.poNumber}</p>
                       )}
                     </div>
                   </div>
@@ -318,6 +393,52 @@ export function MaterialRequisition() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewMRF(false)}>Cancel</Button>
             <Button onClick={handleCreateMRF}>Submit MRF</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Purchase Request Dialog - real form, previously the button had no handler at all */}
+      <Dialog open={showNewPR} onOpenChange={setShowNewPR}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>New Purchase Request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+            <div>
+              <Label>Priority</Label>
+              <Select value={prPriority} onValueChange={(v) => setPrPriority(v as "High" | "Medium" | "Low")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="High">High</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3">
+              <Label>Items</Label>
+              {prItems.map((item, idx) => (
+                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Item name" value={item.itemName} onChange={(e) => updatePrItemRow(idx, "itemName", e.target.value)} />
+                    <Input placeholder="Vendor suggestion (optional)" value={item.vendorSuggestion} onChange={(e) => updatePrItemRow(idx, "vendorSuggestion", e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input type="number" placeholder="Quantity" value={item.quantity} onChange={(e) => updatePrItemRow(idx, "quantity", e.target.value)} />
+                    <Input placeholder="Unit (Pcs, Litre, Kg...)" value={item.unit} onChange={(e) => updatePrItemRow(idx, "unit", e.target.value)} />
+                    <Input type="number" placeholder="Est. cost (₹)" value={item.estimatedCost} onChange={(e) => updatePrItemRow(idx, "estimatedCost", e.target.value)} />
+                  </div>
+                  {prItems.length > 1 && (
+                    <Button size="sm" variant="ghost" className="text-red-600" onClick={() => removePrItemRow(idx)}>Remove item</Button>
+                  )}
+                </div>
+              ))}
+              <Button size="sm" variant="outline" onClick={addPrItemRow}><Plus className="w-4 h-4 mr-1" /> Add Another Item</Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewPR(false)}>Cancel</Button>
+            <Button onClick={handleCreatePR}>Submit Purchase Request</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
