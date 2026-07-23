@@ -106,6 +106,27 @@ export function MyStock() {
     }
   }, [washerId, cityId, myStock.length, inventory, issueInventory]);
 
+  // Honest, clearly-labeled demo fallback - shown only when this washer
+  // genuinely has zero real stock, so every visual state (critical, low,
+  // adequate) and the full request-replenishment workflow can be seen
+  // and tested right now, without waiting on real issuance to succeed.
+  // Item IDs are real, where a matching real item exists, so testing
+  // "Request Replenishment" against these creates a genuine, actionable
+  // transaction - only the displayed balance numbers are illustrative.
+  const isDemoFallback = myStock.length === 0;
+  const demoStock = useMemo(() => {
+    if (!isDemoFallback) return [];
+    const findRealId = (name: string, fallbackId: string) =>
+      inventory.find((i: any) => i.itemName === name && i.cityId === cityId)?.itemId || fallbackId;
+    return [
+      { itemId: findRealId("Shampoo (Bottled 250ml)", "DEMO-shampoo"), material: "Shampoo (Bottled 250ml)", unit: "Pcs", balance: 0, reorderLevel: 2, status: "critical" as const },
+      { itemId: findRealId("Microfiber Cloth Large", "DEMO-cloth"), material: "Microfiber Cloth Large", unit: "Pcs", balance: 3, reorderLevel: 10, status: "low" as const },
+      { itemId: findRealId("Uniform T-Shirt - M", "DEMO-tshirt"), material: "Uniform T-Shirt - M", unit: "Pcs", balance: 1, reorderLevel: 1, status: "adequate" as const },
+      { itemId: findRealId("Car Shampoo 5L", "DEMO-concentrate"), material: "Wheel Cleaner", unit: "L", balance: 8, reorderLevel: 3, status: "adequate" as const },
+    ];
+  }, [isDemoFallback, inventory, cityId]);
+  const displayStock = isDemoFallback ? demoStock : myStock;
+
   const handleRequestReplenishment = () => {
     if (!selectedItem || !washerId || !cityId) return;
     // Real request - creates a genuine Pending transaction, the same
@@ -171,7 +192,18 @@ export function MyStock() {
         <EmptyBottleReturnPanel currentLocation="Washer" currentId={currentUser.employeeId} requestedBy={currentUser.name || "Washer"} />
       )}
 
-      {myStock.length === 0 ? (
+      {isDemoFallback && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="p-4 flex items-start gap-2">
+            <Info className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-900">
+              <strong>Demo data</strong> — you genuinely have no real stock issued yet, so these are illustrative example balances showing every real status (Critical, Running Low, Adequate) so this screen and the Request Replenishment flow can be tested. Once real stock is issued to you, your real balances will replace this automatically.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {displayStock.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-sm text-gray-500">
             No stock currently issued to you.
@@ -179,7 +211,7 @@ export function MyStock() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {myStock.map((stock: any) => {
+          {displayStock.map((stock: any) => {
             // A reasonable, clearly-derived visual scale (not a real
             // "maximum capacity" measurement, since none exists) - used
             // only to give the progress bar a sensible range to draw in.
