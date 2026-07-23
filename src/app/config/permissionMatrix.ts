@@ -204,6 +204,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
       dashboard: ["view"],
       "car-washer": ["view", "create"],
       "cloth-tracking": ["view"],
+      "inventory": ["view"],
       advance: ["view", "create"],
       travel: ["view", "create"],
       leave: ["view", "create"],
@@ -628,6 +629,7 @@ export const permissionMatrix: Record<City, RolePermissions> = {
     "Car Washer": {
       dashboard: ["view"],
       "car-washer": ["view", "create"],
+      "inventory": ["view"],
       travel: ["view", "create"],
       leave: ["view", "create"],
       performance: ["view"],
