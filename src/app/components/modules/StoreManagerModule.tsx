@@ -268,6 +268,10 @@ export function StoreManagerModule() {
                   { to:"/store-manager/branch-store", icon:<Package className="w-4 h-4 mr-2"/>, label:"Branch Store" },
                   { to:"/store-manager/bottling", icon:<Package className="w-4 h-4 mr-2"/>, label:"Bottling" },
                   { to:"/store-manager/uniform-receipt", icon:<Package className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
+                  { to:"/cloth-tracking/receive-fabric", icon:<Package className="w-4 h-4 mr-2"/>, label:"Receive Fabric" },
+                  { to:"/cloth-tracking/chain-movement", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Chain Movement" },
+                  { to:"/cloth-tracking/laundry", icon:<Package className="w-4 h-4 mr-2"/>, label:"Laundry" },
+                  { to:"/cloth-tracking/fleet", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Fleet" },
                 ].map(a => (
                   <Link key={a.to} to={a.to}>
                     <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>

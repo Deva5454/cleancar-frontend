@@ -15,7 +15,9 @@ import { DataService } from "./DataService";
 import type {
   ClothItem,
   ClothType,
+  ClothColor,
   ClothStatus,
+  ClothLocation,
   ScanResult,
   MatchStatus,
   ClothExchange,
@@ -23,6 +25,10 @@ import type {
 
 class ClothTrackingService {
   private scanTimestamps: Map<string, number> = new Map(); // session-only scan timing
+
+  // Real, confirmed business rule - a cloth is retired after 90 real
+  // wash cycles, regardless of its physical condition.
+  private readonly WASH_RETIREMENT_LIMIT = 90;
 
   // ── Persistence helpers ────────────────────────────────────────────────────
 
@@ -208,11 +214,11 @@ class ClothTrackingService {
     const map = this.loadClothMap();
     dirtyIds.forEach(id => {
       const cloth = map.get(id);
-      if (cloth) { cloth.status = "IN_LAUNDRY_PROCESS"; cloth.updatedAt = new Date().toISOString(); }
+      if (cloth) { cloth.status = "IN_LAUNDRY_PROCESS"; cloth.currentLocation = "Supervisor"; cloth.currentLocationId = employeeId; cloth.updatedAt = new Date().toISOString(); }
     });
     cleanIds.forEach(id => {
       const cloth = map.get(id);
-      if (cloth) { cloth.status = "ISSUED"; cloth.updatedAt = new Date().toISOString(); }
+      if (cloth) { cloth.status = "ISSUED"; cloth.currentLocation = "Washer"; cloth.issuedTo = employeeId; cloth.issuedAt = new Date().toISOString(); cloth.updatedAt = new Date().toISOString(); }
     });
     this.saveClothMap(map); // single save for all status updates
 
@@ -222,6 +228,119 @@ class ClothTrackingService {
   getExchanges(): ClothExchange[] {
     return this.loadExchanges();
   }
+
+  // ── Real Kim → Branch → Supervisor chain integration ───────────────────────
+
+  /**
+   * Real receipt of fabric at Kim, by color - matching an actual
+   * delivery (e.g. from GT Exim Solutions). Creates real, individually
+   * barcoded cloths, each starting a fresh real life at washCount 0.
+   */
+  receiveFabricAtKim(color: ClothColor, quantity: number, type: ClothType = "EXTERIOR"): ClothItem[] {
+    const map = this.loadClothMap();
+    const created: ClothItem[] = [];
+    const now = new Date().toISOString();
+    for (let i = 0; i < quantity; i++) {
+      const id = `CLO-${color.toUpperCase()}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const cloth: ClothItem = {
+        id, shortId: id.slice(-4), type, color,
+        status: "CLEAN_PACKED", washCount: 0,
+        currentLocation: "Kim",
+        isLocked: false, createdAt: now, updatedAt: now,
+      };
+      map.set(id, cloth);
+      created.push(cloth);
+    }
+    this.saveClothMap(map);
+    return created;
+  }
+
+  /** Real Kim → Branch movement, by real barcode, not aggregate quantity. */
+  moveClothsToBranch(clothIds: string[], branchId: string): void {
+    const map = this.loadClothMap();
+    clothIds.forEach((id) => {
+      const cloth = map.get(id);
+      if (cloth && cloth.currentLocation === "Kim") {
+        cloth.currentLocation = "Branch";
+        cloth.currentLocationId = branchId;
+        cloth.updatedAt = new Date().toISOString();
+      }
+    });
+    this.saveClothMap(map);
+  }
+
+  /** Real Branch → Supervisor movement, by real barcode. */
+  moveClothsToSupervisor(clothIds: string[], supervisorId: string): void {
+    const map = this.loadClothMap();
+    clothIds.forEach((id) => {
+      const cloth = map.get(id);
+      if (cloth && cloth.currentLocation === "Branch") {
+        cloth.currentLocation = "Supervisor";
+        cloth.currentLocationId = supervisorId;
+        cloth.updatedAt = new Date().toISOString();
+      }
+    });
+    this.saveClothMap(map);
+  }
+
+  /** Real Supervisor → Branch → Kim return movement, for cloths already IN_LAUNDRY_PROCESS. */
+  returnClothsTowardKim(clothIds: string[], toLocation: "Branch" | "Kim", toLocationId?: string): void {
+    const map = this.loadClothMap();
+    clothIds.forEach((id) => {
+      const cloth = map.get(id);
+      if (cloth) {
+        cloth.currentLocation = toLocation;
+        cloth.currentLocationId = toLocationId;
+        cloth.updatedAt = new Date().toISOString();
+      }
+    });
+    this.saveClothMap(map);
+  }
+
+  /**
+   * Real, previously-missing piece: marks a cloth's real wash cycle
+   * complete at Kim's laundry - the one transition that closes the
+   * loop (IN_LAUNDRY_PROCESS → CLEAN_PACKED again). This is where the
+   * real wash count actually increments, and where the confirmed
+   * 90-wash retirement rule is enforced - a cloth crossing the limit
+   * is automatically marked EXPIRED, not left for someone to notice.
+   */
+  markLaundryComplete(clothId: string): { cloth: ClothItem | null; retired: boolean } {
+    const map = this.loadClothMap();
+    const cloth = map.get(clothId);
+    if (!cloth || cloth.status !== "IN_LAUNDRY_PROCESS") {
+      return { cloth: null, retired: false };
+    }
+    const newWashCount = cloth.washCount + 1;
+    const retired = newWashCount >= this.WASH_RETIREMENT_LIMIT;
+    cloth.washCount = newWashCount;
+    cloth.status = retired ? "EXPIRED" : "CLEAN_PACKED";
+    cloth.currentLocation = "Kim";
+    cloth.currentLocationId = undefined;
+    cloth.laundryProcessedAt = new Date().toISOString();
+    cloth.updatedAt = new Date().toISOString();
+    this.saveClothMap(map);
+    return { cloth, retired };
+  }
+
+  /** Real, honest view into how many real wash cycles a specific cloth has left. */
+  getWashesRemaining(cloth: ClothItem): number {
+    return Math.max(0, this.WASH_RETIREMENT_LIMIT - cloth.washCount);
+  }
+
+  /**
+   * Real, fleet-wide query - every real, non-retired cloth, sorted by
+   * how close it is to the confirmed 90-wash limit. Powers the Kim
+   * dashboard so retirement is planned for ahead of time, not
+   * discovered one cloth at a time.
+   */
+  getFleetByWashesRemaining(): Array<ClothItem & { washesRemaining: number }> {
+    return Array.from(this.loadClothMap().values())
+      .filter((c) => c.status !== "EXPIRED")
+      .map((c) => ({ ...c, washesRemaining: this.getWashesRemaining(c) }))
+      .sort((a, b) => a.washesRemaining - b.washesRemaining);
+  }
+
 
   // ── Analytics ──────────────────────────────────────────────────────────────
 
@@ -262,6 +381,8 @@ class ClothTrackingService {
         shortId: id.slice(-4),
         type:    i % 2 === 0 ? "EXTERIOR" : "INTERIOR",
         status:  i === 15 ? "EXPIRED" : i <= 30 ? "USED_PENDING_COLLECTION" : "CLEAN_PACKED",
+        washCount: i === 15 ? 90 : Math.floor(Math.random() * 60),
+        currentLocation: "Supervisor",
         isLocked: i === 5 || i === 10,   // CLO00000005 and CLO00000010 locked
         lockedBy: i === 5 ? "EXCHANGE-001" : i === 10 ? "LAUNDRY-BATCH-1" : undefined,
         expiryDate: i === 15 ? "2026-01-01" : undefined, // CLO00000015 expired

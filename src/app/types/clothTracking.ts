@@ -6,6 +6,16 @@
 // Cloth Types
 export type ClothType = "EXTERIOR" | "INTERIOR";
 
+// Real fabric color, matching how deliveries actually arrive from a
+// supplier (e.g. GT Exim Solutions) - a separate real dimension from
+// ClothType above, not a replacement for it.
+export type ClothColor = "Yellow" | "Blue" | "Black" | "Green";
+
+// Real position in the actual multi-tier supply chain (Kim → Branch →
+// Supervisor → Washer) - previously this system only knew about a
+// generic "Store," with no real concept of Kim or a branch at all.
+export type ClothLocation = "Kim" | "Branch" | "Supervisor" | "Washer" | "Laundry";
+
 // Cloth Status
 export type ClothStatus =
   | "CLEAN_PACKED"              // Ready for issue
@@ -23,7 +33,15 @@ export interface ClothItem {
   id: string;                   // Full barcode ID
   shortId: string;              // Last 4 digits for display
   type: ClothType;
+  color?: ClothColor;           // Real fabric color, as actually received from the supplier
   status: ClothStatus;
+  // Real, per-cloth wash-cycle count - each full loop (issued → used →
+  // collected → laundered → clean again) increments this by 1. At 90,
+  // the cloth is automatically retired (status forced to EXPIRED),
+  // confirmed directly as the real business rule.
+  washCount: number;
+  currentLocation: ClothLocation;
+  currentLocationId?: string;   // Real branch ID, supervisor ID, or washer ID - whichever currentLocation applies to
   issuedTo?: string;            // Employee ID
   issuedAt?: string;            // ISO timestamp
   collectedAt?: string;         // ISO timestamp
