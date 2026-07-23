@@ -95,7 +95,7 @@ function createFallbackEmployee(role: "Car Washer" | "Supervisor" | "TSE", index
     designation: role, department: "Operations",
     reportingManager: "N/A",
     cityId: CITY_ID, role, employeeId: id,
-    workLocation: "Surat", pinCodes: [],
+    workLocation: "Surat", pinCodes: [["395005", "395006", "395009"][(index - 1) % 3]],
     employeeType: "Full Time" as const,
     dateOfJoining: now.split("T")[0],
     probationPeriod: "0", status: "Active" as const,
@@ -283,5 +283,37 @@ export function seedUniformAndMachineSupplyChain() {
     );
   } catch (err) {
     console.error("[uniformAndMachineSupplyChainSeed] Seed failed, inventory unaffected:", err);
+  }
+}
+
+const PIN_FIX_VERSION_KEY = "cleancar_demo_employee_pincode_fix_v1";
+
+/**
+ * Real, standalone migration - fixes any demo employee already created
+ * by the seed above before this file's pinCodes fix existed. Runs
+ * independently of the main seed's own version flag, since that flag
+ * is likely already marked done on a system where these employees
+ * were created earlier.
+ */
+export function fixDemoEmployeePinCodes() {
+  try {
+    if (localStorage.getItem(PIN_FIX_VERSION_KEY) === "DONE") return;
+    const PIN_CYCLE = ["395005", "395006", "395009"];
+    const allEmployees = employeeDatabaseService.getAll();
+    let fixedCount = 0;
+    allEmployees.forEach((e: any) => {
+      if (typeof e.id === "string" && e.id.startsWith("DEMO-") && (!e.pinCodes || e.pinCodes.length === 0)) {
+        const indexMatch = e.id.match(/-(\d+)$/);
+        const idx = indexMatch ? parseInt(indexMatch[1], 10) : 1;
+        employeeDatabaseService.update(e.id, { pinCodes: [PIN_CYCLE[(idx - 1) % 3]] });
+        fixedCount++;
+      }
+    });
+    localStorage.setItem(PIN_FIX_VERSION_KEY, "DONE");
+    if (fixedCount > 0) {
+      console.info(`[uniformAndMachineSupplyChainSeed] Fixed pinCodes for ${fixedCount} already-created demo employee(s).`);
+    }
+  } catch (err) {
+    console.error("[uniformAndMachineSupplyChainSeed] pinCode fix failed:", err);
   }
 }

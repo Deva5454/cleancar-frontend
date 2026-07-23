@@ -9,6 +9,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Truck, Package } from "lucide-react";
 import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
+import { ReportLostDamagedBottle } from "./ReportLostDamagedBottle";
 import { toast } from "sonner";
 
 /**
@@ -80,6 +81,8 @@ export function SupervisorStockReceipt() {
       {supervisorId && branches[0] && (
         <EmptyBottleReturnPanel currentLocation="Supervisor" currentId={supervisorId} toId={branches[0].id} requestedBy={currentUser?.name || "Supervisor"} />
       )}
+
+      <ReportLostDamagedBottle />
 
       {pendingReceipts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">

@@ -530,6 +530,29 @@ export function WasherIssuances() {
                         });
                       });
                     });
+                    // Real bottle loss/damage reports - a genuinely
+                    // different real source from month-end variance,
+                    // shown in the same real register so staff have
+                    // one place to check all forms of material loss.
+                    stockTransactions
+                      .filter((t: any) => t.type === "Loss" && t.cityId === city)
+                      .forEach((t: any) => {
+                        const washer = displayWashers.find((w: any) => w.id.toString() === t.fromId);
+                        const invItem = inventory.find((i: any) => i.itemId === t.itemId && i.cityId === city);
+                        rows.push({
+                          key: t.transactionId,
+                          month: new Date(t.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+                          washerName: washer?.name || t.fromId,
+                          pinZone: washer?.pinCode || "—",
+                          material: invItem?.itemName || t.itemId,
+                          expected: t.quantity,
+                          actual: 0,
+                          variance: -t.quantity,
+                          value: invItem ? invItem.unitCost : undefined,
+                          reason: t.reason,
+                          hasEvidence: false,
+                        });
+                      });
                     if (rows.length === 0) {
                       return (
                         <TableRow>

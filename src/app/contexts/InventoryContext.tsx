@@ -7,10 +7,11 @@ import { createContext, useContext, useState, useEffect, ReactNode, useMemo, use
 import { useEvents, useEventListener } from "./EventSystem";
 import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
-import { seedUniformAndMachineSupplyChain } from "../services/uniformAndMachineSupplyChainSeed";
+import { seedUniformAndMachineSupplyChain, fixDemoEmployeePinCodes } from "../services/uniformAndMachineSupplyChainSeed";
 import { fixConcentrateNaming } from "../services/fixConcentrateNamingSeed";
 import { seedShampooTyreGlowRecipes } from "../services/shampooTyreGlowRecipeSeed";
 import { seedRemainingRecipes } from "../services/remainingRecipesSeed";
+import { seedSampleVerification } from "../services/sampleVerificationSeed";
 
 // Types
 export interface InventoryItem {
@@ -47,7 +48,7 @@ export interface InventoryItem {
 export interface StockTransaction {
   transactionId: string;
   itemId: string;
-  type: "Procurement" | "Issue" | "Transfer" | "Adjustment" | "Return";
+  type: "Procurement" | "Issue" | "Transfer" | "Adjustment" | "Return" | "Loss";
   quantity: number;
   fromLocation: "Central" | "Supervisor" | "Washer" | "Branch";
   fromId?: string; // supervisorId, washerId, or branchId
@@ -172,6 +173,14 @@ interface InventoryContextType {
     requestedBy: string,
     cityId: string
   ) => boolean;
+  reportLostOrDamagedBottle: (
+    washerId: string,
+    bottledItemId: string,
+    reason: "Lost" | "Damaged",
+    notes: string | undefined,
+    reportedBy: string,
+    cityId: string
+  ) => boolean;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -183,9 +192,11 @@ const DEFAULT_CITY = "CITY-SURAT"; // Backward compatibility default
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
     seedUniformAndMachineSupplyChain();
+    fixDemoEmployeePinCodes();
     fixConcentrateNaming();
     seedShampooTyreGlowRecipes();
     seedRemainingRecipes();
+    seedSampleVerification();
     // Load from storage with city-id backfill for legacy data
     const storedInventory = DataService.get<InventoryItem>("INVENTORY_ITEMS");
     const normalized = storedInventory.map(item => ({
@@ -917,6 +928,67 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  /**
+   * Real, previously-missing action: reports a specific bottle as
+   * genuinely lost or damaged by a specific washer - distinct from the
+   * normal empty-bottle return, since a lost or damaged bottle never
+   * comes back to be reused. Removes it from that washer's real stock
+   * (their currently open bottle first, since that's the one actually
+   * in use; otherwise a sealed one), and creates a real Loss
+   * transaction with the washer and reason attached, feeding directly
+   * into the real Loss & Wastage Register.
+   */
+  const reportLostOrDamagedBottle = (
+    washerId: string,
+    bottledItemId: string,
+    reason: "Lost" | "Damaged",
+    notes: string | undefined,
+    reportedBy: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId) {
+      console.warn("[InventoryContext] Blocked reportLostOrDamagedBottle: cityId missing");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === bottledItemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked reportLostOrDamagedBottle: item ${bottledItemId} not found`);
+      return false;
+    }
+    const hasOpenBottle = !!item.washerOpenBottle?.[washerId];
+    const sealedCount = item.washerStock[washerId] || 0;
+    if (!hasOpenBottle && sealedCount <= 0) {
+      console.warn(`[InventoryContext] Blocked reportLostOrDamagedBottle: washer ${washerId} has no bottle of ${bottledItemId} to report`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== bottledItemId || i.cityId !== cityId) return i;
+      if (hasOpenBottle) {
+        const updatedOpen = { ...(i.washerOpenBottle || {}) };
+        delete updatedOpen[washerId];
+        return { ...i, washerOpenBottle: updatedOpen, updatedAt: new Date().toISOString() };
+      }
+      return { ...i, washerStock: { ...i.washerStock, [washerId]: sealedCount - 1 }, updatedAt: new Date().toISOString() };
+    }));
+
+    createTransaction({
+      itemId: bottledItemId,
+      type: "Loss",
+      quantity: 1,
+      fromLocation: "Washer",
+      fromId: washerId,
+      toLocation: "Washer",
+      toId: washerId,
+      status: "Completed",
+      requestedBy: reportedBy,
+      cityId,
+      reason: `${reason}${notes ? `: ${notes}` : ""}`,
+    });
+
+    return true;
+  };
+
   // Real, previously-nonexistent link: when a job genuinely completes,
   // every active dilution recipe's fixed mlPerWash amount is consumed
   // from that washer's real bottle stock. Crystal Finish, Dash Shine,
@@ -1060,6 +1132,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         performBottling,
         recordWashConsumption,
         returnEmptyBottles,
+        reportLostOrDamagedBottle,
         getWasherStock,
         getPendingTransactions,
       }),
