@@ -19,6 +19,7 @@ import { Package, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useRole } from "../../contexts/RoleContext";
+import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 
 // Real status thresholds, derived by comparing a washer's actual stock
 // balance against the item's real reorder level - there's no per-washer
@@ -118,6 +119,10 @@ export function MyStock() {
           </div>
         </CardContent>
       </Card>
+
+      {currentUser?.employeeId && (
+        <EmptyBottleReturnPanel currentLocation="Washer" currentId={currentUser.employeeId} requestedBy={currentUser.name || "Washer"} />
+      )}
 
       {myStock.length === 0 ? (
         <Card>

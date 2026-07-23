@@ -152,6 +152,8 @@ const STORAGE_KEYS = {
   REFUND_REQUESTS:          "refund_requests",       // Customer refund requests, real approval workflow
   GIFT_SUBSCRIPTIONS:       "gift_subscriptions",     // Gift-a-wash requests, real staff payment confirmation + redemption
   CALLBACK_REQUESTS:        "callback_requests",       // Real customer callback requests, real office-hours validation
+  DILUTION_RECIPES:         "dilution_recipes",         // Real concentrate-to-bottled-product recipes, real yield/cost
+  BOTTLE_RETURN_TRANSACTIONS: "bottle_return_transactions", // Real empty-bottle reverse-logistics transactions
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

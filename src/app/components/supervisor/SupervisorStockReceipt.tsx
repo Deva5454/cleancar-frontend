@@ -8,6 +8,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Truck, Package } from "lucide-react";
+import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 import { toast } from "sonner";
 
 /**
@@ -75,6 +76,10 @@ export function SupervisorStockReceipt() {
         </h2>
         <p className="text-sm text-gray-500">Real transfers sent to you from a branch store</p>
       </div>
+
+      {supervisorId && branches[0] && (
+        <EmptyBottleReturnPanel currentLocation="Supervisor" currentId={supervisorId} toId={branches[0].id} requestedBy={currentUser?.name || "Supervisor"} />
+      )}
 
       {pendingReceipts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">

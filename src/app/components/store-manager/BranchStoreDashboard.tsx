@@ -22,6 +22,7 @@ import { Label } from "../ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
 import { Package, Truck } from "lucide-react";
+import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 import { toast } from "sonner";
 
 export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
@@ -170,6 +171,10 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
             })}
           </CardContent>
         </Card>
+      )}
+
+      {activeBranch && (
+        <EmptyBottleReturnPanel currentLocation="Branch" currentId={activeBranch.id} requestedBy={currentUser?.name || "Branch Manager"} />
       )}
 
       <Card>

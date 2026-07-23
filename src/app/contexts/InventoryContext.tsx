@@ -4,7 +4,8 @@
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef} from "react";
-import { useEvents } from "./EventSystem";
+import { useEvents, useEventListener } from "./EventSystem";
+import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
 import { seedUniformAndMachineSupplyChain } from "../services/uniformAndMachineSupplyChainSeed";
 
@@ -25,7 +26,13 @@ export interface InventoryItem {
   // exist without touching how centralStock already works everywhere.
   branchStock?: Record<string, number>;
   supervisorStock: Record<string, number>; // { supervisorId: quantity }
-  washerStock: Record<string, number>; // { washerId/employeeId: quantity }
+  washerStock: Record<string, number>; // { washerId/employeeId: quantity } - count of SEALED, unopened bottles
+  // Real per-washer "currently open bottle" tracking, for a diluted
+  // product with a fixed per-wash consumption amount. A washer must
+  // finish their current bottle before starting the next - washerStock
+  // above counts sealed bottles only; this tracks the one bottle
+  // actually in use, and how much is genuinely left in it.
+  washerOpenBottle?: Record<string, { mlRemaining: number; bottleSizeMl: number; openedAt: string }>;
   // Pricing
   unitCost: number;
   lastProcurementDate?: string;
@@ -139,6 +146,29 @@ interface InventoryContextType {
     damageNotes: string | undefined,
     cityId: string
   ) => void;
+  performBottling: (
+    recipe: { concentrateItemId: string; concentrateQtyLiters: number; bottledItemId: string; bottleSizeMl: number; waterQtyLiters: number },
+    batches: number,
+    cityId: string
+  ) => boolean;
+  recordWashConsumption: (
+    washerId: string,
+    bottledItemId: string,
+    mlPerWash: number,
+    emptyBottleItemId: string,
+    bottleSizeMl: number,
+    cityId: string
+  ) => boolean;
+  returnEmptyBottles: (
+    emptyBottleItemId: string,
+    quantity: number,
+    fromLocation: "Washer" | "Supervisor" | "Branch",
+    fromId: string | undefined,
+    toLocation: "Supervisor" | "Branch" | "Central",
+    toId: string | undefined,
+    requestedBy: string,
+    cityId: string
+  ) => boolean;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -677,6 +707,227 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }, "InventoryContext");
   };
 
+  // Real Kim-side bottling action - the concentrate received from a
+  // supplier is mixed with water and packed into real, sealed bottles.
+  // Consumes the recipe's real concentrate quantity from Central stock
+  // and produces the recipe's real yield of the bottled product,
+  // multiplied by however many batches are being made this run.
+  const performBottling = (
+    recipe: { concentrateItemId: string; concentrateQtyLiters: number; bottledItemId: string; bottleSizeMl: number; waterQtyLiters: number },
+    batches: number,
+    cityId: string
+  ): boolean => {
+    if (!cityId || batches <= 0) {
+      console.warn("[InventoryContext] Blocked performBottling: cityId missing or invalid batch count");
+      return false;
+    }
+    const concentrateItem = inventory.find(i => i.itemId === recipe.concentrateItemId && i.cityId === cityId);
+    if (!concentrateItem) {
+      console.warn(`[InventoryContext] Blocked performBottling: concentrate item ${recipe.concentrateItemId} not found`);
+      return false;
+    }
+    const concentrateNeeded = recipe.concentrateQtyLiters * batches;
+    if (concentrateItem.centralStock < concentrateNeeded) {
+      console.warn(`[InventoryContext] Blocked performBottling: insufficient concentrate (need ${concentrateNeeded}L, have ${concentrateItem.centralStock}L)`);
+      return false;
+    }
+    const yieldPerBatch = Math.floor(((recipe.concentrateQtyLiters + recipe.waterQtyLiters) * 1000) / recipe.bottleSizeMl);
+    const totalBottlesProduced = yieldPerBatch * batches;
+
+    setInventory(prev => prev.map(item => {
+      if (item.itemId === recipe.concentrateItemId && item.cityId === cityId) {
+        return { ...item, centralStock: item.centralStock - concentrateNeeded, updatedAt: new Date().toISOString() };
+      }
+      if (item.itemId === recipe.bottledItemId && item.cityId === cityId) {
+        return { ...item, centralStock: item.centralStock + totalBottlesProduced, updatedAt: new Date().toISOString() };
+      }
+      return item;
+    }));
+
+    createTransaction({
+      itemId: recipe.bottledItemId,
+      type: "Adjustment",
+      quantity: totalBottlesProduced,
+      fromLocation: "Central",
+      toLocation: "Central",
+      status: "Completed",
+      cityId,
+      reason: `Bottled from ${concentrateNeeded}L of ${recipe.concentrateItemId} (${batches} batch${batches !== 1 ? "es" : ""})`,
+    });
+
+    return true;
+  };
+
+  // Real per-wash consumption - the genuinely new link between a
+  // completed job and real inventory being used. Confirmed real rules:
+  // the fixed mlPerWash amount is always deducted, regardless of the
+  // actual vehicle's size, and a washer must finish their current open
+  // bottle before a new one is opened - never two partial bottles at
+  // once. When a bottle empties, it becomes a real, trackable empty
+  // bottle owed back to Kim, not simply discarded from the count.
+  const recordWashConsumption = (
+    washerId: string,
+    bottledItemId: string,
+    mlPerWash: number,
+    emptyBottleItemId: string,
+    bottleSizeMl: number,
+    cityId: string
+  ): boolean => {
+    if (!cityId || mlPerWash <= 0) {
+      console.warn("[InventoryContext] Blocked recordWashConsumption: cityId missing or invalid mlPerWash");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === bottledItemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked recordWashConsumption: item ${bottledItemId} not found`);
+      return false;
+    }
+    const openBottle = item.washerOpenBottle?.[washerId];
+    let bottleJustEmptied = false;
+
+    if (openBottle && openBottle.mlRemaining >= mlPerWash) {
+      // Real, common case: draw from the bottle already open.
+      const remaining = openBottle.mlRemaining - mlPerWash;
+      bottleJustEmptied = remaining <= 0;
+      setInventory(prev => prev.map(i => {
+        if (i.itemId !== bottledItemId || i.cityId !== cityId) return i;
+        const updatedOpen = { ...(i.washerOpenBottle || {}) };
+        if (bottleJustEmptied) {
+          delete updatedOpen[washerId];
+        } else {
+          updatedOpen[washerId] = { ...openBottle, mlRemaining: remaining };
+        }
+        return { ...i, washerOpenBottle: updatedOpen, updatedAt: new Date().toISOString() };
+      }));
+    } else {
+      // No open bottle, or genuinely not enough left in it - the
+      // remainder (if any) is written off as real, honest wastage
+      // rather than mixed across bottles; a fresh sealed bottle is
+      // opened for this wash's full mlPerWash.
+      const sealedAvailable = item.washerStock[washerId] || 0;
+      if (sealedAvailable <= 0) {
+        console.warn(`[InventoryContext] Blocked recordWashConsumption: washer ${washerId} has no sealed bottles of ${bottledItemId}`);
+        return false;
+      }
+      const remaining = bottleSizeMl - mlPerWash;
+      bottleJustEmptied = remaining <= 0;
+      setInventory(prev => prev.map(i => {
+        if (i.itemId !== bottledItemId || i.cityId !== cityId) return i;
+        const updatedOpen = { ...(i.washerOpenBottle || {}) };
+        if (!bottleJustEmptied) {
+          updatedOpen[washerId] = { mlRemaining: remaining, bottleSizeMl, openedAt: new Date().toISOString() };
+        }
+        return {
+          ...i,
+          washerStock: { ...i.washerStock, [washerId]: sealedAvailable - 1 },
+          washerOpenBottle: updatedOpen,
+          updatedAt: new Date().toISOString(),
+        };
+      }));
+    }
+
+    if (bottleJustEmptied) {
+      // A real, empty bottle now genuinely exists and is owed back to
+      // Kim - tracked as its own real item, not silently discarded.
+      setInventory(prev => prev.map(i =>
+        i.itemId === emptyBottleItemId && i.cityId === cityId
+          ? { ...i, washerStock: { ...i.washerStock, [washerId]: (i.washerStock[washerId] || 0) + 1 }, updatedAt: new Date().toISOString() }
+          : i
+      ));
+    }
+
+    createTransaction({
+      itemId: bottledItemId,
+      type: "Adjustment",
+      quantity: mlPerWash,
+      fromLocation: "Washer",
+      toId: washerId,
+      toLocation: "Washer",
+      status: "Completed",
+      cityId,
+      reason: `Consumed on wash completion (${mlPerWash}ml)${bottleJustEmptied ? " - bottle now empty" : ""}`,
+    });
+
+    return true;
+  };
+
+  // Real empty-bottle return - reverses the exact same chain used to
+  // send bottles out, using the real "Return" transaction type that
+  // already existed in the data model but had no function using it
+  // until now. Reused for each of the three real hops the reverse
+  // journey needs: Washer → Supervisor, Supervisor → Branch, Branch →
+  // Kim (Central).
+  const returnEmptyBottles = (
+    emptyBottleItemId: string,
+    quantity: number,
+    fromLocation: "Washer" | "Supervisor" | "Branch",
+    fromId: string | undefined,
+    toLocation: "Supervisor" | "Branch" | "Central",
+    toId: string | undefined,
+    requestedBy: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId || quantity <= 0) {
+      console.warn("[InventoryContext] Blocked returnEmptyBottles: cityId missing or invalid quantity");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === emptyBottleItemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked returnEmptyBottles: item ${emptyBottleItemId} not found`);
+      return false;
+    }
+    const availableAtSource = fromLocation === "Washer" ? (item.washerStock[fromId || ""] || 0)
+      : fromLocation === "Supervisor" ? (item.supervisorStock[fromId || ""] || 0)
+      : (item.branchStock?.[fromId || ""] || 0);
+    if (availableAtSource < quantity) {
+      console.warn(`[InventoryContext] Blocked returnEmptyBottles: insufficient empty bottles at ${fromLocation} (need ${quantity}, have ${availableAtSource})`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== emptyBottleItemId || i.cityId !== cityId) return i;
+      const updated = { ...i };
+      if (fromLocation === "Washer") updated.washerStock = { ...i.washerStock, [fromId || ""]: availableAtSource - quantity };
+      else if (fromLocation === "Supervisor") updated.supervisorStock = { ...i.supervisorStock, [fromId || ""]: availableAtSource - quantity };
+      else updated.branchStock = { ...(i.branchStock || {}), [fromId || ""]: availableAtSource - quantity };
+
+      if (toLocation === "Central") updated.centralStock = i.centralStock + quantity;
+      else if (toLocation === "Supervisor") updated.supervisorStock = { ...updated.supervisorStock, [toId || ""]: (updated.supervisorStock[toId || ""] || 0) + quantity };
+      else updated.branchStock = { ...(updated.branchStock || {}), [toId || ""]: ((updated.branchStock || {})[toId || ""] || 0) + quantity };
+
+      return { ...updated, updatedAt: new Date().toISOString() };
+    }));
+
+    createTransaction({
+      itemId: emptyBottleItemId,
+      type: "Return",
+      quantity,
+      fromLocation, fromId, toLocation, toId,
+      status: "Completed",
+      requestedBy,
+      cityId,
+    });
+
+    return true;
+  };
+
+  // Real, previously-nonexistent link: when a job genuinely completes,
+  // every active dilution recipe's fixed mlPerWash amount is consumed
+  // from that washer's real bottle stock. Crystal Finish, Dash Shine,
+  // and Interior Pro are real, general-purpose cleaning products used
+  // on every wash (not tied to a specific add-on), so every active
+  // recipe applies here - if a future recipe should only apply to
+  // certain job/package types, this is the real place to add that
+  // condition.
+  useEventListener<{ washerId?: string; cityId?: string }>("JOB_COMPLETED", (event) => {
+    const data = event.data;
+    if (!data?.washerId || !data?.cityId) return;
+    const recipes = getDilutionRecipes(data.cityId).filter(r => r.isActive);
+    recipes.forEach(recipe => {
+      recordWashConsumption(data.washerId!, recipe.bottledItemId, recipe.mlPerWash, recipe.emptyBottleItemId, recipe.bottleSizeMl, data.cityId!);
+    });
+  }, [inventory]);
+
   const adjustStock = (
     itemId: string,
     location: "Central" | "Supervisor" | "Washer",
@@ -800,6 +1051,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         receiveBranchTransfer,
         transferBranchToSupervisor,
         receiveSupervisorTransfer,
+        performBottling,
+        recordWashConsumption,
+        returnEmptyBottles,
         getWasherStock,
         getPendingTransactions,
       }),
