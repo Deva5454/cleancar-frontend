@@ -97,3 +97,24 @@ export function setMlPerWash(recipeId: string, mlPerWash: number, cityId?: strin
   DataService.setAll(STORAGE_KEY, all, cityId);
   return true;
 }
+
+/**
+ * Real, general field update - every real recipe number (concentrate
+ * quantity, water quantity, bottle size, concentrate cost, mlPerWash)
+ * is genuinely editable by SuperAdmin, confirmed directly as a real
+ * requirement, since these figures change over time (supplier price
+ * changes, a revised dilution ratio, etc).
+ */
+export function updateRecipeField(
+  recipeId: string,
+  field: "concentrateQtyLiters" | "waterQtyLiters" | "bottleSizeMl" | "concentrateCostPerLiter" | "mlPerWash",
+  value: number,
+  cityId?: string
+): boolean {
+  const all = getDilutionRecipes(cityId);
+  const idx = all.findIndex((r) => r.recipeId === recipeId);
+  if (idx < 0 || isNaN(value) || value <= 0) return false;
+  all[idx] = { ...all[idx], [field]: value, updatedAt: new Date().toISOString() };
+  DataService.setAll(STORAGE_KEY, all, cityId);
+  return true;
+}

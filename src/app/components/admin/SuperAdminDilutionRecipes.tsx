@@ -12,7 +12,7 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import {
-  getDilutionRecipes, saveDilutionRecipe, setMlPerWash, calculateYield, calculateCostPerWash,
+  getDilutionRecipes, saveDilutionRecipe, updateRecipeField, calculateYield, calculateCostPerWash,
   type DilutionRecipe,
 } from "../../services/dilutionRecipeService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -103,10 +103,19 @@ export function SuperAdminDilutionRecipes() {
     refresh();
   };
 
-  const handleUpdateMlPerWash = (recipeId: string, value: string) => {
-    const ml = parseFloat(value);
-    if (isNaN(ml) || ml <= 0) return;
-    setMlPerWash(recipeId, ml, city);
+  const handleUpdateField = (
+    recipeId: string,
+    field: "concentrateQtyLiters" | "waterQtyLiters" | "bottleSizeMl" | "concentrateCostPerLiter" | "mlPerWash",
+    value: string
+  ) => {
+    const num = parseFloat(value);
+    if (isNaN(num) || num <= 0) {
+      toast.error("Enter a real, positive value");
+      refresh();
+      return;
+    }
+    const ok = updateRecipeField(recipeId, field, num, city);
+    if (ok) toast.success("Recipe updated");
     refresh();
   };
 
@@ -178,20 +187,36 @@ export function SuperAdminDilutionRecipes() {
             <p className="text-sm text-gray-400 text-center py-6">No recipes yet.</p>
           ) : (
             recipes.map((r) => (
-              <div key={r.recipeId} className="border rounded-lg p-3 space-y-2">
+              <div key={r.recipeId} className="border rounded-lg p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-gray-900">{r.productName}</p>
                   <Badge variant={r.isActive ? "default" : "secondary"}>{r.isActive ? "Active" : "Inactive"}</Badge>
                 </div>
-                <p className="text-xs text-gray-500">
-                  {r.concentrateQtyLiters}L concentrate + {r.waterQtyLiters}L water → {calculateYield(r)} bottles of {r.bottleSizeMl}ml
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs">ml per wash:</Label>
-                    <Input type="number" defaultValue={r.mlPerWash} className="w-20 h-8 text-sm" onBlur={(e) => handleUpdateMlPerWash(r.recipeId, e.target.value)} />
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <div>
+                    <Label className="text-xs text-gray-500">Concentrate (L)</Label>
+                    <Input type="number" defaultValue={r.concentrateQtyLiters} className="h-8 text-sm" onBlur={(e) => handleUpdateField(r.recipeId, "concentrateQtyLiters", e.target.value)} />
                   </div>
-                  <p className="text-xs text-gray-600">Real cost per wash: ₹{calculateCostPerWash(r)}</p>
+                  <div>
+                    <Label className="text-xs text-gray-500">Water (L)</Label>
+                    <Input type="number" defaultValue={r.waterQtyLiters} className="h-8 text-sm" onBlur={(e) => handleUpdateField(r.recipeId, "waterQtyLiters", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Bottle (ml)</Label>
+                    <Input type="number" defaultValue={r.bottleSizeMl} className="h-8 text-sm" onBlur={(e) => handleUpdateField(r.recipeId, "bottleSizeMl", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Cost (₹/L)</Label>
+                    <Input type="number" defaultValue={r.concentrateCostPerLiter} className="h-8 text-sm" onBlur={(e) => handleUpdateField(r.recipeId, "concentrateCostPerLiter", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">ml / wash</Label>
+                    <Input type="number" defaultValue={r.mlPerWash} className="h-8 text-sm" onBlur={(e) => handleUpdateField(r.recipeId, "mlPerWash", e.target.value)} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded p-2">
+                  <span>Real yield: {calculateYield(r)} bottles of {r.bottleSizeMl}ml per batch</span>
+                  <span className="font-medium">Real cost per wash: ₹{calculateCostPerWash(r)}</span>
                 </div>
               </div>
             ))
