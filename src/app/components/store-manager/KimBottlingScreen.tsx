@@ -85,7 +85,7 @@ export function KimBottlingScreen() {
                   <div className="bg-blue-50 rounded-lg p-3 text-sm">
                     <p>This will use <strong>{concentrateNeeded}L</strong> of concentrate and produce <strong>{totalYield}</strong> real bottles.</p>
                   </div>
-                  <Button onClick={handleBottle} className="w-full" disabled={!concentrateItem || concentrateItem.centralStock < concentrateNeeded}>
+                  <Button onClick={handleBottle} className="w-full" disabled={!concentrateItem || batchCount <= 0 || concentrateItem.centralStock < concentrateNeeded}>
                     Bottle Now
                   </Button>
                   {concentrateItem && concentrateItem.centralStock < concentrateNeeded && (

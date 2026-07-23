@@ -14,6 +14,8 @@ import {
 } from "../ui/table";
 import { Search, Save, AlertTriangle, Package, Edit2, Check, X } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useInventory } from "../../contexts/InventoryContext";
+import { useCity } from "../../contexts/CityContext";
 
 interface Product {
   id: string;
@@ -27,92 +29,48 @@ interface Product {
 }
 
 export function MOQManagement() {
+  const { inventory } = useInventory();
+  const { city } = useCity();
   const [searchTerm, setSearchTerm] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
 
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: "1",
-      name: "Car Shampoo Premium",
-      category: "Cleaning Chemicals",
-      currentStock: 45,
-      moq: 50,
-      unit: "Liters",
-      status: "below-moq",
-      lastUpdated: "2026-03-08"
-    },
-    {
-      id: "2",
-      name: "Microfiber Cloth",
-      category: "Consumables",
-      currentStock: 120,
-      moq: 100,
-      unit: "Pieces",
-      status: "normal",
-      lastUpdated: "2026-03-07"
-    },
-    {
-      id: "3",
-      name: "Wax Polish",
-      category: "Polishing Products",
-      currentStock: 15,
-      moq: 30,
-      unit: "Bottles",
-      status: "critical",
-      lastUpdated: "2026-03-09"
-    },
-    {
-      id: "4",
-      name: "Tire Shine Spray",
-      category: "Finishing Products",
-      currentStock: 25,
-      moq: 40,
-      unit: "Bottles",
-      status: "below-moq",
-      lastUpdated: "2026-03-08"
-    },
-    {
-      id: "5",
-      name: "Glass Cleaner",
-      category: "Cleaning Chemicals",
-      currentStock: 80,
-      moq: 60,
-      unit: "Liters",
-      status: "normal",
-      lastUpdated: "2026-03-06"
-    },
-    {
-      id: "6",
-      name: "Foam Gun Nozzle",
-      category: "Equipment Parts",
-      currentStock: 5,
-      moq: 15,
-      unit: "Pieces",
-      status: "critical",
-      lastUpdated: "2026-03-09"
-    },
-    {
-      id: "7",
-      name: "Vacuum Bags",
-      category: "Consumables",
-      currentStock: 35,
-      moq: 50,
-      unit: "Pieces",
-      status: "below-moq",
-      lastUpdated: "2026-03-07"
-    },
-    {
-      id: "8",
-      name: "Air Freshener",
-      category: "Finishing Products",
-      currentStock: 150,
-      moq: 100,
-      unit: "Pieces",
-      status: "normal",
-      lastUpdated: "2026-03-05"
-    }
-  ]);
+  // Real fix: previously this whole list was hardcoded mock data,
+  // completely disconnected from the actual inventory system - "Car
+  // Shampoo Premium: 45 units" had no relationship to the real stock
+  // level shown everywhere else in the app. Now derives real current
+  // stock from useInventory(), with any real, previously-saved MOQ
+  // override applied on top of the item's real default reorder level.
+  const savedMoqOverrides: Record<string, number> = (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("cleancar_moq_settings") || "{}");
+      // Support both the old array-shaped save and a real id->moq map
+      if (Array.isArray(raw)) {
+        return raw.reduce((acc: Record<string, number>, r: any) => { acc[r.id] = r.moq; return acc; }, {});
+      }
+      return raw;
+    } catch { return {}; }
+  })();
+
+  const getStatus = (stock: number, moq: number): Product["status"] => {
+    if (stock <= 0) return "critical";
+    if (stock < moq) return "below-moq";
+    return "normal";
+  };
+
+  const [products, setProducts] = useState<Product[]>(() =>
+    inventory
+      .filter((i: any) => i.cityId === city)
+      .map((i: any) => {
+        const moq = savedMoqOverrides[i.itemId] ?? i.reorderLevel ?? 0;
+        return {
+          id: i.itemId, name: i.itemName, category: i.category,
+          currentStock: i.centralStock, moq, unit: i.unit,
+          status: getStatus(i.centralStock, moq),
+          lastUpdated: i.updatedAt ? i.updatedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+        };
+      })
+  );
 
   const filteredProducts = products.filter(
     (product) =>
@@ -131,13 +89,18 @@ export function MOQManagement() {
   const handleSave = (productId: string) => {
     const updated = products.map(p =>
       p.id === productId
-        ? { ...p, moq: editValue, lastUpdated: new Date().toISOString().split('T')[0] }
+        ? { ...p, moq: editValue, status: getStatus(p.currentStock, editValue), lastUpdated: new Date().toISOString().split('T')[0] }
         : p
     );
     setProducts(updated);
     setEditingId(null);
-    // ✅ H1 FIX: Persist MOQ changes to localStorage
-    try { localStorage.setItem("cleancar_moq_settings", JSON.stringify(updated)); } catch {}
+    // Real fix: persist as a real itemId -> moq map, so this stays
+    // correctly linked to real inventory items even as stock changes.
+    try {
+      const existing = JSON.parse(localStorage.getItem("cleancar_moq_settings") || "{}");
+      const asMap = Array.isArray(existing) ? {} : existing;
+      localStorage.setItem("cleancar_moq_settings", JSON.stringify({ ...asMap, [productId]: editValue }));
+    } catch {}
     toast.success("MOQ updated successfully");
   };
 

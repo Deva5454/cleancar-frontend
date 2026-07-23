@@ -270,6 +270,7 @@ export function StoreManagerModule() {
                   { to:"/store-manager/uniform-receipt", icon:<Package className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
                   { to:"/cloth-tracking/receive-fabric", icon:<Package className="w-4 h-4 mr-2"/>, label:"Receive Fabric" },
                   { to:"/cloth-tracking/chain-movement", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Chain Movement" },
+                  { to:"/cloth-tracking/return-journey", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Return Journey" },
                   { to:"/cloth-tracking/laundry", icon:<Package className="w-4 h-4 mr-2"/>, label:"Laundry" },
                   { to:"/cloth-tracking/fleet", icon:<Package className="w-4 h-4 mr-2"/>, label:"Cloth Fleet" },
                 ].map(a => (

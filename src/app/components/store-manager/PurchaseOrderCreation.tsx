@@ -47,10 +47,21 @@ export function PurchaseOrderCreation() {
 
   const handleSubmitPO = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!selectedVendor) {
+      toast.error("Select a vendor before creating the PO");
+      return;
+    }
+    if (poItems.length === 0 || poItems.every((i) => !i.quantity || i.quantity <= 0)) {
+      toast.error("Add at least one item with a real quantity");
+      return;
+    }
     const newPO = {
+      // Real fix: previously derived from purchaseOrders.length + 1,
+      // which collides if any PO is ever deleted. A timestamp-based
+      // number is genuinely unique regardless of array state.
       id: Date.now(),
-      po: `PO-${new Date().getFullYear()}-${String(purchaseOrders.length + 1).padStart(3,"0")}`,
-      vendor: savedVendors.find(v => v.id === selectedVendor)?.legalName || selectedVendor,
+      po: `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+      vendor: savedVendors.find(v => v.id === selectedVendor)?.name || selectedVendor,
       items: poItems.length,
       amount: poItems.reduce((s, i) => s + i.price * i.quantity, 0),
       status: "Pending Procurement Review",
@@ -115,7 +126,7 @@ export function PurchaseOrderCreation() {
                   </SelectTrigger>
                   <SelectContent>
                     {savedVendors.length > 0 ? savedVendors.map(v => (
-                      <SelectItem key={v.id} value={v.id}>{v.legalName} {v.gstin?"("+v.gstin+")":""}</SelectItem>
+                      <SelectItem key={v.id} value={v.id}>{v.name} {v.gstin?"("+v.gstin+")":""}</SelectItem>
                     )) : (
                       <SelectItem value="none" disabled>No vendors. Add in GST → Vendor Master.</SelectItem>
                     )}
@@ -270,7 +281,7 @@ export function PurchaseOrderCreation() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchaseOrders.map((po) => (
+                {purchaseOrders.map((po: any) => (
                   <TableRow key={po.id}>
                     <TableCell className="font-medium">{po.po}</TableCell>
                     <TableCell>{po.vendor}</TableCell>

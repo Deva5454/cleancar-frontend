@@ -64,6 +64,10 @@ export function SuperAdminDilutionRecipes() {
       toast.error("Fill in every field");
       return;
     }
+    if (parseFloat(concentrateQty) <= 0 || parseFloat(waterQty) < 0 || parseFloat(bottleSizeMl) <= 0 || parseFloat(mlPerWash) <= 0 || parseFloat(concentrateCost) <= 0) {
+      toast.error("Enter real, positive values — 0 isn't valid here");
+      return;
+    }
     // Real fix: addInventoryItem() generates its own real itemId
     // internally and ignores any predicted one - so the recipe must
     // reference whichever real item already exists, or the real ID

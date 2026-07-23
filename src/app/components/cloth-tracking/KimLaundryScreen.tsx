@@ -17,7 +17,7 @@ import { toast } from "sonner";
 export function KimLaundryScreen() {
   const [refreshTick, setRefreshTick] = useState(0);
   const inLaundry = useMemo(
-    () => clothTrackingService.getClothsByStatus("IN_LAUNDRY_PROCESS"),
+    () => clothTrackingService.getClothsByStatus("IN_LAUNDRY_PROCESS").filter((c) => c.currentLocation === "Kim"),
     [refreshTick]
   );
 

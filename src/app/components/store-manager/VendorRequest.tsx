@@ -43,7 +43,12 @@ export function VendorRequest() {
     urgency: "medium" as "high" | "medium" | "low"
   });
 
-  const [requests] = useState<VendorRequest[]>([
+  const [requests, setRequests] = useState<VendorRequest[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
+      if (stored.length > 0) return stored;
+    } catch {}
+    return [
     {
       id: "VR001",
       productCategory: "Cleaning Chemicals",
@@ -84,7 +89,8 @@ export function VendorRequest() {
       requestDate: "2026-03-03",
       requestedBy: "Store Manager"
     }
-  ]);
+    ];
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,11 +108,14 @@ export function VendorRequest() {
       urgency: formData.urgency,
       status: "pending",
       requestedBy: "Store Manager",
+      requestDate: new Date().toISOString().split("T")[0],
       submittedAt: new Date().toISOString(),
     };
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
-      localStorage.setItem("cleancar_vendor_requests", JSON.stringify([record, ...existing]));
+      const updated = [record, ...existing];
+      localStorage.setItem("cleancar_vendor_requests", JSON.stringify(updated));
+      setRequests(updated as any);
     } catch {}
     toast.success(`Vendor request ${requestId} submitted — Admin will review and onboard vendor.`);
     setFormData({ productCategory: "", description: "", quantity: "", urgency: "medium" });

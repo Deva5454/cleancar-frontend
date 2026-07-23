@@ -194,6 +194,7 @@ const ClothExchange = lazy(() => import("./components/cloth-tracking/ClothExchan
 import { KimFabricReceiptScreen } from "./components/cloth-tracking/KimFabricReceiptScreen";
 import { KimLaundryScreen } from "./components/cloth-tracking/KimLaundryScreen";
 import { ClothChainMovement } from "./components/cloth-tracking/ClothChainMovement";
+import { ClothReturnJourney } from "./components/cloth-tracking/ClothReturnJourney";
 import { KimFleetDashboard } from "./components/cloth-tracking/KimFleetDashboard";
 import { ClothAdminDashboard } from "./components/cloth-tracking/ClothAdminDashboard";
 import { AdvanceTypeSelection } from "./components/advance/AdvanceTypeSelection";
@@ -573,6 +574,7 @@ export const router = createBrowserRouter([
       { path: "cloth-tracking/receive-fabric", element: <KimFabricReceiptScreen /> },
       { path: "cloth-tracking/laundry", element: <KimLaundryScreen /> },
       { path: "cloth-tracking/chain-movement", element: <ClothChainMovement /> },
+      { path: "cloth-tracking/return-journey", element: <ClothReturnJourney /> },
       { path: "cloth-tracking/fleet", element: <KimFleetDashboard /> },
       { path: "cloth-tracking/admin", element: <ClothAdminDashboard /> },
       // Advance Management System
