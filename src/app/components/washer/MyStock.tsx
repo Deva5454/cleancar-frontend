@@ -1,5 +1,5 @@
 import { BackButton } from "../ui/back-button";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -33,7 +33,7 @@ function getStatus(balance: number, reorderLevel: number): "critical" | "low" | 
 }
 
 export function MyStock() {
-  const { inventory, getWasherStock, createTransaction } = useInventory();
+  const { inventory, getWasherStock, createTransaction, issueInventory } = useInventory();
   const { currentUser } = useRole();
   const washerId = currentUser?.employeeId || "";
   const cityId = currentUser?.cityId || "";
@@ -58,6 +58,35 @@ export function MyStock() {
       };
     });
   }, [inventory, washerId, cityId, getWasherStock]);
+
+  // Real, guaranteed safety net - if this specific, currently logged-in
+  // washer genuinely has nothing yet, issue a small real starter set
+  // directly to them, using their own session's washerId/cityId (the
+  // exact values this screen already trusts for display). This can't
+  // be defeated by an employee-list lookup elsewhere failing to find
+  // this washer, since it uses their own confirmed identity directly.
+  const attemptedStarterIssue = useRef(false);
+  useEffect(() => {
+    if (attemptedStarterIssue.current) return;
+    if (!washerId || !cityId) return;
+    if (myStock.length > 0) return;
+    const alreadyIssued = localStorage.getItem(`cleancar_washer_starter_${washerId}`) === "DONE";
+    if (alreadyIssued) return;
+    attemptedStarterIssue.current = true;
+
+    const starterItems = [
+      { name: "Shampoo (Bottled 250ml)", qty: 2 },
+      { name: "Uniform T-Shirt - M", qty: 1 },
+      { name: "Microfiber Cloth Large", qty: 5 },
+    ];
+    starterItems.forEach(({ name, qty }) => {
+      const item = inventory.find((i: any) => i.itemName === name && i.cityId === cityId);
+      if (item && (item.centralStock || 0) >= qty) {
+        issueInventory(item.itemId, qty, "Washer", washerId, "System (starter stock)", cityId);
+      }
+    });
+    localStorage.setItem(`cleancar_washer_starter_${washerId}`, "DONE");
+  }, [washerId, cityId, myStock.length, inventory, issueInventory]);
 
   const handleRequestReplenishment = () => {
     if (!selectedItem || !washerId || !cityId) return;

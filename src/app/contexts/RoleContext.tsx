@@ -78,6 +78,20 @@ const cityNameFromId = (cityId?: string): string => {
   return "Surat";
 };
 
+// Real, previously-missing reverse of the above - workLocation on a real
+// employee record is a city NAME ("Surat"), not the real "CITY-SURAT"
+// format every inventory item actually uses. Without this conversion,
+// a real washer's own stock queries (getWasherStock, etc.) could never
+// match stock genuinely issued to them, since "Surat" !== "CITY-SURAT".
+const cityIdFromName = (cityName?: string): string => {
+  if (!cityName) return "CITY-SURAT";
+  const normalized = cityName.trim().toUpperCase();
+  if (normalized.includes("MUMBAI")) return "CITY-MUMBAI";
+  if (normalized.includes("AHMEDABAD")) return "CITY-AHMEDABAD";
+  if (normalized.includes("SURAT") || normalized.startsWith("CITY-")) return normalized.startsWith("CITY-") ? cityName : "CITY-SURAT";
+  return "CITY-SURAT";
+};
+
 // Read session from localStorage (written by authService.login)
 function readSession(): SessionData {
   try {
@@ -223,7 +237,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         name:       matchingEmployee.fullName || DEFAULT_NAMES[currentRole],
         email:      matchingEmployee.email || "",
         city:       cityNameFromId(matchingEmployee.workLocation),
-        cityId:     matchingEmployee.workLocation || "CITY-SURAT",
+        cityId:     cityIdFromName(matchingEmployee.workLocation),
         role:       currentRole,
       };
     }
