@@ -7,7 +7,7 @@
  *   Wheel Cleaner  → merges into the real, pre-existing "Wheel
  *                    Cleaner 1L" item (name already matches)
  *   Crystal Finish → merges into the real, pre-existing "Glass
- *                    Cleaner 500ml" item (matches the business's own
+ *                    Cleaner Concentrate" item (matches the business's own
  *                    earlier description: "Crystal Finish (Glass
  *                    cleaner)")
  *   Interior Pro   → genuinely new; no pre-existing item matched it
@@ -83,7 +83,7 @@ export function seedRemainingRecipes() {
     const newRecipes = [
       buildRecipe("Dash Shine", "Dashboard Polish", "Cleaning Supplies", "L"),
       buildRecipe("Wheel Cleaner", "Wheel Cleaner 1L", "Cleaning Supplies", "L"),
-      buildRecipe("Crystal Finish", "Glass Cleaner 500ml", "Cleaning Supplies", "L"),
+      buildRecipe("Crystal Finish", "Glass Cleaner Concentrate", "Cleaning Supplies", "L"),
       buildRecipe("Interior Pro", "Interior Pro", "Cleaning Supplies", "L"),
     ];
 

@@ -9,7 +9,7 @@
  * Real fix (v2): the earlier version of this seed created brand-new
  * "Shampoo" / "Tyre Glow" concentrate items, unaware that this exact
  * same real product already existed in the system under a different
- * name - "Car Shampoo 5L" and "Tyre Shine 500ml," the real,
+ * name - "Car Shampoo 5L" and "Tyre Shine Concentrate," the real,
  * pre-existing items every other screen (GRN, Stock Verification,
  * Requisitions, Procurement) already references. Confirmed directly:
  * these are genuinely the same real products. This version points the
@@ -65,7 +65,7 @@ export function seedShampooTyreGlowRecipes() {
     // Real, pre-existing concentrate items - confirmed the same real
     // products as Shampoo and Tyre Glow, just under their original names.
     const shampooConcentrate = ensureItem("Car Shampoo 5L", "Cleaning Supplies", "L", 1200);
-    const tyreGlowConcentrate = ensureItem("Tyre Shine 500ml", "Cleaning Supplies", "L", 1200);
+    const tyreGlowConcentrate = ensureItem("Tyre Shine Concentrate", "Cleaning Supplies", "L", 1200);
     mergeDuplicate("Shampoo", shampooConcentrate);
     mergeDuplicate("Tyre Glow", tyreGlowConcentrate);
     // Real, confirmed cost - overwrite whatever the pre-existing item
@@ -107,7 +107,7 @@ export function seedShampooTyreGlowRecipes() {
     DataService.setAll("DILUTION_RECIPES", [...filteredRecipes, ...newRecipes]);
     localStorage.setItem(SEED_VERSION_KEY, "DONE");
 
-    console.info("[shampooTyreGlowRecipeSeed] Real recipes now point at the genuine, pre-existing Car Shampoo 5L / Tyre Shine 500ml items - no duplicate product records.");
+    console.info("[shampooTyreGlowRecipeSeed] Real recipes now point at the genuine, pre-existing Car Shampoo 5L / Tyre Shine Concentrate items - no duplicate product records.");
   } catch (err) {
     console.error("[shampooTyreGlowRecipeSeed] Seed failed, recipes unaffected:", err);
   }
