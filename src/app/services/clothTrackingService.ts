@@ -123,19 +123,21 @@ class ClothTrackingService {
 
   calculateMatch(dirtyIds: string[], cleanIds: string[]): MatchStatus {
     const clothMap = this.loadClothMap();
-    const count = (ids: string[], type: ClothType) =>
-      ids.filter(id => clothMap.get(id)?.type === type).length;
+    const COLORS: ClothColor[] = ["Yellow", "Blue", "Black", "Green"];
+    const count = (ids: string[], color: ClothColor) =>
+      ids.filter(id => clothMap.get(id)?.color === color).length;
 
-    const dirtyExterior = count(dirtyIds, "EXTERIOR");
-    const dirtyInterior = count(dirtyIds, "INTERIOR");
-    const cleanExterior = count(cleanIds, "EXTERIOR");
-    const cleanInterior = count(cleanIds, "INTERIOR");
+    const byColor = {} as Record<ClothColor, { dirty: number; clean: number; matched: boolean }>;
+    let allMatched = true;
+    COLORS.forEach((color) => {
+      const dirty = count(dirtyIds, color);
+      const clean = count(cleanIds, color);
+      const matched = dirty === clean;
+      byColor[color] = { dirty, clean, matched };
+      if (!matched) allMatched = false;
+    });
 
-    return {
-      exterior: { dirty: dirtyExterior, clean: cleanExterior, matched: dirtyExterior === cleanExterior },
-      interior: { dirty: dirtyInterior, clean: cleanInterior, matched: dirtyInterior === cleanInterior },
-      allMatched: dirtyExterior === cleanExterior && dirtyInterior === cleanInterior,
-    };
+    return { byColor, allMatched };
   }
 
   // ── Cloth operations ───────────────────────────────────────────────────────
@@ -186,6 +188,14 @@ class ClothTrackingService {
     cleanIds: string[]
   ): ClothExchange {
     const match = this.calculateMatch(dirtyIds, cleanIds);
+    const dirtyByColor = {} as Record<ClothColor, number>;
+    const cleanByColor = {} as Record<ClothColor, number>;
+    const matchedByColor = {} as Record<ClothColor, boolean>;
+    (Object.keys(match.byColor) as ClothColor[]).forEach((color) => {
+      dirtyByColor[color] = match.byColor[color].dirty;
+      cleanByColor[color] = match.byColor[color].clean;
+      matchedByColor[color] = match.byColor[color].matched;
+    });
 
     const exchange: ClothExchange = {
       id: `EX-${Date.now()}`,
@@ -193,13 +203,10 @@ class ClothTrackingService {
       employeeName,
       role,
       dirtyClothIds:  dirtyIds,
-      dirtyExterior:  match.exterior.dirty,
-      dirtyInterior:  match.interior.dirty,
+      dirtyByColor,
       cleanClothIds:  cleanIds,
-      cleanExterior:  match.exterior.clean,
-      cleanInterior:  match.interior.clean,
-      exteriorMatched: match.exterior.matched,
-      interiorMatched: match.interior.matched,
+      cleanByColor,
+      matchedByColor,
       isComplete:     match.allMatched,
       timestamp:      new Date().toISOString(),
     };

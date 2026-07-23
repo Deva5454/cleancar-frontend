@@ -231,18 +231,24 @@ export function BarcodeScanner({
  */
 interface ScanFeedbackToastProps {
   shortId: string;
-  type: "EXTERIOR" | "INTERIOR";
+  color?: "Yellow" | "Blue" | "Black" | "Green";
   category: "DIRTY" | "CLEAN";
   success: boolean;
 }
 
+const COLOR_BADGE_CLASSES: Record<string, string> = {
+  Yellow: "bg-yellow-100 text-yellow-800",
+  Blue: "bg-blue-100 text-blue-700",
+  Black: "bg-gray-200 text-gray-800",
+  Green: "bg-emerald-100 text-emerald-700",
+};
+
 export function ScanFeedbackToast({
   shortId,
-  type,
+  color,
   category,
   success,
 }: ScanFeedbackToastProps) {
-  const typeColor = type === "EXTERIOR" ? "blue" : "purple";
   const categoryColor = category === "DIRTY" ? "amber" : "green";
 
   return (
@@ -273,18 +279,11 @@ export function ScanFeedbackToast({
 
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <span
-              className={`
-              px-2 py-0.5 rounded text-xs font-semibold
-              ${
-                typeColor === "blue"
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-purple-100 text-purple-700"
-              }
-            `}
-            >
-              {type}
-            </span>
+            {color && (
+              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${COLOR_BADGE_CLASSES[color]}`}>
+                {color}
+              </span>
+            )}
             <span
               className={`
               px-2 py-0.5 rounded text-xs font-semibold

@@ -19,7 +19,24 @@ import {
 } from "../ui/dialog";
 import { CheckCircle, XCircle, AlertCircle, Lock } from "lucide-react";
 import { toast } from "sonner";
-import type { ClothItem, ScanFeedback, MatchStatus } from "../../types/clothTracking";
+import type { ClothItem, ScanFeedback, MatchStatus, ClothColor } from "../../types/clothTracking";
+
+const CLOTH_COLORS: ClothColor[] = ["Yellow", "Blue", "Black", "Green"];
+const COLOR_BOX_CLASSES: Record<ClothColor, string> = {
+  Yellow: "border-yellow-300 text-yellow-700",
+  Blue: "border-blue-300 text-blue-700",
+  Black: "border-gray-400 text-gray-800",
+  Green: "border-emerald-300 text-emerald-700",
+};
+const COLOR_DOT_CLASSES: Record<ClothColor, string> = {
+  Yellow: "bg-yellow-400", Blue: "bg-blue-500", Black: "bg-gray-800", Green: "bg-emerald-500",
+};
+const COLOR_BADGE_CLASSES: Record<ClothColor, string> = {
+  Yellow: "bg-yellow-100 text-yellow-800",
+  Blue: "bg-blue-100 text-blue-700",
+  Black: "bg-gray-200 text-gray-800",
+  Green: "bg-emerald-100 text-emerald-700",
+};
 
 export function ClothExchange() {
   const { currentUser, currentRole } = useRole();
@@ -35,8 +52,12 @@ export function ClothExchange() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [matchStatus, setMatchStatus] = useState<MatchStatus>({
-    exterior: { dirty: 0, clean: 0, matched: true },
-    interior: { dirty: 0, clean: 0, matched: true },
+    byColor: {
+      Yellow: { dirty: 0, clean: 0, matched: true },
+      Blue: { dirty: 0, clean: 0, matched: true },
+      Black: { dirty: 0, clean: 0, matched: true },
+      Green: { dirty: 0, clean: 0, matched: true },
+    },
     allMatched: true,
   });
 
@@ -93,6 +114,7 @@ export function ClothExchange() {
         cloth: {
           shortId: result.cloth.shortId,
           type: result.cloth.type,
+          color: result.cloth.color,
           status: "DIRTY",
         },
         timestamp: Date.now(),
@@ -126,6 +148,7 @@ export function ClothExchange() {
         cloth: {
           shortId: result.cloth.shortId,
           type: result.cloth.type,
+          color: result.cloth.color,
           status: "CLEAN",
         },
         timestamp: Date.now(),
@@ -225,20 +248,17 @@ export function ClothExchange() {
                 </div>
               </div>
 
-              {/* Counters */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1">Exterior</p>
-                  <p className="text-4xl font-bold text-blue-600">
-                    {matchStatus.exterior.dirty}
-                  </p>
-                </div>
-                <div className="bg-white border-2 border-purple-300 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1">Interior</p>
-                  <p className="text-4xl font-bold text-purple-600">
-                    {matchStatus.interior.dirty}
-                  </p>
-                </div>
+              {/* Counters - real color, not Exterior/Interior */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {CLOTH_COLORS.map((color) => (
+                  <div key={color} className={`bg-white border-2 rounded-lg p-3 ${COLOR_BOX_CLASSES[color]}`}>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[color]}`} />
+                      {color}
+                    </p>
+                    <p className="text-3xl font-bold">{matchStatus.byColor[color].dirty}</p>
+                  </div>
+                ))}
               </div>
 
               {/* Scanner */}
@@ -261,11 +281,7 @@ export function ClothExchange() {
                       return (
                         <Badge
                           key={id}
-                          className={
-                            cloth?.type === "EXTERIOR"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                          }
+                          className={cloth?.color ? COLOR_BADGE_CLASSES[cloth.color] : "bg-gray-100 text-gray-700"}
                         >
                           {cloth?.shortId}
                         </Badge>
@@ -299,20 +315,17 @@ export function ClothExchange() {
                 </div>
               </div>
 
-              {/* Counters */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1">Exterior</p>
-                  <p className="text-4xl font-bold text-blue-600">
-                    {matchStatus.exterior.clean}
-                  </p>
-                </div>
-                <div className="bg-white border-2 border-purple-300 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 mb-1">Interior</p>
-                  <p className="text-4xl font-bold text-purple-600">
-                    {matchStatus.interior.clean}
-                  </p>
-                </div>
+              {/* Counters - real color, not Exterior/Interior */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {CLOTH_COLORS.map((color) => (
+                  <div key={color} className={`bg-white border-2 rounded-lg p-3 ${COLOR_BOX_CLASSES[color]}`}>
+                    <p className="text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[color]}`} />
+                      {color}
+                    </p>
+                    <p className="text-3xl font-bold">{matchStatus.byColor[color].clean}</p>
+                  </div>
+                ))}
               </div>
 
               {/* Scanner */}
@@ -335,11 +348,7 @@ export function ClothExchange() {
                       return (
                         <Badge
                           key={id}
-                          className={
-                            cloth?.type === "EXTERIOR"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                          }
+                          className={cloth?.color ? COLOR_BADGE_CLASSES[cloth.color] : "bg-gray-100 text-gray-700"}
                         >
                           {cloth?.shortId}
                         </Badge>
@@ -363,52 +372,31 @@ export function ClothExchange() {
             <h3 className="text-sm font-semibold text-gray-600 mb-4 text-center">
               LIVE MATCH STATUS
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {/* Exterior Match */}
-              <div
-                className={`p-4 rounded-lg border-2 ${
-                  matchStatus.exterior.matched
-                    ? "bg-green-50 border-green-300"
-                    : "bg-red-50 border-red-300"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-blue-900">Exterior:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {matchStatus.exterior.dirty} / {matchStatus.exterior.clean}
-                    </span>
-                    {matchStatus.exterior.matched ? (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-red-600" />
-                    )}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+              {CLOTH_COLORS.map((color) => {
+                const s = matchStatus.byColor[color];
+                return (
+                  <div
+                    key={color}
+                    className={`p-4 rounded-lg border-2 ${
+                      s.matched ? "bg-green-50 border-green-300" : "bg-red-50 border-red-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-gray-900 flex items-center gap-1.5">
+                        <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[color]}`} />
+                        {color}:
+                      </span>
+                      {s.matched ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600" />
+                      )}
+                    </div>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{s.dirty} / {s.clean}</p>
                   </div>
-                </div>
-              </div>
-
-              {/* Interior Match */}
-              <div
-                className={`p-4 rounded-lg border-2 ${
-                  matchStatus.interior.matched
-                    ? "bg-green-50 border-green-300"
-                    : "bg-red-50 border-red-300"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-purple-900">Interior:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {matchStatus.interior.dirty} / {matchStatus.interior.clean}
-                    </span>
-                    {matchStatus.interior.matched ? (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <XCircle className="w-6 h-6 text-red-600" />
-                    )}
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         </Card>
@@ -435,7 +423,7 @@ export function ClothExchange() {
       {scanFeedback && scanFeedback.type === "success" && scanFeedback.cloth && (
         <ScanFeedbackToast
           shortId={scanFeedback.cloth.shortId}
-          type={scanFeedback.cloth.type}
+          color={scanFeedback.cloth.color}
           category={scanFeedback.cloth.status}
           success={true}
         />

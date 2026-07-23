@@ -253,13 +253,17 @@ export function ClothAdminDashboard() {
                     <div className="text-center">
                       <p className="text-xs text-amber-600">Dirty</p>
                       <p className="text-lg font-bold text-amber-900">
-                        {(exchange.dirtyExterior ?? (exchange as any).oldQty ?? 0) + (exchange.dirtyInterior ?? 0)}
+                        {exchange.dirtyByColor
+                          ? Object.values(exchange.dirtyByColor).reduce((s, n) => s + (n || 0), 0)
+                          : ((exchange as any).oldQty ?? ((exchange as any).dirtyExterior || 0) + ((exchange as any).dirtyInterior || 0))}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-green-600">Clean</p>
                       <p className="text-lg font-bold text-green-900">
-                        {(exchange.cleanExterior ?? (exchange as any).newQty ?? 0) + (exchange.cleanInterior ?? 0)}
+                        {exchange.cleanByColor
+                          ? Object.values(exchange.cleanByColor).reduce((s, n) => s + (n || 0), 0)
+                          : ((exchange as any).newQty ?? ((exchange as any).cleanExterior || 0) + ((exchange as any).cleanInterior || 0))}
                       </p>
                     </div>
                     <Badge

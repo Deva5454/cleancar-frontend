@@ -62,17 +62,14 @@ export interface ClothExchange {
 
   // Dirty received
   dirtyClothIds: string[];
-  dirtyExterior: number;
-  dirtyInterior: number;
+  dirtyByColor: Record<ClothColor, number>;
 
   // Clean issued
   cleanClothIds: string[];
-  cleanExterior: number;
-  cleanInterior: number;
+  cleanByColor: Record<ClothColor, number>;
 
-  // Matching status
-  exteriorMatched: boolean;
-  interiorMatched: boolean;
+  // Matching status - real, per-color
+  matchedByColor: Record<ClothColor, boolean>;
   isComplete: boolean;
 
   timestamp: string;
@@ -103,16 +100,11 @@ export interface ScanError {
 
 // Live Match Status
 export interface MatchStatus {
-  exterior: {
-    dirty: number;
-    clean: number;
-    matched: boolean;
-  };
-  interior: {
-    dirty: number;
-    clean: number;
-    matched: boolean;
-  };
+  // Real, per-color dirty/clean counts - a washer can't take more
+  // clean cloths of a given color than they hand back dirty of that
+  // same color, confirmed as the real business rule. Exterior/Interior
+  // is no longer the real dimension being matched here - color is.
+  byColor: Record<ClothColor, { dirty: number; clean: number; matched: boolean }>;
   allMatched: boolean;
 }
 
@@ -122,6 +114,7 @@ export interface ScanFeedback {
   cloth?: {
     shortId: string;
     type: ClothType;
+    color?: ClothColor;
     status: "DIRTY" | "CLEAN";
   };
   error?: ScanError;
