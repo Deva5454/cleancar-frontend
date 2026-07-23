@@ -18,7 +18,7 @@ export function InventoryStore() {
   const { inventory, getLowStockItems } = useInventory();
   const { getEmployeesByRole } = useEmployee();
   const { city } = useCity();
-  const washers = getEmployeesByRole("Washer").filter((w: any) => (w.city === city || w.workLocation === city || w.cityId === city));
+  const washers = getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"]).filter((w: any) => (w.city === city || w.workLocation === city || w.cityId === city));
   const [isLoading, setIsLoading] = useState(true);
 
   // Listen for inventory updates

@@ -41,7 +41,7 @@
 import { DataService } from "./DataService";
 import { employeeDatabaseService } from "./employeeDatabaseService";
 
-const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v3";
+const SEED_VERSION_KEY = "cleancar_uniform_machine_chain_seed_v4";
 const CITY_ID = "CITY-SURAT";
 const BRANCH_ID = "BRANCH-SURAT-01";
 
@@ -111,9 +111,9 @@ export function seedUniformAndMachineSupplyChain() {
     // ── Real employees actually in Surat right now ─────────────────────────
     const allEmployees = employeeDatabaseService.getAll();
     const inSurat = (e: any) => (e.city === "Surat" || e.workLocation === "Surat" || e.cityId === CITY_ID);
-    let washers = allEmployees.filter((e: any) => e.role === "Car Washer" && inSurat(e));
-    let supervisors = allEmployees.filter((e: any) => e.role === "Supervisor" && inSurat(e));
-    let tses = allEmployees.filter((e: any) => e.role === "TSE" && inSurat(e));
+    let washers = allEmployees.filter((e: any) => e.designation === "Car Washer" && inSurat(e));
+    let supervisors = allEmployees.filter((e: any) => e.designation === "Supervisor" && inSurat(e));
+    let tses = allEmployees.filter((e: any) => (e.designation === "TSE" || e.designation === "Tele Sales Executive") && inSurat(e));
 
     // Real fix: previously, if any of these three were genuinely empty,
     // the whole seed just quietly did nothing. Now, real employees are

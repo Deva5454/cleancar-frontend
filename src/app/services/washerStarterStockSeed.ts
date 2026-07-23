@@ -35,7 +35,7 @@ export function seedWasherStarterStock() {
 
     const allEmployees = employeeDatabaseService.getAll();
     const washers = allEmployees.filter((e: any) =>
-      e.role === "Car Washer" &&
+      e.designation === "Car Washer" &&
       (e.city === "Surat" || e.workLocation === "Surat" || e.cityId === CITY_ID)
     );
 

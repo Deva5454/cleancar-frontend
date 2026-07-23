@@ -27,7 +27,7 @@ export function ReportLostDamagedBottle() {
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
-  const washers = getEmployeesByRole("Washer");
+  const washers = getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"]);
   const recipes = getDilutionRecipes(city).filter((r) => r.isActive);
 
   const [washerId, setWasherId] = useState("");
