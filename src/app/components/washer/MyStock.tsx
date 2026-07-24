@@ -45,7 +45,7 @@ export function MyStock() {
 
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [washerEstimate, setWasherEstimate] = useState("");
+  const [requestedQty, setRequestedQty] = useState("");
   const [notes, setNotes] = useState("");
 
   // Real stock for this specific logged-in washer, in this specific city.
@@ -166,29 +166,36 @@ export function MyStock() {
 
   const handleRequestReplenishment = () => {
     if (!selectedItem || !washerId || !cityId) return;
+    const qty = parseInt(requestedQty, 10);
+    if (!qty || qty <= 0) {
+      toast.error("Enter a real quantity you need");
+      return;
+    }
     // Real request - creates a genuine Pending transaction, the same
     // real record type MaterialRequisition.tsx already reads from for
     // its pending MRF list. A supervisor or store manager approving it
-    // there is what actually moves stock - this only requests it.
+    // there is what actually moves stock - this only requests it. The
+    // quantity here is a real, specific number the washer asked for -
+    // not an auto-calculated guess - so a partial fulfillment later
+    // has a real number to track a genuine shortfall against.
     createTransaction({
       itemId: selectedItem.itemId,
       type: "Transfer",
-      quantity: Math.max(0, selectedItem.reorderLevel - selectedItem.balance) || 1,
+      quantity: qty,
+      quantityRequested: qty,
+      quantityFulfilled: 0,
       fromLocation: "Supervisor",
       toLocation: "Washer",
       toId: washerId,
       status: "Pending",
       requestedBy: currentUser?.name || washerId,
       cityId,
-      reason: [
-        washerEstimate ? `Washer's own estimate: ${washerEstimate} ${selectedItem.unit}` : "",
-        notes,
-      ].filter(Boolean).join(" — ") || undefined,
+      reason: notes || undefined,
     });
-    toast.success(`Replenishment requested for ${selectedItem.material} — sent to your Supervisor`);
+    toast.success(`Requested ${qty} ${selectedItem.unit} of ${selectedItem.material} — sent to your Supervisor`);
     setShowRequestDialog(false);
     setSelectedItem(null);
-    setWasherEstimate("");
+    setRequestedQty("");
     setNotes("");
   };
 
@@ -298,7 +305,7 @@ export function MyStock() {
                       <Button
                         className="w-full"
                         variant={stock.status === "critical" ? "destructive" : "default"}
-                        onClick={() => { setSelectedItem(stock); setShowRequestDialog(true); }}
+                        onClick={() => { setSelectedItem(stock); setRequestedQty(String(Math.max(1, stock.reorderLevel - stock.balance))); setShowRequestDialog(true); }}
                       >
                         Request Replenishment
                       </Button>
@@ -376,16 +383,16 @@ export function MyStock() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="washer-estimate">Your Own Estimated Remaining Quantity (optional)</Label>
+              <Label htmlFor="requested-qty">Quantity You Need <span className="text-red-600">*</span></Label>
               <Input
-                id="washer-estimate"
+                id="requested-qty"
                 type="number"
-                min="0"
-                value={washerEstimate}
-                onChange={(e) => setWasherEstimate(e.target.value)}
-                placeholder="If different from the system's number"
+                min="1"
+                value={requestedQty}
+                onChange={(e) => setRequestedQty(e.target.value)}
+                placeholder="e.g. 10"
               />
-              <p className="text-xs text-gray-500">This helps the Supervisor verify stock accuracy</p>
+              <p className="text-xs text-gray-500">This is the real number your Supervisor will see and fulfill against — if less than this is issued, the difference stays owed on this same request.</p>
             </div>
 
             <div className="space-y-2">

@@ -8,6 +8,7 @@ import { useEvents, useEventListener } from "./EventSystem";
 import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
 import { seedUniformAndMachineSupplyChain, fixDemoEmployeePinCodes } from "../services/uniformAndMachineSupplyChainSeed";
+import { fixClothCategory } from "../services/fixClothCategorySeed";
 import { fixConcentrateNaming } from "../services/fixConcentrateNamingSeed";
 import { seedShampooTyreGlowRecipes } from "../services/shampooTyreGlowRecipeSeed";
 import { seedRemainingRecipes } from "../services/remainingRecipesSeed";
@@ -19,7 +20,7 @@ import { seedWasherVariety } from "../services/washerVarietySeed";
 export interface InventoryItem {
   itemId: string;
   itemName: string;
-  category: "Cleaning Supplies" | "Equipment" | "Consumables" | "Tools";
+  category: "Cleaning Supplies" | "Equipment" | "Consumables" | "Tools" | "Pressure Washer Parts";
   unit: "L" | "Kg" | "Pcs" | "Box";
   reorderLevel: number;
   // Multi-city isolation
@@ -59,10 +60,17 @@ export interface StockTransaction {
   reason?: string;
   requestedBy?: string;
   approvedBy?: string;
-  status: "Pending" | "Approved" | "Rejected" | "Completed";
+  status: "Pending" | "Approved" | "Rejected" | "Completed" | "Partially Fulfilled";
   createdAt: string;
   completedAt?: string;
   cityId?: string;
+  // Real, previously-missing fields - a specific quantity someone
+  // actually asked for, and how much has genuinely been issued
+  // against that request so far. When less than requested has been
+  // fulfilled, the real difference stays visibly owed rather than the
+  // request just closing as if it were fully done.
+  quantityRequested?: number;
+  quantityFulfilled?: number;
   // Real fields for a Main Store → Branch Store material transfer -
   // genuinely required (not optional) since there's no vendor involved
   // and the challan is the only real record of the movement.
@@ -192,6 +200,7 @@ interface InventoryContextType {
     requestedBy: string,
     cityId: string
   ) => boolean;
+  fulfillRequestQuantity: (transactionId: string, quantityToIssueNow: number) => boolean;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -202,6 +211,7 @@ const DEFAULT_CITY = "CITY-SURAT"; // Backward compatibility default
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
+    fixClothCategory();
     seedUniformAndMachineSupplyChain();
     fixDemoEmployeePinCodes();
     fixConcentrateNaming();
@@ -236,18 +246,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       const now = new Date().toISOString();
       const seed: InventoryItem[] = [
         { itemId:"INV-SUR-001", itemName:"Car Shampoo 5L",        category:"Cleaning Supplies", unit:"L",   centralStock:45,  reorderLevel:20, unitCost:480, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
-        { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large", category:"Equipment",         unit:"Pcs", centralStock:120, reorderLevel:50, unitCost:85,  cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
+        { itemId:"INV-SUR-002", itemName:"Microfiber Cloth Large", category:"Consumables",         unit:"Pcs", centralStock:120, reorderLevel:50, unitCost:85,  cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-SUR-003", itemName:"Tyre Shine Concentrate",  category:"Cleaning Supplies", unit:"L",   centralStock:30,  reorderLevel:15, unitCost:220, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-SUR-004", itemName:"Dashboard Polish",        category:"Cleaning Supplies", unit:"L",   centralStock:8,   reorderLevel:20, unitCost:150, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
-        { itemId:"INV-SUR-005", itemName:"Pressure Washer Nozzle", category:"Equipment",         unit:"Pcs", centralStock:6,   reorderLevel:4,  unitCost:350, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
+        { itemId:"INV-SUR-005", itemName:"Pressure Washer Nozzle", category:"Pressure Washer Parts", unit:"Pcs", centralStock:6,   reorderLevel:4,  unitCost:350, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-SUR-006", itemName:"Washer Uniform Set",      category:"Consumables",       unit:"Pcs", centralStock:25,  reorderLevel:15, unitCost:650, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-SUR-007", itemName:"Wheel Cleaner 1L",        category:"Cleaning Supplies", unit:"L",   centralStock:18,  reorderLevel:12, unitCost:185, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-SUR-008", itemName:"Glass Cleaner Concentrate", category:"Cleaning Supplies", unit:"L",   centralStock:0,   reorderLevel:10, unitCost:120, cityId:"CITY-SURAT",     supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-MUM-001", itemName:"Car Shampoo 5L",          category:"Cleaning Supplies", unit:"L",   centralStock:50,  reorderLevel:20, unitCost:490, cityId:"CITY-MUMBAI",    supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
-        { itemId:"INV-MUM-002", itemName:"Microfiber Cloth Large",  category:"Equipment",         unit:"Pcs", centralStock:90,  reorderLevel:50, unitCost:90,  cityId:"CITY-MUMBAI",    supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
+        { itemId:"INV-MUM-002", itemName:"Microfiber Cloth Large",  category:"Consumables",         unit:"Pcs", centralStock:90,  reorderLevel:50, unitCost:90,  cityId:"CITY-MUMBAI",    supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-MUM-003", itemName:"Dashboard Polish",         category:"Cleaning Supplies", unit:"L",   centralStock:22,  reorderLevel:20, unitCost:155, cityId:"CITY-MUMBAI",    supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
         { itemId:"INV-AHM-001", itemName:"Car Shampoo 5L",          category:"Cleaning Supplies", unit:"L",   centralStock:35,  reorderLevel:20, unitCost:475, cityId:"CITY-AHMEDABAD", supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
-        { itemId:"INV-AHM-002", itemName:"Microfiber Cloth Large",  category:"Equipment",         unit:"Pcs", centralStock:70,  reorderLevel:50, unitCost:82,  cityId:"CITY-AHMEDABAD", supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
+        { itemId:"INV-AHM-002", itemName:"Microfiber Cloth Large",  category:"Consumables",         unit:"Pcs", centralStock:70,  reorderLevel:50, unitCost:82,  cityId:"CITY-AHMEDABAD", supervisorStock:{}, washerStock:{}, createdAt:now, updatedAt:now },
       ];
       // Persist so subsequent loads don't re-seed
       DataService.setAll("INVENTORY_ITEMS", seed);
@@ -1084,6 +1094,64 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  /**
+   * Real fulfillment against a specific pending request, allowing a
+   * genuinely partial amount. If less than requested is issued, the
+   * real shortfall stays owed - the transaction's status becomes
+   * "Partially Fulfilled" rather than silently closing as complete,
+   * and its real quantityFulfilled reflects exactly what's gone out
+   * so far. A supervisor can keep fulfilling the same request in more
+   * than one real pass until the full requested amount is met.
+   */
+  const fulfillRequestQuantity = (transactionId: string, quantityToIssueNow: number): boolean => {
+    const txn = stockTransactions.find((t) => t.transactionId === transactionId);
+    if (!txn) {
+      console.warn(`[InventoryContext] Blocked fulfillRequestQuantity: transaction ${transactionId} not found`);
+      return false;
+    }
+    if (quantityToIssueNow <= 0) return false;
+
+    const requested = txn.quantityRequested ?? txn.quantity;
+    const alreadyFulfilled = txn.quantityFulfilled || 0;
+    const newFulfilled = alreadyFulfilled + quantityToIssueNow;
+    const isNowComplete = newFulfilled >= requested;
+
+    // Real stock movement for exactly what's being issued right now,
+    // not the full original request.
+    const item = inventory.find(i => i.itemId === txn.itemId && i.cityId === txn.cityId);
+    if (!item) return false;
+    const available = txn.fromLocation === "Central" ? (item.centralStock || 0)
+      : txn.fromLocation === "Supervisor" ? (item.supervisorStock?.[txn.fromId || ""] || 0)
+      : txn.fromLocation === "Branch" ? (item.branchStock?.[txn.fromId || ""] || 0) : 0;
+    if (available < quantityToIssueNow) {
+      console.warn(`[InventoryContext] Blocked fulfillRequestQuantity: insufficient real stock (need ${quantityToIssueNow}, have ${available})`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== txn.itemId || i.cityId !== txn.cityId) return i;
+      const updated = { ...i };
+      if (txn.fromLocation === "Central") updated.centralStock = (updated.centralStock || 0) - quantityToIssueNow;
+      else if (txn.fromLocation === "Supervisor") updated.supervisorStock = { ...updated.supervisorStock, [txn.fromId || ""]: available - quantityToIssueNow };
+      else if (txn.fromLocation === "Branch") updated.branchStock = { ...(updated.branchStock || {}), [txn.fromId || ""]: available - quantityToIssueNow };
+
+      if (txn.toLocation === "Washer" && txn.toId) updated.washerStock = { ...updated.washerStock, [txn.toId]: (updated.washerStock[txn.toId] || 0) + quantityToIssueNow };
+      else if (txn.toLocation === "Supervisor" && txn.toId) updated.supervisorStock = { ...updated.supervisorStock, [txn.toId]: (updated.supervisorStock[txn.toId] || 0) + quantityToIssueNow };
+
+      return updated;
+    }));
+
+    setStockTransactions(prev => prev.map(t => t.transactionId === transactionId ? {
+      ...t,
+      quantityRequested: requested,
+      quantityFulfilled: newFulfilled,
+      status: isNowComplete ? "Completed" : "Partially Fulfilled",
+      completedAt: isNowComplete ? new Date().toISOString() : t.completedAt,
+    } : t));
+
+    return true;
+  };
+
   // Real, previously-nonexistent link: when a job genuinely completes,
   // every active dilution recipe's fixed mlPerWash amount is consumed
   // from that washer's real bottle stock. Crystal Finish, Dash Shine,
@@ -1229,6 +1297,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         returnEmptyBottles,
         reportLostOrDamagedBottle,
         fulfillReplacementThroughSupervisor,
+        fulfillRequestQuantity,
         getWasherStock,
         getPendingTransactions,
       }),

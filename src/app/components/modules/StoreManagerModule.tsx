@@ -10,7 +10,7 @@ import { Input } from "../ui/input";
 import {
   AlertCircle, AlertTriangle, BarChart3, FileText, Package,
   ShoppingCart, TrendingUp, TrendingDown, Users, Search,
-  Edit2, Check, X, CheckCircle, Clock, Truck, Shirt, Recycle, Sparkles, Layers,
+  Edit2, Check, X, CheckCircle, Clock, Truck, Shirt, Recycle, Sparkles, Layers, Wrench,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -282,6 +282,7 @@ export function StoreManagerModule() {
                     { to:"/store-manager/branch-store", icon:<Truck className="w-4 h-4 mr-2"/>, label:"Branch Store" },
                     { to:"/store-manager/bottling", icon:<Sparkles className="w-4 h-4 mr-2"/>, label:"Bottling" },
                     { to:"/store-manager/uniform-receipt", icon:<Shirt className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
+                    { to:"/store-manager/pressure-washer-assembly", icon:<Wrench className="w-4 h-4 mr-2"/>, label:"Pressure Washer Assembly" },
                   ].map(a => (
                     <Link key={a.to} to={a.to}>
                       <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>

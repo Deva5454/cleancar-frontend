@@ -24,13 +24,15 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 export function MaterialRequisition() {
   const { currentRole, currentUser } = useRole();
   const { stockTransactions, getPendingTransactions, procureInventory,
-          getCentralStock, inventory, createTransaction, approveTransaction, completeTransaction } = useInventory();
+          getCentralStock, inventory, createTransaction, approveTransaction, completeTransaction, fulfillRequestQuantity } = useInventory();
   const { city, cityInfo } = useCity();
   const { employees } = useEmployee();
 
   const [showNewMRF, setShowNewMRF] = useState(false);
   const [mrfItemId, setMrfItemId] = useState("");
   const [mrfQuantity, setMrfQuantity] = useState("");
+  const [fulfillingId, setFulfillingId] = useState<string | null>(null);
+  const [fulfillQty, setFulfillQty] = useState("");
 
   const handleCreateMRF = () => {
     if (!mrfItemId || !mrfQuantity) {
@@ -49,6 +51,8 @@ export function MaterialRequisition() {
       itemId: mrfItemId,
       type: "Transfer",
       quantity: qty,
+      quantityRequested: qty,
+      quantityFulfilled: 0,
       fromLocation: "Central",
       toLocation: "Supervisor",
       status: "Pending",
@@ -72,13 +76,40 @@ export function MaterialRequisition() {
     toast.success("Material issued for this MRF");
   };
 
+  const handleFulfillQuantity = (transactionId: string, owed: number) => {
+    const qty = parseInt(fulfillQty, 10);
+    if (!qty || qty <= 0) {
+      toast.error("Enter a real quantity to issue now");
+      return;
+    }
+    if (qty > owed) {
+      toast.error(`Only ${owed} is genuinely owed on this request`);
+      return;
+    }
+    const ok = fulfillRequestQuantity(transactionId, qty);
+    if (ok) {
+      const remaining = owed - qty;
+      toast.success(remaining > 0 ? `Issued ${qty} — ${remaining} still owed on this request` : `Issued ${qty} — request fully complete`);
+      setFulfillingId(null);
+      setFulfillQty("");
+    } else {
+      toast.error("Not enough real stock to issue that amount right now");
+    }
+  };
+
   // Derive MRFs from pending stock transactions
   const liveMRFs = getPendingTransactions(city).map((t: any) => {
     const item = inventory.find((i: any) => i.itemId === t.itemId && i.cityId === city);
+    const requested = t.quantityRequested ?? t.quantity;
+    const fulfilled = t.quantityFulfilled || 0;
     return {
       id: t.transactionId,
       itemName: item?.itemName || t.itemId,
+      unit: item?.unit || "",
       quantity: t.quantity,
+      quantityRequested: requested,
+      quantityFulfilled: fulfilled,
+      quantityOwed: Math.max(0, requested - fulfilled),
       requestedBy: t.requestedBy || "Unknown",
       status: t.status,
       createdAt: t.createdAt,
@@ -207,32 +238,25 @@ export function MaterialRequisition() {
                 key={mrf.id} 
                 className={`p-4 rounded-lg border-2 ${
                   mrf.status === "Pending" ? "bg-orange-50 border-orange-200" :
+                  mrf.status === "Partially Fulfilled" ? "bg-amber-50 border-amber-300" :
                   mrf.status === "Approved" ? "bg-green-50 border-green-200" :
-                  mrf.status === "Issued" ? "bg-blue-50 border-blue-200" :
+                  mrf.status === "Completed" ? "bg-blue-50 border-blue-200" :
                   "bg-red-50 border-red-200"
                 }`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="font-medium">{mrf.id}</p>
-                      <Badge variant={mrf.priority === "High" ? "destructive" : "default"}>
-                        {mrf.priority}
-                      </Badge>
-                      <Badge variant={
-                        mrf.status === "Pending" ? "default" :
-                        mrf.status === "Approved" ? "secondary" :
-                        mrf.status === "Issued" ? "outline" :
-                        "destructive"
-                      }>
+                      <p className="font-medium">{mrf.itemName}</p>
+                      <Badge variant={mrf.status === "Pending" ? "default" : mrf.status === "Partially Fulfilled" ? "secondary" : "outline"}>
                         {mrf.status}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-600">
-                      Requested by: <span className="font-medium">{mrf.requestedBy}</span> ({mrf.requestedByRole})
+                      Requested by: <span className="font-medium">{mrf.requestedBy}</span>
                     </p>
                     <p className="text-xs text-gray-500">
-                      Date: {new Date(mrf.dateRequested).toLocaleDateString()}
+                      Date: {new Date(mrf.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   {canApproveMRF && mrf.status === "Pending" && (
@@ -241,22 +265,44 @@ export function MaterialRequisition() {
                       Approve
                     </Button>
                   )}
-                  {canApproveMRF && mrf.status === "Approved" && (
-                    <Button size="sm" variant="outline" onClick={() => handleIssueMRF(mrf.id)}>
+                  {canApproveMRF && (mrf.status === "Approved" || mrf.status === "Partially Fulfilled") && fulfillingId !== mrf.id && (
+                    <Button size="sm" variant="outline" onClick={() => { setFulfillingId(mrf.id); setFulfillQty(String(mrf.quantityOwed)); }}>
                       <Package className="w-4 h-4 mr-1" />
-                      Issue Material
+                      Fulfill
                     </Button>
                   )}
                 </div>
-                <div className="bg-white/50 p-3 rounded">
-                  <p className="text-sm font-medium mb-2">Requested Items:</p>
-                  {mrf.items.map((item: any, idx: any) => (
-                    <div key={idx} className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-gray-700">{item.itemName}</span>
-                      <span className="font-medium">{item.quantity} {item.unit}</span>
+                <div className="bg-white/50 p-3 rounded space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Requested</span>
+                    <span className="font-medium">{mrf.quantityRequested} {mrf.unit}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">Fulfilled so far</span>
+                    <span className="font-medium">{mrf.quantityFulfilled} {mrf.unit}</span>
+                  </div>
+                  {mrf.quantityOwed > 0 && (
+                    <div className="flex items-center justify-between text-sm text-amber-700 font-medium">
+                      <span>Still owed</span>
+                      <span>{mrf.quantityOwed} {mrf.unit}</span>
                     </div>
-                  ))}
+                  )}
                 </div>
+                {fulfillingId === mrf.id && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max={mrf.quantityOwed}
+                      value={fulfillQty}
+                      onChange={(e) => setFulfillQty(e.target.value)}
+                      className="w-28"
+                      placeholder="Qty now"
+                    />
+                    <Button size="sm" onClick={() => handleFulfillQuantity(mrf.id, mrf.quantityOwed)}>Confirm Issue</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setFulfillingId(null); setFulfillQty(""); }}>Cancel</Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
