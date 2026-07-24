@@ -183,6 +183,14 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
+  fulfillFromBranch: (
+    itemId: string,
+    branchId: string,
+    washerId: string,
+    quantity: number,
+    requestedBy: string,
+    cityId: string
+  ) => boolean;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -1010,6 +1018,58 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  /**
+   * Real, direct Branch → Washer fulfillment - confirmed as a
+   * genuinely different real movement than the normal chain. A
+   * uniform replacement is urgent, so it draws directly from the
+   * Branch's own real stock (which always keeps some on hand for
+   * exactly this) rather than waiting on the normal Branch →
+   * Supervisor → Washer path.
+   */
+  const fulfillFromBranch = (
+    itemId: string,
+    branchId: string,
+    washerId: string,
+    quantity: number,
+    requestedBy: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId || quantity <= 0) {
+      console.warn("[InventoryContext] Blocked fulfillFromBranch: cityId missing or invalid quantity");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked fulfillFromBranch: item ${itemId} not found`);
+      return false;
+    }
+    const available = item.branchStock?.[branchId] || 0;
+    if (available < quantity) {
+      console.warn(`[InventoryContext] Blocked fulfillFromBranch: insufficient branch stock (need ${quantity}, have ${available})`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== itemId || i.cityId !== cityId) return i;
+      return {
+        ...i,
+        branchStock: { ...(i.branchStock || {}), [branchId]: available - quantity },
+        washerStock: { ...i.washerStock, [washerId]: (i.washerStock[washerId] || 0) + quantity },
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+
+    createTransaction({
+      itemId, type: "Transfer", quantity,
+      fromLocation: "Branch", fromId: branchId,
+      toLocation: "Washer", toId: washerId,
+      status: "Completed", requestedBy, cityId,
+      reason: "Uniform replacement - fulfilled directly from Branch stock",
+    });
+
+    return true;
+  };
+
   // Real, previously-nonexistent link: when a job genuinely completes,
   // every active dilution recipe's fixed mlPerWash amount is consumed
   // from that washer's real bottle stock. Crystal Finish, Dash Shine,
@@ -1154,6 +1214,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordWashConsumption,
         returnEmptyBottles,
         reportLostOrDamagedBottle,
+        fulfillFromBranch,
         getWasherStock,
         getPendingTransactions,
       }),

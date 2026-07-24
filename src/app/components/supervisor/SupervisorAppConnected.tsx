@@ -31,6 +31,7 @@ import { DailyFlowScreen } from "./DailyFlowScreen";
 import { SupervisorPeriodicScheduleScreen } from "./SupervisorPeriodicScheduleScreen";
 import { KPIDashboardScreen } from "./KPIDashboardScreen";
 import { SupervisorStockReceipt } from "./SupervisorStockReceipt";
+import { UniformEntitlement } from "./UniformEntitlement";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -1452,6 +1453,9 @@ export function SupervisorAppConnected() {
               <TabsTrigger value="stock" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
                 Stock
               </TabsTrigger>
+              <TabsTrigger value="uniform" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
+                Uniform
+              </TabsTrigger>
               <TabsTrigger value="alerts" className="text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 min-h-[36px] cursor-pointer">
                 Alerts
               </TabsTrigger>
@@ -1657,6 +1661,10 @@ export function SupervisorAppConnected() {
 
           <TabsContent value="stock" className="mt-0">
             <SupervisorStockReceipt />
+          </TabsContent>
+
+          <TabsContent value="uniform" className="mt-0">
+            <UniformEntitlement />
           </TabsContent>
 
           {/* Screen 5: Team Schedule */}
