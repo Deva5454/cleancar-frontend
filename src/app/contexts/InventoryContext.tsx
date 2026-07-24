@@ -183,9 +183,10 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
-  fulfillFromBranch: (
+  fulfillReplacementThroughSupervisor: (
     itemId: string,
     branchId: string,
+    supervisorId: string,
     washerId: string,
     quantity: number,
     requestedBy: string,
@@ -1026,29 +1027,35 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
    * exactly this) rather than waiting on the normal Branch →
    * Supervisor → Washer path.
    */
-  const fulfillFromBranch = (
+  const fulfillReplacementThroughSupervisor = (
     itemId: string,
     branchId: string,
+    supervisorId: string,
     washerId: string,
     quantity: number,
     requestedBy: string,
     cityId: string
   ): boolean => {
     if (!cityId || quantity <= 0) {
-      console.warn("[InventoryContext] Blocked fulfillFromBranch: cityId missing or invalid quantity");
+      console.warn("[InventoryContext] Blocked fulfillReplacementThroughSupervisor: cityId missing or invalid quantity");
       return false;
     }
     const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
     if (!item) {
-      console.warn(`[InventoryContext] Blocked fulfillFromBranch: item ${itemId} not found`);
+      console.warn(`[InventoryContext] Blocked fulfillReplacementThroughSupervisor: item ${itemId} not found`);
       return false;
     }
     const available = item.branchStock?.[branchId] || 0;
     if (available < quantity) {
-      console.warn(`[InventoryContext] Blocked fulfillFromBranch: insufficient branch stock (need ${quantity}, have ${available})`);
+      console.warn(`[InventoryContext] Blocked fulfillReplacementThroughSupervisor: insufficient branch stock (need ${quantity}, have ${available})`);
       return false;
     }
 
+    // Real, genuine two-hop movement - Branch → Supervisor, then
+    // Supervisor → Washer - representing the supervisor physically
+    // collecting the replacement from the branch and handing it
+    // straight to the washer in one real visit. The supervisor's own
+    // real role in the chain is never skipped.
     setInventory(prev => prev.map(i => {
       if (i.itemId !== itemId || i.cityId !== cityId) return i;
       return {
@@ -1062,9 +1069,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     createTransaction({
       itemId, type: "Transfer", quantity,
       fromLocation: "Branch", fromId: branchId,
+      toLocation: "Supervisor", toId: supervisorId,
+      status: "Completed", requestedBy, cityId,
+      reason: "Uniform replacement - collected from Branch by Supervisor",
+    });
+    createTransaction({
+      itemId, type: "Issue", quantity,
+      fromLocation: "Supervisor", fromId: supervisorId,
       toLocation: "Washer", toId: washerId,
       status: "Completed", requestedBy, cityId,
-      reason: "Uniform replacement - fulfilled directly from Branch stock",
+      reason: "Uniform replacement - issued to washer by Supervisor",
     });
 
     return true;
@@ -1214,7 +1228,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordWashConsumption,
         returnEmptyBottles,
         reportLostOrDamagedBottle,
-        fulfillFromBranch,
+        fulfillReplacementThroughSupervisor,
         getWasherStock,
         getPendingTransactions,
       }),

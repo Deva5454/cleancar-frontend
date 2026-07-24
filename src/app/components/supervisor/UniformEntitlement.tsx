@@ -1,7 +1,8 @@
 /**
  * UniformEntitlement.tsx — real annual uniform entitlement and
  * replacement flow, confirmed as: 2 T-shirts per year for a Car
- * Washer, 2 Shirts per year for a Supervisor or TSE, measured from
+ * Washer, 2 Shirts per year for a Supervisor or Sales Manager (field
+ * sales executive), measured from
  * each person's own real date of joining. A supervisor takes an
  * explicit action to issue this once someone is genuinely due - it's
  * never auto-issued. A mid-cycle damage/wear replacement is genuinely
@@ -32,7 +33,7 @@ import { toast } from "sonner";
 const SIZES = ["S", "M", "L", "XL"];
 
 export function UniformEntitlement() {
-  const { inventory, issueInventory, fulfillFromBranch } = useInventory();
+  const { inventory, issueInventory, fulfillReplacementThroughSupervisor } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
@@ -41,7 +42,7 @@ export function UniformEntitlement() {
 
   const washers = getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"]);
   const supervisors = getEmployeesByRole("Supervisor");
-  const tses = getEmployeesByRole("TSE");
+  const salesManagers = getEmployeesByRole("Sales Manager");
 
   // Real people genuinely due their annual entitlement right now.
   const dueList = useMemo(() => {
@@ -49,8 +50,8 @@ export function UniformEntitlement() {
       list
         .filter((e: any) => e.dateOfJoining && isDueForAnnualUniform(e.employeeId || e.id, e.dateOfJoining))
         .map((e: any) => ({ employeeId: e.employeeId || e.id, name: e.fullName || `${e.firstName} ${e.lastName}`, garmentType, anniversaryYear: getCurrentAnniversaryYear(e.dateOfJoining) }));
-    return [...combine(washers, "T-Shirt"), ...combine(supervisors, "Shirt"), ...combine(tses, "Shirt")];
-  }, [washers, supervisors, tses, refreshTick]);
+    return [...combine(washers, "T-Shirt"), ...combine(supervisors, "Shirt"), ...combine(salesManagers, "Shirt")];
+  }, [washers, supervisors, salesManagers, refreshTick]);
 
   const [issueSize, setIssueSize] = useState<Record<string, string>>({});
 
@@ -88,7 +89,7 @@ export function UniformEntitlement() {
   const allPeople = [
     ...washers.map((w: any) => ({ id: w.employeeId || w.id, name: w.fullName || `${w.firstName} ${w.lastName}`, garment: "T-Shirt" as const })),
     ...supervisors.map((s: any) => ({ id: s.employeeId || s.id, name: s.fullName || `${s.firstName} ${s.lastName}`, garment: "Shirt" as const })),
-    ...tses.map((t: any) => ({ id: t.employeeId || t.id, name: t.fullName || `${t.firstName} ${t.lastName}`, garment: "Shirt" as const })),
+    ...salesManagers.map((s: any) => ({ id: s.employeeId || s.id, name: s.fullName || `${s.firstName} ${s.lastName}`, garment: "Shirt" as const })),
   ];
 
   const handleRequestReplacement = () => {
@@ -118,10 +119,10 @@ export function UniformEntitlement() {
       toast.error(`${itemName} doesn't exist in inventory yet`);
       return;
     }
-    const ok = fulfillFromBranch(item.itemId, branches[0].id, req.employeeId, 1, currentUser?.name || "Supervisor", city);
+    const ok = fulfillReplacementThroughSupervisor(item.itemId, branches[0].id, currentUser?.employeeId || "", req.employeeId, 1, currentUser?.name || "Supervisor", city);
     if (ok) {
       markReplacementFulfilled(req.id);
-      toast.success(`Replacement fulfilled for ${req.employeeName} from Branch stock`);
+      toast.success(`Replacement collected from Branch and issued to ${req.employeeName}`);
       setRefreshTick((t) => t + 1);
     } else {
       toast.error("Branch doesn't have enough real stock for this size right now");
@@ -200,7 +201,7 @@ export function UniformEntitlement() {
                     <span className="font-medium">{r.employeeName}</span> — {r.garmentType} ({r.size})
                     <p className="text-xs text-gray-500">{r.reason}</p>
                   </div>
-                  <Button size="sm" onClick={() => handleFulfillReplacement(r)}>Fulfill from Branch</Button>
+                  <Button size="sm" onClick={() => handleFulfillReplacement(r)}>Collect from Branch &amp; Issue</Button>
                 </div>
               ))}
             </div>
