@@ -662,7 +662,7 @@ export function WasherIssuances() {
 
               <div className="space-y-2">
                 <Label>Quantity Issued *</Label>
-                <Input type="number" placeholder="0" value={issueQuantity} onChange={(e) => setIssueQuantity(e.target.value)} />
+                <Input type="number" min="0" placeholder="0" value={issueQuantity} onChange={(e) => setIssueQuantity(e.target.value)} />
                 <p className="text-xs text-gray-500">Unit matches the selected material</p>
               </div>
 
@@ -755,6 +755,7 @@ export function WasherIssuances() {
                         <td key={w.id} className="p-2 border">
                           <Input
                             type="number"
+                            min="0"
                             placeholder="—"
                             className="w-24 text-center"
                             value={bulkQuantities[bulkKey(material.itemId, w.id.toString())] || ""}

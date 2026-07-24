@@ -158,7 +158,7 @@ export function MaterialRequisition() {
     }
     const items = validItems.map((i) => ({
       itemName: i.itemName.trim(), quantity: parseFloat(i.quantity), unit: i.unit.trim() || "Pcs",
-      estimatedCost: parseFloat(i.estimatedCost) || 0, vendorSuggestion: i.vendorSuggestion.trim() || undefined,
+      estimatedCost: Math.max(0, parseFloat(i.estimatedCost) || 0), vendorSuggestion: i.vendorSuggestion.trim() || undefined,
     }));
     const newPR: PurchaseRequest = {
       id: `PR-${new Date().getFullYear()}-${String(purchaseRequests.length + 1).padStart(3, "0")}-${Date.now().toString().slice(-4)}`,
@@ -432,7 +432,7 @@ export function MaterialRequisition() {
             </div>
             <div>
               <Label>Quantity</Label>
-              <Input type="number" value={mrfQuantity} onChange={(e) => setMrfQuantity(e.target.value)} placeholder="0" />
+              <Input type="number" min="0" value={mrfQuantity} onChange={(e) => setMrfQuantity(e.target.value)} placeholder="0" />
             </div>
           </div>
           <DialogFooter>
@@ -469,9 +469,9 @@ export function MaterialRequisition() {
                     <Input placeholder="Vendor suggestion (optional)" value={item.vendorSuggestion} onChange={(e) => updatePrItemRow(idx, "vendorSuggestion", e.target.value)} />
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    <Input type="number" placeholder="Quantity" value={item.quantity} onChange={(e) => updatePrItemRow(idx, "quantity", e.target.value)} />
+                    <Input type="number" min="0" placeholder="Quantity" value={item.quantity} onChange={(e) => updatePrItemRow(idx, "quantity", e.target.value)} />
                     <Input placeholder="Unit (Pcs, Litre, Kg...)" value={item.unit} onChange={(e) => updatePrItemRow(idx, "unit", e.target.value)} />
-                    <Input type="number" placeholder="Est. cost (₹)" value={item.estimatedCost} onChange={(e) => updatePrItemRow(idx, "estimatedCost", e.target.value)} />
+                    <Input type="number" min="0" placeholder="Est. cost (₹)" value={item.estimatedCost} onChange={(e) => updatePrItemRow(idx, "estimatedCost", e.target.value)} />
                   </div>
                   {prItems.length > 1 && (
                     <Button size="sm" variant="ghost" className="text-red-600" onClick={() => removePrItemRow(idx)}>Remove item</Button>

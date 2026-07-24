@@ -3,7 +3,7 @@
  * Used across: Inventory Module, Requisitions, Issuances, Procurement
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useEvents, useEventListener } from "./EventSystem";
 import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
@@ -387,76 +387,107 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     // return value), using it directly sidesteps the stale closure
     // entirely.
     const transaction = explicitTransaction || stockTransactions.find((t) => t.transactionId === transactionId);
-    if (!transaction) return;
+    if (!transaction) return false;
 
-    // Update stock levels based on transaction
+    const item = inventory.find(
+      (i) => i.itemId === transaction.itemId && (!transaction.cityId || i.cityId === transaction.cityId)
+    );
+    if (!item) {
+      console.warn(`[Inventory] Blocked completeTransaction: item ${transaction.itemId} not found`);
+      setStockTransactions((prev) =>
+        prev.map((txn) => (txn.transactionId === transaction.transactionId ? { ...txn, status: "Rejected" } : txn))
+      );
+      return false;
+    }
+
+    // ✅ FIX (INV-DEF-01 / INV-DEF-02): compute what's genuinely available
+    // at the source for EVERY source type — not just Central — before
+    // touching any state. If the source can't cover the full quantity,
+    // the whole transaction is refused: nothing is deducted from the
+    // source and nothing is credited to the destination.
+    //
+    // Previously, a Supervisor/Washer/Branch source was silently clamped
+    // to 0 with Math.max(0, avail - quantity) while the destination was
+    // STILL credited the full, un-clamped transaction.quantity — i.e.
+    // stock could be fabricated out of thin air at the destination.
+    // And when the Central-only guard did correctly block a movement,
+    // the transaction was still stamped "Completed" a few lines below,
+    // making a blocked operation look successful in every report.
+    const available =
+      transaction.fromLocation === "Central" ? (item.centralStock || 0)
+      : transaction.fromLocation === "Supervisor" ? (item.supervisorStock[transaction.fromId || ""] || 0)
+      : transaction.fromLocation === "Washer" ? (item.washerStock[transaction.fromId || ""] || 0)
+      : (item.branchStock?.[transaction.fromId || ""] || 0);
+
+    if (available < transaction.quantity) {
+      console.warn(`[Inventory] Blocked: insufficient ${transaction.fromLocation} stock for ${transaction.itemId}. Have ${available}, need ${transaction.quantity}`);
+      setStockTransactions((prev) =>
+        prev.map((txn) => (txn.transactionId === transaction.transactionId ? { ...txn, status: "Rejected" } : txn))
+      );
+      return false;
+    }
+
+    // Update stock levels based on transaction — source and destination
+    // always move the same, already-verified quantity.
     setInventory((prev) =>
-      prev.map((item) => {
-        if (item.itemId === transaction.itemId) {
-          const updated = { ...item };
+      prev.map((invItem) => {
+        if (invItem.itemId !== transaction.itemId) return invItem;
+        const updated = { ...invItem };
 
-          // Decrease from source — guarded: never go below 0
-          if (transaction.fromLocation === "Central") {
-            const available = updated.centralStock || 0;
-            if (available < transaction.quantity) {
-              console.warn(`[Inventory] Blocked: insufficient central stock for ${transaction.itemId}. Have ${available}, need ${transaction.quantity}`);
-              return item; // abort — leave stock unchanged
-            }
-            updated.centralStock = available - transaction.quantity;
-          } else if (transaction.fromLocation === "Supervisor" && transaction.fromId) {
-            const avail = (updated.supervisorStock[transaction.fromId] || 0);
-            updated.supervisorStock = {
-              ...updated.supervisorStock,
-              [transaction.fromId]: Math.max(0, avail - transaction.quantity),
-            };
-          } else if (transaction.fromLocation === "Washer" && transaction.fromId) {
-            const avail = (updated.washerStock[transaction.fromId] || 0);
-            updated.washerStock = {
-              ...updated.washerStock,
-              [transaction.fromId]: Math.max(0, avail - transaction.quantity),
-            };
-          } else if (transaction.fromLocation === "Branch" && transaction.fromId) {
-            const avail = (updated.branchStock?.[transaction.fromId] || 0);
-            updated.branchStock = {
-              ...(updated.branchStock || {}),
-              [transaction.fromId]: Math.max(0, avail - transaction.quantity),
-            };
-          }
-
-          // Increase to destination
-          if (transaction.toLocation === "Central") {
-            updated.centralStock += transaction.quantity;
-          } else if (transaction.toLocation === "Supervisor" && transaction.toId) {
-            updated.supervisorStock = {
-              ...updated.supervisorStock,
-              [transaction.toId]: (updated.supervisorStock[transaction.toId] || 0) + transaction.quantity,
-            };
-          } else if (transaction.toLocation === "Washer" && transaction.toId) {
-            updated.washerStock = {
-              ...updated.washerStock,
-              [transaction.toId]: (updated.washerStock[transaction.toId] || 0) + transaction.quantity,
-            };
-          } else if (transaction.toLocation === "Branch" && transaction.toId) {
-            updated.branchStock = {
-              ...(updated.branchStock || {}),
-              [transaction.toId]: (updated.branchStock?.[transaction.toId] || 0) + transaction.quantity,
-            };
-          }
-
-          return updated;
+        // Decrease from source
+        if (transaction.fromLocation === "Central") {
+          updated.centralStock = (updated.centralStock || 0) - transaction.quantity;
+        } else if (transaction.fromLocation === "Supervisor" && transaction.fromId) {
+          updated.supervisorStock = {
+            ...updated.supervisorStock,
+            [transaction.fromId]: (updated.supervisorStock[transaction.fromId] || 0) - transaction.quantity,
+          };
+        } else if (transaction.fromLocation === "Washer" && transaction.fromId) {
+          updated.washerStock = {
+            ...updated.washerStock,
+            [transaction.fromId]: (updated.washerStock[transaction.fromId] || 0) - transaction.quantity,
+          };
+        } else if (transaction.fromLocation === "Branch" && transaction.fromId) {
+          updated.branchStock = {
+            ...(updated.branchStock || {}),
+            [transaction.fromId]: (updated.branchStock?.[transaction.fromId] || 0) - transaction.quantity,
+          };
         }
-        return item;
+
+        // Increase to destination
+        if (transaction.toLocation === "Central") {
+          updated.centralStock = (updated.centralStock || 0) + transaction.quantity;
+        } else if (transaction.toLocation === "Supervisor" && transaction.toId) {
+          updated.supervisorStock = {
+            ...updated.supervisorStock,
+            [transaction.toId]: (updated.supervisorStock[transaction.toId] || 0) + transaction.quantity,
+          };
+        } else if (transaction.toLocation === "Washer" && transaction.toId) {
+          updated.washerStock = {
+            ...updated.washerStock,
+            [transaction.toId]: (updated.washerStock[transaction.toId] || 0) + transaction.quantity,
+          };
+        } else if (transaction.toLocation === "Branch" && transaction.toId) {
+          updated.branchStock = {
+            ...(updated.branchStock || {}),
+            [transaction.toId]: (updated.branchStock?.[transaction.toId] || 0) + transaction.quantity,
+          };
+        }
+
+        return updated;
       })
     );
 
     // Mark transaction as completed
     setStockTransactions((prev) =>
       prev.map((txn) =>
-        txn.transactionId === transactionId
+        txn.transactionId === transaction.transactionId
           ? { ...txn, status: "Completed", completedAt: new Date().toISOString() }
           : txn
       )
     );
+
+    return true;
   };
 
   // Stock Operations
@@ -471,6 +502,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
       console.warn("[InventoryContext] Blocked issueInventory: cityId missing");
+      return;
+    }
+    // ✅ FIX (INV-DEF-03): reject zero/negative/non-finite quantities up
+    // front. Previously unvalidated — a negative quantity would pass the
+    // stock guard trivially and INCREASE central stock while reducing
+    // the destination bucket.
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      console.warn(`[InventoryContext] Blocked issueInventory: invalid quantity ${quantity}`);
       return;
     }
 
@@ -532,6 +571,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
       console.warn("[InventoryContext] Blocked transferInventory: cityId missing");
+      return;
+    }
+    // ✅ FIX (INV-DEF-03): reject zero/negative/non-finite quantities up front.
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      console.warn(`[InventoryContext] Blocked transferInventory: invalid quantity ${quantity}`);
       return;
     }
 
@@ -725,6 +769,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       console.warn("[InventoryContext] Blocked procureInventory: cityId missing");
       return;
     }
+    // ✅ FIX (INV-DEF-03): reject zero/negative/non-finite quantities up front.
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      console.warn(`[InventoryContext] Blocked procureInventory: invalid quantity ${quantity}`);
+      return;
+    }
 
     const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId); // ✅ City filter
     if (!item) {
@@ -843,6 +892,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }
     const openBottle = item.washerOpenBottle?.[washerId];
     let bottleJustEmptied = false;
+    // ✅ FIX (INV-DEF-08): capture whatever was left in the old open
+    // bottle when it gets discarded/replaced below, so it can be logged
+    // as a real Loss transaction instead of silently disappearing — the
+    // existing code comment already called this "honest wastage" but no
+    // transaction actually recorded it.
+    let discardedMl = 0;
 
     if (openBottle && openBottle.mlRemaining >= mlPerWash) {
       // Real, common case: draw from the bottle already open.
@@ -863,6 +918,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       // remainder (if any) is written off as real, honest wastage
       // rather than mixed across bottles; a fresh sealed bottle is
       // opened for this wash's full mlPerWash.
+      discardedMl = openBottle ? openBottle.mlRemaining : 0;
       const sealedAvailable = item.washerStock[washerId] || 0;
       if (sealedAvailable <= 0) {
         console.warn(`[InventoryContext] Blocked recordWashConsumption: washer ${washerId} has no sealed bottles of ${bottledItemId}`);
@@ -906,6 +962,24 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       cityId,
       reason: `Consumed on wash completion (${mlPerWash}ml)${bottleJustEmptied ? " - bottle now empty" : ""}`,
     });
+
+    // ✅ FIX (INV-DEF-08): log the discarded remainder from the old open
+    // bottle, if any, as a real Loss transaction so wastage is visible
+    // in reporting rather than invisible.
+    if (discardedMl > 0) {
+      createTransaction({
+        itemId: bottledItemId,
+        type: "Loss",
+        quantity: discardedMl,
+        fromLocation: "Washer",
+        fromId: washerId,
+        toLocation: "Washer",
+        toId: washerId,
+        status: "Completed",
+        cityId,
+        reason: `Partial bottle discarded on switch (${discardedMl}ml written off)`,
+      });
+    }
 
     return true;
   };
@@ -1078,19 +1152,21 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       };
     }));
 
+    // ✅ FIX (INV-DEF-05): the actual stock movement above only ever
+    // touches branchStock and washerStock — supervisorStock is never
+    // incremented or decremented. Previously this logged TWO
+    // transactions (Branch→Supervisor, then Supervisor→Washer) implying
+    // stock passed through the supervisor's own bucket, which any report
+    // reconstructing "stock held by Supervisor X" from the ledger would
+    // wrongly count. A single Branch→Washer transaction — noting the
+    // supervisor as the courier in the reason — matches what physically
+    // and numerically happened.
     createTransaction({
       itemId, type: "Transfer", quantity,
       fromLocation: "Branch", fromId: branchId,
-      toLocation: "Supervisor", toId: supervisorId,
-      status: "Completed", requestedBy, cityId,
-      reason: "Uniform replacement - collected from Branch by Supervisor",
-    });
-    createTransaction({
-      itemId, type: "Issue", quantity,
-      fromLocation: "Supervisor", fromId: supervisorId,
       toLocation: "Washer", toId: washerId,
       status: "Completed", requestedBy, cityId,
-      reason: "Uniform replacement - issued to washer by Supervisor",
+      reason: `Uniform replacement - collected from Branch and handed to washer by Supervisor ${supervisorId}`,
     });
 
     return true;
@@ -1257,6 +1333,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       console.warn("[InventoryContext] Blocked adjustStock: cityId missing");
       return;
     }
+    // ✅ FIX (INV-DEF-03): a physical stock count can never be negative,
+    // and must be a real, finite number. Previously unvalidated, this
+    // would write a negative value straight into centralStock/etc.
+    if (!Number.isFinite(newQuantity) || newQuantity < 0) {
+      console.warn(`[InventoryContext] Blocked adjustStock: invalid newQuantity ${newQuantity}`);
+      return;
+    }
 
     const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId); // ✅ City filter
     if (!item) {
@@ -1303,7 +1386,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return [];
     }
 
-    return inventory.filter((i) => i.cityId === cityId && i.centralStock > 0); // ✅ City filter
+    // ✅ FIX (INV-DEF-04): previously excluded items at exactly 0 central
+    // stock, so an out-of-stock item vanished from this list entirely
+    // (while still correctly appearing in getLowStockItems below) —
+    // inconsistent, and looked like the item had been deleted. An
+    // out-of-stock item is still a real item and should show 0 here.
+    return inventory.filter((i) => i.cityId === cityId); // ✅ City filter
   };
 
   const getSupervisorStock = (supervisorId: string, cityId: string): InventoryItem[] => {
@@ -1335,8 +1423,15 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return [];
     }
 
+    // ✅ FIX (INV-DEF-07): previously only counted sealed, unopened
+    // bottles. A washer with 0 sealed bottles but a half-full open
+    // bottle still genuinely has usable product — they shouldn't be
+    // reported as having none.
     return inventory.filter(
-      (i) => i.cityId === cityId && (i.washerStock[washerId] || 0) > 0 // ✅ City filter
+      (i) => i.cityId === cityId && (
+        (i.washerStock[washerId] || 0) > 0 ||
+        (i.washerOpenBottle?.[washerId]?.mlRemaining || 0) > 0
+      ) // ✅ City filter
     );
   };
 
@@ -1346,7 +1441,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const contextValue = useMemo(() => ({
+  // ✅ FIX (INV-DEF-06): this used to be wrapped in useMemo with a
+  // dependency array listing only 10 of the ~30 values/functions
+  // actually returned below, silenced with an eslint-disable-line. That
+  // "worked" only because inventory/stockTransactions happen to change
+  // on nearly every operation that matters — incidental, not guaranteed.
+  // None of these functions are wrapped in useCallback, so memoizing
+  // against an incomplete dependency list risked a future function
+  // capturing a stale closure with no lint warning to catch it. Building
+  // the object fresh on every render is always correct; it costs one
+  // extra object allocation per render, which is negligible here.
+  const contextValue = {
         inventory,
         addInventoryItem,
         updateInventoryItem,
@@ -1377,8 +1482,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         addPressureWasherPart,
         getWasherStock,
         getPendingTransactions,
-      }),
-  [inventory, addInventoryItem, updateInventoryItem, getItemById, getLowStockItems, stockTransactions, createTransaction, approveTransaction, completeTransaction, issueInventory]); // eslint-disable-line react-hooks/exhaustive-deps
+      };
 
   return (
     <InventoryContext.Provider
