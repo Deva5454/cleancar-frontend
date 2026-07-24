@@ -148,6 +148,7 @@ import { BranchStoreDashboard } from "./components/store-manager/BranchStoreDash
 import { KimBottlingScreen } from "./components/store-manager/KimBottlingScreen";
 import { KimUniformReceiptScreen } from "./components/store-manager/KimUniformReceiptScreen";
 import { PressureWasherAssembly } from "./components/store-manager/PressureWasherAssembly";
+import { EquipmentRepairQueue } from "./components/store-manager/EquipmentRepairQueue";
 import { SuperAdminDilutionRecipes } from "./components/admin/SuperAdminDilutionRecipes";
 // Analytics imports - NOW LAZY
 // import { UnitEconomicsDashboard } from "./components/analytics/UnitEconomicsDashboard"; // NOW LAZY
@@ -503,6 +504,7 @@ export const router = createBrowserRouter([
       { path: "store-manager/bottling", element: <KimBottlingScreen /> },
       { path: "store-manager/uniform-receipt", element: <KimUniformReceiptScreen /> },
       { path: "store-manager/pressure-washer-assembly", element: <PressureWasherAssembly /> },
+      { path: "store-manager/equipment-repair-queue", element: <EquipmentRepairQueue /> },
       { path: "admin/dilution-recipes", element: <SuperAdminDilutionRecipes /> },
       {
         path: "analytics",

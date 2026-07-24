@@ -11,6 +11,7 @@ import { Truck, Package } from "lucide-react";
 import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 import { ReportLostDamagedBottle } from "./ReportLostDamagedBottle";
 import { ReportBrokenPart } from "./ReportBrokenPart";
+import { SendEquipmentForRepair } from "./SendEquipmentForRepair";
 import { toast } from "sonner";
 
 /**
@@ -105,6 +106,8 @@ export function SupervisorStockReceipt() {
       <ReportLostDamagedBottle />
 
       <ReportBrokenPart />
+
+      <SendEquipmentForRepair />
 
       {pendingReceipts.length > 0 && (
         <Card className="border-amber-200 bg-amber-50">

@@ -40,6 +40,11 @@ export interface InventoryItem {
   // above counts sealed bottles only; this tracks the one bottle
   // actually in use, and how much is genuinely left in it.
   washerOpenBottle?: Record<string, { mlRemaining: number; bottleSizeMl: number; openedAt: string }>;
+  // Real, previously-missing bucket - equipment currently at Kim,
+  // physically broken, awaiting repair. Kept separate from
+  // centralStock, since a unit here is not usable/issuable until a
+  // real "Mark Repaired" action moves it across.
+  underRepairStock?: number;
   // Pricing
   unitCost: number;
   lastProcurementDate?: string;
@@ -191,6 +196,8 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
+  sendEquipmentForRepair: (itemId: string, washerId: string, reportedBy: string, reason: string, cityId: string) => boolean;
+  markEquipmentRepaired: (itemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
   fulfillReplacementThroughSupervisor: (
     itemId: string,
     branchId: string,
@@ -1132,6 +1139,93 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   /**
+   * Real, previously-missing equipment repair flow. A supervisor
+   * collects a washer's genuinely broken equipment and sends it
+   * toward Kim in one real action - representing a supervisor
+   * physically taking it from the washer, the same real pattern used
+   * for uniform replacement, never skipping the supervisor's own real
+   * role. This removes the unit from the washer's real stock and adds
+   * it to Kim's real underRepairStock bucket, where it stays until a
+   * genuine "Mark Repaired" action confirms it's actually fixed.
+   */
+  const sendEquipmentForRepair = (
+    itemId: string,
+    washerId: string,
+    reportedBy: string,
+    reason: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId) {
+      console.warn("[InventoryContext] Blocked sendEquipmentForRepair: cityId missing");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: item ${itemId} not found`);
+      return false;
+    }
+    const washerQty = item.washerStock[washerId] || 0;
+    if (washerQty <= 0) {
+      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: washer ${washerId} has none of ${itemId} to send`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== itemId || i.cityId !== cityId) return i;
+      return {
+        ...i,
+        washerStock: { ...i.washerStock, [washerId]: washerQty - 1 },
+        underRepairStock: (i.underRepairStock || 0) + 1,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+
+    createTransaction({
+      itemId, type: "Transfer", quantity: 1,
+      fromLocation: "Washer", fromId: washerId,
+      toLocation: "Central", toId: undefined,
+      status: "Completed", requestedBy: reportedBy, cityId,
+      reason: `Sent for repair: ${reason}`,
+    });
+
+    return true;
+  };
+
+  /**
+   * Real, previously-missing action - Kim confirms a specific real
+   * unit of equipment has genuinely been repaired, moving it out of
+   * underRepairStock and into real, usable centralStock, ready to
+   * re-enter the normal issuance chain.
+   */
+  const markEquipmentRepaired = (itemId: string, quantity: number, repairedBy: string, cityId: string): boolean => {
+    if (!cityId || quantity <= 0) return false;
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item || (item.underRepairStock || 0) < quantity) {
+      console.warn(`[InventoryContext] Blocked markEquipmentRepaired: insufficient real underRepairStock for ${itemId}`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== itemId || i.cityId !== cityId) return i;
+      return {
+        ...i,
+        underRepairStock: (i.underRepairStock || 0) - quantity,
+        centralStock: (i.centralStock || 0) + quantity,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+
+    createTransaction({
+      itemId, type: "Adjustment", quantity,
+      fromLocation: "Central", toLocation: "Central",
+      status: "Completed", requestedBy: repairedBy, cityId,
+      reason: "Repair completed — returned to usable stock",
+    });
+
+    return true;
+  };
+
+  /**
    * Real, direct Branch → Washer fulfillment - confirmed as a
    * genuinely different real movement than the normal chain. A
    * uniform replacement is urgent, so it draws directly from the
@@ -1502,6 +1596,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordWashConsumption,
         returnEmptyBottles,
         reportLostOrDamagedBottle,
+        sendEquipmentForRepair,
+        markEquipmentRepaired,
         fulfillReplacementThroughSupervisor,
         fulfillRequestQuantity,
         assemblePressureWashers,
