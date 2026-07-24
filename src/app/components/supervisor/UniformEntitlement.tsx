@@ -33,7 +33,7 @@ import { toast } from "sonner";
 const SIZES = ["S", "M", "L", "XL"];
 
 export function UniformEntitlement() {
-  const { inventory, fulfillReplacementThroughSupervisor } = useInventory();
+  const { inventory, fulfillReplacementThroughSupervisor, writeOffWasherItem } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
@@ -45,11 +45,16 @@ export function UniformEntitlement() {
   const salesManagers = getEmployeesByRole("Sales Manager");
 
   // Real people genuinely due their annual entitlement right now.
+  // ✅ FIX: was reading e.dateOfJoining, a field that doesn't exist on
+  // the real Employee object (the real field is joiningDate, per
+  // EmployeeContext.tsx) — every real employee failed this filter
+  // unconditionally, so this list was permanently empty regardless of
+  // anyone's actual join date or anniversary.
   const dueList = useMemo(() => {
     const combine = (list: any[], garmentType: "T-Shirt" | "Shirt") =>
       list
-        .filter((e: any) => e.dateOfJoining && isDueForAnnualUniform(e.employeeId || e.id, e.dateOfJoining))
-        .map((e: any) => ({ employeeId: e.employeeId || e.id, name: e.fullName || `${e.firstName} ${e.lastName}`, garmentType, anniversaryYear: getCurrentAnniversaryYear(e.dateOfJoining) }));
+        .filter((e: any) => e.joiningDate && isDueForAnnualUniform(e.employeeId || e.id, e.joiningDate))
+        .map((e: any) => ({ employeeId: e.employeeId || e.id, name: e.fullName || `${e.firstName} ${e.lastName}`, garmentType, anniversaryYear: getCurrentAnniversaryYear(e.joiningDate) }));
     return [...combine(washers, "T-Shirt"), ...combine(supervisors, "Shirt"), ...combine(salesManagers, "Shirt")];
   }, [washers, supervisors, salesManagers, refreshTick]);
 
@@ -147,9 +152,32 @@ export function UniformEntitlement() {
     }
   };
 
-  const handleConfirmReturn = (requestId: string, employeeName: string) => {
-    confirmOldItemReturned(requestId);
-    toast.success(`Old, damaged item confirmed returned by ${employeeName} — replacement can now be issued`);
+  const handleConfirmReturn = (req: ReturnType<typeof getReplacementRequests>[number]) => {
+    // ✅ FIX: this previously only flipped a flag on the request record
+    // and never touched real inventory — so the damaged garment the
+    // washer physically handed back was never deducted from their real
+    // washerStock, and no write-off was ever logged. Every subsequent
+    // replacement silently inflated that washer's tracked stock by 1
+    // versus what they actually held. This now genuinely removes the
+    // old unit from their real stock, with the same Loss-transaction
+    // audit trail used for lost/damaged bottles.
+    const itemName = req.garmentType === "T-Shirt" ? `Uniform T-Shirt - ${req.size}` : `Uniform Shirt - ${req.size}`;
+    const item = inventory.find((i: any) => i.itemName === itemName && i.cityId === city);
+    if (!item) {
+      toast.error(`${itemName} doesn't exist in inventory yet — can't write off the old item`);
+      return;
+    }
+    const ok = writeOffWasherItem(
+      item.itemId, req.employeeId, 1,
+      `Uniform replacement - old/damaged ${itemName} returned and written off (${req.reason})`,
+      currentUser?.name || "Supervisor", city
+    );
+    if (!ok) {
+      toast.error(`${req.employeeName}'s real stock doesn't show a ${itemName} on hand to write off — check before proceeding`);
+      return;
+    }
+    confirmOldItemReturned(req.id);
+    toast.success(`Old, damaged item confirmed returned and written off for ${req.employeeName} — replacement can now be issued`);
     setRefreshTick((t) => t + 1);
   };
 
@@ -234,7 +262,7 @@ export function UniformEntitlement() {
                   </div>
                   <div className="flex justify-end gap-2">
                     {!r.oldItemReturned && (
-                      <Button size="sm" variant="outline" onClick={() => handleConfirmReturn(r.id, r.employeeName)}>Confirm Old Item Returned</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleConfirmReturn(r)}>Confirm Old Item Returned</Button>
                     )}
                     <Button size="sm" disabled={!r.oldItemReturned} onClick={() => handleFulfillReplacement(r)}>Collect from Branch &amp; Issue</Button>
                   </div>

@@ -196,6 +196,17 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
+  // Generic write-off for a non-bottle item (e.g. a returned, damaged
+  // uniform) from a washer's real stock, with the same Loss-transaction
+  // audit trail as reportLostOrDamagedBottle above.
+  writeOffWasherItem: (
+    itemId: string,
+    washerId: string,
+    quantity: number,
+    reason: string,
+    reportedBy: string,
+    cityId: string
+  ) => boolean;
   sendEquipmentForRepair: (itemId: string, washerId: string, reportedBy: string, reason: string, cityId: string) => boolean;
   markEquipmentRepaired: (itemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
   fulfillReplacementThroughSupervisor: (
@@ -1139,6 +1150,62 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   /**
+   * ✅ FIX: a generic version of reportLostOrDamagedBottle above, for
+   * non-bottle items — specifically, the damaged garment a washer
+   * hands back during a uniform replacement. Previously, confirming
+   * "old item returned" only flipped a flag in a separate, localStorage
+   * -only request record (uniformEntitlementService.ts) and never
+   * called anything here — so the washer's real washerStock for that
+   * item was never decremented, and no write-off was ever logged. Every
+   * replacement silently inflated the washer's tracked stock by the
+   * replaced quantity versus what they actually, physically held.
+   */
+  const writeOffWasherItem = (
+    itemId: string,
+    washerId: string,
+    quantity: number,
+    reason: string,
+    reportedBy: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId || !Number.isFinite(quantity) || quantity <= 0) {
+      console.warn("[InventoryContext] Blocked writeOffWasherItem: cityId missing or invalid quantity");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked writeOffWasherItem: item ${itemId} not found`);
+      return false;
+    }
+    const held = item.washerStock[washerId] || 0;
+    if (held < quantity) {
+      console.warn(`[InventoryContext] Blocked writeOffWasherItem: washer ${washerId} only holds ${held} of ${itemId}, can't write off ${quantity}`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== itemId || i.cityId !== cityId) return i;
+      return { ...i, washerStock: { ...i.washerStock, [washerId]: held - quantity }, updatedAt: new Date().toISOString() };
+    }));
+
+    createTransaction({
+      itemId,
+      type: "Loss",
+      quantity,
+      fromLocation: "Washer",
+      fromId: washerId,
+      toLocation: "Washer",
+      toId: washerId,
+      status: "Completed",
+      requestedBy: reportedBy,
+      cityId,
+      reason,
+    });
+
+    return true;
+  };
+
+  /**
    * Real, previously-missing equipment repair flow. A supervisor
    * collects a washer's genuinely broken equipment and sends it
    * toward Kim in one real action - representing a supervisor
@@ -1596,6 +1663,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordWashConsumption,
         returnEmptyBottles,
         reportLostOrDamagedBottle,
+        writeOffWasherItem,
         sendEquipmentForRepair,
         markEquipmentRepaired,
         fulfillReplacementThroughSupervisor,
