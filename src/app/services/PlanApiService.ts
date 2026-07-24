@@ -21,9 +21,16 @@
 // deployed build with nothing configured, that "default" would still
 // attempt a real network request and fail every time. API_ENABLED reflects
 // the honest truth: there's a real backend configured, or there isn't.
+//
+// Confirmed directly: there is no real Railway backend for this project.
+// The env var may still be set to it in Vercel, but a URL pointing at a
+// backend that doesn't exist is functionally the same as no URL at all -
+// treating it as configured would just mean every load makes a doomed,
+// CORS-blocked network request before falling back anyway.
 const CONFIGURED_API_URL = import.meta.env.VITE_API_URL;
-const API_ENABLED = Boolean(CONFIGURED_API_URL);
-const BASE_URL = (CONFIGURED_API_URL || "http://localhost:3000/api/v1").replace(/\/$/, "");
+const KNOWN_DEAD_BACKEND = "cleancar-backend-production.up.railway.app";
+const API_ENABLED = Boolean(CONFIGURED_API_URL) && !CONFIGURED_API_URL.includes(KNOWN_DEAD_BACKEND);
+const BASE_URL = (API_ENABLED ? CONFIGURED_API_URL : "http://localhost:3000/api/v1").replace(/\/$/, "");
 
 // ── Auth token helper ─────────────────────────────────────────────────────────
 // Reads the JWT from whatever key your auth context stores it under.

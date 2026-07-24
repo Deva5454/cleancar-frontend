@@ -16,7 +16,12 @@
  * Opens WasherTrackingPage.tsx — public page, no login required
  */
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+// Confirmed directly: there is no real Railway backend for this project.
+// If VITE_API_URL is still set to it in Vercel, treat that the same as
+// not being configured at all, rather than attempting a doomed request.
+const CONFIGURED_URL = import.meta.env.VITE_API_URL;
+const KNOWN_DEAD_BACKEND = "cleancar-backend-production.up.railway.app";
+const BASE = (CONFIGURED_URL && !CONFIGURED_URL.includes(KNOWN_DEAD_BACKEND) ? CONFIGURED_URL : "").replace(/\/$/, "");
 const LOCATION_KEY = "cc360_washer_locations";
 
 export interface WasherLocation {

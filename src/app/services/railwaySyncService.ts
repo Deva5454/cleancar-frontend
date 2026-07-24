@@ -11,7 +11,12 @@
  *   railwaySync.job(updatedJob, "PATCH", jobId);
  */
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+// Confirmed directly: there is no real Railway backend for this project.
+// If VITE_API_URL is still set to it in Vercel, treat that the same as
+// not being configured at all, rather than attempting a doomed request.
+const CONFIGURED_BASE = import.meta.env.VITE_API_URL;
+const KNOWN_DEAD_BACKEND = "cleancar-backend-production.up.railway.app";
+const BASE = (CONFIGURED_BASE && !CONFIGURED_BASE.includes(KNOWN_DEAD_BACKEND) ? CONFIGURED_BASE : "").replace(/\/$/, "");
 
 function getToken(): string | null {
   try {

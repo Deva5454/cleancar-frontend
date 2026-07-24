@@ -6,7 +6,12 @@
  * Drop-in: import { IncentiveApiService } from "./IncentiveApiService";
  */
 
-const BASE = (import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1").replace(/\/$/, "");
+// Confirmed directly: there is no real Railway backend for this project.
+// If VITE_API_URL is still set to it in Vercel, treat that the same as
+// not being configured at all, rather than attempting a doomed request.
+const CONFIGURED = import.meta.env.VITE_API_URL;
+const KNOWN_DEAD_BACKEND = "cleancar-backend-production.up.railway.app";
+const BASE = (CONFIGURED && !CONFIGURED.includes(KNOWN_DEAD_BACKEND) ? CONFIGURED : "http://localhost:3000/api/v1").replace(/\/$/, "");
 
 function token(): string | null {
   try {
