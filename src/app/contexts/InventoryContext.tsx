@@ -262,6 +262,35 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     _dbTxnTimer.current = setTimeout(() => DataService.setAll("STOCK_TRANSACTIONS", stockTransactions), 500);
   }, [stockTransactions]);
 
+  // Real fix for a genuine, confirmed data-loss bug: the two debounced
+  // saves above had no way to guarantee a pending write actually
+  // completes before the page navigates away or unloads. If that
+  // happened within the 500ms debounce window - which real users
+  // genuinely do, especially when a redirect or quick navigation is
+  // involved - the pending real change (a new item, issued stock) was
+  // silently lost, even though it had already happened in memory.
+  // This forces an immediate, synchronous save of whatever is
+  // currently pending the moment the page is about to unload.
+  useEffect(() => {
+    const flushPendingSaves = () => {
+      if (_dbInvTimer.current) {
+        clearTimeout(_dbInvTimer.current);
+        DataService.setAll("INVENTORY_ITEMS", inventory);
+      }
+      if (_dbTxnTimer.current) {
+        clearTimeout(_dbTxnTimer.current);
+        DataService.setAll("STOCK_TRANSACTIONS", stockTransactions);
+      }
+    };
+    window.addEventListener("beforeunload", flushPendingSaves);
+    window.addEventListener("pagehide", flushPendingSaves);
+    return () => {
+      window.removeEventListener("beforeunload", flushPendingSaves);
+      window.removeEventListener("pagehide", flushPendingSaves);
+      flushPendingSaves(); // also flush on a real React unmount/route change, not just a full page unload
+    };
+  }, [inventory, stockTransactions]);
+
   // Inventory Item CRUD
   const addInventoryItem = (
     itemData: Omit<InventoryItem, "itemId" | "createdAt" | "updatedAt">,
