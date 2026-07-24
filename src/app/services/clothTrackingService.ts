@@ -356,6 +356,26 @@ class ClothTrackingService {
       .sort((a, b) => a.washesRemaining - b.washesRemaining);
   }
 
+  /**
+   * Real, direct assignment of a specific cloth to a washer with a
+   * specific real wash count - for seeding genuine, representative
+   * test data without needing to walk every cloth through the full
+   * real chain and scan exchange first.
+   */
+  assignClothToWasherForSeed(clothId: string, washerId: string, washCount: number): void {
+    const map = this.loadClothMap();
+    const cloth = map.get(clothId);
+    if (!cloth) return;
+    cloth.currentLocation = "Washer";
+    cloth.currentLocationId = washerId;
+    cloth.status = "ISSUED";
+    cloth.washCount = washCount;
+    cloth.issuedTo = washerId;
+    cloth.issuedAt = new Date().toISOString();
+    cloth.updatedAt = new Date().toISOString();
+    this.saveClothMap(map);
+  }
+
 
   // ── Analytics ──────────────────────────────────────────────────────────────
 
