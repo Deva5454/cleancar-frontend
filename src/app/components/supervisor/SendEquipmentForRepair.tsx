@@ -39,7 +39,7 @@ export function SendEquipmentForRepair() {
       toast.error("Select the washer, the equipment, and enter a reason");
       return;
     }
-    const ok = sendEquipmentForRepair(itemId, washerId, currentUser?.name || "Supervisor", reason.trim(), city);
+    const ok = sendEquipmentForRepair(itemId, "Washer", washerId, currentUser?.name || "Supervisor", reason.trim(), city);
     if (ok) {
       toast.success("Equipment sent for repair — now with Kim, tracked in the real Equipment Repair Queue");
       setWasherId(""); setItemId(""); setReason("");

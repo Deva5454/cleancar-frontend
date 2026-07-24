@@ -1,112 +1,169 @@
 /**
- * SUPERVISOR MATERIAL MANAGEMENT
- * Buffer stock holder + material distribution to washers
+ * SupervisorMaterialManagement.tsx — Buffer Stock, Washers, and Refills,
+ * for the logged-in Supervisor.
  *
- * Functions:
- * - View buffer stock (all materials)
- * - Issue materials to washers (with return enforcement)
- * - Process returns from washers
- * - Request refills from Store
- * - Report breakdowns
+ * ✅ MIGRATED off unifiedMaterialService.ts (a separate, in-memory-only
+ * data system with a hardcoded identity — SUP-001/Rajesh Kumar — shown
+ * to every supervisor regardless of who was actually logged in) onto
+ * the real InventoryContext every other stock screen in this app uses.
+ * Numbers here now match Supervisor Stock Receipt, My Stock, and every
+ * other real screen, and persist across a refresh.
+ *
+ * One real, deliberate scope change: unifiedMaterialService tracked
+ * individual, barcoded items with per-unit condition and usage-count
+ * (e.g. "Nozzle #4821, Condition: Fair, Used 12/50 times"). The real
+ * InventoryContext data model doesn't track stock at that granularity
+ * anywhere in the app — every other screen (My Stock, Washer
+ * Issuances, Stock Receipt) works with aggregate quantities per
+ * bucket. This screen now matches that same real granularity rather
+ * than being the one screen in the app pretending to have individual
+ * asset tracking that doesn't actually exist anywhere else. If
+ * genuine per-unit/serial tracking is wanted, that's a real feature
+ * to scope separately — see the Inventory Module handover doc.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import {
-  Package,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  AlertTriangle,
-  RefreshCw,
-  Wrench,
-  AlertCircle,
-  CheckCircle,
-} from "lucide-react";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
 import {
-  unifiedMaterialService,
-  type IndividualItem,
-  type BulkInventory,
-  type WasherMaterialAssignment,
-  type RefillRequest,
-} from "../../services/unifiedMaterialService";
+  Package, ArrowUpCircle, AlertTriangle, RefreshCw, Wrench, AlertCircle,
+} from "lucide-react";
+import { useInventory } from "../../contexts/InventoryContext";
+import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
 import { toast } from "sonner";
 
 export function SupervisorMaterialManagement() {
-  const supervisorId = "SUP-001";
-  const supervisorName = "Rajesh Kumar";
+  const {
+    inventory, getSupervisorStock, getWasherStock, transferInventory,
+    sendEquipmentForRepair, createTransaction, getPendingTransactions,
+  } = useInventory();
+  const { city } = useCity();
+  const { currentUser } = useRole();
+  const { getEmployeesByRole, getEmployeeById } = useEmployee();
 
-  // Tab State
+  // Real, currently-logged-in supervisor — not a hardcoded ID.
+  const supervisorId = currentUser?.employeeId || "";
+  const supervisorName = currentUser?.name || "Supervisor";
+
   const [activeTab, setActiveTab] = useState<"buffer" | "washers" | "refills">("buffer");
-
-  // Buffer Stock State
-  const [individualItems, setIndividualItems] = useState<IndividualItem[]>([]);
-  const [bulkInventory, setBulkInventory] = useState<BulkInventory[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<BulkInventory[]>([]);
-
-  // Washer State
-  const [washerAssignments, setWasherAssignments] = useState<WasherMaterialAssignment[]>([]);
-
-  // Refill Requests
-  const [refillRequests, setRefillRequests] = useState<RefillRequest[]>([]);
-
-  // Modals
   const [showIssueModal, setShowIssueModal] = useState(false);
-  const [showRefillModal, setShowRefillModal] = useState(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<IndividualItem | null>(null);
+  const [showRefillModal, setShowRefillModal] = useState(false);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
-  // Load data
-  useEffect(() => {
-    setIndividualItems(unifiedMaterialService.getItemsByLocation(supervisorId));
-    setBulkInventory(unifiedMaterialService.getBulkInventory("SUPERVISOR", supervisorId));
-    setLowStockItems(unifiedMaterialService.getLowStockItems(supervisorId));
-    setRefillRequests(unifiedMaterialService.getRefillRequests(supervisorId));
+  // Real buffer stock — this supervisor's actual held quantities,
+  // split into Equipment (the closest real match to the old
+  // "Individual Items" section) and everything else (Consumables).
+  const bufferStock = supervisorId ? getSupervisorStock(supervisorId, city) : [];
+  const equipmentItems = bufferStock.filter((i: any) => i.category === "Equipment");
+  const consumableItems = bufferStock.filter((i: any) => i.category !== "Equipment");
+  const lowStockItems = bufferStock.filter((i: any) => {
+    const qty = i.supervisorStock[supervisorId] || 0;
+    return qty <= i.reorderLevel;
+  });
 
-    // Load washer assignments (mock for now)
-    const assignment = unifiedMaterialService.getWasherAssignment("W001");
-    if (assignment) {
-      setWasherAssignments([assignment]);
+  // Real washers reporting to this supervisor.
+  const myWashers = useMemo(() => {
+    if (!supervisorId) return [];
+    return getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"])
+      .filter((w: any) => (w.reportingManagerId || getEmployeeById(w.employeeId || w.id)?.reportingManagerId) === supervisorId);
+  }, [supervisorId, getEmployeesByRole, getEmployeeById]);
+
+  // Real pending refill requests this supervisor has sent toward
+  // Central/Branch, using the same real MRF mechanism Material
+  // Requisition already reads from — so a request made here shows up
+  // in the same real place a Store Manager already fulfills from.
+  const myRefillRequests = getPendingTransactions(city).filter(
+    (t: any) => t.toLocation === "Supervisor" && t.toId === supervisorId
+  );
+
+  const selectedItem = bufferStock.find((i: any) => i.itemId === selectedItemId);
+
+  const handleIssueToWasher = (washerId: string, quantity: number) => {
+    if (!selectedItem || !supervisorId) return;
+    const held = selectedItem.supervisorStock[supervisorId] || 0;
+    if (quantity <= 0 || quantity > held) {
+      toast.error(`You only have ${held} of ${selectedItem.itemName} — enter a real quantity`);
+      return;
     }
-  }, [supervisorId]);
+    transferInventory(selectedItem.itemId, quantity, "Supervisor", supervisorId, "Washer", washerId, city);
+    toast.success(`${quantity} ${selectedItem.itemName} issued to washer`);
+    setShowIssueModal(false);
+    setSelectedItemId(null);
+  };
 
-  const availableItems = individualItems.filter(i => i.status === "WITH_SUPERVISOR" && i.isActive);
-  const pendingRefills = refillRequests.filter(r => r.status === "PENDING" || r.status === "APPROVED");
+  const handleReportBreakdown = (reason: string) => {
+    if (!selectedItem || !supervisorId) return;
+    const ok = sendEquipmentForRepair(selectedItem.itemId, "Supervisor", supervisorId, supervisorName, reason, city);
+    if (ok) {
+      toast.success(`${selectedItem.itemName} sent for repair — now with Kim`);
+    } else {
+      toast.error("Could not report — check you actually hold this item");
+    }
+    setShowBreakdownModal(false);
+    setSelectedItemId(null);
+  };
+
+  const handleRequestRefill = (itemId: string, quantity: number, reason: string) => {
+    const item = inventory.find((i: any) => i.itemId === itemId && i.cityId === city);
+    if (!item || quantity <= 0) {
+      toast.error("Select a real item and enter a real quantity");
+      return;
+    }
+    createTransaction({
+      itemId,
+      type: "Transfer",
+      quantity,
+      quantityRequested: quantity,
+      quantityFulfilled: 0,
+      fromLocation: "Central",
+      toLocation: "Supervisor",
+      toId: supervisorId,
+      status: "Pending",
+      requestedBy: supervisorName,
+      cityId: city,
+      reason: reason || undefined,
+    });
+    toast.success("Refill request submitted — visible in Material Requisition for fulfillment");
+    setShowRefillModal(false);
+  };
+
+  if (!supervisorId) {
+    return (
+      <div className="p-6 text-center text-sm text-gray-500">
+        Could not identify the logged-in supervisor — please log in again.
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* ⚠️ KNOWN GAP: this screen reads/writes unifiedMaterialService, a
-          separate, in-memory-only data system — NOT the real InventoryContext
-          that every other stock screen in this app uses. Numbers here will
-          not match Supervisor Stock Receipt, My Stock, or any other real
-          screen, and everything shown resets on page refresh. This banner is
-          a stop-gap so nobody mistakes this for real, current stock while
-          the real migration (a genuine architecture rewrite, not a small
-          fix) is scoped as its own task. See the Inventory Module handover
-          doc, "Known gaps" section, for the full explanation. */}
-      <div className="bg-amber-100 border-b-2 border-amber-400 px-4 py-2 text-center">
-        <p className="text-xs font-semibold text-amber-900">
-          ⚠️ Demo data — not connected to real stock. Numbers here will not match Supervisor Stock Receipt or My Stock, and reset on refresh.
-        </p>
-      </div>
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-gradient-to-br from-teal-600 to-teal-700 text-white p-4 shadow-lg">
         <div className="mb-3">
           <h1 className="text-xl font-bold">Material Management</h1>
-          <p className="text-sm text-teal-100">Buffer Stock & Distribution</p>
+          <p className="text-sm text-teal-100">Buffer Stock & Distribution — {supervisorName}</p>
         </div>
 
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-teal-100">Available Items</p>
-              <p className="text-2xl font-bold">{availableItems.length}</p>
+              <p className="text-teal-100">Equipment Items</p>
+              <p className="text-2xl font-bold">{equipmentItems.length}</p>
             </div>
             <div>
               <p className="text-teal-100">Consumables</p>
-              <p className="text-2xl font-bold">{bulkInventory.length}</p>
+              <p className="text-2xl font-bold">{consumableItems.length}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -118,7 +175,7 @@ export function SupervisorMaterialManagement() {
             </div>
             <div>
               <p className="text-teal-100">Pending Refills</p>
-              <p className="text-lg font-bold">{pendingRefills.length}</p>
+              <p className="text-lg font-bold">{myRefillRequests.length}</p>
             </div>
           </div>
         </div>
@@ -138,63 +195,32 @@ export function SupervisorMaterialManagement() {
           <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="buffer">
               Buffer Stock
-              {lowStockItems.length > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">
-                  {lowStockItems.length}
-                </Badge>
-              )}
+              {lowStockItems.length > 0 && <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">{lowStockItems.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="washers">Washers</TabsTrigger>
             <TabsTrigger value="refills">
               Refills
-              {pendingRefills.length > 0 && (
-                <Badge variant="outline" className="ml-2 h-5 px-1.5 text-xs bg-blue-100">
-                  {pendingRefills.length}
-                </Badge>
-              )}
+              {myRefillRequests.length > 0 && <Badge variant="outline" className="ml-2 h-5 px-1.5 text-xs bg-blue-100">{myRefillRequests.length}</Badge>}
             </TabsTrigger>
           </TabsList>
 
           {/* TAB 1: BUFFER STOCK */}
           <TabsContent value="buffer" className="space-y-3">
-            {/* Info Banner */}
-            <Card className="border-2 border-teal-200 bg-teal-50">
-              <CardContent className="p-3">
-                <p className="text-sm text-teal-900 font-semibold mb-1">
-                  Supervisor Buffer Stock (Store → Supervisor → Washer)
-                </p>
-                <p className="text-xs text-teal-700">
-                  • Individual items (Assets/Reusable) • Consumables (bulk tracking)
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
             <Card className="border-2 border-blue-200">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Quick Actions</CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-2">
+              <CardContent>
                 <Button
                   variant="outline"
-                  className="h-12 flex flex-col items-center justify-center border-green-300 text-green-700 hover:bg-green-50"
-                  onClick={() => setShowIssueModal(true)}
-                >
-                  <ArrowUpCircle className="h-5 w-5 mb-1" />
-                  <span className="text-xs">Issue to Washer</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-12 flex flex-col items-center justify-center border-blue-300 text-blue-700 hover:bg-blue-50"
+                  className="w-full h-12 flex items-center justify-center gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
                   onClick={() => setShowRefillModal(true)}
                 >
-                  <RefreshCw className="h-5 w-5 mb-1" />
-                  <span className="text-xs">Request Refill</span>
+                  <RefreshCw className="h-5 w-5" /> Request Refill from Store
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Low Stock Alerts */}
             {lowStockItems.length > 0 && (
               <Card className="border-2 border-red-300 bg-red-50">
                 <CardContent className="p-4">
@@ -203,23 +229,12 @@ export function SupervisorMaterialManagement() {
                     <h3 className="font-bold text-red-900">Low Stock Alerts</h3>
                   </div>
                   <div className="space-y-2">
-                    {lowStockItems.map((item) => (
-                      <div key={item.id} className="bg-white rounded p-2 border border-red-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-sm">{item.materialName}</p>
-                            <p className="text-xs text-gray-600">
-                              Current: {item.currentQuantity} {item.unit} | Min: {item.minThreshold} {item.unit}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() => setShowRefillModal(true)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            Request
-                          </Button>
-                        </div>
+                    {lowStockItems.map((item: any) => (
+                      <div key={item.itemId} className="bg-white rounded p-2 border border-red-200">
+                        <p className="font-semibold text-sm">{item.itemName}</p>
+                        <p className="text-xs text-gray-600">
+                          Current: {item.supervisorStock[supervisorId] || 0} {item.unit} | Reorder at: {item.reorderLevel} {item.unit}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -227,127 +242,74 @@ export function SupervisorMaterialManagement() {
               </Card>
             )}
 
-            {/* Individual Items */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 px-1">
-                Individual Items ({availableItems.length} available)
-              </h3>
-              {availableItems.length === 0 ? (
+              <h3 className="text-sm font-semibold text-gray-700 px-1">Equipment ({equipmentItems.length})</h3>
+              {equipmentItems.length === 0 ? (
                 <Card className="border-2 border-gray-200">
                   <CardContent className="p-6 text-center text-gray-500">
                     <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No items in buffer</p>
-                    <p className="text-xs mt-1">Request from Store</p>
+                    <p className="text-sm">No equipment in your buffer</p>
                   </CardContent>
                 </Card>
               ) : (
-                availableItems.map((item) => (
-                  <Card key={item.itemId} className="border-2 border-gray-200">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <p className="font-bold text-gray-900">{item.itemId}</p>
-                          <p className="text-xs text-gray-600">{item.name}</p>
+                equipmentItems.map((item: any) => {
+                  const qty = item.supervisorStock[supervisorId] || 0;
+                  return (
+                    <Card key={item.itemId} className="border-2 border-gray-200">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-bold text-gray-900">{item.itemName}</p>
+                            <p className="text-xs text-gray-600">On hand: {qty}</p>
+                          </div>
+                          <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300">{item.category}</Badge>
                         </div>
-                        <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300">
-                          {item.category}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs mb-2 bg-gray-50 rounded p-2">
-                        <div>
-                          <p className="text-gray-600">Status</p>
-                          <p className="font-bold text-gray-900">{item.status.replace(/_/g, " ")}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { setSelectedItemId(item.itemId); setShowIssueModal(true); }}>
+                            <ArrowUpCircle className="h-4 w-4 mr-1" /> Issue
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => { setSelectedItemId(item.itemId); setShowBreakdownModal(true); }}>
+                            <Wrench className="h-4 w-4 mr-1" /> Report Broken
+                          </Button>
                         </div>
-                        <div>
-                          <p className="text-gray-600">Condition</p>
-                          <p className="font-bold text-gray-900">
-                            {item.assetCondition || item.reusableCondition || "N/A"}
-                          </p>
-                        </div>
-                        {item.category === "REUSABLE" && (
-                          <>
-                            <div>
-                              <p className="text-gray-600">Usage</p>
-                              <p className="font-bold text-gray-900">
-                                {item.usageCount} / {item.maxUsageCount}
-                              </p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setShowIssueModal(true);
-                          }}
-                        >
-                          <ArrowUpCircle className="h-4 w-4 mr-1" />
-                          Issue
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-300 text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setShowBreakdownModal(true);
-                          }}
-                        >
-                          <Wrench className="h-4 w-4 mr-1" />
-                          Report Issue
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
 
-            {/* Consumables */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 px-1">
-                Consumables (Bulk Stock)
-              </h3>
-              {bulkInventory.map((item) => (
-                <Card
-                  key={item.id}
-                  className={`border-2 ${item.isLowStock ? "border-red-300 bg-red-50" : "border-gray-200"}`}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-bold text-gray-900">{item.materialName}</p>
-                        <p className="text-xs text-gray-600">{item.materialType}</p>
+              <h3 className="text-sm font-semibold text-gray-700 px-1">Consumables ({consumableItems.length})</h3>
+              {consumableItems.map((item: any) => {
+                const qty = item.supervisorStock[supervisorId] || 0;
+                const isLow = qty <= item.reorderLevel;
+                return (
+                  <Card key={item.itemId} className={`border-2 ${isLow ? "border-red-300 bg-red-50" : "border-gray-200"}`}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-bold text-gray-900">{item.itemName}</p>
+                        {isLow && <Badge variant="destructive">Low Stock</Badge>}
                       </div>
-                      {item.isLowStock && <Badge variant="destructive">Low Stock</Badge>}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-gray-50 rounded p-2">
-                        <p className="text-gray-600">Current</p>
-                        <p className={`text-lg font-bold ${item.isLowStock ? "text-red-600" : "text-gray-900"}`}>
-                          {item.currentQuantity}
-                        </p>
-                        <p className="text-gray-500">{item.unit}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-gray-50 rounded p-2">
+                          <p className="text-gray-600">Current</p>
+                          <p className={`text-lg font-bold ${isLow ? "text-red-600" : "text-gray-900"}`}>{qty}</p>
+                          <p className="text-gray-500">{item.unit}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded p-2">
+                          <p className="text-gray-600">Reorder Level</p>
+                          <p className="text-lg font-bold text-gray-900">{item.reorderLevel}</p>
+                          <p className="text-gray-500">{item.unit}</p>
+                        </div>
                       </div>
-                      <div className="bg-gray-50 rounded p-2">
-                        <p className="text-gray-600">Min</p>
-                        <p className="text-lg font-bold text-gray-900">{item.minThreshold}</p>
-                        <p className="text-gray-500">{item.unit}</p>
-                      </div>
-                      <div className="bg-gray-50 rounded p-2">
-                        <p className="text-gray-600">Max</p>
-                        <p className="text-lg font-bold text-gray-900">{item.maxThreshold}</p>
-                        <p className="text-gray-500">{item.unit}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      <Button size="sm" className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white" onClick={() => { setSelectedItemId(item.itemId); setShowIssueModal(true); }}>
+                        <ArrowUpCircle className="h-4 w-4 mr-1" /> Issue to Washer
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
 
@@ -355,76 +317,44 @@ export function SupervisorMaterialManagement() {
           <TabsContent value="washers" className="space-y-3">
             <Card className="border-2 border-green-200 bg-green-50">
               <CardContent className="p-3">
-                <p className="text-sm text-green-900 font-semibold">
-                  Monitor washer material assignments and returns
-                </p>
+                <p className="text-sm text-green-900 font-semibold">Real stock currently held by each washer reporting to you</p>
               </CardContent>
             </Card>
 
-            {washerAssignments.length === 0 ? (
+            {myWashers.length === 0 ? (
               <Card className="border-2 border-gray-200">
                 <CardContent className="p-6 text-center text-gray-500">
-                  <p className="text-sm">No washer assignments yet</p>
+                  <p className="text-sm">No washers reporting to you on record</p>
                 </CardContent>
               </Card>
             ) : (
-              washerAssignments.map((assignment) => (
-                <Card key={assignment.washerId} className="border-2 border-gray-200">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="font-bold text-gray-900">{assignment.washerName}</p>
-                        <p className="text-xs text-gray-600">{assignment.washerId}</p>
+              myWashers.map((w: any) => {
+                const washerId = w.employeeId || w.id;
+                const stock = getWasherStock(washerId, city);
+                return (
+                  <Card key={washerId} className="border-2 border-gray-200">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="font-bold text-gray-900">{w.fullName || `${w.firstName} ${w.lastName}`}</p>
+                          <p className="text-xs text-gray-600">{washerId}</p>
+                        </div>
+                        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">{stock.length} item{stock.length !== 1 ? "s" : ""}</Badge>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          assignment.canReceiveNewItems
-                            ? "bg-green-100 text-green-700 border-green-300"
-                            : "bg-red-100 text-red-700 border-red-300"
-                        }
-                      >
-                        {assignment.canReceiveNewItems ? "Can Receive" : "Has Unreturned"}
-                      </Badge>
-                    </div>
-
-                    {assignment.assignedItems.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs font-semibold text-gray-700 mb-2">Assigned Items:</p>
-                        {assignment.assignedItems.map((item) => (
-                          <div key={item.itemId} className="bg-gray-50 rounded p-2 mb-1 text-xs">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold">{item.itemId}</p>
-                                <p className="text-gray-600">{item.materialName}</p>
-                              </div>
-                              {item.isOverdue && (
-                                <Badge variant="destructive" className="text-xs">Overdue</Badge>
-                              )}
-                            </div>
+                      {stock.length === 0 ? (
+                        <p className="text-xs text-gray-400">No real stock currently held.</p>
+                      ) : (
+                        stock.map((item: any) => (
+                          <div key={item.itemId} className="bg-gray-50 rounded p-2 mb-1 text-xs flex items-center justify-between">
+                            <span className="font-semibold">{item.itemName}</span>
+                            <span className="text-gray-700">{item.washerStock[washerId] || 0} {item.unit}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {assignment.consumablesStock.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-700 mb-2">Consumables:</p>
-                        {assignment.consumablesStock.map((consumable) => (
-                          <div key={consumable.materialId} className="bg-blue-50 rounded p-2 mb-1 text-xs">
-                            <div className="flex items-center justify-between">
-                              <p className="font-semibold">{consumable.materialName}</p>
-                              <p className="text-gray-700">
-                                {consumable.currentQuantity} {consumable.unit}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </TabsContent>
 
@@ -432,48 +362,40 @@ export function SupervisorMaterialManagement() {
           <TabsContent value="refills" className="space-y-3">
             <Card className="border-2 border-blue-200 bg-blue-50">
               <CardContent className="p-3">
-                <p className="text-sm text-blue-900 font-semibold">
-                  Track refill requests sent to Store
-                </p>
+                <p className="text-sm text-blue-900 font-semibold">Real refill requests sent toward Store — same list Material Requisition fulfills from</p>
               </CardContent>
             </Card>
 
-            {refillRequests.length === 0 ? (
+            {myRefillRequests.length === 0 ? (
               <Card className="border-2 border-gray-200">
                 <CardContent className="p-6 text-center text-gray-500">
                   <p className="text-sm">No refill requests</p>
                 </CardContent>
               </Card>
             ) : (
-              refillRequests.map((request) => (
-                <Card key={request.id} className="border-2 border-gray-200">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-bold text-gray-900">{request.materialName}</p>
-                        <p className="text-xs text-gray-600">
-                          Requested: {request.requestedQuantity} {request.unit}
-                        </p>
+              myRefillRequests.map((request: any) => {
+                const item = inventory.find((i: any) => i.itemId === request.itemId);
+                return (
+                  <Card key={request.transactionId} className="border-2 border-gray-200">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="font-bold text-gray-900">{item?.itemName || request.itemId}</p>
+                          <p className="text-xs text-gray-600">Requested: {request.quantityRequested ?? request.quantity} {item?.unit || ""}</p>
+                        </div>
+                        <Badge variant="outline" className={
+                          request.status === "Completed" ? "bg-green-100 text-green-700 border-green-300"
+                          : request.status === "Partially Fulfilled" ? "bg-blue-100 text-blue-700 border-blue-300"
+                          : "bg-amber-100 text-amber-700 border-amber-300"
+                        }>
+                          {request.status}
+                        </Badge>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          request.status === "COMPLETED"
-                            ? "bg-green-100 text-green-700 border-green-300"
-                            : request.status === "PENDING"
-                            ? "bg-amber-100 text-amber-700 border-amber-300"
-                            : "bg-blue-100 text-blue-700 border-blue-300"
-                        }
-                      >
-                        {request.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      {new Date(request.requestDate).toLocaleDateString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))
+                      <p className="text-xs text-gray-600">{new Date(request.createdAt).toLocaleDateString()}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </TabsContent>
         </Tabs>
@@ -482,93 +404,30 @@ export function SupervisorMaterialManagement() {
       {/* Issue to Washer Modal */}
       {showIssueModal && selectedItem && (
         <IssueToWasherModal
-          item={selectedItem}
-          supervisorId={supervisorId}
-          onConfirm={(washerId, washerName) => {
-            const result = unifiedMaterialService.issueToWasher(
-              supervisorId,
-              washerId,
-              washerName,
-              [{
-                materialId: selectedItem.materialId,
-                itemId: selectedItem.itemId
-              }]
-            );
-            if (result.success) {
-              toast.success(`${selectedItem.itemId} issued to ${washerName}`);
-              // Refresh data
-              setIndividualItems(unifiedMaterialService.getItemsByLocation(supervisorId));
-              const assignment = unifiedMaterialService.getWasherAssignment(washerId);
-              if (assignment) {
-                setWasherAssignments([assignment]);
-              }
-            } else {
-              toast.error(result.error || "Failed to issue item");
-            }
-            setShowIssueModal(false);
-            setSelectedItem(null);
-          }}
-          onCancel={() => {
-            setShowIssueModal(false);
-            setSelectedItem(null);
-          }}
+          itemName={selectedItem.itemName}
+          unit={selectedItem.unit}
+          available={selectedItem.supervisorStock[supervisorId] || 0}
+          washers={myWashers}
+          onConfirm={handleIssueToWasher}
+          onCancel={() => { setShowIssueModal(false); setSelectedItemId(null); }}
         />
       )}
 
       {/* Breakdown Modal */}
       {showBreakdownModal && selectedItem && (
         <BreakdownReportModal
-          item={selectedItem}
-          reportedBy={supervisorId}
-          reportedByName={supervisorName}
-          onConfirm={(issue, photoUrl) => {
-            const result = unifiedMaterialService.reportBreakdown(
-              selectedItem.itemId,
-              supervisorId,
-              issue,
-              photoUrl
-            );
-            if (result.success) {
-              toast.success("Breakdown reported - item marked as broken");
-              // Refresh data
-              setIndividualItems(unifiedMaterialService.getItemsByLocation(supervisorId));
-            } else {
-              toast.error(result.error || "Failed to report breakdown");
-            }
-            setShowBreakdownModal(false);
-            setSelectedItem(null);
-          }}
-          onCancel={() => {
-            setShowBreakdownModal(false);
-            setSelectedItem(null);
-          }}
+          itemName={selectedItem.itemName}
+          onConfirm={handleReportBreakdown}
+          onCancel={() => { setShowBreakdownModal(false); setSelectedItemId(null); }}
         />
       )}
 
       {/* Refill Request Modal */}
       {showRefillModal && (
         <RefillRequestModal
+          items={consumableItems.length > 0 ? consumableItems : bufferStock}
           supervisorId={supervisorId}
-          supervisorName={supervisorName}
-          bulkInventory={bulkInventory}
-          onConfirm={(materialId, quantity, urgency, reason) => {
-            const result = unifiedMaterialService.createRefillRequest(
-              supervisorId,
-              supervisorName,
-              materialId,
-              quantity,
-              urgency,
-              reason
-            );
-            if (result.success) {
-              toast.success("Refill request submitted to Store");
-              // Refresh data
-              setRefillRequests(unifiedMaterialService.getRefillRequests(supervisorId));
-            } else {
-              toast.error(result.error || "Failed to create refill request");
-            }
-            setShowRefillModal(false);
-          }}
+          onConfirm={handleRequestRefill}
           onCancel={() => setShowRefillModal(false)}
         />
       )}
@@ -576,213 +435,50 @@ export function SupervisorMaterialManagement() {
   );
 }
 
-// ========== BREAKDOWN REPORT MODAL ==========
-
-interface BreakdownReportModalProps {
-  item: IndividualItem;
-  reportedBy: string;
-  reportedByName: string;
-  onConfirm: (issue: string, photoUrl?: string) => void;
-  onCancel: () => void;
-}
-
-function BreakdownReportModal({ item, reportedByName, onConfirm, onCancel }: BreakdownReportModalProps) {
-  const [issue, setIssue] = useState("");
-
-  const canSubmit = issue.trim() !== "";
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-red-600" />
-            Report Breakdown
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm text-gray-600">Item ID:</p>
-            <p className="font-bold">{item.itemId}</p>
-            <p className="text-xs text-gray-600 mt-1">{item.name}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600 mb-1">Current Location:</p>
-            <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300">
-              Supervisor Buffer Stock
-            </Badge>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Describe the Issue (Required):</label>
-            <textarea
-              className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg"
-              placeholder="Describe what's broken or not working..."
-              value={issue}
-              onChange={(e) => setIssue(e.target.value)}
-            />
-          </div>
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
-            <p className="font-semibold text-blue-900 mb-1">What happens next:</p>
-            <ul className="text-blue-700 space-y-1">
-              <li>• Item status will be marked as BROKEN</li>
-              <li>• Item will be removed from available buffer stock</li>
-              <li>• Breakdown will be logged in transaction history</li>
-              <li>• Store will be notified to process repair</li>
-            </ul>
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700"
-              onClick={() => onConfirm(issue)}
-              disabled={!canSubmit}
-            >
-              Report Breakdown
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // ========== ISSUE TO WASHER MODAL ==========
 
-interface IssueToWasherModalProps {
-  item: IndividualItem;
-  supervisorId: string;
-  onConfirm: (washerId: string, washerName: string) => void;
-  onCancel: () => void;
-}
-
-function IssueToWasherModal({ item, onConfirm, onCancel }: IssueToWasherModalProps) {
+function IssueToWasherModal({
+  itemName, unit, available, washers, onConfirm, onCancel,
+}: {
+  itemName: string; unit: string; available: number; washers: any[];
+  onConfirm: (washerId: string, quantity: number) => void; onCancel: () => void;
+}) {
   const [washerId, setWasherId] = useState("");
-  const [washerName, setWasherName] = useState("");
-
-  // Get washer assignment to check if they can receive
-  const assignment = washerId ? unifiedMaterialService.getWasherAssignment(washerId) : null;
-  const canReceive = !assignment || assignment.canReceiveNewItems;
-
-  const canSubmit = washerId.trim() !== "" && washerName.trim() !== "" && canReceive;
-
-  // Sample washer list (would come from service/context in production)
-  const sampleWashers = [
-    { id: "W001", name: "Suresh Kumar" },
-    { id: "W002", name: "Ramesh Patil" },
-    { id: "W003", name: "Amit Singh" },
-    { id: "W004", name: "Vijay Kumar" },
-    { id: "W005", name: "Rajesh Sharma" },
-  ];
+  const [quantity, setQuantity] = useState("1");
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            <ArrowUpCircle className="h-5 w-5 text-green-600" />
-            Issue Material to Washer
+            <ArrowUpCircle className="h-5 w-5 text-green-600" /> Issue {itemName} to Washer
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Item Details */}
-          <div className="bg-gray-50 border border-gray-200 rounded p-3">
-            <p className="text-xs text-gray-600 mb-1">Item to Issue:</p>
-            <p className="font-bold text-gray-900">{item.itemId}</p>
-            <p className="text-sm text-gray-700">{item.name}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline" className="bg-teal-100 text-teal-700 border-teal-300 text-xs">
-                {item.category}
-              </Badge>
-              <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
-                {item.assetCondition || item.reusableCondition || "N/A"}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Washer Selection */}
+          <p className="text-sm text-gray-600">You have <strong>{available} {unit}</strong> on hand.</p>
           <div>
-            <label className="text-sm text-gray-600 block mb-1">Select Washer:</label>
-            <select
-              className="w-full h-10 px-3 border border-gray-300 rounded-lg"
-              value={washerId}
-              onChange={(e) => {
-                const selectedId = e.target.value;
-                const selectedWasher = sampleWashers.find(w => w.id === selectedId);
-                setWasherId(selectedId);
-                setWasherName(selectedWasher?.name || "");
-              }}
-            >
-              <option value="">-- Select Washer --</option>
-              {sampleWashers.map((washer) => (
-                <option key={washer.id} value={washer.id}>
-                  {washer.id} - {washer.name}
-                </option>
-              ))}
-            </select>
+            <Label>Washer</Label>
+            <Select value={washerId} onValueChange={setWasherId}>
+              <SelectTrigger><SelectValue placeholder="Select washer" /></SelectTrigger>
+              <SelectContent>
+                {washers.map((w: any) => (
+                  <SelectItem key={w.employeeId || w.id} value={w.employeeId || w.id}>
+                    {w.fullName || `${w.firstName} ${w.lastName}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          {/* Washer Status */}
-          {washerId && assignment && (
-            <div className={`border-2 rounded p-3 ${
-              assignment.canReceiveNewItems
-                ? "border-green-300 bg-green-50"
-                : "border-red-300 bg-red-50"
-            }`}>
-              <div className="flex items-center gap-2 mb-2">
-                {assignment.canReceiveNewItems ? (
-                  <>
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <p className="font-semibold text-green-900 text-sm">Can Receive Materials</p>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
-                    <p className="font-semibold text-red-900 text-sm">Cannot Receive</p>
-                  </>
-                )}
-              </div>
-              {!assignment.canReceiveNewItems && (
-                <div className="text-xs text-red-700">
-                  <p className="font-semibold mb-1">Unreturned Items:</p>
-                  <ul className="list-disc list-inside">
-                    {assignment.unreturned.map((itemId) => (
-                      <li key={itemId}>{itemId}</li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 font-semibold">Washer must return these items first</p>
-                </div>
-              )}
-              {assignment.canReceiveNewItems && (
-                <p className="text-xs text-green-700">
-                  All items returned - ready to receive new materials
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Return Due Info */}
-          {canReceive && washerId && (
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
-              <p className="font-semibold text-blue-900 mb-1">Return Policy:</p>
-              <ul className="text-blue-700 space-y-1">
-                <li>• {item.category === "REUSABLE" ? "Return due in 3 days" : "Return due in 7 days"}</li>
-                <li>• Washer must return before receiving new items</li>
-                <li>• {item.category === "REUSABLE" && `Usage count will increment on return`}</li>
-              </ul>
-            </div>
-          )}
-
-          {/* Action Buttons */}
+          <div>
+            <Label>Quantity</Label>
+            <Input type="number" min="1" max={available} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </div>
           <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
             <Button
               className="bg-green-600 hover:bg-green-700"
-              onClick={() => onConfirm(washerId, washerName)}
-              disabled={!canSubmit}
+              disabled={!washerId || !quantity}
+              onClick={() => onConfirm(washerId, parseInt(quantity, 10) || 0)}
             >
               Issue to Washer
             </Button>
@@ -793,165 +489,83 @@ function IssueToWasherModal({ item, onConfirm, onCancel }: IssueToWasherModalPro
   );
 }
 
-// ========== REFILL REQUEST MODAL ==========
+// ========== BREAKDOWN REPORT MODAL ==========
 
-interface RefillRequestModalProps {
-  supervisorId: string;
-  supervisorName: string;
-  bulkInventory: BulkInventory[];
-  onConfirm: (materialId: string, quantity: number, urgency: "NORMAL" | "URGENT" | "CRITICAL", reason: string) => void;
-  onCancel: () => void;
-}
-
-function RefillRequestModal({ bulkInventory, onConfirm, onCancel }: RefillRequestModalProps) {
-  const [materialId, setMaterialId] = useState("");
-  const [quantity, setQuantity] = useState<number>(0);
-  const [urgency, setUrgency] = useState<"NORMAL" | "URGENT" | "CRITICAL">("NORMAL");
+function BreakdownReportModal({
+  itemName, onConfirm, onCancel,
+}: { itemName: string; onConfirm: (reason: string) => void; onCancel: () => void }) {
   const [reason, setReason] = useState("");
 
-  const selectedMaterial = bulkInventory.find(m => m.materialId === materialId);
-  const canSubmit = materialId !== "" && quantity > 0 && reason.trim() !== "";
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-red-600" /> Report {itemName} Broken
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600">This sends the real unit to Kim for repair and removes it from your buffer stock until it's marked fixed.</p>
+          <div>
+            <Label>What happened</Label>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Describe the issue" rows={3} />
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button variant="destructive" disabled={!reason.trim()} onClick={() => onConfirm(reason.trim())}>Report Broken</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ========== REFILL REQUEST MODAL ==========
+
+function RefillRequestModal({
+  items, onConfirm, onCancel,
+}: { items: any[]; supervisorId: string; onConfirm: (itemId: string, quantity: number, reason: string) => void; onCancel: () => void }) {
+  const [itemId, setItemId] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [reason, setReason] = useState("");
+
+  const selected = items.find((i: any) => i.itemId === itemId);
+  const canSubmit = itemId !== "" && parseInt(quantity, 10) > 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <Card className="w-full max-w-md my-8">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-blue-600" />
-            Request Material Refill
+            <RefreshCw className="h-5 w-5 text-blue-600" /> Request Material Refill
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Material Selection */}
           <div>
-            <label className="text-sm text-gray-600 block mb-1">Select Material:</label>
-            <select
-              className="w-full h-10 px-3 border border-gray-300 rounded-lg"
-              value={materialId}
-              onChange={(e) => {
-                setMaterialId(e.target.value);
-                // Auto-fill reason for low stock items
-                const material = bulkInventory.find(m => m.materialId === e.target.value);
-                if (material && material.isLowStock) {
-                  setReason(`Low stock alert - current: ${material.currentQuantity}${material.unit}, min threshold: ${material.minThreshold}${material.unit}`);
-                  setUrgency(material.currentQuantity < material.minThreshold * 0.5 ? "URGENT" : "NORMAL");
-                }
-              }}
-            >
-              <option value="">-- Select Material --</option>
-              {bulkInventory.map((material) => (
-                <option key={material.materialId} value={material.materialId}>
-                  {material.materialName} ({material.currentQuantity}{material.unit})
-                  {material.isLowStock ? " ⚠️ LOW" : ""}
-                </option>
-              ))}
-            </select>
+            <Label>Material</Label>
+            <Select value={itemId} onValueChange={setItemId}>
+              <SelectTrigger><SelectValue placeholder="Select a material" /></SelectTrigger>
+              <SelectContent>
+                {items.map((i: any) => <SelectItem key={i.itemId} value={i.itemId}>{i.itemName}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-
-          {/* Current Stock Info */}
-          {selectedMaterial && (
-            <div className={`border-2 rounded p-3 ${
-              selectedMaterial.isLowStock
-                ? "border-red-300 bg-red-50"
-                : "border-gray-200 bg-gray-50"
-            }`}>
-              <p className="text-xs text-gray-600 mb-1">Current Stock:</p>
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div>
-                  <p className="text-gray-600 text-xs">Current</p>
-                  <p className="font-bold">{selectedMaterial.currentQuantity}{selectedMaterial.unit}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-xs">Min</p>
-                  <p className="font-bold">{selectedMaterial.minThreshold}{selectedMaterial.unit}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-xs">Max</p>
-                  <p className="font-bold">{selectedMaterial.maxThreshold}{selectedMaterial.unit}</p>
-                </div>
-              </div>
+          {selected && (
+            <div className="bg-gray-50 border rounded p-3 text-sm">
+              <p className="text-gray-600">Current on hand: <strong>{selected.supervisorStock?.[selected.itemId] ?? 0} {selected.unit}</strong></p>
             </div>
           )}
-
-          {/* Quantity */}
           <div>
-            <label className="text-sm text-gray-600 block mb-1">
-              Quantity to Request ({selectedMaterial?.unit || "units"}):
-            </label>
-            <input
-              type="number"
-              min="1"
-              className="w-full h-10 px-3 border border-gray-300 rounded-lg"
-              placeholder="Enter quantity"
-              value={quantity || ""}
-              onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-            />
-            {selectedMaterial && quantity > 0 && (
-              <p className="text-xs text-gray-600 mt-1">
-                After refill: {selectedMaterial.currentQuantity + quantity}{selectedMaterial.unit}
-                {(selectedMaterial.currentQuantity + quantity) > selectedMaterial.maxThreshold && (
-                  <span className="text-amber-600 font-semibold"> (exceeds max threshold)</span>
-                )}
-              </p>
-            )}
+            <Label>Quantity to Request</Label>
+            <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" />
           </div>
-
-          {/* Urgency */}
           <div>
-            <label className="text-sm text-gray-600 block mb-2">Urgency Level:</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["NORMAL", "URGENT", "CRITICAL"] as const).map((level) => (
-                <button
-                  key={level}
-                  className={`h-10 rounded-lg border-2 text-xs font-semibold ${
-                    urgency === level
-                      ? level === "CRITICAL"
-                        ? "border-red-500 bg-red-50 text-red-700"
-                        : level === "URGENT"
-                        ? "border-amber-500 bg-amber-50 text-amber-700"
-                        : "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-gray-300 bg-white text-gray-700"
-                  }`}
-                  onClick={() => setUrgency(level)}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
+            <Label>Reason</Label>
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why do you need this refill?" rows={2} />
           </div>
-
-          {/* Reason */}
-          <div>
-            <label className="text-sm text-gray-600 block mb-1">Reason (Required):</label>
-            <textarea
-              className="w-full h-20 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              placeholder="Why do you need this refill?"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </div>
-
-          {/* Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
-            <p className="font-semibold text-blue-900 mb-1">What happens next:</p>
-            <ul className="text-blue-700 space-y-1">
-              <li>• Request will be sent to Store for approval</li>
-              <li>• Store will review and dispatch materials</li>
-              <li>• You will be notified when dispatched</li>
-              <li>• Track status in "Refills" tab</li>
-            </ul>
-          </div>
-
-          {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={() => onConfirm(materialId, quantity, urgency, reason)}
-              disabled={!canSubmit}
-            >
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" disabled={!canSubmit} onClick={() => onConfirm(itemId, parseInt(quantity, 10), reason)}>
               Submit Request
             </Button>
           </div>
@@ -960,3 +574,5 @@ function RefillRequestModal({ bulkInventory, onConfirm, onCancel }: RefillReques
     </div>
   );
 }
+
+export default SupervisorMaterialManagement;

@@ -356,6 +356,14 @@ class ClothTrackingService {
       .sort((a, b) => a.washesRemaining - b.washesRemaining);
   }
 
+  /** Real cloths currently held by one specific supervisor's buffer, sorted by whichever is closest to retirement. */
+  getClothsForSupervisor(supervisorId: string): Array<ClothItem & { washesRemaining: number }> {
+    return Array.from(this.loadClothMap().values())
+      .filter((c) => c.currentLocation === "Supervisor" && c.currentLocationId === supervisorId && c.status !== "EXPIRED")
+      .map((c) => ({ ...c, washesRemaining: this.getWashesRemaining(c) }))
+      .sort((a, b) => a.washesRemaining - b.washesRemaining);
+  }
+
   /**
    * Real, direct assignment of a specific cloth to a washer with a
    * specific real wash count - for seeding genuine, representative

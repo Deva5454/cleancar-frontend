@@ -207,7 +207,7 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
-  sendEquipmentForRepair: (itemId: string, washerId: string, reportedBy: string, reason: string, cityId: string) => boolean;
+  sendEquipmentForRepair: (itemId: string, fromLocation: "Washer" | "Supervisor", fromId: string, reportedBy: string, reason: string, cityId: string) => boolean;
   markEquipmentRepaired: (itemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
   // Real link between a repair and the spare part it actually used —
   // previously a repair could be marked complete with no connection at
@@ -1236,7 +1236,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
    */
   const sendEquipmentForRepair = (
     itemId: string,
-    washerId: string,
+    fromLocation: "Washer" | "Supervisor",
+    fromId: string,
     reportedBy: string,
     reason: string,
     cityId: string
@@ -1250,9 +1251,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: item ${itemId} not found`);
       return false;
     }
-    const washerQty = item.washerStock[washerId] || 0;
-    if (washerQty <= 0) {
-      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: washer ${washerId} has none of ${itemId} to send`);
+    // ✅ Generalized: previously this only ever pulled from washerStock,
+    // hardcoded to a washerId parameter. A supervisor's own buffer-held
+    // equipment (not yet issued to any washer) can break too, and had
+    // no real repair path at all. Now both real sources use the same
+    // one function, matching every other movement in this file.
+    const currentQty = fromLocation === "Washer" ? (item.washerStock[fromId] || 0) : (item.supervisorStock[fromId] || 0);
+    if (currentQty <= 0) {
+      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: ${fromLocation} ${fromId} has none of ${itemId} to send`);
       return false;
     }
 
@@ -1260,7 +1266,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (i.itemId !== itemId || i.cityId !== cityId) return i;
       return {
         ...i,
-        washerStock: { ...i.washerStock, [washerId]: washerQty - 1 },
+        ...(fromLocation === "Washer"
+          ? { washerStock: { ...i.washerStock, [fromId]: currentQty - 1 } }
+          : { supervisorStock: { ...i.supervisorStock, [fromId]: currentQty - 1 } }),
         underRepairStock: (i.underRepairStock || 0) + 1,
         updatedAt: new Date().toISOString(),
       };
@@ -1268,7 +1276,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     createTransaction({
       itemId, type: "Transfer", quantity: 1,
-      fromLocation: "Washer", fromId: washerId,
+      fromLocation, fromId,
       toLocation: "Central", toId: undefined,
       status: "Completed", requestedBy: reportedBy, cityId,
       reason: `Sent for repair: ${reason}`,
