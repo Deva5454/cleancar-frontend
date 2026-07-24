@@ -36,6 +36,12 @@ export interface UniformReplacementRequest {
   status: "Pending" | "Fulfilled";
   fulfilledDate?: string;
   cityId: string;
+  // Real, previously-missing tracking - confirmed rule: a replacement
+  // can only happen if the existing, damaged item is genuinely
+  // returned. A supervisor must explicitly confirm they've physically
+  // received the old item back before this request can be fulfilled.
+  oldItemReturned: boolean;
+  oldItemReturnedDate?: string;
 }
 
 const ENTITLEMENT_KEY = "cleancar_uniform_entitlement_issuances";
@@ -92,11 +98,24 @@ export function getReplacementRequests(cityId?: string): UniformReplacementReque
   } catch { return []; }
 }
 
-export function createReplacementRequest(record: Omit<UniformReplacementRequest, "id" | "status">): UniformReplacementRequest {
+export function createReplacementRequest(record: Omit<UniformReplacementRequest, "id" | "status" | "oldItemReturned" | "oldItemReturnedDate">): UniformReplacementRequest {
   const all = getReplacementRequests();
-  const newRecord: UniformReplacementRequest = { ...record, id: `URR-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: "Pending" };
+  const newRecord: UniformReplacementRequest = { ...record, id: `URR-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, status: "Pending", oldItemReturned: false };
   localStorage.setItem(REPLACEMENT_KEY, JSON.stringify([newRecord, ...all]));
   return newRecord;
+}
+
+/**
+ * Real, previously-missing action - a supervisor confirms they've
+ * genuinely received the washer's old, damaged item back. This is
+ * required before a replacement can be fulfilled at all; it's kept as
+ * its own real step, separate from fulfillment, so the moment of
+ * "I have the old one in hand" is honestly recorded, not assumed.
+ */
+export function confirmOldItemReturned(requestId: string): void {
+  const all = getReplacementRequests();
+  const updated = all.map((r) => r.id === requestId ? { ...r, oldItemReturned: true, oldItemReturnedDate: new Date().toISOString() } : r);
+  localStorage.setItem(REPLACEMENT_KEY, JSON.stringify(updated));
 }
 
 export function markReplacementFulfilled(requestId: string): void {

@@ -18,7 +18,7 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 import { getBranchesForCity } from "../../config/branchStores";
 import {
   getCurrentAnniversaryYear, isDueForAnnualUniform, recordEntitlementIssuance,
-  getReplacementRequests, createReplacementRequest, markReplacementFulfilled,
+  getReplacementRequests, createReplacementRequest, markReplacementFulfilled, confirmOldItemReturned,
 } from "../../services/uniformEntitlementService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -119,6 +119,14 @@ export function UniformEntitlement() {
   };
 
   const handleFulfillReplacement = (req: ReturnType<typeof getReplacementRequests>[number]) => {
+    // Real, confirmed rule: a replacement can only happen if the
+    // existing, damaged item is genuinely returned first. This
+    // refuses outright rather than silently allowing a replacement
+    // with nothing physically received back.
+    if (!req.oldItemReturned) {
+      toast.error("Confirm the old, damaged item has been returned before issuing a replacement");
+      return;
+    }
     if (!branches[0]) {
       toast.error("No real branch found for this city");
       return;
@@ -137,6 +145,12 @@ export function UniformEntitlement() {
     } else {
       toast.error("Branch doesn't have enough real stock for this size right now");
     }
+  };
+
+  const handleConfirmReturn = (requestId: string, employeeName: string) => {
+    confirmOldItemReturned(requestId);
+    toast.success(`Old, damaged item confirmed returned by ${employeeName} — replacement can now be issued`);
+    setRefreshTick((t) => t + 1);
   };
 
   return (
@@ -206,12 +220,24 @@ export function UniformEntitlement() {
             <div className="space-y-2 pt-2 border-t">
               <Label className="text-xs">Pending Replacement Requests</Label>
               {requests.filter((r) => r.status === "Pending").map((r) => (
-                <div key={r.id} className="flex items-center justify-between bg-amber-50 rounded-lg p-2 text-sm">
-                  <div>
-                    <span className="font-medium">{r.employeeName}</span> — {r.garmentType} ({r.size})
-                    <p className="text-xs text-gray-500">{r.reason}</p>
+                <div key={r.id} className="bg-amber-50 rounded-lg p-2 text-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium">{r.employeeName}</span> — {r.garmentType} ({r.size})
+                      <p className="text-xs text-gray-500">{r.reason}</p>
+                    </div>
+                    {r.oldItemReturned ? (
+                      <span className="text-xs text-green-700 font-medium">Old item returned ✓</span>
+                    ) : (
+                      <span className="text-xs text-red-600 font-medium">Old item not yet returned</span>
+                    )}
                   </div>
-                  <Button size="sm" onClick={() => handleFulfillReplacement(r)}>Collect from Branch &amp; Issue</Button>
+                  <div className="flex justify-end gap-2">
+                    {!r.oldItemReturned && (
+                      <Button size="sm" variant="outline" onClick={() => handleConfirmReturn(r.id, r.employeeName)}>Confirm Old Item Returned</Button>
+                    )}
+                    <Button size="sm" disabled={!r.oldItemReturned} onClick={() => handleFulfillReplacement(r)}>Collect from Branch &amp; Issue</Button>
+                  </div>
                 </div>
               ))}
             </div>
