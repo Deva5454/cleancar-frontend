@@ -666,6 +666,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       console.warn("[InventoryContext] Blocked receiveBranchTransfer: transaction not found or not a branch transfer");
       return;
     }
+    // ✅ FIX (STK-DEF-03): identical guard to receiveSupervisorTransfer —
+    // a receipt can never claim more than was actually dispatched, and
+    // can never be negative.
+    const sentQty = transaction.quantitySent ?? transaction.quantity;
+    if (
+      !Number.isFinite(quantityReceived) || quantityReceived < 0 ||
+      !Number.isFinite(damagedQuantity) || damagedQuantity < 0 ||
+      quantityReceived + damagedQuantity > sentQty
+    ) {
+      console.warn(`[InventoryContext] Blocked receiveBranchTransfer: received (${quantityReceived}) + damaged (${damagedQuantity}) exceeds quantitySent (${sentQty}), or a negative value was supplied`);
+      return;
+    }
     setInventory(prev => prev.map(item => {
       if (item.itemId !== transaction.itemId || item.cityId !== cityId) return item;
       const branchId = transaction.toId!;
@@ -743,6 +755,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     const transaction = stockTransactions.find(t => t.transactionId === transactionId);
     if (!transaction || transaction.toLocation !== "Supervisor" || !transaction.toId || transaction.fromLocation !== "Branch") {
       console.warn("[InventoryContext] Blocked receiveSupervisorTransfer: transaction not found or not a branch-to-supervisor transfer");
+      return;
+    }
+    // ✅ FIX (STK-DEF-03): a receipt can never claim more than was
+    // actually dispatched, and can never be negative. Previously
+    // quantityReceived was credited to supervisorStock with no cap
+    // against transaction.quantitySent — a supervisor could fabricate
+    // stock simply by typing a large number into "Quantity Received".
+    const sentQty = transaction.quantitySent ?? transaction.quantity;
+    if (
+      !Number.isFinite(quantityReceived) || quantityReceived < 0 ||
+      !Number.isFinite(damagedQuantity) || damagedQuantity < 0 ||
+      quantityReceived + damagedQuantity > sentQty
+    ) {
+      console.warn(`[InventoryContext] Blocked receiveSupervisorTransfer: received (${quantityReceived}) + damaged (${damagedQuantity}) exceeds quantitySent (${sentQty}), or a negative value was supplied`);
       return;
     }
     setInventory(prev => prev.map(item => {

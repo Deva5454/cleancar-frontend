@@ -79,6 +79,7 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
   const [qtyReceived, setQtyReceived] = useState("");
   const [qtyDamaged, setQtyDamaged] = useState("0");
   const [damageNotes, setDamageNotes] = useState("");
+  const [receivingSentQty, setReceivingSentQty] = useState(0);
 
   const branchStockItems = useMemo(
     () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.branchStock?.[activeBranch.id]) || 0) > 0) : [],
@@ -103,6 +104,7 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
 
   const openReceive = (transactionId: string, sentQty: number) => {
     setReceivingId(transactionId);
+    setReceivingSentQty(sentQty);
     setQtyReceived(String(sentQty));
     setQtyDamaged("0");
     setDamageNotes("");
@@ -110,8 +112,24 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
 
   const confirmReceive = () => {
     if (!receivingId) return;
-    const received = parseInt(qtyReceived, 10) || 0;
+    // ✅ FIX (STK-DEF-08): same validation as SupervisorStockReceipt —
+    // block empty/invalid/negative input and anything that would exceed
+    // what was actually sent, with a real message instead of a silent
+    // no-op or a silently-coerced 0.
+    if (qtyReceived.trim() === "" || isNaN(Number(qtyReceived))) {
+      toast.error("Enter the quantity actually received (0 if genuinely nothing arrived)");
+      return;
+    }
+    const received = parseInt(qtyReceived, 10);
     const damaged = parseInt(qtyDamaged, 10) || 0;
+    if (received < 0 || damaged < 0) {
+      toast.error("Quantity received/damaged can't be negative");
+      return;
+    }
+    if (received + damaged > receivingSentQty) {
+      toast.error(`Received (${received}) + damaged (${damaged}) can't exceed what was sent (${receivingSentQty})`);
+      return;
+    }
     receiveBranchTransfer(receivingId, received, damaged, damageNotes || undefined, city);
     toast.success("Receipt confirmed — branch stock updated");
     setReceivingId(null);

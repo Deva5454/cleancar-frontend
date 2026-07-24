@@ -44,6 +44,7 @@ export function SupervisorStockReceipt() {
   );
 
   const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [receivingSentQty, setReceivingSentQty] = useState(0);
   const [qtyReceived, setQtyReceived] = useState("");
   const [qtyDamaged, setQtyDamaged] = useState("0");
   const [damageNotes, setDamageNotes] = useState("");
@@ -52,6 +53,7 @@ export function SupervisorStockReceipt() {
 
   const openReceive = (transactionId: string, sentQty: number) => {
     setReceivingId(transactionId);
+    setReceivingSentQty(sentQty);
     setQtyReceived(String(sentQty));
     setQtyDamaged("0");
     setDamageNotes("");
@@ -59,8 +61,25 @@ export function SupervisorStockReceipt() {
 
   const confirmReceive = () => {
     if (!receivingId) return;
-    const received = parseInt(qtyReceived, 10) || 0;
+    // ✅ FIX (STK-DEF-08): an empty/non-numeric field is no longer
+    // silently treated as a genuine 0-received confirmation, and the
+    // total can't exceed what was actually sent — matching the guard
+    // now enforced in InventoryContext itself, but with a real,
+    // actionable message here instead of a silent no-op.
+    if (qtyReceived.trim() === "" || isNaN(Number(qtyReceived))) {
+      toast.error("Enter the quantity actually received (0 if genuinely nothing arrived)");
+      return;
+    }
+    const received = parseInt(qtyReceived, 10);
     const damaged = parseInt(qtyDamaged, 10) || 0;
+    if (received < 0 || damaged < 0) {
+      toast.error("Quantity received/damaged can't be negative");
+      return;
+    }
+    if (received + damaged > receivingSentQty) {
+      toast.error(`Received (${received}) + damaged (${damaged}) can't exceed what was sent (${receivingSentQty})`);
+      return;
+    }
     receiveSupervisorTransfer(receivingId, received, damaged, damageNotes || undefined, city);
     toast.success("Receipt confirmed — your stock is updated");
     setReceivingId(null);
