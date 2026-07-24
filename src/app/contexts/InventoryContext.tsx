@@ -209,6 +209,11 @@ interface InventoryContextType {
   ) => boolean;
   sendEquipmentForRepair: (itemId: string, washerId: string, reportedBy: string, reason: string, cityId: string) => boolean;
   markEquipmentRepaired: (itemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
+  // Real link between a repair and the spare part it actually used —
+  // previously a repair could be marked complete with no connection at
+  // all to the real Pressure Washer Parts stock, leaving that stock
+  // count permanently disconnected from what repairs actually consumed.
+  consumePressureWasherPart: (partItemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
   fulfillReplacementThroughSupervisor: (
     itemId: string,
     branchId: string,
@@ -246,11 +251,25 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       ...item,
       itemId:   item.itemId   || (item as any).id,
       itemName: item.itemName || (item as any).name,
+      // ✅ FIX: this used to re-derive category from a substring guess
+      // on EVERY load, even for items that already had a perfectly
+      // valid, current category value. "Pressure Washer Parts" doesn't
+      // contain "equip", "tool", or "consum", so it fell through to the
+      // "Cleaning Supplies" default — meaning every real spare part
+      // (nozzle, spray gun, hose) silently got reclassified as a liquid
+      // cleaning product on the very next app load after being seeded.
+      // Now: if the stored category is already one of the five real,
+      // valid values, it's kept exactly as-is. The substring-guess
+      // fallback still runs, but only for genuinely legacy/unrecognized
+      // category strings, which was its original intent.
       category: ((): InventoryItem["category"] => {
+        const VALID_CATEGORIES: InventoryItem["category"][] = ["Cleaning Supplies", "Equipment", "Consumables", "Tools", "Pressure Washer Parts"];
+        if (VALID_CATEGORIES.includes(item.category)) return item.category;
         const c = (item.category || "").toLowerCase();
         if (c.includes("equip"))   return "Equipment";
         if (c.includes("tool"))    return "Tools";
         if (c.includes("consum"))  return "Consumables";
+        if (c.includes("pressure") || c.includes("part")) return "Pressure Washer Parts";
         return "Cleaning Supplies";
       })(),
       unit:      (["L","Kg","Pcs","Box"].includes(item.unit) ? item.unit : "Pcs") as InventoryItem["unit"],
@@ -1293,6 +1312,57 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   /**
+   * ✅ FIX: previously, marking equipment "repaired" never touched the
+   * real Pressure Washer Parts stock at all — even though a real repair
+   * (e.g. swapping in a spare nozzle) genuinely consumes one. That left
+   * spare-parts stock permanently disconnected from reality: it would
+   * show the same count forever regardless of how many real repairs
+   * used a real part. This is a real, optional step Kim can take at the
+   * point of marking a repair complete, recording which part (if any)
+   * was actually used.
+   */
+  const consumePressureWasherPart = (
+    partItemId: string,
+    quantity: number,
+    repairedBy: string,
+    cityId: string
+  ): boolean => {
+    if (!cityId || !Number.isFinite(quantity) || quantity <= 0) {
+      console.warn("[InventoryContext] Blocked consumePressureWasherPart: cityId missing or invalid quantity");
+      return false;
+    }
+    const item = inventory.find(i => i.itemId === partItemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Blocked consumePressureWasherPart: part ${partItemId} not found`);
+      return false;
+    }
+    const available = item.centralStock || 0;
+    if (available < quantity) {
+      console.warn(`[InventoryContext] Blocked consumePressureWasherPart: insufficient stock of ${partItemId} (have ${available}, need ${quantity})`);
+      return false;
+    }
+
+    setInventory(prev => prev.map(i => {
+      if (i.itemId !== partItemId || i.cityId !== cityId) return i;
+      return { ...i, centralStock: available - quantity, updatedAt: new Date().toISOString() };
+    }));
+
+    createTransaction({
+      itemId: partItemId,
+      type: "Issue",
+      quantity,
+      fromLocation: "Central",
+      toLocation: "Central",
+      status: "Completed",
+      requestedBy: repairedBy,
+      cityId,
+      reason: "Consumed during equipment repair",
+    });
+
+    return true;
+  };
+
+  /**
    * Real, direct Branch → Washer fulfillment - confirmed as a
    * genuinely different real movement than the normal chain. A
    * uniform replacement is urgent, so it draws directly from the
@@ -1666,6 +1736,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         writeOffWasherItem,
         sendEquipmentForRepair,
         markEquipmentRepaired,
+        consumePressureWasherPart,
         fulfillReplacementThroughSupervisor,
         fulfillRequestQuantity,
         assemblePressureWashers,

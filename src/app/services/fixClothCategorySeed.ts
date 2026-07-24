@@ -1,13 +1,28 @@
 /**
- * fixClothCategorySeed — real, one-time migration fixing a
- * confirmed, pre-existing data bug: "Microfiber Cloth Large" was
- * tagged category "Equipment" in the original fallback data, across
- * all three cities. It's genuinely a consumable, not durable
- * equipment - this showed up incorrectly in the real "Equipment in
- * Hand" section of My Stock, mixed in with actual durable items.
+ * fixClothCategorySeed — real, one-time migration fixing confirmed,
+ * pre-existing data bugs:
+ * 1. "Microfiber Cloth Large" was tagged category "Equipment" in the
+ *    original fallback data, across all three cities. It's genuinely
+ *    a consumable, not durable equipment - this showed up incorrectly
+ *    in the real "Equipment in Hand" section of My Stock, mixed in
+ *    with actual durable items.
+ * 2. Real pressure-washer spare parts (Nozzle, Spray Gun,
+ *    High-Pressure Hose) could end up tagged with the wrong category
+ *    two different ways: an older seed mistake tagged them
+ *    "Equipment", and a separate, more recent bug in
+ *    InventoryContext's load-time normalizer silently reclassified
+ *    ANY item whose category didn't already exactly match a known
+ *    value as "Cleaning Supplies" on every app reload - since
+ *    "Pressure Washer Parts" wasn't one of the strings it recognized,
+ *    every real spare part got silently flipped to "Cleaning
+ *    Supplies" the very next time the app loaded after being seeded.
+ *    Both wrong states are corrected back to the one real, correct
+ *    category here, regardless of which broken value they're
+ *    currently sitting at.
  */
 
-const SEED_VERSION_KEY = "cleancar_fix_cloth_category_v2";
+const SEED_VERSION_KEY = "cleancar_fix_cloth_category_v3";
+const KNOWN_PRESSURE_WASHER_PARTS = ["Pressure Washer Nozzle", "Spray Gun", "High-Pressure Hose"];
 
 export function fixClothCategory() {
   try {
@@ -24,7 +39,7 @@ export function fixClothCategory() {
           i.category = "Consumables";
           changed = true;
         }
-        if (i.itemName === "Pressure Washer Nozzle" && i.category === "Equipment") {
+        if (KNOWN_PRESSURE_WASHER_PARTS.includes(i.itemName) && i.category !== "Pressure Washer Parts") {
           i.category = "Pressure Washer Parts";
           changed = true;
         }
