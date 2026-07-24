@@ -147,6 +147,7 @@ import { BranchTransferOut } from "./components/store-manager/BranchTransferOut"
 import { BranchStoreDashboard } from "./components/store-manager/BranchStoreDashboard";
 import { KimBottlingScreen } from "./components/store-manager/KimBottlingScreen";
 import { KimUniformReceiptScreen } from "./components/store-manager/KimUniformReceiptScreen";
+import { GeneralProcurement } from "./components/store-manager/GeneralProcurement";
 import { PressureWasherAssembly } from "./components/store-manager/PressureWasherAssembly";
 import { EquipmentRepairQueue } from "./components/store-manager/EquipmentRepairQueue";
 import { SuperAdminDilutionRecipes } from "./components/admin/SuperAdminDilutionRecipes";
@@ -503,6 +504,7 @@ export const router = createBrowserRouter([
       { path: "store-manager/branch-store", element: <BranchStoreDashboard /> },
       { path: "store-manager/bottling", element: <KimBottlingScreen /> },
       { path: "store-manager/uniform-receipt", element: <KimUniformReceiptScreen /> },
+      { path: "store-manager/procurement", element: <GeneralProcurement /> },
       { path: "store-manager/pressure-washer-assembly", element: <PressureWasherAssembly /> },
       { path: "store-manager/equipment-repair-queue", element: <EquipmentRepairQueue /> },
       { path: "admin/dilution-recipes", element: <SuperAdminDilutionRecipes /> },

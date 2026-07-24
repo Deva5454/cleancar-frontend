@@ -282,6 +282,7 @@ export function StoreManagerModule() {
                     { to:"/store-manager/branch-store", icon:<Truck className="w-4 h-4 mr-2"/>, label:"Branch Store" },
                     { to:"/store-manager/bottling", icon:<Sparkles className="w-4 h-4 mr-2"/>, label:"Bottling" },
                     { to:"/store-manager/uniform-receipt", icon:<Shirt className="w-4 h-4 mr-2"/>, label:"Uniform Receipt" },
+                    { to:"/store-manager/procurement", icon:<ShoppingCart className="w-4 h-4 mr-2"/>, label:"Receive Stock (Procurement)" },
                     { to:"/store-manager/pressure-washer-assembly", icon:<Wrench className="w-4 h-4 mr-2"/>, label:"Pressure Washer Assembly" },
                     { to:"/store-manager/equipment-repair-queue", icon:<Wrench className="w-4 h-4 mr-2"/>, label:"Equipment Repair Queue" },
                   ].map(a => (

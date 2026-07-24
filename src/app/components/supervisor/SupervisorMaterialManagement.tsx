@@ -77,6 +77,20 @@ export function SupervisorMaterialManagement() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* ⚠️ KNOWN GAP: this screen reads/writes unifiedMaterialService, a
+          separate, in-memory-only data system — NOT the real InventoryContext
+          that every other stock screen in this app uses. Numbers here will
+          not match Supervisor Stock Receipt, My Stock, or any other real
+          screen, and everything shown resets on page refresh. This banner is
+          a stop-gap so nobody mistakes this for real, current stock while
+          the real migration (a genuine architecture rewrite, not a small
+          fix) is scoped as its own task. See the Inventory Module handover
+          doc, "Known gaps" section, for the full explanation. */}
+      <div className="bg-amber-100 border-b-2 border-amber-400 px-4 py-2 text-center">
+        <p className="text-xs font-semibold text-amber-900">
+          ⚠️ Demo data — not connected to real stock. Numbers here will not match Supervisor Stock Receipt or My Stock, and reset on refresh.
+        </p>
+      </div>
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-gradient-to-br from-teal-600 to-teal-700 text-white p-4 shadow-lg">
         <div className="mb-3">

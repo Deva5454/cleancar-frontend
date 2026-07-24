@@ -25,7 +25,7 @@ import { Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 export function ReportBrokenPart() {
-  const { createTransaction } = useInventory();
+  const { inventory, createTransaction } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
@@ -41,13 +41,24 @@ export function ReportBrokenPart() {
       toast.error("Select the washer and the broken part");
       return;
     }
+    // ✅ FIX: this used to set itemId to the part's display name (e.g.
+    // "Pressure Washer Nozzle") instead of its real inventory item ID
+    // (e.g. "INV-SUR-005"). Every other function that looks up an item
+    // does so by real item ID, so fulfillRequestQuantity could never
+    // find a match — the request appeared in Requisitions but "Confirm
+    // Issue" always failed. Now resolves the real item first.
+    const partItem = inventory.find((i: any) => i.itemName === partName && i.cityId === city);
+    if (!partItem) {
+      toast.error(`${partName} isn't a real inventory item in this city yet — add it via Pressure Washer Assembly first`);
+      return;
+    }
     // Real, quantity-tracked request - same real mechanism as any
     // other material request, showing up in Requisitions for a
     // supervisor to genuinely approve and fulfill, not a shortcut
     // that bypasses that real step. The washer's machine count itself
     // is never touched - only the one real part moves.
     createTransaction({
-      itemId: partName,
+      itemId: partItem.itemId,
       type: "Transfer",
       quantity: 1,
       quantityRequested: 1,

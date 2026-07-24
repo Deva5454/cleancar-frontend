@@ -57,6 +57,16 @@ export function ClothManagementScreenV2() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* ⚠️ KNOWN GAP: this screen reads/writes supervisorBufferStockService,
+          a third, separate, in-memory-only data system — NOT the real
+          InventoryContext that every other stock screen in this app uses.
+          Same category of gap as SupervisorMaterialManagement.tsx; see the
+          Inventory Module handover doc, "Known gaps" section. */}
+      <div className="bg-amber-100 border-b-2 border-amber-400 px-4 py-2 text-center">
+        <p className="text-xs font-semibold text-amber-900">
+          ⚠️ Demo data — not connected to real stock. Numbers here will not match Supervisor Stock Receipt or My Stock, and reset on refresh.
+        </p>
+      </div>
       {/* HEADER */}
       <div className="sticky top-0 z-50 bg-gradient-to-br from-teal-600 to-teal-700 text-white p-4 shadow-lg">
         <div className="mb-3">
