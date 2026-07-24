@@ -3,7 +3,7 @@
  * Used across: Inventory Module, Requisitions, Issuances, Procurement
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useRef} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo} from "react";
 import { useEvents, useEventListener } from "./EventSystem";
 import { getDilutionRecipes } from "../services/dilutionRecipeService";
 import { DataService } from "../services/DataService";
@@ -248,48 +248,25 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>(() =>
     DataService.get<StockTransaction>("STOCK_TRANSACTIONS")
   );
-  const _dbInvTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const _dbTxnTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { emit } = useEvents();
 
+  // Real fix, replacing an earlier debounced-save approach entirely:
+  // waiting 500ms before actually persisting a real change meant a
+  // hard refresh or quick navigation within that window could lose
+  // it - confirmed directly, this was happening even with an added
+  // beforeunload flush, since browsers don't fully guarantee that
+  // handler completes before a hard reload tears the page down.
+  // Inventory changes aren't frequent enough to need debouncing, so
+  // saving immediately and synchronously on every real change
+  // eliminates this entire class of bug rather than trying to catch
+  // every possible unload scenario after the fact.
   useEffect(() => {
-    if (_dbInvTimer.current) clearTimeout(_dbInvTimer.current);
-    _dbInvTimer.current = setTimeout(() => DataService.setAll("INVENTORY_ITEMS", inventory), 500);
+    DataService.setAll("INVENTORY_ITEMS", inventory);
   }, [inventory]);
 
   useEffect(() => {
-    if (_dbTxnTimer.current) clearTimeout(_dbTxnTimer.current);
-    _dbTxnTimer.current = setTimeout(() => DataService.setAll("STOCK_TRANSACTIONS", stockTransactions), 500);
+    DataService.setAll("STOCK_TRANSACTIONS", stockTransactions);
   }, [stockTransactions]);
-
-  // Real fix for a genuine, confirmed data-loss bug: the two debounced
-  // saves above had no way to guarantee a pending write actually
-  // completes before the page navigates away or unloads. If that
-  // happened within the 500ms debounce window - which real users
-  // genuinely do, especially when a redirect or quick navigation is
-  // involved - the pending real change (a new item, issued stock) was
-  // silently lost, even though it had already happened in memory.
-  // This forces an immediate, synchronous save of whatever is
-  // currently pending the moment the page is about to unload.
-  useEffect(() => {
-    const flushPendingSaves = () => {
-      if (_dbInvTimer.current) {
-        clearTimeout(_dbInvTimer.current);
-        DataService.setAll("INVENTORY_ITEMS", inventory);
-      }
-      if (_dbTxnTimer.current) {
-        clearTimeout(_dbTxnTimer.current);
-        DataService.setAll("STOCK_TRANSACTIONS", stockTransactions);
-      }
-    };
-    window.addEventListener("beforeunload", flushPendingSaves);
-    window.addEventListener("pagehide", flushPendingSaves);
-    return () => {
-      window.removeEventListener("beforeunload", flushPendingSaves);
-      window.removeEventListener("pagehide", flushPendingSaves);
-      flushPendingSaves(); // also flush on a real React unmount/route change, not just a full page unload
-    };
-  }, [inventory, stockTransactions]);
 
   // Inventory Item CRUD
   const addInventoryItem = (
