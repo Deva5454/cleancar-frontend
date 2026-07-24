@@ -63,6 +63,7 @@ export function MyStock() {
     const equipment: any[] = [];
     getWasherStock(washerId, cityId).forEach((item: any) => {
       if (item.itemName?.endsWith("- Empty Bottle")) return; // handled by the return panel, not here
+      if (item.category === "Pressure Washer Parts") return; // a one-time repair part, not a reorderable consumable
       const sealedBalance = item.washerStock[washerId] || 0;
       const openBottle = item.washerOpenBottle?.[washerId];
 

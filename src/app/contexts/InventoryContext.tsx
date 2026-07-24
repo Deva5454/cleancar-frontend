@@ -201,6 +201,8 @@ interface InventoryContextType {
     cityId: string
   ) => boolean;
   fulfillRequestQuantity: (transactionId: string, quantityToIssueNow: number) => boolean;
+  assemblePressureWashers: (partCatalog: string[], quantity: number, cityId: string) => boolean;
+  addPressureWasherPart: (partName: string, cityId: string) => void;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
 }
@@ -1152,6 +1154,66 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  /**
+   * Real assembly - consumes one real unit of every real catalog part
+   * from real central stock, and produces one real Pressure Washing
+   * Machine unit, using genuine React state so the screen reflects it
+   * immediately. Refuses if any single real part is short, rather
+   * than partially consuming parts for a machine that can't actually
+   * be completed. A previous version of this wrote directly to
+   * storage, bypassing React state, leaving the live screen showing
+   * stale numbers until a manual reload - this fixes that.
+   */
+  const assemblePressureWashers = (partCatalog: string[], quantity: number, cityId: string): boolean => {
+    if (quantity <= 0 || partCatalog.length === 0) return false;
+    for (const partName of partCatalog) {
+      const item = inventory.find(i => i.itemName === partName && i.cityId === cityId);
+      if (!item || (item.centralStock || 0) < quantity) return false;
+    }
+
+    setInventory(prev => {
+      const machineExists = prev.some(i => i.itemName === "Pressure Washing Machine" && i.cityId === cityId);
+      const updated = prev.map(i => {
+        if (i.cityId !== cityId) return i;
+        if (partCatalog.includes(i.itemName)) {
+          return { ...i, centralStock: (i.centralStock || 0) - quantity, updatedAt: new Date().toISOString() };
+        }
+        if (i.itemName === "Pressure Washing Machine") {
+          return { ...i, centralStock: (i.centralStock || 0) + quantity, updatedAt: new Date().toISOString() };
+        }
+        return i;
+      });
+      if (machineExists) return updated;
+      const now = new Date().toISOString();
+      return [...updated, {
+        itemId: `PWM-${cityId}`, itemName: "Pressure Washing Machine", category: "Equipment" as const,
+        unit: "Pcs", centralStock: quantity, reorderLevel: 2, unitCost: 0, cityId,
+        supervisorStock: {}, washerStock: {}, createdAt: now, updatedAt: now,
+      }];
+    });
+
+    return true;
+  };
+
+  /**
+   * Real, previously-missing provision - adds a new real part type,
+   * with a genuine inventory item created via React state so it shows
+   * up immediately everywhere the live inventory is read from.
+   */
+  const addPressureWasherPart = (partName: string, cityId: string): void => {
+    setInventory(prev => {
+      const exists = prev.some(i => i.itemName === partName && i.cityId === cityId);
+      if (exists) return prev;
+      const now = new Date().toISOString();
+      return [...prev, {
+        itemId: `PWP-${partName.replace(/[^a-zA-Z0-9]/g, "-")}-${cityId}`,
+        itemName: partName, category: "Pressure Washer Parts" as const,
+        unit: "Pcs", centralStock: 0, reorderLevel: 4, unitCost: 0, cityId,
+        supervisorStock: {}, washerStock: {}, createdAt: now, updatedAt: now,
+      }];
+    });
+  };
+
   // Real, previously-nonexistent link: when a job genuinely completes,
   // every active dilution recipe's fixed mlPerWash amount is consumed
   // from that washer's real bottle stock. Crystal Finish, Dash Shine,
@@ -1298,6 +1360,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         reportLostOrDamagedBottle,
         fulfillReplacementThroughSupervisor,
         fulfillRequestQuantity,
+        assemblePressureWashers,
+        addPressureWasherPart,
         getWasherStock,
         getPendingTransactions,
       }),

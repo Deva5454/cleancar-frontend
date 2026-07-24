@@ -11,7 +11,7 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import {
-  getPartCatalog, addPartToCatalog, getAssemblableCount, assembleMachines,
+  getPartCatalog, saveCatalog, getAssemblableCount,
 } from "../../services/pressureWasherPartsService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -21,15 +21,18 @@ import { Wrench, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 export function PressureWasherAssembly() {
-  const { inventory } = useInventory();
+  const { inventory, assemblePressureWashers, addPressureWasherPart } = useInventory();
   const { city } = useCity();
   const { currentRole } = useRole();
-  const [refreshTick, setRefreshTick] = useState(0);
   const [assembleQty, setAssembleQty] = useState("1");
   const [newPartName, setNewPartName] = useState("");
 
   const catalog = getPartCatalog();
-  const assemblable = getAssemblableCount(city);
+  // Real fix: reads the live React inventory array directly, so this
+  // always matches what's actually on screen - previously this read a
+  // separate copy from storage, which could disagree with the real,
+  // live numbers shown just above it.
+  const assemblable = getAssemblableCount(inventory, city);
   const canManageCatalog = ["Store Manager", "Super Admin"].includes(currentRole);
 
   const partStockRows = catalog.map((partName) => {
@@ -47,10 +50,9 @@ export function PressureWasherAssembly() {
       toast.error(`Only ${assemblable} complete machine(s) can genuinely be assembled with current real part stock`);
       return;
     }
-    const ok = assembleMachines(qty, city);
+    const ok = assemblePressureWashers(catalog, qty, city);
     if (ok) {
       toast.success(`Assembled ${qty} real Pressure Washing Machine(s)`);
-      setRefreshTick((t) => t + 1);
       setAssembleQty("1");
     } else {
       toast.error("Assembly failed — insufficient real part stock");
@@ -58,14 +60,17 @@ export function PressureWasherAssembly() {
   };
 
   const handleAddPart = () => {
-    if (!newPartName.trim()) {
+    const name = newPartName.trim();
+    if (!name) {
       toast.error("Enter a real part name");
       return;
     }
-    addPartToCatalog(newPartName.trim(), city);
-    toast.success(`${newPartName.trim()} added to the real part catalog — receive real stock for it like any other item`);
+    if (!catalog.includes(name)) {
+      saveCatalog([...catalog, name]);
+    }
+    addPressureWasherPart(name, city);
+    toast.success(`${name} added to the real part catalog — receive real stock for it like any other item`);
     setNewPartName("");
-    setRefreshTick((t) => t + 1);
   };
 
   return (

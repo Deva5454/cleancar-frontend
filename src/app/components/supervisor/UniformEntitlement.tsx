@@ -33,7 +33,7 @@ import { toast } from "sonner";
 const SIZES = ["S", "M", "L", "XL"];
 
 export function UniformEntitlement() {
-  const { inventory, issueInventory, fulfillReplacementThroughSupervisor } = useInventory();
+  const { inventory, fulfillReplacementThroughSupervisor } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
@@ -67,10 +67,20 @@ export function UniformEntitlement() {
       toast.error(`${itemName} doesn't exist in inventory yet`);
       return;
     }
-    // Real annual entitlement is 2 real pieces, issued from whatever
-    // supervisor stock is available - not urgent, so it follows the
-    // normal chain rather than pulling directly from Branch.
-    issueInventory(item.itemId, 2, "Washer", employeeId, currentUser?.name || "Supervisor", city);
+    if (!branches[0]) {
+      toast.error("No real branch found for this city");
+      return;
+    }
+    // Real fix: this previously used issueInventory, which pulls
+    // directly from Central stock, silently skipping Branch and
+    // Supervisor entirely - the same chain-skipping mistake already
+    // corrected for the replacement flow below, just not caught here
+    // at the time. Uses the same real, chain-preserving movement now.
+    const ok = fulfillReplacementThroughSupervisor(item.itemId, branches[0].id, currentUser?.employeeId || "", employeeId, 2, currentUser?.name || "Supervisor", city);
+    if (!ok) {
+      toast.error(`Branch doesn't have enough real ${itemName} stock right now`);
+      return;
+    }
     recordEntitlementIssuance({
       employeeId, employeeName, garmentType, size, anniversaryYear,
       issuedDate: new Date().toISOString(), issuedBy: currentUser?.name || "Supervisor", cityId: city,

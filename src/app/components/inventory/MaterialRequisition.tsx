@@ -24,7 +24,7 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 export function MaterialRequisition() {
   const { currentRole, currentUser } = useRole();
   const { stockTransactions, getPendingTransactions, procureInventory,
-          getCentralStock, inventory, createTransaction, approveTransaction, completeTransaction, fulfillRequestQuantity } = useInventory();
+          getCentralStock, inventory, createTransaction, approveTransaction, fulfillRequestQuantity } = useInventory();
   const { city, cityInfo } = useCity();
   const { employees } = useEmployee();
 
@@ -67,13 +67,6 @@ export function MaterialRequisition() {
   const handleApproveMRF = (transactionId: string) => {
     approveTransaction(transactionId, currentUser?.name || currentRole);
     toast.success("MRF approved");
-  };
-
-  const handleIssueMRF = (transactionId: string) => {
-    // Real fix: previously this button had no handler - stock never
-    // actually moved even after an MRF was "approved."
-    completeTransaction(transactionId);
-    toast.success("Material issued for this MRF");
   };
 
   const handleFulfillQuantity = (transactionId: string, owed: number) => {
