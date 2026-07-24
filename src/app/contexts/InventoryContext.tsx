@@ -351,8 +351,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const completeTransaction = (transactionId: string) => {
-    const transaction = stockTransactions.find((t) => t.transactionId === transactionId);
+  const completeTransaction = (transactionId: string, explicitTransaction?: StockTransaction) => {
+    // Real fix for a genuine, confirmed bug: looking up the transaction
+    // from stockTransactions here used a closure-captured value that
+    // hadn't caught up yet when this was called immediately after
+    // createTransaction() in the same synchronous function - exactly
+    // the pattern issueInventory (and others) use. The lookup silently
+    // found nothing and this function quietly returned, before ever
+    // updating real stock - with no error, making a genuinely failed
+    // operation look successful to the caller. When the caller already
+    // has the real transaction object (from createTransaction's own
+    // return value), using it directly sidesteps the stale closure
+    // entirely.
+    const transaction = explicitTransaction || stockTransactions.find((t) => t.transactionId === transactionId);
     if (!transaction) return;
 
     // Update stock levels based on transaction
@@ -459,7 +470,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     });
     // Auto-approve and complete for now (in real app, needs approval workflow)
     approveTransaction(transaction.transactionId, "System");
-    completeTransaction(transaction.transactionId);
+    completeTransaction(transaction.transactionId, transaction);
 
     // Emit INVENTORY_ISSUED event
     emit("INVENTORY_ISSUED", {
@@ -518,7 +529,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       status: "Approved",
       cityId,
     });
-    completeTransaction(transaction.transactionId);
+    completeTransaction(transaction.transactionId, transaction);
   };
 
   // Real Main Store → Branch Store transfer. Deliberately a separate,
