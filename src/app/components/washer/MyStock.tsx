@@ -343,19 +343,22 @@ export function MyStock() {
             <CardTitle className="text-base flex items-center gap-2">
               <Shirt className="w-5 h-5 text-gray-600" /> My Cloths
             </CardTitle>
-            <p className="text-xs text-gray-500">Real, individually barcoded cloths currently with you, by color and real wash count</p>
+            <p className="text-xs text-gray-500">Real count currently with you, by color — each is used once per car, then sent back to Kim for washing</p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {myCloths.map((cloth: any) => (
-              <div key={cloth.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+            {Object.entries(
+              myCloths.reduce((acc: Record<string, number>, cloth: any) => {
+                const key = cloth.color || "Unknown";
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+              }, {})
+            ).map(([color, count]) => (
+              <div key={color} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
                 <div className="flex items-center gap-2">
-                  {cloth.color && <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[cloth.color] || "bg-gray-400"}`} />}
-                  <span className="font-medium text-gray-900">{cloth.shortId}</span>
-                  {cloth.color && <span className="text-gray-500">{cloth.color}</span>}
+                  <span className={`w-2.5 h-2.5 rounded-full ${COLOR_DOT_CLASSES[color] || "bg-gray-400"}`} />
+                  <span className="font-medium text-gray-900">{color}</span>
                 </div>
-                <span className={`text-xs ${cloth.washesRemaining <= 5 ? "text-red-600 font-medium" : "text-gray-500"}`}>
-                  {cloth.washCount}/90 washes {cloth.washesRemaining <= 5 && "— near retirement"}
-                </span>
+                <span className="text-gray-700 font-medium">{count as number} cloths</span>
               </div>
             ))}
           </CardContent>

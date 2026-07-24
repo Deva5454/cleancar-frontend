@@ -142,6 +142,15 @@ export function ClothExchange() {
       // Add to clean list
       setCleanClothIds([...cleanClothIds, barcode]);
 
+      // Real, previously-missing warning - this is the actual final
+      // checkpoint before a cloth reaches a washer's hands. A cloth
+      // this close to its real 90-wash retirement should stop a
+      // supervisor here, not slip through unnoticed.
+      const washesRemaining = clothTrackingService.getWashesRemaining(result.cloth);
+      if (washesRemaining <= 5) {
+        toast.error(`${result.cloth.shortId} is near retirement (${result.cloth.washCount}/90 washes) — do not issue this one to a washer`, { duration: 6000 });
+      }
+
       // Show success feedback
       setScanFeedback({
         type: "success",

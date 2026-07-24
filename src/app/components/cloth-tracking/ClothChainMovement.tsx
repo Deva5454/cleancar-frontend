@@ -96,7 +96,11 @@ export function ClothChainMovement() {
                 <label key={c.id} className={`flex items-center gap-2 border rounded-lg p-2 cursor-pointer ${checkedAtKim.has(c.id) ? "border-blue-500 bg-blue-50" : ""}`}>
                   <input type="checkbox" checked={checkedAtKim.has(c.id)} onChange={() => toggleKim(c.id)} />
                   <span className="text-sm">{c.shortId} {c.color && `· ${c.color}`}</span>
-                  <Badge variant="secondary" className="text-xs ml-auto">{c.washCount}/90</Badge>
+                  {clothTrackingService.getWashesRemaining(c) <= 5 ? (
+                    <Badge variant="destructive" className="text-xs ml-auto">{c.washCount}/90 — near retirement</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs ml-auto">{c.washCount}/90</Badge>
+                  )}
                 </label>
               ))}
             </div>
@@ -124,7 +128,11 @@ export function ClothChainMovement() {
                 <label key={c.id} className={`flex items-center gap-2 border rounded-lg p-2 cursor-pointer ${checkedAtBranch.has(c.id) ? "border-blue-500 bg-blue-50" : ""}`}>
                   <input type="checkbox" checked={checkedAtBranch.has(c.id)} onChange={() => toggleBranch(c.id)} />
                   <span className="text-sm">{c.shortId} {c.color && `· ${c.color}`}</span>
-                  <Badge variant="secondary" className="text-xs ml-auto">{c.washCount}/90</Badge>
+                  {clothTrackingService.getWashesRemaining(c) <= 5 ? (
+                    <Badge variant="destructive" className="text-xs ml-auto">{c.washCount}/90 — near retirement</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs ml-auto">{c.washCount}/90</Badge>
+                  )}
                 </label>
               ))}
             </div>
