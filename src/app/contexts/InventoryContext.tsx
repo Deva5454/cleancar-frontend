@@ -1130,6 +1130,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
+    // Real, defensive guard - previously, a destination other than
+    // Washer or Supervisor would have deducted stock from the source
+    // and credited it nowhere, genuinely losing it. Every real
+    // destination is now handled explicitly; anything else refuses
+    // the whole operation rather than risking silent stock loss.
+    const knownDestinations = ["Washer", "Supervisor", "Branch", "Central"];
+    if (!knownDestinations.includes(txn.toLocation)) {
+      console.warn(`[InventoryContext] Blocked fulfillRequestQuantity: unrecognized destination "${txn.toLocation}"`);
+      return false;
+    }
+
     setInventory(prev => prev.map(i => {
       if (i.itemId !== txn.itemId || i.cityId !== txn.cityId) return i;
       const updated = { ...i };
@@ -1139,6 +1150,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
       if (txn.toLocation === "Washer" && txn.toId) updated.washerStock = { ...updated.washerStock, [txn.toId]: (updated.washerStock[txn.toId] || 0) + quantityToIssueNow };
       else if (txn.toLocation === "Supervisor" && txn.toId) updated.supervisorStock = { ...updated.supervisorStock, [txn.toId]: (updated.supervisorStock[txn.toId] || 0) + quantityToIssueNow };
+      else if (txn.toLocation === "Branch" && txn.toId) updated.branchStock = { ...(updated.branchStock || {}), [txn.toId]: ((updated.branchStock || {})[txn.toId] || 0) + quantityToIssueNow };
+      else if (txn.toLocation === "Central") updated.centralStock = (updated.centralStock || 0) + quantityToIssueNow;
 
       return updated;
     }));

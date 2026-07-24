@@ -69,7 +69,7 @@ export function MaterialRequisition() {
     toast.success("MRF approved");
   };
 
-  const handleFulfillQuantity = (transactionId: string, owed: number) => {
+  const handleFulfillQuantity = (transactionId: string, owed: number, fromLocation: string) => {
     const qty = parseInt(fulfillQty, 10);
     if (!qty || qty <= 0) {
       toast.error("Enter a real quantity to issue now");
@@ -86,7 +86,12 @@ export function MaterialRequisition() {
       setFulfillingId(null);
       setFulfillQty("");
     } else {
-      toast.error("Not enough real stock to issue that amount right now");
+      const guidance = fromLocation === "Supervisor"
+        ? " — request more from Branch first, then try again"
+        : fromLocation === "Branch"
+        ? " — request more from Central first, then try again"
+        : "";
+      toast.error(`Not enough real stock to issue that amount right now${guidance}`);
     }
   };
 
@@ -107,6 +112,7 @@ export function MaterialRequisition() {
       status: t.status,
       createdAt: t.createdAt,
       type: t.type,
+      fromLocation: t.fromLocation,
     };
   });
 
@@ -292,7 +298,7 @@ export function MaterialRequisition() {
                       className="w-28"
                       placeholder="Qty now"
                     />
-                    <Button size="sm" onClick={() => handleFulfillQuantity(mrf.id, mrf.quantityOwed)}>Confirm Issue</Button>
+                    <Button size="sm" onClick={() => handleFulfillQuantity(mrf.id, mrf.quantityOwed, mrf.fromLocation)}>Confirm Issue</Button>
                     <Button size="sm" variant="ghost" onClick={() => { setFulfillingId(null); setFulfillQty(""); }}>Cancel</Button>
                   </div>
                 )}
