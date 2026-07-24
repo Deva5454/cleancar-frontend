@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
@@ -71,6 +72,9 @@ export function EquipmentRepairQueue() {
           <Wrench className="w-5 h-5 text-blue-600" /> Equipment Repair Queue
         </CardTitle>
         <p className="text-xs text-gray-500">Real equipment currently at Kim, sent back broken by a supervisor, awaiting repair</p>
+        <Link to="/store-manager/equipment-serial-registry" className="text-xs text-blue-600 hover:underline inline-block mt-1">
+          View real per-unit serial history →
+        </Link>
       </CardHeader>
       <CardContent className="space-y-3">
         {underRepair.length === 0 ? (

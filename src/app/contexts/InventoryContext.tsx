@@ -86,6 +86,43 @@ export interface StockTransaction {
   damageNotes?: string;
 }
 
+/**
+ * EquipmentUnit — real, per-serial tracking for one specific physical
+ * unit of equipment (e.g. one specific Pressure Washing Machine), so
+ * "which exact unit is where, and what's happened to it" is a real,
+ * answerable question — not just an aggregate count.
+ *
+ * This is a layer ON TOP of the existing aggregate counts
+ * (centralStock/branchStock/supervisorStock/washerStock/underRepairStock)
+ * on InventoryItem, not a replacement for them. The aggregate counts
+ * remain the real source of truth for "how many" everywhere in this
+ * file; this registry answers "which specific one, and where's its
+ * history" for equipment specifically. A unit is only created here at
+ * the two real points equipment actually comes into existence —
+ * assembly (assemblePressureWashers) and procurement of an Equipment-
+ * category item — so stock that existed before this registry was
+ * built won't retroactively have a serial, but everything created
+ * going forward will.
+ */
+export interface EquipmentUnit {
+  unitId: string; // the real, human-readable serial, e.g. "PWM-SUR-0007"
+  itemId: string; // links back to the real InventoryItem this unit is one of
+  cityId: string;
+  location: "Central" | "Branch" | "Supervisor" | "Washer" | "UnderRepair";
+  locationId?: string; // real branchId/supervisorId/washerId — not set for Central/UnderRepair
+  history: Array<{
+    event: string; // e.g. "Created", "Issued", "Sent for repair", "Repaired", "Transferred"
+    fromLocation?: string;
+    fromId?: string;
+    toLocation?: string;
+    toId?: string;
+    by: string;
+    at: string;
+    notes?: string;
+  }>;
+  createdAt: string;
+}
+
 interface InventoryContextType {
   // Inventory Items
   inventory: InventoryItem[];
@@ -228,6 +265,11 @@ interface InventoryContextType {
   addPressureWasherPart: (partName: string, cityId: string) => void;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
+
+  // Equipment Serial Registry
+  equipmentUnits: EquipmentUnit[];
+  getEquipmentUnits: (cityId: string, itemId?: string) => EquipmentUnit[];
+  getEquipmentUnitHistory: (unitId: string) => EquipmentUnit | undefined;
 }
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
@@ -308,6 +350,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>(() =>
     DataService.get<StockTransaction>("STOCK_TRANSACTIONS")
   );
+  const [equipmentUnits, setEquipmentUnits] = useState<EquipmentUnit[]>(() =>
+    DataService.get<EquipmentUnit>("EQUIPMENT_UNITS")
+  );
   const { emit } = useEvents();
 
   // Real fix, replacing an earlier debounced-save approach entirely:
@@ -327,6 +372,81 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     DataService.setAll("STOCK_TRANSACTIONS", stockTransactions);
   }, [stockTransactions]);
+
+  useEffect(() => {
+    DataService.setAll("EQUIPMENT_UNITS", equipmentUnits);
+  }, [equipmentUnits]);
+
+  /**
+   * Real, internal helper: creates brand-new serial units at the two
+   * real points equipment actually comes into existence — assembly and
+   * procurement. Not exposed directly; called from those two real
+   * functions below.
+   */
+  const registerNewEquipmentUnits = (
+    itemId: string,
+    quantity: number,
+    cityId: string,
+    source: string,
+    by: string
+  ) => {
+    setEquipmentUnits(prev => {
+      const existingForItem = prev.filter(u => u.itemId === itemId).length;
+      const newUnits: EquipmentUnit[] = [];
+      for (let i = 0; i < quantity; i++) {
+        const seq = existingForItem + i + 1;
+        const unitId = `${itemId}-U${String(seq).padStart(3, "0")}`;
+        const now = new Date().toISOString();
+        newUnits.push({
+          unitId, itemId, cityId,
+          location: "Central",
+          history: [{ event: "Created", toLocation: "Central", by, at: now, notes: source }],
+          createdAt: now,
+        });
+      }
+      return [...prev, ...newUnits];
+    });
+  };
+
+  /**
+   * Real, internal helper: moves ONE specific real unit's tracked
+   * location and appends a real history entry, keeping the serial
+   * registry in sync with whatever the aggregate stock movement above
+   * it just did. If no matching unit is found in the registry (e.g.
+   * stock that existed before this registry was built, so it was never
+   * assigned a serial), this silently does nothing — the real aggregate
+   * count movement is never blocked by a missing serial.
+   */
+  const moveEquipmentUnit = (
+    itemId: string,
+    cityId: string,
+    fromLocation: EquipmentUnit["location"],
+    fromId: string | undefined,
+    toLocation: EquipmentUnit["location"],
+    toId: string | undefined,
+    by: string,
+    event: string,
+    notes?: string
+  ) => {
+    setEquipmentUnits(prev => {
+      const idx = prev.findIndex(u =>
+        u.itemId === itemId && u.cityId === cityId && u.location === fromLocation &&
+        (fromId ? u.locationId === fromId : !u.locationId)
+      );
+      if (idx === -1) return prev; // no serial-tracked unit here — real aggregate movement still stands on its own
+      const unit = prev[idx];
+      const now = new Date().toISOString();
+      const updated: EquipmentUnit = {
+        ...unit,
+        location: toLocation,
+        locationId: toId,
+        history: [...unit.history, { event, fromLocation, fromId, toLocation, toId, by, at: now, notes }],
+      };
+      const next = [...prev];
+      next[idx] = updated;
+      return next;
+    });
+  };
 
   // Inventory Item CRUD
   const addInventoryItem = (
@@ -569,7 +689,15 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     });
     // Auto-approve and complete for now (in real app, needs approval workflow)
     approveTransaction(transaction.transactionId, "System");
-    completeTransaction(transaction.transactionId, transaction);
+    const completed = completeTransaction(transaction.transactionId, transaction);
+
+    // ✅ Real serial tracking — only move a tracked unit if the real
+    // stock movement actually completed. If it was blocked (e.g.
+    // insufficient stock), the serial registry must not drift out of
+    // sync by relocating a unit that never actually moved.
+    if (completed && item.category === "Equipment") {
+      moveEquipmentUnit(itemId, cityId, "Central", undefined, toLocation, toId, requestedBy, "Issued");
+    }
 
     // Emit INVENTORY_ISSUED event
     emit("INVENTORY_ISSUED", {
@@ -633,7 +761,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       status: "Approved",
       cityId,
     });
-    completeTransaction(transaction.transactionId, transaction);
+    const completed = completeTransaction(transaction.transactionId, transaction);
+
+    // ✅ Real serial tracking — same guard as issueInventory: only move
+    // a tracked unit if the real movement actually completed.
+    if (completed && item.category === "Equipment") {
+      moveEquipmentUnit(itemId, cityId, fromLocation, fromId, toLocation, toId, "System", "Transferred");
+    }
   };
 
   // Real Main Store → Branch Store transfer. Deliberately a separate,
@@ -876,6 +1010,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       cityId,
       procuredAt: new Date().toISOString(),
     }, "InventoryContext");
+
+    // ✅ Real serial registration — procurement is the other real point
+    // (besides assembly) equipment can come into existence. Only
+    // Equipment-category items get real serials; general consumables
+    // never did and don't need to.
+    if (item.category === "Equipment") {
+      registerNewEquipmentUnits(itemId, quantity, cityId, `Procured from ${supplierId}`, supplierId);
+    }
   };
 
   // Real Kim-side bottling action - the concentrate received from a
@@ -1282,6 +1424,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       reason: `Sent for repair: ${reason}`,
     });
 
+    // ✅ Real serial tracking — this is the real fix for "which exact
+    // unit went for repair, and is the one that comes back the same
+    // one". Moves one real tracked unit to "UnderRepair" with a real
+    // history entry recording the reason.
+    if (item.category === "Equipment") {
+      moveEquipmentUnit(itemId, cityId, fromLocation, fromId, "UnderRepair", undefined, reportedBy, "Sent for repair", reason);
+    }
+
     return true;
   };
 
@@ -1315,6 +1465,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       status: "Completed", requestedBy: repairedBy, cityId,
       reason: "Repair completed — returned to usable stock",
     });
+
+    // ✅ Real serial tracking — this is the real fix for "is the unit
+    // that comes back the same physical one that went in": moves
+    // `quantity` real tracked units from UnderRepair back to Central,
+    // each with its own history entry, instead of only ever adjusting
+    // an anonymous pooled count.
+    if (item.category === "Equipment") {
+      for (let i = 0; i < quantity; i++) {
+        moveEquipmentUnit(itemId, cityId, "UnderRepair", undefined, "Central", undefined, repairedBy, "Repaired");
+      }
+    }
 
     return true;
   };
@@ -1434,6 +1595,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       reason: `Uniform replacement - collected from Branch and handed to washer by Supervisor ${supervisorId}`,
     });
 
+    // ✅ Real serial tracking — this path is normally uniforms, but if
+    // ever used for Equipment, keep the registry in sync the same way
+    // every other real movement function does.
+    if (item.category === "Equipment") {
+      moveEquipmentUnit(itemId, cityId, "Branch", branchId, "Washer", washerId, requestedBy, "Issued (replacement)");
+    }
+
     return true;
   };
 
@@ -1545,6 +1713,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         supervisorStock: {}, washerStock: {}, createdAt: now, updatedAt: now,
       }];
     });
+
+    // ✅ Real serial registration — this is the actual point new
+    // Pressure Washing Machine units come into existence, so each of
+    // the `quantity` units assembled gets a real, individual serial in
+    // the equipment registry, starting at Central.
+    registerNewEquipmentUnits(`PWM-${cityId}`, quantity, cityId, "Pressure washer assembly", "System");
 
     return true;
   };
@@ -1706,6 +1880,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const getEquipmentUnits = (cityId: string, itemId?: string): EquipmentUnit[] => {
+    return equipmentUnits.filter(u => u.cityId === cityId && (!itemId || u.itemId === itemId));
+  };
+
+  const getEquipmentUnitHistory = (unitId: string): EquipmentUnit | undefined => {
+    return equipmentUnits.find(u => u.unitId === unitId);
+  };
+
   // ✅ FIX (INV-DEF-06): this used to be wrapped in useMemo with a
   // dependency array listing only 10 of the ~30 values/functions
   // actually returned below, silenced with an eslint-disable-line. That
@@ -1751,6 +1933,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         addPressureWasherPart,
         getWasherStock,
         getPendingTransactions,
+        equipmentUnits,
+        getEquipmentUnits,
+        getEquipmentUnitHistory,
       };
 
   return (

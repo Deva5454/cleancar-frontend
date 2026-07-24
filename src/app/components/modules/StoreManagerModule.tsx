@@ -285,6 +285,7 @@ export function StoreManagerModule() {
                     { to:"/store-manager/procurement", icon:<ShoppingCart className="w-4 h-4 mr-2"/>, label:"Receive Stock (Procurement)" },
                     { to:"/store-manager/pressure-washer-assembly", icon:<Wrench className="w-4 h-4 mr-2"/>, label:"Pressure Washer Assembly" },
                     { to:"/store-manager/equipment-repair-queue", icon:<Wrench className="w-4 h-4 mr-2"/>, label:"Equipment Repair Queue" },
+                    { to:"/store-manager/equipment-serial-registry", icon:<Layers className="w-4 h-4 mr-2"/>, label:"Equipment Serial Registry" },
                   ].map(a => (
                     <Link key={a.to} to={a.to}>
                       <Button variant="outline" className="w-full">{a.icon}{a.label}</Button>
