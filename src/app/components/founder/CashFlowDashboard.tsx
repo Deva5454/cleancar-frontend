@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -16,6 +16,8 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { useGlobalFilters } from "../navigation/GlobalFilterBar";
+import { accountingEntryService } from "../../services/accountingEntryService";
 import {
   LineChart,
   Line,
@@ -32,65 +34,119 @@ import {
   ComposedChart,
 } from "recharts";
 
-const cashFlowSummary = {
-  openingBalance: 7450000,
-  totalInflow: 2845000,
-  totalOutflow: 1795000,
-  closingBalance: 8500000,
-  netCashFlow: 1050000,
-  burnRate: 450000,
-  cashRunway: 18.9,
-};
-
-const dailyCashFlow = [
-  { id: "d1", date: "Jun 1", inflow: 95000, outflow: 58000, net: 37000, balance: 7487000 },
-  { id: "d2", date: "Jun 2", inflow: 98000, outflow: 62000, net: 36000, balance: 7523000 },
-  { id: "d3", date: "Jun 3", inflow: 102000, outflow: 59000, net: 43000, balance: 7566000 },
-  { id: "d4", date: "Jun 4", inflow: 89000, outflow: 61000, net: 28000, balance: 7594000 },
-  { id: "d5", date: "Jun 5", inflow: 105000, outflow: 63000, net: 42000, balance: 7636000 },
-  { id: "d6", date: "Jun 6", inflow: 92000, outflow: 57000, net: 35000, balance: 7671000 },
-  { id: "d7", date: "Jun 7", inflow: 110000, outflow: 65000, net: 45000, balance: 7716000 },
-];
-
-const monthlyBurnRate = [
-  { id: "m1", month: "Jan", burnRate: 385000, revenue: 2145000, expenses: 985000 },
-  { id: "m2", month: "Feb", burnRate: 395000, revenue: 2285000, expenses: 1045000 },
-  { id: "m3", month: "Mar", burnRate: 410000, revenue: 2450000, expenses: 1125000 },
-  { id: "m4", month: "Apr", burnRate: 425000, revenue: 2585000, expenses: 1165000 },
-  { id: "m5", month: "May", burnRate: 435000, revenue: 2745000, expenses: 1215000 },
-  { id: "m6", month: "Jun", burnRate: 450000, revenue: 2845000, expenses: 1245000 },
-];
-
-const cashInflowBreakdown = [
-  { id: "in-1", source: "Subscription Payments", amount: 1845000, percentage: 64.8 },
-  { id: "in-2", source: "One-time Services", amount: 485000, percentage: 17.0 },
-  { id: "in-3", source: "Corporate Payments", amount: 385000, percentage: 13.5 },
-  { id: "in-4", source: "Add-on Services", amount: 130000, percentage: 4.6 },
-];
-
-const cashOutflowBreakdown = [
-  { id: "out-1", category: "Salaries & Wages", amount: 685000, percentage: 38.2 },
-  { id: "out-2", category: "Rent & Facilities", amount: 245000, percentage: 13.7 },
-  { id: "out-3", category: "Operational Costs", amount: 425000, percentage: 23.7 },
-  { id: "out-4", category: "Marketing", amount: 185000, percentage: 10.3 },
-  { id: "out-5", category: "Equipment & Maintenance", amount: 125000, percentage: 7.0 },
-  { id: "out-6", category: "Other Expenses", amount: 130000, percentage: 7.2 },
-];
-
-const cashRunwayProjection = [
-  { id: "proj-1", month: "Current", balance: 8500000 },
-  { id: "proj-2", month: "Month 1", balance: 8050000 },
-  { id: "proj-3", month: "Month 2", balance: 7600000 },
-  { id: "proj-4", month: "Month 3", balance: 7150000 },
-  { id: "proj-5", month: "Month 6", balance: 5700000 },
-  { id: "proj-6", month: "Month 9", balance: 4250000 },
-  { id: "proj-7", month: "Month 12", balance: 2800000 },
-  { id: "proj-8", month: "Month 15", balance: 1350000 },
-  { id: "proj-9", month: "Month 18", balance: 100000 },
-];
-
 function CashFlowDashboard() {
   const { currentRole } = useRole();
+  const { filters } = useGlobalFilters();
+
+  // ✅ FIX (FCT-DEF-04): real cash flow, replacing 100% hardcoded inline
+  // data (openingBalance: 7450000, dates literally "Jun 1", etc.) with
+  // real computations from the accounting engine — same real
+  // getAllMovements()/getLedgers() functions TrialBalance.tsx and the
+  // now-fixed FounderControlTower.tsx already use correctly.
+  const accountingCityId = (filters.city === "ALL" || !filters.city) ? undefined : filters.city;
+  const todayObj = new Date();
+  const periodStart = filters.startDate || new Date(todayObj.getFullYear(), todayObj.getMonth(), 1).toISOString().split("T")[0];
+  const periodEnd = filters.endDate || todayObj.toISOString().split("T")[0];
+
+  const cashLedgerIds = useMemo(() => {
+    const ledgers = accountingEntryService.getLedgers(accountingCityId) || [];
+    return new Set(ledgers.filter((l: any) => l.accountHead === "bank" || l.accountHead === "cash").map((l: any) => l.id));
+  }, [accountingCityId]);
+
+  const balanceAsOf = (asOfDate: string) => {
+    const movements = accountingEntryService.getAllMovements("1900-01-01", asOfDate, accountingCityId) || [];
+    let balance = 0;
+    movements.forEach((m: any) => {
+      if (cashLedgerIds.has(m.debitLedgerId)) balance += m.amount;
+      if (cashLedgerIds.has(m.creditLedgerId)) balance -= m.amount;
+    });
+    return balance;
+  };
+
+  const dayBefore = (dateStr: string) => new Date(new Date(dateStr).getTime() - 86400000).toISOString().split("T")[0];
+
+  const periodMovements = useMemo(
+    () => accountingEntryService.getAllMovements(periodStart, periodEnd, accountingCityId) || [],
+    [periodStart, periodEnd, accountingCityId]
+  );
+
+  const openingBalance = useMemo(() => balanceAsOf(dayBefore(periodStart)), [cashLedgerIds, periodStart, accountingCityId]);
+  const closingBalance = useMemo(() => balanceAsOf(periodEnd), [cashLedgerIds, periodEnd, accountingCityId]);
+
+  const totalInflow = periodMovements.filter((m: any) => cashLedgerIds.has(m.debitLedgerId)).reduce((s: number, m: any) => s + m.amount, 0);
+  const totalOutflow = periodMovements.filter((m: any) => cashLedgerIds.has(m.creditLedgerId)).reduce((s: number, m: any) => s + m.amount, 0);
+  const netCashFlow = totalInflow - totalOutflow;
+
+  const periodDays = Math.max(1, Math.round((new Date(periodEnd).getTime() - new Date(periodStart).getTime()) / 86400000) + 1);
+  const burnRate = Math.round((totalOutflow / periodDays) * 30); // real, period-normalised to a 30-day rate
+  const cashRunway = burnRate > 0 ? closingBalance / burnRate : 0;
+
+  const cashFlowSummary = { openingBalance, totalInflow, totalOutflow, closingBalance, netCashFlow, burnRate, cashRunway };
+
+  // Real day-by-day cash flow within the period, from real movements.
+  const dailyCashFlow = useMemo(() => {
+    const byDate: Record<string, { inflow: number; outflow: number }> = {};
+    periodMovements.forEach((m: any) => {
+      if (!byDate[m.date]) byDate[m.date] = { inflow: 0, outflow: 0 };
+      if (cashLedgerIds.has(m.debitLedgerId)) byDate[m.date].inflow += m.amount;
+      if (cashLedgerIds.has(m.creditLedgerId)) byDate[m.date].outflow += m.amount;
+    });
+    let runningBalance = openingBalance;
+    return Object.keys(byDate).sort().map((date) => {
+      const { inflow, outflow } = byDate[date];
+      runningBalance += inflow - outflow;
+      return { id: date, date, inflow, outflow, net: inflow - outflow, balance: runningBalance };
+    });
+  }, [periodMovements, cashLedgerIds, openingBalance]);
+
+  // Real last 6 months of revenue/expenses/burn — walking back from the period end.
+  const monthlyBurnRate = useMemo(() => {
+    const months: Array<{ id: string; month: string; burnRate: number; revenue: number; expenses: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(todayObj.getFullYear(), todayObj.getMonth() - i, 1);
+      const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0];
+      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split("T")[0];
+      const mMovements = accountingEntryService.getAllMovements(mStart, mEnd, accountingCityId) || [];
+      const mInflow = mMovements.filter((m: any) => cashLedgerIds.has(m.debitLedgerId)).reduce((s: number, m: any) => s + m.amount, 0);
+      const mOutflow = mMovements.filter((m: any) => cashLedgerIds.has(m.creditLedgerId)).reduce((s: number, m: any) => s + m.amount, 0);
+      months.push({ id: `m${6 - i}`, month: d.toLocaleString("en-IN", { month: "short" }), burnRate: mOutflow, revenue: mInflow, expenses: mOutflow });
+    }
+    return months;
+  }, [accountingCityId, cashLedgerIds]);
+
+  // Real inflow breakdown — grouped by which real ledger the money came
+  // from, for movements that actually debited Bank/Cash.
+  const cashInflowBreakdown = useMemo(() => {
+    const bySource: Record<string, number> = {};
+    periodMovements.filter((m: any) => cashLedgerIds.has(m.debitLedgerId)).forEach((m: any) => {
+      bySource[m.creditLedgerName] = (bySource[m.creditLedgerName] || 0) + m.amount;
+    });
+    return Object.entries(bySource).sort((a, b) => b[1] - a[1]).map(([source, amount], i) => ({
+      id: `in-${i}`, source, amount, percentage: totalInflow > 0 ? Number(((amount / totalInflow) * 100).toFixed(1)) : 0,
+    }));
+  }, [periodMovements, cashLedgerIds, totalInflow]);
+
+  // Real outflow breakdown — grouped by which real ledger the money went to.
+  const cashOutflowBreakdown = useMemo(() => {
+    const byCategory: Record<string, number> = {};
+    periodMovements.filter((m: any) => cashLedgerIds.has(m.creditLedgerId)).forEach((m: any) => {
+      byCategory[m.debitLedgerName] = (byCategory[m.debitLedgerName] || 0) + m.amount;
+    });
+    return Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([category, amount], i) => ({
+      id: `out-${i}`, category, amount, percentage: totalOutflow > 0 ? Number(((amount / totalOutflow) * 100).toFixed(1)) : 0,
+    }));
+  }, [periodMovements, cashLedgerIds, totalOutflow]);
+
+  // Real runway projection — a simple, disclosed linear projection from
+  // the real current balance and real burn rate, NOT a forecast model.
+  const cashRunwayProjection = useMemo(() => {
+    const points = [0, 1, 2, 3, 6, 9, 12, 15, 18];
+    return points.map((m, i) => ({
+      id: `proj-${i}`,
+      month: m === 0 ? "Current" : `Month ${m}`,
+      balance: Math.max(0, Math.round(closingBalance - burnRate * m)),
+    }));
+  }, [closingBalance, burnRate]);
 
   const hasAccess = currentRole === "Super Admin" || currentRole === "Admin";
 
@@ -142,8 +198,14 @@ function CashFlowDashboard() {
                   ₹{(cashFlowSummary.closingBalance / 100000).toFixed(1)}L
                 </div>
                 <div className="flex items-center gap-1 mt-2">
-                  <ArrowUpRight className="w-4 h-4 text-green-500" />
-                  <span className="text-sm text-green-600">+{((cashFlowSummary.netCashFlow / cashFlowSummary.openingBalance) * 100).toFixed(1)}%</span>
+                  {cashFlowSummary.netCashFlow >= 0
+                    ? <ArrowUpRight className="w-4 h-4 text-green-500" />
+                    : <ArrowDownRight className="w-4 h-4 text-red-500" />}
+                  <span className={`text-sm ${cashFlowSummary.netCashFlow >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {cashFlowSummary.openingBalance > 0
+                      ? `${cashFlowSummary.netCashFlow >= 0 ? "+" : ""}${((cashFlowSummary.netCashFlow / cashFlowSummary.openingBalance) * 100).toFixed(1)}%`
+                      : `₹${(Math.abs(cashFlowSummary.netCashFlow) / 100000).toFixed(1)}L`}
+                  </span>
                 </div>
               </div>
               <div className="p-3 bg-green-50 rounded-lg">

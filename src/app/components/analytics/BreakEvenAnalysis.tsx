@@ -32,7 +32,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../ui/dialog";
-import { MASTER_STORE_BREAKEVEN, MASTER_BREAKEVEN_TIMELINE } from "../../data/masterData";
+import { MASTER_STORE_BREAKEVEN } from "../../data/masterData";
 
 // Map stores to cities
 const STORE_CITY_MAP: Record<string, string> = {
@@ -103,7 +103,22 @@ function BreakEvenAnalysis() {
 
   // Get the first store for the timeline chart
   const primaryStore = displayStoreBreakEven[0];
-  const breakEvenTimeline = primaryStore ? MASTER_BREAKEVEN_TIMELINE : [];
+  // ✅ FIX (FCT-DEF-05): breakEvenTimeline was previously unconditionally
+  // MASTER_BREAKEVEN_TIMELINE whenever a primaryStore existed — even when
+  // storeBreakEven held genuine real data, the timeline chart still showed
+  // the static, unrelated progression. Now genuinely built from the real
+  // primary store's own monthlyProfit, projected forward.
+  const breakEvenTimeline = useMemo(() => {
+    if (!primaryStore) return [];
+    const months = Math.max(24, Math.min(primaryStore.breakEvenMonths + 3, 60));
+    const timeline = [{ id: "m0", month: 0, investment: -primaryStore.totalInvestment, revenue: 0, cumulative: -primaryStore.totalInvestment }];
+    let cumulative = -primaryStore.totalInvestment;
+    for (let m = 1; m <= months; m++) {
+      cumulative += primaryStore.monthlyProfit;
+      timeline.push({ id: `m${m}`, month: m, investment: 0, revenue: primaryStore.monthlyProfit, cumulative });
+    }
+    return timeline;
+  }, [primaryStore]);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [calculatorInputs, setCalculatorInputs] = useState({
     setupCost: "",
