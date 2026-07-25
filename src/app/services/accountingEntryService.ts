@@ -497,6 +497,63 @@ export function validateGSTIN(gstin: string): { valid: boolean; stateCode: strin
 }
 
 export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
+  // ✅ FIX: real RCM (reverse charge) treatment. Previously RCM entries
+  // fell through to the ordinary Expense/Purchase branch below — claiming
+  // Input CGST/SGST/IGST directly, as if the vendor had charged it, which
+  // is wrong under reverse charge (the vendor never charges GST at all;
+  // the recipient business must self-assess and pay it directly to the
+  // government). The vendor is also only actually owed the taxable value,
+  // not the GST portion — crediting them the full totalBillValue (as the
+  // ordinary branch does) overstates what they're owed.
+  //
+  // Scope note: this posts the real, minimal, uncontroversial part of RCM
+  // — no direct Input GST claim, and a real self-assessed liability to
+  // the RCM Output ledgers. It deliberately does NOT implement the later
+  // step (claiming this as Input Tax Credit once the self-assessed tax is
+  // actually paid to the government) — the exact right lifecycle for that
+  // step has an open, CA-flagged discrepancy (a simpler 2-step pattern for
+  // Rent vs. a general 4-step pattern) that hasn't been resolved yet.
+  if (entry.gstEntryType === "RCM" && (entry.entryType === "Expense" || entry.entryType === "Purchase")) {
+    const lines: JournalLine[] = [
+      { accountHead: entry.debitAccount, accountLabel: entry.debitAccount, debit: entry.taxableValue, credit: 0 },
+    ];
+    const rcmGstTotal = (entry.cgst ?? 0) + (entry.sgst ?? 0) + (entry.igst ?? 0);
+    if ((entry.cgst ?? 0) > 0) {
+      lines.push({ accountHead: "gst_rcm_cgst_output", accountLabel: "RCM GST Payable (CGST)", debit: 0, credit: entry.cgst ?? 0 });
+    }
+    if ((entry.sgst ?? 0) > 0) {
+      lines.push({ accountHead: "gst_rcm_sgst_output", accountLabel: "RCM GST Payable (SGST)", debit: 0, credit: entry.sgst ?? 0 });
+    }
+    if ((entry.igst ?? 0) > 0) {
+      lines.push({ accountHead: "gst_rcm_igst_output", accountLabel: "RCM GST Payable (IGST)", debit: 0, credit: entry.igst ?? 0 });
+    }
+    // The vendor is only owed the taxable value — TDS (if any) still nets
+    // against that, same real logic as the ordinary Expense/Purchase branch.
+    const tdsAmt = (entry as any).tdsAmount as number | undefined;
+    if (tdsAmt && tdsAmt > 0) {
+      lines.push({ accountHead: "tds_payable", accountLabel: `TDS Payable u/s ${(entry as any).tdsSection || "194C"}`, debit: 0, credit: tdsAmt });
+      lines.push({ accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.taxableValue - tdsAmt });
+    } else {
+      lines.push({ accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.taxableValue });
+    }
+    // Real, explicit balance note: Dr taxableValue == Cr (taxableValue - tds) + tds + rcmGstTotal - rcmGstTotal... this
+    // balances because Dr side is only taxableValue, and Cr side is
+    // (vendor/TDS lines summing to taxableValue) + (RCM output lines
+    // summing to rcmGstTotal) — which would NOT balance unless the Dr
+    // side also reflects rcmGstTotal. It doesn't, by design: the RCM
+    // output liability is a genuinely separate real fact (money now owed
+    // to the government) from the expense itself, so it needs its own
+    // debit somewhere. Real, minimal treatment: debit the same RCM
+    // liability amount to "Reverse Charge Tax Input not due" (already a
+    // real, seeded asset ledger) — representing that this GST isn't
+    // claimable as input credit yet, but the self-assessed liability is
+    // real and posted now.
+    if (rcmGstTotal > 0) {
+      lines.push({ accountHead: "gst_rcm_input_not_due", accountLabel: "Reverse Charge Tax Input not due", debit: rcmGstTotal, credit: 0 });
+    }
+    return lines;
+  }
+
   // FIX 9: AssetPurchase — split base value to fixed_assets, GST to gst_input
   // Credit Accounts Payable (not Bank) when paymentMode is Credit
   if (entry.entryType === "AssetPurchase") {
@@ -1075,7 +1132,7 @@ class AccountingEntryService {
       { name: "Input IGST", accountHead: "gst_input_igst", accountHeadLabel: "GST Input IGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Input CGST", accountHead: "gst_input_cgst", accountHeadLabel: "GST Input CGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Input SGST", accountHead: "gst_input_sgst", accountHeadLabel: "GST Input SGST", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "Reverse Charge Tax Input not due", accountHead: "gst_input", accountHeadLabel: "GST Input (ITC)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Reverse Charge Tax Input not due", accountHead: "gst_rcm_input_not_due", accountHeadLabel: "RCM Tax Input (Not Yet Due)", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // LIABILITIES - TDS Payable
       { name: "TDS Payable", accountHead: "tds_payable", accountHeadLabel: "TDS Payable", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
@@ -1086,8 +1143,18 @@ class AccountingEntryService {
       { name: "Output IGST", accountHead: "gst_output_igst", accountHeadLabel: "Output GST IGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Output CGST", accountHead: "gst_output_cgst", accountHeadLabel: "Output GST CGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Output SGST", accountHead: "gst_output_sgst", accountHeadLabel: "Output GST SGST", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "CGST RCM Output", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
-      { name: "SGST RCM Output", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      // ✅ FIX: previously these two shared accountHead "duties_taxes" with
+      // "GST Payable (Summary)" and "Tax Payable" — two OTHER, unrelated
+      // ledgers — making it impossible to post a journal line that refers
+      // to one of these two specifically (a JournalLine's accountHead is
+      // used elsewhere in this file as a direct, unique reference to one
+      // real seeded ledger, e.g. "gst_input_cgst" → exactly one ledger).
+      // Given unique accountHead values here, matching the same pattern
+      // Input/Output CGST/SGST/IGST already use. Also adds the missing
+      // IGST RCM Output ledger, for inter-state reverse-charge entries.
+      { name: "CGST RCM Output", accountHead: "gst_rcm_cgst_output", accountHeadLabel: "RCM GST Payable (CGST)", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "SGST RCM Output", accountHead: "gst_rcm_sgst_output", accountHeadLabel: "RCM GST Payable (SGST)", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "IGST RCM Output", accountHead: "gst_rcm_igst_output", accountHeadLabel: "RCM GST Payable (IGST)", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Tax Payable", accountHead: "duties_taxes", accountHeadLabel: "Duties & Taxes", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // LIABILITIES - Credit Cards
@@ -1183,6 +1250,28 @@ class AccountingEntryService {
         changed = true;
       }
     }
+
+    // ✅ MIGRATION: the merge loop above only ADDS ledgers that don't
+    // already exist by name — it never updates ones that do. Any real
+    // user who already had "CGST RCM Output" / "SGST RCM Output" seeded
+    // before this fix would still be stuck on the old, ambiguous
+    // accountHead ("duties_taxes", shared with two unrelated ledgers) —
+    // this one-time pass corrects those two specific rows in place,
+    // idempotently (a no-op once already migrated).
+    const RCM_ACCOUNT_HEAD_FIX: Record<string, { head: string; label: string }> = {
+      "cgst rcm output": { head: "gst_rcm_cgst_output", label: "RCM GST Payable (CGST)" },
+      "sgst rcm output": { head: "gst_rcm_sgst_output", label: "RCM GST Payable (SGST)" },
+      "reverse charge tax input not due": { head: "gst_rcm_input_not_due", label: "RCM Tax Input (Not Yet Due)" },
+    };
+    updated = updated.map((l) => {
+      const fix = RCM_ACCOUNT_HEAD_FIX[(l.name ?? "").trim().toLowerCase()];
+      if (l.cityId === cityId && fix && l.accountHead !== fix.head) {
+        changed = true;
+        return { ...l, accountHead: fix.head, accountHeadLabel: fix.label };
+      }
+      return l;
+    });
+
     if (changed) localStorage.setItem(this.LEDGER_KEY, JSON.stringify(updated));
     return updated;
   }
