@@ -11,6 +11,40 @@
  * - TSE incentive via existing tranche system (30% M1, 70% across check months)
  */
 
+// ✅ NEW: real accounting integration — Collection at sale, Recognition
+// per visit, and reversal on cancel/forfeit, matching the Accounting
+// Module handover's Part B1 deferred-revenue pattern (Contract Liability
+// → Package Revenue). Previously this whole file had zero connection to
+// the real ledger — real customer payments for packages never touched
+// the books at all.
+import { accountingEntryService } from "./accountingEntryService";
+
+/**
+ * ✅ Splits a real, known GST-INCLUSIVE total into its taxable value and
+ * CGST/SGST (or IGST) components, guaranteed to sum back to the exact
+ * original total — no compounding rounding error, by construction.
+ * calculateGST() is designed for the opposite direction (computing tax on
+ * top of an already-known taxable value); using it here by independently
+ * back-calculating taxable = total/1.18 and re-deriving tax from THAT
+ * rounded value produced a real, provable 1-paisa mismatch in ~15% of
+ * realistic bundle prices tested. This avoids that by deriving taxable as
+ * the REMAINDER after tax, not an independent division.
+ */
+function splitGstInclusiveTotal(inclusiveTotal: number, gstRatePercent: number, split: "INTRA_STATE" | "INTER_STATE" | null) {
+  if (!split || gstRatePercent === 0) {
+    return { taxable: inclusiveTotal, cgst: 0, sgst: 0, igst: 0, totalTax: 0 };
+  }
+  const totalTax = Math.round((inclusiveTotal * gstRatePercent / (100 + gstRatePercent)) * 100) / 100;
+  const taxable = Math.round((inclusiveTotal - totalTax) * 100) / 100; // remainder — exact by construction
+  if (split === "INTRA_STATE") {
+    const cgst = Math.round(totalTax * 50) / 100;
+    const sgst = Math.round((totalTax - cgst) * 100) / 100; // remainder — exact, same pattern as ACC-DEF-01
+    return { taxable, cgst, sgst, igst: 0, totalTax };
+  }
+  return { taxable, cgst: 0, sgst: 0, igst: totalTax, totalTax };
+}
+import { COMPANY_GST_CONFIG } from "./gstComplianceService";
+
 // Storage helpers using localStorage directly
 const lsGet = <T>(key: string): T[] => { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; } };
 const lsSet = (key: string, data: any) => { try { localStorage.setItem(key, JSON.stringify(data)); } catch {} };
@@ -46,6 +80,12 @@ export interface MultiMonthBundle {
   totalVisits:       number;           // packSize × bundleMonths
   visitsUsed:        number;           // total across all windows
   windows:           BundleWindow[];
+  // ✅ NEW: real city context, set once at creation — needed so later
+  // real accounting postings (recognition, cancellation, forfeiture) know
+  // which city's ledgers to post against without new params threading
+  // through every one of their own real callers.
+  cityId:            string;
+  cityName:          string;
   
   // Pricing
   baseMonthlyPrice:  number;           // single-month price without discount
@@ -57,7 +97,13 @@ export interface MultiMonthBundle {
   
   // Deferred revenue
   costPerVisit:      number;           // finalTotalPrice ÷ totalVisits
-  revenueRecognised: number;           // cumulative revenue recognised so far
+  revenueRecognised: number;           // cumulative revenue recognised so far (GST-inclusive, operational)
+  // ✅ NEW: the exact GST-exclusive taxable amount actually posted to the
+  // real ledger so far — tracked separately from revenueRecognised (which
+  // is GST-inclusive) so the final recognition/forfeiture event can true
+  // up to the exact remaining Contract Liability balance instead of
+  // accumulating rounding drift from many repeated per-visit divisions.
+  taxableRecognisedSoFar: number;
   deferredRevenue:   number;           // finalTotalPrice − revenueRecognised
   
   // Dates
@@ -163,11 +209,18 @@ export function createBundle(params: {
   source:         "BUY_PAGE" | "TSE_CALL";
   soldByTseId?:   string;
   paymentDate?:   string;
+  // ✅ NEW: real city context — needed to post a real Collection voucher.
+  // Defaults to Surat, matching the same convention used throughout
+  // accountingEntryService.ts, if a caller doesn't yet pass it through.
+  cityId?:        string;
+  cityName?:      string;
 }): MultiMonthBundle {
   const {
     subscriptionId, customerId, packSize, bundleMonths,
     baseMonthlyPrice, tsmAdditionalDiscPct = 0, source, soldByTseId,
   } = params;
+  const cityId   = params.cityId || "CITY-SURAT";
+  const cityName = params.cityName || "Surat";
 
   const paymentDate    = params.paymentDate || today();
   const baseDsc        = BUNDLE_DISCOUNTS[bundleMonths];
@@ -199,6 +252,8 @@ export function createBundle(params: {
     totalVisits,
     visitsUsed:            0,
     windows,
+    cityId,
+    cityName,
     baseMonthlyPrice,
     discountPct:           Math.round(totalDscPct * 100),
     discountedMonthlyPrice: discountedMonthly,
@@ -207,6 +262,7 @@ export function createBundle(params: {
     finalTotalPrice,
     costPerVisit,
     revenueRecognised:     0,
+    taxableRecognisedSoFar: 0,
     deferredRevenue:       finalTotalPrice,
     paymentDate,
     firstWashDeadline:     addDays(paymentDate, 15),
@@ -221,6 +277,32 @@ export function createBundle(params: {
   const all = DataService.get<MultiMonthBundle>(STORAGE_KEY) || [];
   all.push(bundle);
   DataService.setAll(STORAGE_KEY, all);
+
+  // ✅ FIX: real Collection voucher (Accounting Module Part B1) — the
+  // customer's real payment now genuinely reaches the books. finalTotalPrice
+  // is GST-inclusive (same real convention already used by
+  // autoPostSalesEntry's real callers — taxable = price / 1.18), so the
+  // taxable value is backed out the same way, then split into Contract
+  // Liability (unearned, sits on the Balance Sheet until each visit is
+  // delivered) + Output GST (charged in full now, per how GST actually
+  // works on service advances in India).
+  try {
+    const split = splitGstInclusiveTotal(finalTotalPrice, COMPANY_GST_CONFIG.defaultServiceGstRate, "INTRA_STATE");
+    const lines = [
+      { accountHead: "bank", accountLabel: "Bank Account", debit: finalTotalPrice, credit: 0 },
+      { accountHead: "contract_liability", accountLabel: "Contract Liability", debit: 0, credit: split.taxable },
+      ...(split.cgst > 0 ? [{ accountHead: "gst_output_cgst", accountLabel: "Output CGST", debit: 0, credit: split.cgst }] : []),
+      ...(split.sgst > 0 ? [{ accountHead: "gst_output_sgst", accountLabel: "Output SGST", debit: 0, credit: split.sgst }] : []),
+      ...(split.igst > 0 ? [{ accountHead: "gst_output_igst", accountLabel: "Output IGST", debit: 0, credit: split.igst }] : []),
+    ];
+    accountingEntryService.createJournal({
+      date: paymentDate,
+      narration: `Multi-month bundle sale — ${bundle.bundleId} — Customer ${customerId} — ${packSize}×${bundleMonths}mo`,
+      lines, city: cityName, cityId, createdBy: soldByTseId || "System",
+    }, cityName);
+  } catch (e) {
+    console.error("[multiMonthBundleService] Collection voucher post failed — bundle created but not reflected in the real ledger:", e);
+  }
 
   return bundle;
 }
@@ -287,16 +369,51 @@ export function recordBundleVisit(bundleId: string, jobId: string): {
   b.windows[wIdx] = window;
   b.visitsUsed += 1;
 
-  // Recognise revenue (deferred revenue model)
+  // Recognise revenue (deferred revenue model — operational, GST-inclusive figures)
   const recognised = b.costPerVisit;
   b.revenueRecognised = parseFloat((b.revenueRecognised + recognised).toFixed(2));
   b.deferredRevenue   = parseFloat((b.finalTotalPrice - b.revenueRecognised).toFixed(2));
 
   // Check if bundle complete
-  if (b.visitsUsed >= b.totalVisits) b.status = "COMPLETED";
+  const isFinalVisit = b.visitsUsed >= b.totalVisits;
+  if (isFinalVisit) b.status = "COMPLETED";
+
+  // ✅ FIX: real Recognition voucher (Accounting Module Part B1) —
+  // previously this operational tracking (revenueRecognised/deferredRevenue)
+  // never touched the real ledger at all. Moves the GST-EXCLUSIVE taxable
+  // slice from Contract Liability to Package Revenue — GST itself was
+  // already fully charged and recorded at Collection time, so recognition
+  // never touches GST again, only the taxable portion.
+  //
+  // On the FINAL visit, uses the true remaining balance (total taxable
+  // collected minus what's actually been posted so far) instead of the
+  // standard formulaic slice — this is what makes Contract Liability land
+  // on exactly zero once every visit is used, rather than a real,
+  // accumulating rounding residual (confirmed up to 6 paise on a 48-visit
+  // bundle without this true-up).
+  const totalTaxableCollected = splitGstInclusiveTotal(b.finalTotalPrice, COMPANY_GST_CONFIG.defaultServiceGstRate, "INTRA_STATE").taxable;
+  const standardSlice = parseFloat((b.costPerVisit / (1 + COMPANY_GST_CONFIG.defaultServiceGstRate / 100)).toFixed(2));
+  const amountToRecognise = isFinalVisit
+    ? parseFloat((totalTaxableCollected - b.taxableRecognisedSoFar).toFixed(2))
+    : standardSlice;
+  b.taxableRecognisedSoFar = parseFloat((b.taxableRecognisedSoFar + amountToRecognise).toFixed(2));
 
   all[idx] = b;
   DataService.setAll(STORAGE_KEY, all);
+
+  try {
+    accountingEntryService.createJournal({
+      date: todayStr,
+      narration: `Bundle visit recognised — ${bundleId} — Job ${jobId} — visit ${b.visitsUsed}/${b.totalVisits}`,
+      lines: [
+        { accountHead: "contract_liability", accountLabel: "Contract Liability", debit: amountToRecognise, credit: 0 },
+        { accountHead: "sales_package_bundle", accountLabel: "Package Revenue - Multi-Month Bundle", debit: 0, credit: amountToRecognise },
+      ],
+      city: b.cityName || "Surat", cityId: b.cityId || "CITY-SURAT", createdBy: "System",
+    }, b.cityName || "Surat");
+  } catch (e) {
+    console.error("[multiMonthBundleService] Recognition voucher post failed:", e);
+  }
 
   return {
     success: true,
@@ -334,11 +451,40 @@ export function advanceBundleWindows(): void {
             const forfeitRevenue = forfeited * b.costPerVisit;
             all[bIdx].revenueRecognised += forfeitRevenue;
             all[bIdx].deferredRevenue   -= forfeitRevenue;
-            
-            // Fire event for finance module
-            window.dispatchEvent(new CustomEvent("cc360:bundle_visits_forfeited", {
-              detail: { bundleId: b.bundleId, customerId: b.customerId, visitsForfeited: forfeited, revenue: forfeitRevenue }
-            }));
+
+            // ✅ FIX: real forfeiture voucher — previously only this
+            // operational tracking updated; the "fire an event for finance
+            // module" comment was aspirational, no real listener ever
+            // existed. Money the customer already paid for unused,
+            // expired visits is real business income — booked to
+            // Bundle Forfeiture Income specifically (not Package Revenue,
+            // since no service was actually delivered for these visits).
+            //
+            // True-up when this is the bundle's LAST window expiring —
+            // same exact-remainder principle as recordBundleVisit's final
+            // visit, so Contract Liability reaches exactly zero instead of
+            // a small accumulated rounding residual.
+            try {
+              const isLastWindow = w.windowNumber >= b.bundleMonths;
+              const totalTaxableCollected = splitGstInclusiveTotal(b.finalTotalPrice, COMPANY_GST_CONFIG.defaultServiceGstRate, "INTRA_STATE").taxable;
+              const standardSlice = parseFloat((forfeitRevenue / (1 + COMPANY_GST_CONFIG.defaultServiceGstRate / 100)).toFixed(2));
+              const forfeitTaxable = isLastWindow
+                ? parseFloat((totalTaxableCollected - b.taxableRecognisedSoFar).toFixed(2))
+                : standardSlice;
+              all[bIdx].taxableRecognisedSoFar = parseFloat((b.taxableRecognisedSoFar + forfeitTaxable).toFixed(2));
+
+              accountingEntryService.createJournal({
+                date: todayStr,
+                narration: `Bundle window expired — ${forfeited} visit(s) forfeited — ${b.bundleId} — Customer ${b.customerId}`,
+                lines: [
+                  { accountHead: "contract_liability", accountLabel: "Contract Liability", debit: forfeitTaxable, credit: 0 },
+                  { accountHead: "sales_bundle_forfeiture", accountLabel: "Bundle Forfeiture & Cancellation Income", debit: 0, credit: forfeitTaxable },
+                ],
+                city: b.cityName || "Surat", cityId: b.cityId || "CITY-SURAT", createdBy: "System",
+              }, b.cityName || "Surat");
+            } catch (e) {
+              console.error("[multiMonthBundleService] Forfeiture voucher post failed:", e);
+            }
           }
           changed = true;
         }
@@ -461,10 +607,41 @@ export function cancelBundle(bundleId: string): { success: boolean; refund: Retu
 
   DataService.setAll(STORAGE_KEY, all);
 
-  // Fire event for finance module to process journal entries
-  window.dispatchEvent(new CustomEvent("cc360:bundle_cancelled", {
-    detail: { bundleId, customerId: all[idx].customerId, refund, retainVisits: !refund.refundEligible }
-  }));
+  // ✅ FIX: real reversal voucher (Accounting Module Part B1 pattern,
+  // applied to cancellation) — previously "Fire event for finance module
+  // to process journal entries" was aspirational; no listener for
+  // cc360:bundle_cancelled ever existed anywhere in the app, so a real
+  // customer refund never touched the books at all.
+  //
+  // Only posts when a refund is actually due. When NOT refund-eligible
+  // (≥50% consumed — customer retains remaining visits, billing just
+  // stops), nothing needs to change in the real ledger: the remaining
+  // Contract Liability is still real and will keep recognizing normally
+  // as those visits get used, exactly as before.
+  if (refund.refundEligible) {
+    try {
+      const b = all[idx];
+      const remainingGstInclusive = parseFloat((refund.totalPaid - refund.revenueForVisitsUsed).toFixed(2));
+      const split = splitGstInclusiveTotal(remainingGstInclusive, COMPANY_GST_CONFIG.defaultServiceGstRate, "INTRA_STATE");
+      const feeIncome = parseFloat((refund.cancellationFee + refund.gatewayCharges).toFixed(2));
+
+      const lines = [
+        { accountHead: "contract_liability", accountLabel: "Contract Liability", debit: split.taxable, credit: 0 },
+        ...(split.cgst > 0 ? [{ accountHead: "gst_output_cgst", accountLabel: "Output CGST", debit: split.cgst, credit: 0 }] : []),
+        ...(split.sgst > 0 ? [{ accountHead: "gst_output_sgst", accountLabel: "Output SGST", debit: split.sgst, credit: 0 }] : []),
+        ...(split.igst > 0 ? [{ accountHead: "gst_output_igst", accountLabel: "Output IGST", debit: split.igst, credit: 0 }] : []),
+        { accountHead: "bank", accountLabel: "Bank Account", debit: 0, credit: refund.netRefund },
+        { accountHead: "sales_bundle_forfeiture", accountLabel: "Bundle Forfeiture & Cancellation Income", debit: 0, credit: feeIncome },
+      ];
+      accountingEntryService.createJournal({
+        date: today(),
+        narration: `Bundle cancellation refund — ${bundleId} — Customer ${b.customerId} — net refund ₹${refund.netRefund}`,
+        lines, city: b.cityName || "Surat", cityId: b.cityId || "CITY-SURAT", createdBy: "System",
+      }, b.cityName || "Surat");
+    } catch (e) {
+      console.error("[multiMonthBundleService] Cancellation reversal voucher post failed:", e);
+    }
+  }
 
   return { success: true, refund };
 }

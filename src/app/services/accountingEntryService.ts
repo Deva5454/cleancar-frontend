@@ -1194,6 +1194,15 @@ class AccountingEntryService {
       { name: "Subscription - 2W+W+S", accountHead: "sales_subscription", accountHeadLabel: "Sales — Subscription", nature: "income", type: "sales", packageCode: "2W_WASH_SANITIZE", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Subscription - 2W+W+W+S", accountHead: "sales_subscription", accountHeadLabel: "Sales — Subscription", nature: "income", type: "sales", packageCode: "2W_WASH_WASH_SANITIZE", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
+      // ✅ NEW: Multi-month bundle deferred revenue (Accounting Module
+      // Part B1) — previously didn't exist at all. "Contract Liability"
+      // holds cash collected upfront but not yet earned; "Package Revenue"
+      // is credited slice by slice, only as each visit is actually
+      // delivered, matching the real matching principle.
+      { name: "Contract Liability", accountHead: "contract_liability", accountHeadLabel: "Contract Liability", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Package Revenue - Multi-Month Bundle", accountHead: "sales_package_bundle", accountHeadLabel: "Sales — Multi-Month Bundle", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      { name: "Bundle Forfeiture & Cancellation Income", accountHead: "sales_bundle_forfeiture", accountHeadLabel: "Sales — Bundle Forfeiture/Cancellation", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+
       // INCOME - Sales Service
       { name: "One-time Service", accountHead: "sales_service", accountHeadLabel: "Sales — Service", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 

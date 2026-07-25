@@ -916,6 +916,8 @@ export function CustomerPlanPage() {
             baseMonthlyPrice: packPrice,
             source:           "BUY_PAGE",
             paymentDate:      now.toISOString().split("T")[0],
+            cityId:           _cityId,
+            cityName:         city || "Surat",
           });
         } catch(e) {
           console.error("[BuyPage] createBundle failed — subscription created but bundle record missing:", e);
