@@ -236,45 +236,53 @@ export function AccountingEntry() {
     }
 
     // Create entry
-    const entry = accountingEntryService.createEntry(
-      {
-        entryType: activeTab,
-        date,
-        vendorName,
-        vendorGstin,
-        vendorStateCode,
-        invoiceNumber,
-        hsnSacCode,
-        expenseAccount,
-        expenseAccountLabel: CHART_OF_ACCOUNTS_HEADS.find(h => h.value === expenseAccount)?.label,
-        taxableValue,
-        gstRate,
-        gstEntryType,
-        cgst,
-        sgst,
-        igst,
-        totalBillValue,
-        paymentMode,
-        pettyCashBranch: paymentMode === "PettyCash" ? pettyCashBranch : undefined,
-        isRCM: gstEntryType === "RCM",
-        rcmCgst: gstEntryType === "RCM" ? cgst : undefined,
-        rcmSgst: gstEntryType === "RCM" ? sgst : undefined,
-        rcmIgst: gstEntryType === "RCM" ? igst : undefined,
-        debitAccount,
-        creditAccount,
-        narration,
-        attachmentFileName: attachmentFileName || undefined,
-        attachmentFileType: attachmentFileType || undefined,
-        attachmentFileBase64: attachmentFileBase64 || undefined,
-        city: cityInfo.displayName,
-        cityId: city,
-        createdBy: currentUser.name,
-      },
-      cityInfo.displayName
-    );
+    // ✅ FIX (ACC-DEF-01): createEntry() can now throw if the resulting
+    // journal lines don't balance (a real, previously-unvalidated case —
+    // see accountingEntryService.ts). Wrapped so that shows as a clear
+    // error to the user instead of an unhandled exception.
+    try {
+      const entry = accountingEntryService.createEntry(
+        {
+          entryType: activeTab,
+          date,
+          vendorName,
+          vendorGstin,
+          vendorStateCode,
+          invoiceNumber,
+          hsnSacCode,
+          expenseAccount,
+          expenseAccountLabel: CHART_OF_ACCOUNTS_HEADS.find(h => h.value === expenseAccount)?.label,
+          taxableValue,
+          gstRate,
+          gstEntryType,
+          cgst,
+          sgst,
+          igst,
+          totalBillValue,
+          paymentMode,
+          pettyCashBranch: paymentMode === "PettyCash" ? pettyCashBranch : undefined,
+          isRCM: gstEntryType === "RCM",
+          rcmCgst: gstEntryType === "RCM" ? cgst : undefined,
+          rcmSgst: gstEntryType === "RCM" ? sgst : undefined,
+          rcmIgst: gstEntryType === "RCM" ? igst : undefined,
+          debitAccount,
+          creditAccount,
+          narration,
+          attachmentFileName: attachmentFileName || undefined,
+          attachmentFileType: attachmentFileType || undefined,
+          attachmentFileBase64: attachmentFileBase64 || undefined,
+          city: cityInfo.displayName,
+          cityId: city,
+          createdBy: currentUser.name,
+        },
+        cityInfo.displayName
+      );
 
-    toast.success(`Entry saved: ${entry.voucherNumber}`);
-    resetForm();
+      toast.success(`Entry saved: ${entry.voucherNumber}`);
+      resetForm();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save entry — it did not balance. Please review the amounts.");
+    }
   };
 
   const resetForm = () => {

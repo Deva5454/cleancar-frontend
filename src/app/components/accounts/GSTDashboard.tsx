@@ -256,6 +256,16 @@ export function GSTDashboard() {
           <CardTitle className="text-base">GST Trend (6 Months)</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* ✅ FIX (ACC-OBS-01): only "Current" is computed from real,
+              live data — Oct through Feb are fixed, illustrative figures
+              (there's no real historical GST data yet to replace them
+              with). That distinction previously only existed in a code
+              comment, invisible on screen — a real caption now makes it
+              visible to whoever is actually looking at the chart. */}
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+            Only the <strong>Current</strong> month reflects real, live data. Oct–Feb are
+            illustrative placeholders, shown until real historical GST data is available.
+          </p>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={gstPayableData} id="gst-bar-chart">
               <CartesianGrid strokeDasharray="3 3" key="grid-gst" />

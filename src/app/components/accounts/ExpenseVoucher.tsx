@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Receipt, Save, Plus } from "lucide-react";
-import { accountingEntryService, TDS_RATE_CHART, type ItemMaster, type LedgerMaster } from "../../services/accountingEntryService";
+import { accountingEntryService, TDS_RATE_CHART, isTDSApplicable, type ItemMaster, type LedgerMaster } from "../../services/accountingEntryService";
 import { gstComplianceService, COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
@@ -51,6 +51,9 @@ export function ExpenseVoucher() {
   const [expenseLedgers, setExpenseLedgers] = useState<LedgerMaster[]>([]);
   const [creditors, setCreditors] = useState<LedgerMaster[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<LedgerMaster | null>(null);
+  // ✅ FIX (ACC-DEF-03): surfaces WHY TDS was or wasn't applied — real
+  // threshold amounts, not a silent calculation the user can't see.
+  const [tdsThresholdNote, setTdsThresholdNote] = useState("");
   const [selectedItem, setSelectedItem] = useState<ItemMaster | null>(null);
 
   // FIX 7: inline item creation
@@ -117,17 +120,32 @@ export function ExpenseVoucher() {
     if (formData.tdsSection && formData.totalAmount) {
       const tdsConfig = TDS_RATE_CHART.find((t) => t.section === formData.tdsSection);
       if (tdsConfig) {
-        const isIndividualOrHUF = ["Individual", "HUF"].includes(
-          (selectedVendor as any)?.legalEntityType || ""
-        );
-        const tdsRate = isIndividualOrHUF ? tdsConfig.rateIndividual : tdsConfig.rateCompany;
-        const tdsAmount = Math.round(formData.totalAmount * tdsRate) / 100;
-        setFormData((prev) => ({ ...prev, tdsAmount }));
+        // ✅ FIX (ACC-DEF-03): TDS_RATE_CHART's real thresholdSingle/
+        // thresholdAnnual fields were previously never checked here — TDS
+        // was deducted purely by rate × amount regardless of whether the
+        // real threshold had actually been crossed. Now checks both real
+        // thresholds (this bill's amount, and this vendor's running total
+        // for the financial year) before applying anything.
+        const allEntries = accountingEntryService.getAllEntries(cityId);
+        const check = isTDSApplicable(formData.tdsSection, formData.totalAmount, selectedVendor?.id, cityId, allEntries);
+        if (!check.applicable) {
+          setFormData((prev) => ({ ...prev, tdsAmount: 0 }));
+          setTdsThresholdNote(check.reason);
+        } else {
+          const isIndividualOrHUF = ["Individual", "HUF"].includes(
+            (selectedVendor as any)?.legalEntityType || ""
+          );
+          const tdsRate = isIndividualOrHUF ? tdsConfig.rateIndividual : tdsConfig.rateCompany;
+          const tdsAmount = Math.round(formData.totalAmount * tdsRate) / 100;
+          setFormData((prev) => ({ ...prev, tdsAmount }));
+          setTdsThresholdNote(check.reason);
+        }
       }
     } else {
       setFormData((prev) => ({ ...prev, tdsAmount: 0 }));
+      setTdsThresholdNote("");
     }
-  }, [formData.tdsSection, formData.totalAmount, selectedVendor]);
+  }, [formData.tdsSection, formData.totalAmount, selectedVendor, cityId]);
 
   useEffect(() => {
     if (formData.paymentMode === "Cash" || formData.paymentMode === "Bank") {
@@ -751,6 +769,11 @@ export function ExpenseVoucher() {
                   value={`₹${(formData.tdsAmount ?? 0).toLocaleString()}`}
                   className="w-full px-3 py-2 border rounded-lg bg-gray-50"
                 />
+                {tdsThresholdNote && (
+                  <p className={`text-xs mt-1 ${formData.tdsAmount > 0 ? "text-amber-700" : "text-green-700"}`}>
+                    {tdsThresholdNote}
+                  </p>
+                )}
               </div>
             )}
 
