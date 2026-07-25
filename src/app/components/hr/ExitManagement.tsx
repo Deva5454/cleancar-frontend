@@ -11,9 +11,10 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
   LogOut, CheckCircle, Clock, AlertCircle, Plus, X, User,
-  Calendar, FileText, ChevronDown, ChevronUp,
+  Calendar, FileText, ChevronDown, ChevronUp, Package,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { useInventory } from "../../contexts/InventoryContext";
 import { exitWorkflowService, ExitWorkflow } from "../../services/exitWorkflowService";
 import { DataService } from "../../services/DataService";
 import { getMaterialVerifierRole } from "../../lib/roleConfig";
@@ -29,6 +30,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function ExitManagement() {
   const { currentRole, currentUser } = useRole();
+  const { getWasherStock, writeOffWasherItem } = useInventory();
   const isHR = ["HR", "Admin", "Super Admin"].includes(currentRole);
   const isSuperAdmin = currentRole === "Super Admin";
 
@@ -143,7 +145,36 @@ export function ExitManagement() {
       c.item === item ? { ...c, status, returnedDate: new Date().toISOString().split("T")[0] } : c
     );
     exitWorkflowService.updateClearance(wf.exitWorkflowId, updated);
-    toast.success(`✅ ${item} marked as ${status}`);
+
+    // ✅ FIX (HR-DEF-02): previously this only updated a separate,
+    // disconnected clearance record — the employee's real washerStock in
+    // InventoryContext was never touched, so HR could mark "Uniforms" or
+    // "Equipment" Returned while the real inventory record still showed
+    // them holding it, with nothing to catch the mismatch. Marking these
+    // two real, inventory-backed items Returned now genuinely writes off
+    // every real matching item still in the employee's real stock — at
+    // exit, "returned" means nothing real should be left with them.
+    if (status === "Returned" && (item === "Uniforms" || item === "Equipment")) {
+      const realStock = getWasherStock(wf.employeeId, wf.cityId);
+      const matching = realStock.filter((i: any) =>
+        item === "Uniforms" ? i.itemName.toLowerCase().includes("uniform") : i.category === "Equipment"
+      );
+      let correctedCount = 0;
+      matching.forEach((i: any) => {
+        const qty = i.washerStock[wf.employeeId] || 0;
+        if (qty > 0) {
+          const ok = writeOffWasherItem(i.itemId, wf.employeeId, qty, `Exit clearance — ${item} marked Returned`, currentUser.name, wf.cityId);
+          if (ok) correctedCount += qty;
+        }
+      });
+      if (correctedCount > 0) {
+        toast.success(`✅ ${item} marked as ${status} — ${correctedCount} real item(s) also corrected in Inventory`);
+      } else {
+        toast.success(`✅ ${item} marked as ${status}`);
+      }
+    } else {
+      toast.success(`✅ ${item} marked as ${status}`);
+    }
     reload();
   };
 
@@ -334,6 +365,26 @@ export function ExitManagement() {
                 {/* Expanded: clearance + history */}
                 {expandedId === wf.exitWorkflowId && (
                   <div className="mt-4 space-y-4 border-t pt-4">
+                    {/* ✅ FIX (HR-DEF-02): real, live inventory holdings for
+                        this employee, shown before HR confirms any
+                        clearance item — previously there was no way to see
+                        what the system actually thinks this person still
+                        holds before marking it returned. */}
+                    {(() => {
+                      const realStock = getWasherStock(wf.employeeId, wf.cityId).filter((i: any) => (i.washerStock[wf.employeeId] || 0) > 0);
+                      return realStock.length > 0 ? (
+                        <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                          <p className="text-xs font-medium text-amber-900 flex items-center gap-1 mb-1">
+                            <Package className="w-3.5 h-3.5" /> Real inventory still held by this employee
+                          </p>
+                          <ul className="text-xs text-amber-800 space-y-0.5">
+                            {realStock.map((i: any) => (
+                              <li key={i.itemId}>{i.itemName} — {i.washerStock[wf.employeeId]} {i.unit}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null;
+                    })()}
                     {/* Clearance items */}
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">

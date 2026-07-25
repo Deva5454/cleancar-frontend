@@ -32,6 +32,7 @@ import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { ShiftRosterManager } from "../hr/ShiftRosterManager";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
+import { DataService } from "../../services/DataService";
 import { BackButton } from "../ui/back-button";
 import { calculateProrateSalary, getLeaveBalance, ANNUAL_LEAVE_QUOTA } from "../../lib/leaveManagement";
 import { MASTER_EMPLOYEES, requiredDocuments, type Employee } from "../../data/employeeData";
@@ -236,8 +237,15 @@ function HRModule() {
       const offerLetters = offerLetterService.getAll();
       const pendingOfferApprovals = offerLetters.filter(offer => offer.status === "Draft").length;
 
-      // Hardcoded appointment letters data - count Pending Approval
-      const pendingAppointmentApprovals = 2; // Based on hardcoded initialAppointments in AppointmentLetterGenerator
+      // ✅ PARTIAL FIX (HR-DEF-03): this was permanently hardcoded to 2,
+      // regardless of how many appointment letters actually await
+      // approval. A genuine real count requires AppointmentLetterGenerator.tsx
+      // to persist its data via DataService first (it currently holds
+      // everything in local component state only, with zero cross-screen
+      // visibility) — that's a larger, separate fix. Until then, an
+      // honestly-labeled 0 is less misleading than a number that's
+      // permanently wrong in either direction.
+      const pendingAppointmentApprovals = 0; // TODO: real count once AppointmentLetterGenerator persists via DataService
 
       // Confirmation letters due within 30 days - employees whose probation ends within 30 days
       const employees = employeeDatabaseService.getAll();
@@ -274,8 +282,12 @@ function HRModule() {
       // 3. ID Card Generator: Confirmed employees without ID cards (assume all confirmed employees need ID cards)
       const idCardCount = employees.filter(emp => emp.confirmationDate).length;
 
-      // 4. Leave Management: Pending leave approval requests (no service available, using placeholder)
-      const leaveCount = 0; // TODO: Implement when leave approval service is available
+      // ✅ FIX (HR-DEF-03): previously hardcoded to 0 with a TODO
+      // acknowledging it was a stub. Real leave requests are persisted
+      // via DataService under "LEAVE_REQUESTS" (ProfessionalLeaveManagement.tsx
+      // writes here on submit) — this now counts real, currently-pending
+      // ones instead of always showing zero.
+      const leaveCount = DataService.get<any>("LEAVE_REQUESTS").filter((r: any) => r.status === "Pending").length;
 
       // 5. Payroll Configuration: Employees with no salary structure assigned
       const salaryStructures = salaryStructureService.getAll();

@@ -28,6 +28,8 @@ import { DocumentManagement } from "./DocumentManagement";
 import { IDCardGenerator } from "./IDCardGenerator";
 import { ExitManagement } from "./ExitManagement";
 import { HRReporting } from "./HRReporting";
+import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { exitWorkflowService } from "../../services/exitWorkflowService";
 
 export function EmployeeLifecycleManagement() {
   const { currentRole } = useRole();
@@ -43,114 +45,132 @@ export function EmployeeLifecycleManagement() {
     setTimeout(() => setTriggerAddEmployee(false), 100);
   };
 
-  // Dashboard Metrics
-  const dashboardMetrics = {
-    totalEmployees: 156,
-    activeEmployees: 142,
-    newJoinersThisMonth: 8,
-    onLeave: 12,
-    pendingApprovals: 5,
-    upcomingConfirmations: 3,
-    resignations: 2,
-    exitInProcess: 1,
-  };
+  // ✅ FIX (HR-DEF-04): previously a fully static object
+  // (totalEmployees: 156, activeEmployees: 142, ...) shown to every user
+  // regardless of real data. Now computed from the same real sources
+  // HRModule.tsx's dashboard already uses.
+  const dashboardMetrics = (() => {
+    const employees = employeeDatabaseService.getAll();
+    const today = new Date();
+    const totalEmployees = employees.length;
+    const activeEmployees = employees.filter((e: any) => e.status === "Active").length;
+    const newJoinersThisMonth = employees.filter((e: any) => {
+      const j = new Date(e.dateOfJoining);
+      return j.getMonth() === today.getMonth() && j.getFullYear() === today.getFullYear();
+    }).length;
+    const onLeave = employees.filter((e: any) => e.status === "On Leave").length;
+    const pendingApprovals = DataService.get<any>("LEAVE_REQUESTS").filter((r: any) => r.status === "Pending").length;
+    const upcomingConfirmations = employees.filter((e: any) => {
+      if (e.status !== "Active" || e.confirmationDate) return false;
+      const probationMonths = e.probationPeriod?.match(/(\d+)\s*month/i);
+      const months = probationMonths ? parseInt(probationMonths[1], 10) : 3;
+      const joiningDate = new Date(e.dateOfJoining);
+      const probationEndDate = new Date(joiningDate);
+      probationEndDate.setMonth(probationEndDate.getMonth() + months);
+      const daysUntil = Math.ceil((probationEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil >= 0 && daysUntil <= 30;
+    }).length;
+    const activeExits = exitWorkflowService.getActive();
+    const resignations = activeExits.filter((w: any) => w.resignationType === "Voluntary").length;
+    const exitInProcess = activeExits.length;
+    return { totalEmployees, activeEmployees, newJoinersThisMonth, onLeave, pendingApprovals, upcomingConfirmations, resignations, exitInProcess };
+  })();
 
   // Recent Activities
-  const recentActivities = [
-    {
-      id: 1,
-      type: "joining",
-      employee: "Rahul Sharma",
-      action: "Joined as Car Washer",
-      timestamp: "2 hours ago",
-      icon: UserPlus,
-      color: "text-green-600",
-    },
-    {
-      id: 2,
-      type: "offer",
-      employee: "Priya Patel",
-      action: "Offer Letter Sent",
-      timestamp: "3 hours ago",
-      icon: FileText,
-      color: "text-blue-600",
-    },
-    {
-      id: 3,
-      type: "approval",
-      employee: "Amit Kumar",
-      action: "Appointment Letter Approved",
-      timestamp: "5 hours ago",
-      icon: CheckCircle,
-      color: "text-green-600",
-    },
-    {
-      id: 4,
-      type: "exit",
-      employee: "Neha Singh",
-      action: "Resignation Submitted",
-      timestamp: "1 day ago",
-      icon: LogOut,
-      color: "text-red-600",
-    },
-  ];
+  // ✅ FIX (HR-DEF-04): previously a fully static array with fictional
+  // named events ("Rahul Sharma — Joined as Car Washer — 2 hours ago").
+  // Built from real recent joiners, real leave requests, and real exit
+  // workflow activity instead.
+  const recentActivities = (() => {
+    const employees = employeeDatabaseService.getAll();
+    const leaveRequests = DataService.get<any>("LEAVE_REQUESTS");
+    const exits = exitWorkflowService.getAll();
+    type Activity = { id: string; type: string; employee: string; action: string; at: number; icon: any; color: string };
+    const items: Activity[] = [];
 
-  // Pending Approvals
-  const pendingApprovals = [
-    {
-      id: 1,
-      type: "Appointment Letter",
-      employee: "Kavita Reddy",
-      position: "Supervisor",
-      submittedBy: "HR Executive",
-      submittedOn: "2024-03-10",
-    },
-    {
-      id: 2,
-      type: "Salary Revision",
-      employee: "Suresh Yadav",
-      position: "Car Washer",
-      submittedBy: "HR Manager",
-      submittedOn: "2024-03-09",
-    },
-    {
-      id: 3,
-      type: "Exit Clearance",
-      employee: "Neha Singh",
-      position: "TSE",
-      submittedBy: "HR Executive",
-      submittedOn: "2024-03-08",
-    },
-  ];
+    employees.forEach((e: any) => {
+      const at = new Date(e.dateOfJoining).getTime();
+      if (!isNaN(at)) items.push({ id: `join-${e.id}`, type: "joining", employee: e.fullName || `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(), action: `Joined as ${e.designation || "Employee"}`, at, icon: UserPlus, color: "text-green-600" });
+    });
+    leaveRequests.forEach((r: any) => {
+      const at = new Date(r.appliedAt || r.appliedOn || 0).getTime();
+      if (!isNaN(at) && at > 0) items.push({ id: `leave-${r.id}`, type: "leave", employee: employees.find((e: any) => e.id === r.employeeId)?.fullName || r.employeeId, action: `${r.leaveType} leave request ${r.status.toLowerCase()}`, at, icon: FileText, color: "text-blue-600" });
+    });
+    exits.forEach((w: any) => {
+      const at = new Date(w.updatedAt || w.createdAt || 0).getTime();
+      if (!isNaN(at) && at > 0) items.push({ id: `exit-${w.exitWorkflowId}`, type: "exit", employee: w.employeeName, action: `Exit: ${w.currentStage}`, at, icon: LogOut, color: "text-red-600" });
+    });
 
-  // Upcoming Confirmations (Probation Ending Soon)
-  const upcomingConfirmations = [
-    {
-      id: 1,
-      employee: "Vikram Kumar",
-      position: "Operations Manager",
-      joiningDate: "2023-12-15",
-      confirmationDate: "2024-03-15",
-      daysLeft: 5,
-    },
-    {
-      id: 2,
-      employee: "Deepak Jain",
-      position: "Car Washer",
-      joiningDate: "2023-12-20",
-      confirmationDate: "2024-03-20",
-      daysLeft: 10,
-    },
-  ];
+    return items.sort((a, b) => b.at - a.at).slice(0, 5).map((i, idx) => ({
+      id: idx + 1, type: i.type, employee: i.employee, action: i.action,
+      timestamp: new Date(i.at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      icon: i.icon, color: i.color,
+    }));
+  })();
 
-  // Department-wise Employee Count
-  const departmentData = [
-    { department: "Operations", count: 85, percentage: 54.5 },
-    { department: "Sales & CRM", count: 32, percentage: 20.5 },
-    { department: "Support", count: 18, percentage: 11.5 },
-    { department: "HR & Admin", count: 12, percentage: 7.7 },
-    { department: "Finance", count: 9, percentage: 5.8 },
-  ];
+  // ✅ FIX (HR-DEF-04): real pending approvals — leave requests and exit
+  // clearance stages actually awaiting action, instead of fictional names.
+  const pendingApprovals = (() => {
+    const employees = employeeDatabaseService.getAll();
+    const leaveRequests = DataService.get<any>("LEAVE_REQUESTS").filter((r: any) => r.status === "Pending");
+    const exits = exitWorkflowService.getActive().filter((w: any) => w.currentStage === "Clearance" || w.currentStage === "F&F Settlement");
+    return [
+      ...leaveRequests.map((r: any, idx: number) => ({
+        id: idx + 1, type: "Leave Request",
+        employee: employees.find((e: any) => e.id === r.employeeId)?.fullName || r.employeeId,
+        position: employees.find((e: any) => e.id === r.employeeId)?.designation || "",
+        submittedBy: r.employeeId, submittedOn: r.appliedAt || r.appliedOn || "",
+      })),
+      ...exits.map((w: any, idx: number) => ({
+        id: leaveRequests.length + idx + 1, type: w.currentStage,
+        employee: w.employeeName, position: w.roleId || "",
+        submittedBy: "HR", submittedOn: w.updatedAt || w.createdAt || "",
+      })),
+    ];
+  })();
+
+  // ✅ FIX (HR-DEF-04): real employees with probation ending within 30
+  // days, instead of fictional names.
+  const upcomingConfirmationsList = (() => {
+    const employees = employeeDatabaseService.getAll();
+    const today = new Date();
+    return employees
+      .filter((e: any) => {
+        if (e.status !== "Active" || e.confirmationDate) return false;
+        const probationMonths = e.probationPeriod?.match(/(\d+)\s*month/i);
+        const months = probationMonths ? parseInt(probationMonths[1], 10) : 3;
+        const joiningDate = new Date(e.dateOfJoining);
+        const probationEndDate = new Date(joiningDate);
+        probationEndDate.setMonth(probationEndDate.getMonth() + months);
+        const daysUntil = Math.ceil((probationEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return daysUntil >= 0 && daysUntil <= 30;
+      })
+      .map((e: any, idx: number) => {
+        const probationMonths = e.probationPeriod?.match(/(\d+)\s*month/i);
+        const months = probationMonths ? parseInt(probationMonths[1], 10) : 3;
+        const joiningDate = new Date(e.dateOfJoining);
+        const probationEndDate = new Date(joiningDate);
+        probationEndDate.setMonth(probationEndDate.getMonth() + months);
+        const daysLeft = Math.ceil((probationEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          id: idx + 1, employee: e.fullName || `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(),
+          position: e.designation || "", joiningDate: e.dateOfJoining,
+          confirmationDate: probationEndDate.toISOString().split("T")[0], daysLeft,
+        };
+      });
+  })();
+
+  // ✅ FIX (HR-DEF-04): real department-wise counts instead of a fully
+  // fabricated breakdown.
+  const departmentData = (() => {
+    const employees = employeeDatabaseService.getAll();
+    const total = employees.length || 1;
+    const counts: Record<string, number> = {};
+    employees.forEach((e: any) => { counts[e.department || "Unassigned"] = (counts[e.department || "Unassigned"] || 0) + 1; });
+    return Object.entries(counts).map(([department, count]) => ({
+      department, count, percentage: Math.round((count / total) * 1000) / 10,
+    }));
+  })();
 
   return (
     <div className="space-y-6">
@@ -394,7 +414,7 @@ export function EmployeeLifecycleManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {upcomingConfirmations.map((conf) => (
+                  {upcomingConfirmationsList.map((conf) => (
                     <div
                       key={conf.id}
                       className="p-3 border border-blue-200 bg-blue-50 rounded-lg"

@@ -127,6 +127,17 @@ const leaveScenarios: Record<string, { CL: number; PL: number; SL: number; UL: n
   "FS-301": { CL: 1, PL: 0, SL: 0, UL: 0 },  // Karthik Iyer - Casual leave
 };
 
+// ✅ FIX: previously hardcoded "2025-12-31" / "2025-01-01" everywhere below —
+// once the real calendar date passed 2025-12-31, every pro-rata leave
+// calculation on this screen was computing against a leave year that had
+// already ended, silently producing wrong entitlement numbers. This
+// always resolves to the real, current leave year (Jan 1 - Dec 31),
+// regardless of what year it actually is when this runs.
+const getCurrentLeaveYearBounds = (): { start: string; end: string } => {
+  const year = new Date().getFullYear();
+  return { start: `${year}-01-01`, end: `${year}-12-31` };
+};
+
 // Calculate pro-rata leaves
 const calculateProRataLeaves = (
   startDate: string,
@@ -183,7 +194,7 @@ function ProfessionalLeaveManagement() {
   const [globalSettings, setGlobalSettings] = useState<LeaveGlobalSettings>({ ...LEAVE_GLOBAL_SETTINGS });
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingSettingChange, setPendingSettingChange] = useState<{
-    leaveType: "PL" | "CL" | "COMP OFF";
+    leaveType: "PL" | "CSL" | "COMP OFF";
     action: "enable" | "disable";
     applyTo: "all" | "specific";
     employeeId?: string;
@@ -580,15 +591,15 @@ function ProfessionalLeaveManagement() {
 
   // Calculate post-confirmation allocation
   const allocationData = employee.confirmationDate
-    ? calculateProRataLeaves(employee.confirmationDate, "2025-12-31")
+    ? calculateProRataLeaves(employee.confirmationDate, getCurrentLeaveYearBounds().end)
     : null;
 
-  // Calculate exit settlement (Jan 1 to Mar 31 = 90 days)
+  // Calculate exit settlement (real, current leave year — Jan 1 to Dec 31)
   const exitData = employee.lastWorkingDay
     ? calculateProRataLeaves(
-        employee.confirmationDate && new Date(employee.confirmationDate) > new Date("2025-01-01")
+        employee.confirmationDate && new Date(employee.confirmationDate) > new Date(getCurrentLeaveYearBounds().start)
           ? employee.confirmationDate
-          : "2025-01-01",
+          : getCurrentLeaveYearBounds().start,
         employee.lastWorkingDay
       )
     : null;
@@ -1611,10 +1622,10 @@ function ProfessionalLeaveManagement() {
                 </div>
                 <div className="mt-6 p-4 bg-slate-50 rounded-lg">
                   <p className="text-sm text-slate-700">
-                    <strong>Settlement Period:</strong> {employee.confirmationDate && new Date(employee.confirmationDate) > new Date("2025-01-01") 
+                    <strong>Settlement Period:</strong> {employee.confirmationDate && new Date(employee.confirmationDate) > new Date(getCurrentLeaveYearBounds().start)
                       ? new Date(employee.confirmationDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                      : "1 Jan 2025"
-                    } → 31 Mar 2025 = <strong>{exitData.days} days</strong>
+                      : new Date(getCurrentLeaveYearBounds().start).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                    } → {employee.lastWorkingDay ? new Date(employee.lastWorkingDay).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ""} = <strong>{exitData.days} days</strong>
                   </p>
                 </div>
               </CardContent>
@@ -2193,7 +2204,7 @@ function ProfessionalLeaveManagement() {
               </CardContent>
             </Card>
 
-            {/* CL Settings */}
+            {/* CSL (Casual/Sick Leave) Settings */}
             <Card className="border-2 border-blue-200 shadow-xl">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <CardTitle className="text-lg font-serif text-[#0F1F3D] flex items-center gap-2">
@@ -2211,14 +2222,19 @@ function ProfessionalLeaveManagement() {
                       When disabled, CL is not credited or available to any employee
                     </p>
                   </div>
+                  {/* ✅ FIX (HR-DEF-01): globalSettings only ever has PL, CSL, and
+                      "COMP OFF" keys (per LEAVE_GLOBAL_SETTINGS in
+                      leavePolicyConfiguration.ts) — globalSettings.CL was
+                      always undefined, crashing this screen the moment it
+                      rendered. Reads/writes CSL now, matching the real shape. */}
                   <Switch
-                    checked={globalSettings.CL.globallyEnabled}
+                    checked={globalSettings.CSL.globallyEnabled}
                     onCheckedChange={(checked) => {
                       setPendingSettingChange({
-                        leaveType: "CL",
+                        leaveType: "CSL",
                         action: checked ? "enable" : "disable",
-                        applyTo: globalSettings.CL.applyTo,
-                        employeeId: globalSettings.CL.specificEmployeeId,
+                        applyTo: globalSettings.CSL.applyTo,
+                        employeeId: globalSettings.CSL.specificEmployeeId,
                       });
                       setShowConfirmDialog(true);
                     }}
@@ -2228,11 +2244,11 @@ function ProfessionalLeaveManagement() {
                 <div className="space-y-4">
                   <Label className="text-base font-semibold text-gray-900">Apply To:</Label>
                   <RadioGroup
-                    value={globalSettings.CL.applyTo}
+                    value={globalSettings.CSL.applyTo}
                     onValueChange={(value: "all" | "specific") => {
                       setGlobalSettings({
                         ...globalSettings,
-                        CL: { ...globalSettings.CL, applyTo: value },
+                        CSL: { ...globalSettings.CSL, applyTo: value },
                       });
                     }}
                   >
@@ -2250,18 +2266,18 @@ function ProfessionalLeaveManagement() {
                     </div>
                   </RadioGroup>
 
-                  {globalSettings.CL.applyTo === "specific" && (
+                  {globalSettings.CSL.applyTo === "specific" && (
                     <div className="ml-8 mt-3">
                       <Label className="text-sm font-semibold text-gray-700 mb-2 block">
                         Select Employee:
                       </Label>
                       <select
-                        value={globalSettings.CL.specificEmployeeId || ""}
+                        value={globalSettings.CSL.specificEmployeeId || ""}
                         onChange={(e) => {
                           setGlobalSettings({
                             ...globalSettings,
-                            CL: {
-                              ...globalSettings.CL,
+                            CSL: {
+                              ...globalSettings.CSL,
                               specificEmployeeId: e.target.value,
                             },
                           });
@@ -2490,13 +2506,13 @@ function ProfessionalLeaveManagement() {
                       ? calculateProbationCredits(emp.joiningDate, emp.confirmationDate)
                       : null;
                     const allocation = emp.confirmationDate
-                      ? calculateProRataLeaves(emp.confirmationDate, "2025-12-31")
+                      ? calculateProRataLeaves(emp.confirmationDate, getCurrentLeaveYearBounds().end)
                       : null;
                     const exit = emp.lastWorkingDay
                       ? calculateProRataLeaves(
-                          emp.confirmationDate && new Date(emp.confirmationDate) > new Date("2025-01-01")
+                          emp.confirmationDate && new Date(emp.confirmationDate) > new Date(getCurrentLeaveYearBounds().start)
                             ? emp.confirmationDate
-                            : "2025-01-01",
+                            : getCurrentLeaveYearBounds().start,
                           emp.lastWorkingDay
                         )
                       : null;

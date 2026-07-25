@@ -38,9 +38,11 @@ import {
 } from "lucide-react";
 import { PayrollProcessingFlow } from "./PayrollProcessingFlow";
 import { PayrollProcessingTab } from "./PayrollProcessingTab";
+import { useEmployeeData } from "../../hooks/useEmployeeData";
 
 export function PayrollConfiguration() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const { employees, payrollRuns } = useEmployeeData();
 
   // System Settings State
   const [payrollCycle, setPayrollCycle] = useState("monthly");
@@ -49,12 +51,19 @@ export function PayrollConfiguration() {
   const [approvalRequired, setApprovalRequired] = useState(true);
   const [autoProcessing, setAutoProcessing] = useState(false);
 
-  const stats = {
-    totalEmployees: 10,
-    totalPayroll: 343505,
-    pendingApprovals: 1,
-    slipsGenerated: 10,
-  };
+  // ✅ FIX (HR-DEF-04): previously a fully static object
+  // (totalEmployees: 10, totalPayroll: 343505, ...) shown to every user
+  // regardless of real data. Now computed from real employees and the
+  // most recent real payroll run.
+  const stats = (() => {
+    const totalEmployees = employees.length;
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const thisMonthRuns = (payrollRuns || []).filter((r: any) => r.month === currentMonth);
+    const totalPayroll = thisMonthRuns.reduce((sum: number, r: any) => sum + (r.netSalary || 0), 0);
+    const pendingApprovals = thisMonthRuns.filter((r: any) => r.status === "under_review").length;
+    const slipsGenerated = thisMonthRuns.filter((r: any) => r.status === "approved" || r.status === "disbursed").length;
+    return { totalEmployees, totalPayroll, pendingApprovals, slipsGenerated };
+  })();
 
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
