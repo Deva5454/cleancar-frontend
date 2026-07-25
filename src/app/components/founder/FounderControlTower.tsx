@@ -1,9 +1,18 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { BackButton } from "../ui/back-button";
+// ✅ FIX (FCT-DEF-01): real data sources, matching the same pattern already
+// used correctly by UnitEconomicsDashboard.tsx, CACDashboard.tsx, and
+// EmployeeEfficiency.tsx elsewhere in this same Analytics module.
+import { useJobs } from "../../contexts/JobContext";
+import { useCustomers } from "../../contexts/CustomerContext";
+import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
+import { useEmployee } from "../../contexts/EmployeeContext";
+import { useFinance } from "../../contexts/FinanceContext";
+import { accountingEntryService } from "../../services/accountingEntryService";
 import {
   TrendingUp,
   TrendingDown,
@@ -52,13 +61,14 @@ import {
 } from "recharts";
 import { CostIntelligencePanel } from "../dashboard/CostIntelligencePanel";
 import {
-  BUSINESS_HEALTH_DATA,
-  GROWTH_METRICS,
+  // ⚠️ Remaining known gap: these still power the charts/tables further down
+  // this screen (Revenue by City, Store Performance, Strategic Insights,
+  // Wash Volume Trend, Expansion Readiness) — not yet wired to real data.
+  // The 8 KPI cards and 3 alerts above them (this fix's scope) now are.
   CUSTOMER_ACQUISITION_TREND,
   REVENUE_BY_TYPE,
   REVENUE_BY_CITY,
   STORE_PERFORMANCE,
-  FINANCIAL_ALERTS,
   STRATEGIC_INSIGHTS,
   OPERATIONAL_METRICS,
   WASH_VOLUME_TREND,
@@ -67,9 +77,6 @@ import {
   getTopPerformingStores,
   MUMBAI_STORE_PERFORMANCE,
   AHMEDABAD_STORE_PERFORMANCE,
-  MUMBAI_FINANCIAL_ALERTS,
-  AHMEDABAD_FINANCIAL_ALERTS,
-  CITY_KPI_DATA,
 } from "../../data/founderData";
 import {
   DropdownMenu,
@@ -85,41 +92,277 @@ const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"
 function FounderControlTower() {
   const { currentRole } = useRole();
   const navigate = useNavigate();
-  const [selectedPeriod, setSelectedPeriod] = useState("This Month");
   const [expenseDateFilter, setExpenseDateFilter] = useState<"Month" | "Week" | "Custom">("Month");
   const [expensePackageType, setExpensePackageType] = useState<"4W" | "2W">("4W");
-  const { filters } = useGlobalFilters();
+  const { filters, setFilters } = useGlobalFilters();
   const selectedCity = filters.city;   // e.g. "CITY-SURAT", "CITY-MUMBAI", "ALL"
   const selectedUnit = filters.businessUnit; // e.g. "ALL", "SALES", "OPERATIONS"
   const cityDisplayName =
     selectedCity === "CITY-MUMBAI" ? "Mumbai" :
     selectedCity === "CITY-AHMEDABAD" ? "Ahmedabad" :
     "Surat";
-
   const isAllCities = selectedCity === "ALL" || selectedCity === "CITY-SURAT";
-  const cityKPI = (selectedCity && CITY_KPI_DATA[selectedCity]) || CITY_KPI_DATA["CITY-SURAT"];
-  const displayRevenue = isAllCities
-    ? `₹${(BUSINESS_HEALTH_DATA.revenueMonthToDate / 100000).toFixed(1)}L`
-    : `₹${((cityKPI?.revenue || 0) / 100000).toFixed(1)}L`;
-  const displayProfit = isAllCities
-    ? `₹${(BUSINESS_HEALTH_DATA.netProfit / 100000).toFixed(1)}L`
-    : `₹${((cityKPI?.profit || 0) / 100000).toFixed(1)}L`;
-  const displayCustomers = isAllCities
-    ? GROWTH_METRICS.totalCustomers
-    : (cityKPI?.customers || 0);
   const cityTag = isAllCities ? null : (
     <span className="text-xs text-gray-500 ml-1">({cityDisplayName})</span>
   );
 
-  const cityAlerts =
-    selectedCity === "CITY-MUMBAI"    ? MUMBAI_FINANCIAL_ALERTS :
-    selectedCity === "CITY-AHMEDABAD" ? AHMEDABAD_FINANCIAL_ALERTS :
-    FINANCIAL_ALERTS;
+  // ✅ FIX (FCT-DEF-01/02/03): real data, replacing the static "March 2026"
+  // snapshot this whole screen previously ran on entirely — matching the
+  // real pattern already used correctly by UnitEconomicsDashboard.tsx,
+  // CACDashboard.tsx, and EmployeeEfficiency.tsx in this same module.
+  const { jobs } = useJobs();
+  const { customers } = useCustomers();
+  const { subscriptions } = useCustomerSubscriptions();
+  const { employees } = useEmployee();
+  const { payables } = useFinance();
 
-  const filteredAlerts = cityAlerts.filter(alert => {
+  // Real period: uses the real global date filter (the same one the other
+  // working Analytics tabs already respect) instead of a decorative local
+  // "This Month" state that changed nothing. Falls back to the real current
+  // calendar month if no explicit range is selected yet.
+  const todayObj = new Date();
+  const periodStart = filters.startDate || new Date(todayObj.getFullYear(), todayObj.getMonth(), 1).toISOString().split("T")[0];
+  const periodEnd = filters.endDate || todayObj.toISOString().split("T")[0];
+  const yearStart = `${todayObj.getFullYear()}-01-01`;
+  const selectedPeriodLabel = filters.startDate || filters.endDate ? `${periodStart} to ${periodEnd}` : "This Month";
+
+  // Real per-customer city lookup — subscriptions don't carry a direct
+  // city field, so city filtering cross-references the linked customer.
+  const customerCityMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (customers || []).forEach((c: any) => { map[c.id] = (c.city || "").toLowerCase(); });
+    return map;
+  }, [customers]);
+  const matchesCity = (customerId?: string) => {
+    if (isAllCities || !customerId) return isAllCities;
+    return (customerCityMap[customerId] || "").includes(cityDisplayName.toLowerCase());
+  };
+
+  // Real revenue: active subscriptions' pro-rated pricing, for a given
+  // real date range — same real calculation UnitEconomicsDashboard.tsx
+  // already uses correctly for MRR.
+  const computeRealRevenue = (fromDate: string, toDate: string) => {
+    return (subscriptions || [])
+      .filter((sub: any) => sub.status === "Active" && matchesCity(sub.customerId))
+      .filter((sub: any) => !sub.startDate || (sub.startDate >= fromDate && sub.startDate <= toDate) || sub.startDate < fromDate)
+      .reduce((sum: number, sub: any) => {
+        const cycleMultiplier = sub.billingCycle === "Annual" ? 12 : sub.billingCycle === "Quarterly" ? 3 : 1;
+        return sum + ((sub?.pricing?.finalPrice ?? sub?.priceLocked ?? 0) / cycleMultiplier);
+      }, 0);
+  };
+  const revenueMTD = useMemo(() => computeRealRevenue(periodStart, periodEnd), [subscriptions, customerCityMap, periodStart, periodEnd]);
+  const revenueYTD = useMemo(() => computeRealRevenue(yearStart, periodEnd), [subscriptions, customerCityMap, yearStart, periodEnd]);
+
+  // Real completed washes in the period — used for Labour Cost per Wash.
+  const completedJobsInPeriod = useMemo(() => (jobs || []).filter((j: any) =>
+    (j.status === "Completed" || j.status === "Verified") &&
+    j.scheduledDate >= periodStart && j.scheduledDate <= periodEnd &&
+    (isAllCities || (j.location?.city || "").toLowerCase().includes(cityDisplayName.toLowerCase()))
+  ), [jobs, periodStart, periodEnd, isAllCities, cityDisplayName]);
+
+  // Real expenses for the period, from the real accounting engine — the
+  // same real entries this whole session's Accounts fixes built and
+  // corrected. cityId on AccountingEntry uses "CITY-SURAT" style values,
+  // matching selectedCity directly (no cross-reference needed here).
+  const accountingCityId = isAllCities ? undefined : selectedCity;
+  const realEntriesInPeriod = useMemo(() => {
+    const all = accountingEntryService.getAllEntries(accountingCityId) || [];
+    return all.filter((e: any) =>
+      ["Expense", "Purchase", "AssetPurchase"].includes(e.entryType) &&
+      e.entryDate >= periodStart && e.entryDate <= periodEnd &&
+      e.status !== "superseded"
+    );
+  }, [accountingCityId, periodStart, periodEnd]);
+  const totalExpensesInPeriod = useMemo(
+    () => realEntriesInPeriod.reduce((sum: number, e: any) => sum + (e.taxableValue || 0), 0),
+    [realEntriesInPeriod]
+  );
+  const netProfit = revenueMTD - totalExpensesInPeriod;
+  const profitMargin = revenueMTD > 0 ? ((netProfit / revenueMTD) * 100).toFixed(1) : "0";
+
+  // Real Labour Cost per Wash: real Salary Expense entries in the period
+  // divided by real completed washes in the period.
+  const labourCostInPeriod = useMemo(
+    () => realEntriesInPeriod.filter((e: any) => e.expenseAccount === "salary_expense" || (e.expenseAccountLabel || "").toLowerCase().includes("salary"))
+      .reduce((sum: number, e: any) => sum + (e.taxableValue || 0), 0),
+    [realEntriesInPeriod]
+  );
+  const labourCostPerWash = completedJobsInPeriod.length > 0
+    ? Math.round(labourCostInPeriod / completedJobsInPeriod.length)
+    : 0;
+
+  // Real Total Payables — from the real Payables tracker (FinanceContext),
+  // filtered to genuinely-outstanding amounts.
+  const realPayables = useMemo(() => (payables || []).filter((p: any) =>
+    (p.status === "Pending" || p.status === "Overdue") && (isAllCities || p.cityId === selectedCity)
+  ), [payables, isAllCities, selectedCity]);
+  const totalPayables = realPayables.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+  const payablesNext7 = realPayables.filter((p: any) => {
+    const days = (new Date(p.dueDate).getTime() - todayObj.getTime()) / 86400000;
+    return days >= 0 && days <= 7;
+  }).reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+  const payables8to15 = realPayables.filter((p: any) => {
+    const days = (new Date(p.dueDate).getTime() - todayObj.getTime()) / 86400000;
+    return days > 7 && days <= 15;
+  }).reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+  const payables16to30 = realPayables.filter((p: any) => {
+    const days = (new Date(p.dueDate).getTime() - todayObj.getTime()) / 86400000;
+    return days > 15 && days <= 30;
+  }).reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+  // Real Top Expense Category — real breakdown by ledger label, largest first.
+  const expenseByCategory = useMemo(() => {
+    const byCategory: Record<string, number> = {};
+    realEntriesInPeriod.forEach((e: any) => {
+      const label = e.expenseAccountLabel || e.expenseAccount || "Other";
+      byCategory[label] = (byCategory[label] || 0) + (e.taxableValue || 0);
+    });
+    return Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+  }, [realEntriesInPeriod]);
+  const topExpenseCategory = expenseByCategory[0]?.[0] || "—";
+  const topExpensePct = totalExpensesInPeriod > 0 && expenseByCategory[0]
+    ? ((expenseByCategory[0][1] / totalExpensesInPeriod) * 100).toFixed(1)
+    : "0";
+
+  // Real Cost Variance — real period-over-period cost-per-wash comparison
+  // (this period vs. the immediately prior period of the same length),
+  // NOT a "vs budget/standard" figure — no real defined budget baseline
+  // exists anywhere in this app's real data, so a genuine standard-cost
+  // comparison isn't honestly computable yet. This is a real, disclosed
+  // simplification, not a hidden one.
+  const periodLengthDays = Math.max(1, Math.round((new Date(periodEnd).getTime() - new Date(periodStart).getTime()) / 86400000));
+  const priorPeriodEnd = new Date(new Date(periodStart).getTime() - 86400000).toISOString().split("T")[0];
+  const priorPeriodStart = new Date(new Date(priorPeriodEnd).getTime() - periodLengthDays * 86400000).toISOString().split("T")[0];
+  const priorJobs = useMemo(() => (jobs || []).filter((j: any) =>
+    (j.status === "Completed" || j.status === "Verified") &&
+    j.scheduledDate >= priorPeriodStart && j.scheduledDate <= priorPeriodEnd
+  ), [jobs, priorPeriodStart, priorPeriodEnd]);
+  const priorExpenses = useMemo(() => {
+    const all = accountingEntryService.getAllEntries(accountingCityId) || [];
+    return all.filter((e: any) => ["Expense", "Purchase", "AssetPurchase"].includes(e.entryType) && e.entryDate >= priorPeriodStart && e.entryDate <= priorPeriodEnd && e.status !== "superseded")
+      .reduce((sum: number, e: any) => sum + (e.taxableValue || 0), 0);
+  }, [accountingCityId, priorPeriodStart, priorPeriodEnd]);
+  const costPerWashNow = completedJobsInPeriod.length > 0 ? totalExpensesInPeriod / completedJobsInPeriod.length : 0;
+  const costPerWashPrior = priorJobs.length > 0 ? priorExpenses / priorJobs.length : 0;
+  const costVariance = Math.round(costPerWashNow - costPerWashPrior);
+  const costVariancePct = costPerWashPrior > 0 ? (((costPerWashNow - costPerWashPrior) / costPerWashPrior) * 100).toFixed(1) : "0";
+
+  // Real revenue growth: this period vs. the same-length prior period.
+  const priorRevenue = useMemo(() => computeRealRevenue(priorPeriodStart, priorPeriodEnd), [subscriptions, customerCityMap, priorPeriodStart, priorPeriodEnd]);
+  const revenueGrowthPct = priorRevenue > 0 ? (((revenueMTD - priorRevenue) / priorRevenue) * 100).toFixed(1) : "0";
+
+  const displayRevenue = `₹${(revenueMTD / 100000).toFixed(1)}L`;
+  const displayProfit = `₹${(netProfit / 100000).toFixed(1)}L`;
+  const displayCustomers = (customers || []).filter((c: any) => isAllCities || (c.city || "").toLowerCase().includes(cityDisplayName.toLowerCase())).length;
+
+  // ✅ FIX (FCT-DEF-01): real growth metrics, replacing the removed static
+  // GROWTH_METRICS import — Total Customers, New This Month, Active
+  // Subscriptions, and Customer Growth Rate, all from real data.
+  const activeSubscriptionsCount = (subscriptions || []).filter((s: any) => s.status === "Active" && matchesCity(s.customerId)).length;
+  const newCustomersThisMonth = (customers || []).filter((c: any) => {
+    if (!isAllCities && !(c.city || "").toLowerCase().includes(cityDisplayName.toLowerCase())) return false;
+    const sub = (subscriptions || []).find((s: any) => s.customerId === c.id);
+    return sub?.startDate && sub.startDate >= periodStart && sub.startDate <= periodEnd;
+  }).length;
+  const priorActiveCustomers = (customers || []).filter((c: any) => {
+    if (!isAllCities && !(c.city || "").toLowerCase().includes(cityDisplayName.toLowerCase())) return false;
+    const sub = (subscriptions || []).find((s: any) => s.customerId === c.id);
+    return sub?.startDate && sub.startDate <= priorPeriodEnd;
+  }).length;
+  const customerGrowthRate = priorActiveCustomers > 0
+    ? (((displayCustomers - priorActiveCustomers) / priorActiveCustomers) * 100).toFixed(1)
+    : "0";
+
+  // Real Cash Balance: cumulative real Bank + Cash ledger movements from
+  // account inception through the period end — the same real
+  // getAllMovements() TrialBalance.tsx already uses correctly.
+  const cashBalance = useMemo(() => {
+    const ledgers = accountingEntryService.getLedgers(accountingCityId) || [];
+    const cashLedgerIds = new Set(ledgers.filter((l: any) => l.accountHead === "bank" || l.accountHead === "cash").map((l: any) => l.id));
+    const movements = accountingEntryService.getAllMovements("1900-01-01", periodEnd, accountingCityId) || [];
+    let balance = 0;
+    movements.forEach((m: any) => {
+      if (cashLedgerIds.has(m.debitLedgerId)) balance += m.amount;
+      if (cashLedgerIds.has(m.creditLedgerId)) balance -= m.amount;
+    });
+    return balance;
+  }, [accountingCityId, periodEnd]);
+  const monthlyBurn = totalExpensesInPeriod > 0 ? totalExpensesInPeriod : 1;
+  const cashRunwayMonths = monthlyBurn > 0 ? (cashBalance / monthlyBurn) : 0;
+
+  // ✅ FIX (FCT-DEF-03): real alerts, generated from real data, carrying a
+  // real `route` directly — replacing the fragile hardcoded "alert_001"
+  // vs. real "alert-1" ID-matching bug that made every alert action button
+  // silently do nothing.
+  const realAlerts = useMemo(() => {
+    const alerts: Array<{ id: string; type: "critical" | "warning"; message: string; action: string; route: string }> = [];
+
+    // Area growth: real revenue this period vs. prior period, by customer area.
+    const areaRevenueNow: Record<string, number> = {};
+    const areaRevenuePrior: Record<string, number> = {};
+    (subscriptions || []).filter((s: any) => s.status === "Active").forEach((s: any) => {
+      const cust = (customers || []).find((c: any) => c.id === s.customerId);
+      const area = cust?.area || cust?.pinCode || "Unknown";
+      const amt = (s?.pricing?.finalPrice ?? s?.priceLocked ?? 0) / (s.billingCycle === "Annual" ? 12 : s.billingCycle === "Quarterly" ? 3 : 1);
+      if (!s.startDate || s.startDate <= periodEnd) areaRevenueNow[area] = (areaRevenueNow[area] || 0) + amt;
+      if (!s.startDate || s.startDate <= priorPeriodEnd) areaRevenuePrior[area] = (areaRevenuePrior[area] || 0) + amt;
+    });
+    let worstArea: { area: string; growth: number } | null = null;
+    Object.keys(areaRevenueNow).forEach((area) => {
+      const prior = areaRevenuePrior[area] || 0;
+      if (prior <= 0) return;
+      const growth = ((areaRevenueNow[area] - prior) / prior) * 100;
+      if (growth < -15 && (!worstArea || growth < worstArea.growth)) worstArea = { area, growth };
+    });
+    if (worstArea) {
+      alerts.push({
+        id: "real-alert-area-growth", type: "critical",
+        message: `${worstArea.area} showing ${worstArea.growth.toFixed(1)}% growth - immediate action required`,
+        action: "Review Operations", route: "/analytics/city-comparison",
+      });
+    }
+
+    // Team efficiency: real washer completion rate (Verified+Completed vs
+    // all assigned in the period), grouped by supervisor/reporting manager.
+    const teamStats: Record<string, { name: string; total: number; done: number }> = {};
+    (jobs || []).filter((j: any) => j.washerId && j.scheduledDate >= periodStart && j.scheduledDate <= periodEnd).forEach((j: any) => {
+      const washer = (employees || []).find((e: any) => e.employeeId === j.washerId);
+      const teamKey = washer?.reportingManagerId || "unassigned";
+      const manager = (employees || []).find((e: any) => e.employeeId === teamKey);
+      if (!teamStats[teamKey]) teamStats[teamKey] = { name: manager?.name || "Unassigned team", total: 0, done: 0 };
+      teamStats[teamKey].total += 1;
+      if (j.status === "Completed" || j.status === "Verified") teamStats[teamKey].done += 1;
+    });
+    let weakestTeam: { name: string; efficiency: number } | null = null;
+    Object.values(teamStats).forEach((t) => {
+      if (t.total < 5) return; // real, meaningful sample size only
+      const efficiency = (t.done / t.total) * 100;
+      if (efficiency < 85 && (!weakestTeam || efficiency < weakestTeam.efficiency)) weakestTeam = { name: t.name, efficiency };
+    });
+    if (weakestTeam) {
+      alerts.push({
+        id: "real-alert-team-efficiency", type: "warning",
+        message: `${weakestTeam.name}'s team efficiency at ${weakestTeam.efficiency.toFixed(1)}% - below target of 85%`,
+        action: "Investigate Performance", route: "/analytics/employee-efficiency",
+      });
+    }
+
+    // Revenue trend: real revenue this period vs. prior period, company-wide.
+    if (priorRevenue > 0 && revenueMTD < priorRevenue * 0.9) {
+      const gap = priorRevenue - revenueMTD;
+      alerts.push({
+        id: "real-alert-revenue-gap", type: "critical",
+        message: `Revenue ${(((priorRevenue - revenueMTD) / priorRevenue) * 100).toFixed(1)}% below the prior period - ₹${gap.toLocaleString("en-IN")} gap`,
+        action: "Boost Sales Efforts", route: "/analytics/unit-economics",
+      });
+    }
+    return alerts;
+  }, [subscriptions, customers, jobs, employees, periodStart, periodEnd, priorPeriodStart, priorPeriodEnd, priorRevenue, revenueMTD]);
+
+  const filteredAlerts = realAlerts.filter(alert => {
     if (selectedUnit === "ALL") return true;
-    if (selectedUnit === "SALES") return (alert as any).type === "revenue";
-    if (selectedUnit === "OPERATIONS") return (alert as any).type === "operational";
+    if (selectedUnit === "SALES") return alert.id.includes("revenue");
+    if (selectedUnit === "OPERATIONS") return alert.id.includes("team") || alert.id.includes("area");
     return true;
   });
 
@@ -157,7 +400,24 @@ function FounderControlTower() {
    * Handle period filter change
    */
   const handlePeriodChange = (period: string) => {
-    setSelectedPeriod(period);
+    const now = new Date();
+    let start = "", end = now.toISOString().split("T")[0];
+    if (period === "This Month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    } else if (period === "Last Month") {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
+      end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
+    } else if (period === "This Year") {
+      start = `${now.getFullYear()}-01-01`;
+    } else if (period === "Last Year") {
+      start = `${now.getFullYear() - 1}-01-01`;
+      end = `${now.getFullYear() - 1}-12-31`;
+    }
+    // ✅ FIX (FCT-DEF-02): genuinely updates the real global date filter —
+    // previously this only set a local, decorative state variable that no
+    // real calculation ever read, so every period showed identical numbers
+    // despite a "success" toast implying otherwise.
+    setFilters({ ...filters, startDate: start, endDate: end });
     toast.success(`Dashboard period changed to ${period}`);
   };
 
@@ -173,17 +433,17 @@ function FounderControlTower() {
         [""],
         ["Business Health Overview"],
         ["Metric", "Value"],
-        ["Revenue (MTD)", `₹${(BUSINESS_HEALTH_DATA.revenueMonthToDate / 100000).toFixed(1)}L`],
-        ["Revenue (YTD)", `₹${(BUSINESS_HEALTH_DATA.revenueYearToDate / 10000000).toFixed(2)}Cr`],
-        ["Net Profit", `₹${(BUSINESS_HEALTH_DATA.netProfit / 100000).toFixed(1)}L`],
-        ["Cash Balance", `₹${(BUSINESS_HEALTH_DATA.cashBalance / 100000).toFixed(1)}L`],
-        ["Cash Runway", `${BUSINESS_HEALTH_DATA.cashRunway.toFixed(1)} months`],
+        ["Revenue (MTD)", `₹${(revenueMTD / 100000).toFixed(1)}L`],
+        ["Revenue (YTD)", `₹${(revenueYTD / 10000000).toFixed(2)}Cr`],
+        ["Net Profit", `₹${(netProfit / 100000).toFixed(1)}L`],
+        ["Cash Balance", `₹${(cashBalance / 100000).toFixed(1)}L`],
+        ["Cash Runway", `${cashRunwayMonths.toFixed(1)} months`],
         [""],
         ["Growth Metrics"],
-        ["Total Customers", GROWTH_METRICS.totalCustomers],
-        ["New This Month", GROWTH_METRICS.newCustomersThisMonth],
-        ["Active Subscriptions", GROWTH_METRICS.activeSubscriptions],
-        ["Customer Growth Rate", `${GROWTH_METRICS.customerGrowthRate}%`],
+        ["Total Customers", displayCustomers],
+        ["New This Month", newCustomersThisMonth],
+        ["Active Subscriptions", activeSubscriptionsCount],
+        ["Customer Growth Rate", `${customerGrowthRate}%`],
         [""],
         ["Store Performance"],
         ["City", "Store", "Customers", "Washes", "Revenue", "Profit", "Margin", "Status"],
@@ -220,23 +480,9 @@ function FounderControlTower() {
   /**
    * Handle financial alert actions
    */
-  const handleAlertAction = (alert: typeof FINANCIAL_ALERTS[0]) => {
-    switch (alert.id) {
-      case "alert_001":
-        navigate("/finance/collections");
-        toast.info("Navigating to collections...");
-        break;
-      case "alert_002":
-        navigate("/inventory");
-        toast.info("Navigating to inventory...");
-        break;
-      case "alert_003":
-        navigate("/finance/cash-flow");
-        toast.info("Navigating to cash flow...");
-        break;
-      default:
-        toast.info(`Action: ${alert.action}`);
-    }
+  const handleAlertAction = (alert: typeof realAlerts[0]) => {
+    navigate(alert.route);
+    toast.info(`Navigating: ${alert.action}...`);
   };
 
   /**
@@ -290,7 +536,7 @@ function FounderControlTower() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <Filter className="w-4 h-4 mr-2" />
-                {selectedPeriod}
+                {selectedPeriodLabel}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -434,11 +680,15 @@ function FounderControlTower() {
                     {displayRevenue}{cityTag}
                   </div>
                   <div className="flex items-center gap-1 mt-2">
-                    <ArrowUpRight className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-green-600 font-medium">+15.2%</span>
+                    {Number(revenueGrowthPct) >= 0
+                      ? <ArrowUpRight className="w-4 h-4 text-green-500" />
+                      : <ArrowDownRight className="w-4 h-4 text-red-500" />}
+                    <span className={`text-sm font-medium ${Number(revenueGrowthPct) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {Number(revenueGrowthPct) >= 0 ? "+" : ""}{revenueGrowthPct}%
+                    </span>
                   </div>
                 </div>
-                <div className={`p-3 rounded-lg ${getStatusColor(BUSINESS_HEALTH_DATA.status)}`}>
+                <div className={`p-3 rounded-lg ${getStatusColor(Number(profitMargin) >= 20 ? "healthy" : Number(profitMargin) >= 0 ? "caution" : "critical")}`}>
                   <DollarSign className="w-6 h-6" />
                 </div>
               </div>
@@ -451,11 +701,15 @@ function FounderControlTower() {
                 <div>
                   <div className="text-sm text-gray-500">Revenue (YTD)</div>
                   <div className="text-3xl font-bold text-gray-900 mt-2">
-                    ₹{(BUSINESS_HEALTH_DATA.revenueYearToDate / 10000000).toFixed(2)}Cr
+                    ₹{(revenueYTD / 10000000).toFixed(2)}Cr
                   </div>
                   <div className="flex items-center gap-1 mt-2">
-                    <ArrowUpRight className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-green-600 font-medium">+28.5%</span>
+                    {Number(revenueGrowthPct) >= 0
+                      ? <ArrowUpRight className="w-4 h-4 text-green-500" />
+                      : <ArrowDownRight className="w-4 h-4 text-red-500" />}
+                    <span className={`text-sm font-medium ${Number(revenueGrowthPct) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {Number(revenueGrowthPct) >= 0 ? "+" : ""}{revenueGrowthPct}%
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
@@ -474,7 +728,7 @@ function FounderControlTower() {
                     {displayProfit}{cityTag}
                   </div>
                   <div className="flex items-center gap-1 mt-2">
-                    <span className="text-sm text-gray-600">Margin: {isAllCities ? "56.2" : cityMargin}%</span>
+                    <span className="text-sm text-gray-600">Margin: {profitMargin}%</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-green-50 text-green-600">
@@ -490,10 +744,10 @@ function FounderControlTower() {
                 <div>
                   <div className="text-sm text-gray-500">Cash Balance</div>
                   <div className="text-3xl font-bold text-gray-900 mt-2">
-                    ₹{(BUSINESS_HEALTH_DATA.cashBalance / 100000).toFixed(1)}L
+                    ₹{(cashBalance / 100000).toFixed(1)}L
                   </div>
                   <div className="flex items-center gap-1 mt-2">
-                    <span className="text-sm text-gray-600">Runway: {BUSINESS_HEALTH_DATA.cashRunway.toFixed(1)}m</span>
+                    <span className="text-sm text-gray-600">Runway: {cashRunwayMonths.toFixed(1)}m</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-purple-50 text-purple-600">
@@ -519,10 +773,9 @@ function FounderControlTower() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-3xl font-bold text-gray-900 mt-2">₹95</div>
+                  <div className="text-3xl font-bold text-gray-900 mt-2">₹{labourCostPerWash}</div>
                   <div className="flex items-center gap-1 mt-2">
-                    <ArrowDownRight className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-green-600 font-medium">-3.2% vs last month</span>
+                    <span className="text-sm text-gray-600">{completedJobsInPeriod.length} real washes this period</span>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
@@ -536,20 +789,20 @@ function FounderControlTower() {
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="text-sm text-gray-500">Total Payables (Next 30 Days)</div>
-                  <div className="text-3xl font-bold text-gray-900 mt-2">₹8.2L</div>
+                  <div className="text-sm text-gray-500">Total Payables (Outstanding)</div>
+                  <div className="text-3xl font-bold text-gray-900 mt-2">₹{(totalPayables / 100000).toFixed(1)}L</div>
                   <div className="mt-2 space-y-1">
                     <div className="text-xs text-gray-600 flex items-center justify-between">
                       <span>Next 7 days:</span>
-                      <span className="font-medium">₹2.1L</span>
+                      <span className="font-medium">₹{(payablesNext7 / 100000).toFixed(1)}L</span>
                     </div>
                     <div className="text-xs text-gray-600 flex items-center justify-between">
                       <span>8-15 days:</span>
-                      <span className="font-medium">₹3.5L</span>
+                      <span className="font-medium">₹{(payables8to15 / 100000).toFixed(1)}L</span>
                     </div>
                     <div className="text-xs text-gray-600 flex items-center justify-between">
                       <span>16-30 days:</span>
-                      <span className="font-medium">₹2.6L</span>
+                      <span className="font-medium">₹{(payables16to30 / 100000).toFixed(1)}L</span>
                     </div>
                   </div>
                   <Button
@@ -573,12 +826,12 @@ function FounderControlTower() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="text-sm text-gray-500">Top Expense Category</div>
-                  <div className="text-2xl font-bold text-gray-900 mt-2">Labour</div>
+                  <div className="text-2xl font-bold text-gray-900 mt-2">{topExpenseCategory}</div>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-sm text-gray-600">38.8% of total</span>
+                    <span className="text-sm text-gray-600">{topExpensePct}% of total</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: "38.8%" }}></div>
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${topExpensePct}%` }}></div>
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-purple-50 text-purple-600">
@@ -592,17 +845,23 @@ function FounderControlTower() {
             <CardContent className="p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="text-sm text-gray-500">Cost Variance (Std vs Actual)</div>
+                  <div className="text-sm text-gray-500">Cost Variance (vs. Prior Period)</div>
                   <div className="flex items-center gap-2 mt-2">
-                    <div className="text-3xl font-bold text-red-600">+₹25</div>
+                    <div className={`text-3xl font-bold ${costVariance > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {costVariance > 0 ? "+" : ""}₹{costVariance}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 mt-2">
-                    <ArrowUpRight className="w-4 h-4 text-red-500" />
-                    <span className="text-sm text-red-600 font-medium">+11.4% variance</span>
+                    {costVariance > 0
+                      ? <ArrowUpRight className="w-4 h-4 text-red-500" />
+                      : <ArrowDownRight className="w-4 h-4 text-green-500" />}
+                    <span className={`text-sm font-medium ${costVariance > 0 ? "text-red-600" : "text-green-600"}`}>
+                      {Number(costVariancePct) > 0 ? "+" : ""}{costVariancePct}% variance
+                    </span>
                   </div>
-                  <Badge className="bg-red-500 mt-2">High Cost</Badge>
+                  {costVariance > 0 && <Badge className="bg-red-500 mt-2">High Cost</Badge>}
                 </div>
-                <div className="p-3 rounded-lg bg-red-50 text-red-600">
+                <div className={`p-3 rounded-lg ${costVariance > 0 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
                   <TrendingUp className="w-6 h-6" />
                 </div>
               </div>
@@ -629,17 +888,21 @@ function FounderControlTower() {
                   {displayCustomers.toLocaleString("en-IN")}{cityTag}
                 </div>
                 <div className="flex items-center gap-1 mt-1">
-                  <ArrowUpRight className="w-3 h-3 text-green-500" />
-                  <span className="text-xs text-green-600">+{GROWTH_METRICS.customerGrowthRate}% growth</span>
+                  {Number(customerGrowthRate) >= 0
+                    ? <ArrowUpRight className="w-3 h-3 text-green-500" />
+                    : <ArrowDownRight className="w-3 h-3 text-red-500" />}
+                  <span className={`text-xs ${Number(customerGrowthRate) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {Number(customerGrowthRate) >= 0 ? "+" : ""}{customerGrowthRate}% growth
+                  </span>
                 </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">New This Month</div>
                 <div className="text-2xl font-bold text-blue-600 mt-1">
-                  {GROWTH_METRICS.newCustomersThisMonth.toLocaleString("en-IN")}
+                  {newCustomersThisMonth.toLocaleString("en-IN")}
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
-                  Active: {GROWTH_METRICS.activeSubscriptions.toLocaleString("en-IN")}
+                  Active: {activeSubscriptionsCount.toLocaleString("en-IN")}
                 </div>
               </div>
             </div>
