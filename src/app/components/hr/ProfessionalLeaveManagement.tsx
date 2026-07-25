@@ -58,6 +58,7 @@ import { MASTER_EMPLOYEES } from "../../data/employeeData";
 import {
   LEAVE_GLOBAL_SETTINGS,
   updateLeaveGlobalSettings,
+  isLeaveTypeEnabledForEmployee,
   calculateProratedCL,
   validateLeaveClubbing,
   type LeaveGlobalSettings,
@@ -211,6 +212,25 @@ function ProfessionalLeaveManagement() {
   
   // Get current employee
   const employee = employeeScenarios.find(emp => emp.id === selectedEmployeeId) || employeeScenarios[0];
+
+  // ✅ FIX: the real, correct leaveBalanceService (probation vs. confirmed
+  // quotas, per-leave-type limits) previously had zero callers anywhere
+  // ever initializing a real balance for a real employee —
+  // initializeEmployeeBalance() existed but was never actually called, so
+  // deductLeave() failed with "Employee balance not found" on literally
+  // every single leave approval, every time (visible as a real, recurring
+  // toast: "Approved, but leave balance wasn't updated"). This is a real,
+  // self-healing pass — same pattern used elsewhere in this codebase for
+  // a washer's starter stock — run once per real employee who doesn't yet
+  // have a real balance record.
+  useEffect(() => {
+    employeeScenarios.forEach((emp) => {
+      if (!leaveBalanceService.getEmployeeBalance(emp.id)) {
+        const status: "Probation" | "Confirmed" = emp.confirmationDate ? "Confirmed" : "Probation";
+        leaveBalanceService.initializeEmployeeBalance(emp.id, emp.name, status, emp.joiningDate);
+      }
+    });
+  }, []);
 
   // ── Real leave requests (submit/approve/reject) ─────────────────────────
   // Previously this whole screen displayed a static hardcoded object
@@ -1201,6 +1221,22 @@ function ProfessionalLeaveManagement() {
                             !leaveApplicationForm.reason
                           ) {
                             toast.error("Please fill in all required fields");
+                            return;
+                          }
+
+                          // ✅ FIX: this is the Global Enable/Disable toggle's
+                          // first real effect anywhere in the codebase. It
+                          // existed as a UI (Settings screen) that changed
+                          // state but was never actually checked at the one
+                          // place it should matter — submitting a real leave
+                          // request. Only applies to PL/CSL (the two real
+                          // types the toggle covers); COMP OFF is earned, not
+                          // applied for directly, so it's excluded here.
+                          const canonicalForGate = leaveApplicationForm.leaveType === "PL" ? "PL"
+                            : (leaveApplicationForm.leaveType === "CL" || leaveApplicationForm.leaveType === "SL") ? "CSL"
+                            : null;
+                          if (canonicalForGate && !isLeaveTypeEnabledForEmployee(canonicalForGate, selectedEmployeeId)) {
+                            toast.error(`${leaveApplicationForm.leaveType} leave is currently disabled for this employee — contact HR`);
                             return;
                           }
 
@@ -2448,10 +2484,14 @@ function ProfessionalLeaveManagement() {
                             specificEmployeeId: pendingSettingChange.employeeId,
                           };
                           setGlobalSettings(updatedSettings);
-                          updateLeaveGlobalSettings(
-                            pendingSettingChange.leaveType,
-                            updatedSettings[pendingSettingChange.leaveType]
-                          );
+                          // ✅ FIX: updateLeaveGlobalSettings(newSettings) takes
+                          // ONE full settings object — the previous call passed
+                          // (leaveType, singleTypeSetting) as two separate
+                          // arguments, which silently corrupted the real,
+                          // shared LEAVE_GLOBAL_SETTINGS into garbage numeric
+                          // keys (e.g. {0:'C',1:'S',2:'L'}) the moment anyone
+                          // confirmed a toggle — proven directly, not assumed.
+                          updateLeaveGlobalSettings(updatedSettings);
                         }
                         setShowConfirmDialog(false);
                         setPendingSettingChange(null);

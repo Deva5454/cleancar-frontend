@@ -37,6 +37,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { salaryStructureService } from "../../services/salaryStructureService";
 import type { SalaryStructure, SalaryComponents } from "../../services/salaryStructureService";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { appointmentLetterService } from "../../services/appointmentLetterService";
 
 type AppointmentStatus = "Draft" | "Pending Approval" | "Approved" | "Rejected" | "Sent";
 
@@ -151,7 +152,24 @@ const initialAppointments: AppointmentLetter[] = [
 
 export function AppointmentLetterGenerator() {
   const navigate = useNavigate();
-  const [appointments, setAppointments] = useState<AppointmentLetter[]>(initialAppointments);
+  // ✅ FIX: previously always started from the hardcoded initialAppointments
+  // array, discarding any real data on every remount. Now reads real,
+  // persisted appointments first, falling back to the illustrative examples
+  // only when nothing real has been saved yet (e.g. a fresh install).
+  const [appointments, setAppointments] = useState<AppointmentLetter[]>(() => {
+    const real = appointmentLetterService.getAll();
+    return real.length > 0 ? real : initialAppointments;
+  });
+
+  // ✅ FIX: real, synchronous persistence on every change — the same pattern
+  // used throughout this codebase (e.g. InventoryContext) — so an
+  // appointment letter created or updated here is genuinely visible to
+  // every other real screen that reads appointmentLetterService, instead of
+  // vanishing the moment you navigate away.
+  useEffect(() => {
+    appointmentLetterService.setAll(appointments);
+  }, [appointments]);
+
   const [selectedOffer, setSelectedOffer] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);

@@ -33,6 +33,7 @@ import { useCity } from "../../contexts/CityContext";
 import { ShiftRosterManager } from "../hr/ShiftRosterManager";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 import { DataService } from "../../services/DataService";
+import { appointmentLetterService } from "../../services/appointmentLetterService";
 import { BackButton } from "../ui/back-button";
 import { calculateProrateSalary, getLeaveBalance, ANNUAL_LEAVE_QUOTA } from "../../lib/leaveManagement";
 import { MASTER_EMPLOYEES, requiredDocuments, type Employee } from "../../data/employeeData";
@@ -237,15 +238,10 @@ function HRModule() {
       const offerLetters = offerLetterService.getAll();
       const pendingOfferApprovals = offerLetters.filter(offer => offer.status === "Draft").length;
 
-      // ✅ PARTIAL FIX (HR-DEF-03): this was permanently hardcoded to 2,
-      // regardless of how many appointment letters actually await
-      // approval. A genuine real count requires AppointmentLetterGenerator.tsx
-      // to persist its data via DataService first (it currently holds
-      // everything in local component state only, with zero cross-screen
-      // visibility) — that's a larger, separate fix. Until then, an
-      // honestly-labeled 0 is less misleading than a number that's
-      // permanently wrong in either direction.
-      const pendingAppointmentApprovals = 0; // TODO: real count once AppointmentLetterGenerator persists via DataService
+      // ✅ FIX: now genuinely real — AppointmentLetterGenerator.tsx gained
+      // real DataService-equivalent persistence this session (Part I,
+      // item 2 of the HR handover), so this count is no longer a stub.
+      const pendingAppointmentApprovals = appointmentLetterService.getPendingApprovalCount();
 
       // Confirmation letters due within 30 days - employees whose probation ends within 30 days
       const employees = employeeDatabaseService.getAll();
