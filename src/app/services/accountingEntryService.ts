@@ -92,6 +92,14 @@ export interface AccountingEntry {
   paymentMode: PaymentMode;
   pettyCashBranch?: string;       // Only if paymentMode = PettyCash
   isRCM: boolean;
+  // ✅ NEW: real RCM lifecycle tracking — implementing the CA's general
+  // 4-step pattern (self-assess → pay government → claim ITC), as the
+  // best available default given the CA's own note that the simpler
+  // 2-step Rent-specific example vs. this general pattern is still an
+  // open question. These two fields record whether/which voucher recorded
+  // each later step, so neither can be double-processed on the same entry.
+  rcmPaidVoucherId?: string;
+  rcmItcClaimedVoucherId?: string;
   rcmCgst?: number;
   rcmSgst?: number;
   rcmIgst?: number;
@@ -898,6 +906,78 @@ class AccountingEntryService {
     all[idx] = { ...refund, status: "Approved", reviewedBy, reviewedAt: new Date().toISOString() };
     DataService.setAll("REFUND_REQUESTS", all, cityId);
     return true;
+  }
+
+  /**
+   * ✅ NEW: RCM lifecycle, step 2 of the general 4-step pattern — paying
+   * the self-assessed RCM liability to the government. Implemented as the
+   * best available default; the CA's own note that a simpler 2-step
+   * Rent-specific pattern might replace this generally is still an open
+   * question, not resolved by this implementation.
+   *
+   * Finds the original RCM entry, posts a real payment voucher clearing
+   * RCM GST Payable (CGST/SGST/IGST) and crediting Bank, then marks the
+   * original entry so this step can't be double-processed.
+   */
+  payRCMLiability(originalEntryId: string, paymentDate: string, cityId: string, cityName: string, createdBy: string): { success: boolean; message: string } {
+    const entry = this.getAllEntries(cityId).find((e) => e.id === originalEntryId);
+    if (!entry) return { success: false, message: "Original RCM entry not found." };
+    if (!entry.isRCM) return { success: false, message: "This entry is not an RCM entry." };
+    if (entry.rcmPaidVoucherId) return { success: false, message: `Already paid — see voucher ${entry.rcmPaidVoucherId}.` };
+
+    const cgst = entry.cgst ?? 0, sgst = entry.sgst ?? 0, igst = entry.igst ?? 0;
+    const total = cgst + sgst + igst;
+    if (total <= 0) return { success: false, message: "This entry has no RCM tax amount to pay." };
+
+    const paymentVoucherId = `${entry.voucherId}-RCM-PAY`;
+    const lines: { accountHead: string; accountLabel: string; debit: number; credit: number }[] = [];
+    if (cgst > 0) lines.push({ accountHead: "gst_rcm_cgst_output", accountLabel: "RCM GST Payable (CGST)", debit: cgst, credit: 0 });
+    if (sgst > 0) lines.push({ accountHead: "gst_rcm_sgst_output", accountLabel: "RCM GST Payable (SGST)", debit: sgst, credit: 0 });
+    if (igst > 0) lines.push({ accountHead: "gst_rcm_igst_output", accountLabel: "RCM GST Payable (IGST)", debit: igst, credit: 0 });
+    lines.push({ accountHead: "bank", accountLabel: "Bank Account", debit: 0, credit: total });
+
+    const voucher = this.createJournal(
+      { date: paymentDate, narration: `RCM liability paid to government — ${entry.voucherNumber}`, lines, city: cityName, cityId, createdBy },
+      cityName
+    );
+    this.updateEntry(originalEntryId, { rcmPaidVoucherId: voucher.voucherNumber }, createdBy);
+    return { success: true, message: `RCM liability of ₹${total.toLocaleString("en-IN")} paid — ${voucher.voucherNumber}` };
+  }
+
+  /**
+   * ✅ NEW: RCM lifecycle, step 3 — claiming the ITC once the self-assessed
+   * tax has genuinely been paid. Requires payRCMLiability() to have run
+   * first — claiming input credit before the tax is actually paid isn't
+   * real GST compliance, it's just moving numbers around.
+   *
+   * Moves the balance out of "Reverse Charge Tax Input not due" (the real
+   * asset ledger the self-assessment step posted to) into genuine, usable
+   * Input CGST/SGST/IGST.
+   */
+  claimRCMInputCredit(originalEntryId: string, claimDate: string, cityId: string, cityName: string, createdBy: string): { success: boolean; message: string } {
+    const entry = this.getAllEntries(cityId).find((e) => e.id === originalEntryId);
+    if (!entry) return { success: false, message: "Original RCM entry not found." };
+    if (!entry.isRCM) return { success: false, message: "This entry is not an RCM entry." };
+    if (!entry.rcmPaidVoucherId) return { success: false, message: "The RCM liability must be paid to the government before claiming ITC — run payRCMLiability first." };
+    if (entry.rcmItcClaimedVoucherId) return { success: false, message: `ITC already claimed — see voucher ${entry.rcmItcClaimedVoucherId}.` };
+
+    const cgst = entry.cgst ?? 0, sgst = entry.sgst ?? 0, igst = entry.igst ?? 0;
+    const total = cgst + sgst + igst;
+    if (total <= 0) return { success: false, message: "This entry has no RCM tax amount to claim." };
+
+    const claimVoucherId = `${entry.voucherId}-RCM-ITC`;
+    const lines: { accountHead: string; accountLabel: string; debit: number; credit: number }[] = [];
+    if (cgst > 0) lines.push({ accountHead: "gst_input_cgst", accountLabel: "Input CGST", debit: cgst, credit: 0 });
+    if (sgst > 0) lines.push({ accountHead: "gst_input_sgst", accountLabel: "Input SGST", debit: sgst, credit: 0 });
+    if (igst > 0) lines.push({ accountHead: "gst_input_igst", accountLabel: "Input IGST", debit: igst, credit: 0 });
+    lines.push({ accountHead: "gst_rcm_input_not_due", accountLabel: "Reverse Charge Tax Input not due", debit: 0, credit: total });
+
+    const voucher = this.createJournal(
+      { date: claimDate, narration: `RCM input credit claimed — ${entry.voucherNumber}`, lines, city: cityName, cityId, createdBy },
+      cityName
+    );
+    this.updateEntry(originalEntryId, { rcmItcClaimedVoucherId: voucher.voucherNumber }, createdBy);
+    return { success: true, message: `ITC of ₹${total.toLocaleString("en-IN")} claimed — ${voucher.voucherNumber}` };
   }
 
   rejectRefund(refundId: string, cityId: string, reviewedBy: string): boolean {
