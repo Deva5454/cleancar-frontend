@@ -612,6 +612,83 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
 }
 
 /**
+ * ✅ NEW: the real, previously-missing second half of the RCM lifecycle —
+ * implementing the general 4-step pattern as the best available default,
+ * per instruction, since the CA's specific 2-step-vs-4-step discrepancy
+ * for Rent remains genuinely unresolved (see the RCM fix in autoPostLedger
+ * above, and the Accounting Module handover's own note on this).
+ *
+ * Step 1 (already built): at expense time, self-assess the RCM liability —
+ *   Dr "Reverse Charge Tax Input not due" (not yet claimable), Cr RCM
+ *   Output CGST/SGST/IGST (real government liability).
+ * Steps 2+3 (this function): once that liability is actually PAID to the
+ *   government, the business becomes eligible to claim it as real Input
+ *   Tax Credit — clearing the liability and the "not yet due" asset
+ *   together, in one real, balanced voucher:
+ *   Dr RCM Output CGST/SGST/IGST (clears the liability)
+ *   Cr Bank (real cash paid to the government)
+ *   Dr Input CGST/SGST/IGST (now genuinely claimable)
+ *   Cr "Reverse Charge Tax Input not due" (clears the pending asset)
+ *
+ * Supports a PARTIAL settlement — if amountToSettle is less than the real
+ * outstanding RCM liability, the CGST/SGST/IGST split is applied
+ * proportionally to whatever real balance currently exists in each.
+ */
+export function settleRCMLiability(
+  cityId: string,
+  cityName: string,
+  amountToSettle: number,
+  paymentDate: string,
+  createdBy: string
+): { voucherId: string; settled: { cgst: number; sgst: number; igst: number } } {
+  if (amountToSettle <= 0) {
+    throw new Error("Amount to settle must be greater than 0");
+  }
+
+  const cgstBal = accountingEntryService.getLedgerBalance("gst_rcm_cgst_output", cityId);
+  const sgstBal = accountingEntryService.getLedgerBalance("gst_rcm_sgst_output", cityId);
+  const igstBal = accountingEntryService.getLedgerBalance("gst_rcm_igst_output", cityId);
+  const outstandingCgst = cgstBal.balanceType === "Cr" ? cgstBal.balance : 0;
+  const outstandingSgst = sgstBal.balanceType === "Cr" ? sgstBal.balance : 0;
+  const outstandingIgst = igstBal.balanceType === "Cr" ? igstBal.balance : 0;
+  const totalOutstanding = Math.round((outstandingCgst + outstandingSgst + outstandingIgst) * 100) / 100;
+
+  if (totalOutstanding <= 0) {
+    throw new Error("There is no outstanding RCM liability to settle for this city.");
+  }
+  if (amountToSettle > totalOutstanding + 0.01) {
+    throw new Error(`Cannot settle ₹${amountToSettle} — only ₹${totalOutstanding} of real RCM liability is outstanding.`);
+  }
+
+  // Real proportional split for a partial settlement — a full settlement
+  // (amountToSettle === totalOutstanding) simply clears each in full.
+  const ratio = amountToSettle / totalOutstanding;
+  const settleCgst = Math.round(outstandingCgst * ratio * 100) / 100;
+  const settleSgst = Math.round(outstandingSgst * ratio * 100) / 100;
+  // igst gets the remainder, so the three always sum exactly to amountToSettle
+  const settleIgst = Math.round((amountToSettle - settleCgst - settleSgst) * 100) / 100;
+
+  const lines: JournalLine[] = [];
+  if (settleCgst > 0) lines.push({ accountHead: "gst_rcm_cgst_output", accountLabel: "RCM GST Payable (CGST)", debit: settleCgst, credit: 0 });
+  if (settleSgst > 0) lines.push({ accountHead: "gst_rcm_sgst_output", accountLabel: "RCM GST Payable (SGST)", debit: settleSgst, credit: 0 });
+  if (settleIgst > 0) lines.push({ accountHead: "gst_rcm_igst_output", accountLabel: "RCM GST Payable (IGST)", debit: settleIgst, credit: 0 });
+  lines.push({ accountHead: "bank", accountLabel: "Bank Account", debit: 0, credit: amountToSettle });
+  if (settleCgst > 0) lines.push({ accountHead: "gst_input_cgst", accountLabel: "Input CGST", debit: settleCgst, credit: 0 });
+  if (settleSgst > 0) lines.push({ accountHead: "gst_input_sgst", accountLabel: "Input SGST", debit: settleSgst, credit: 0 });
+  if (settleIgst > 0) lines.push({ accountHead: "gst_input_igst", accountLabel: "Input IGST", debit: settleIgst, credit: 0 });
+  lines.push({ accountHead: "gst_rcm_input_not_due", accountLabel: "Reverse Charge Tax Input not due", debit: 0, credit: amountToSettle });
+
+  const voucherId = `RCM-SETTLE-${Date.now()}`;
+  accountingEntryService.createJournal({
+    date: paymentDate,
+    narration: `RCM liability paid to government and claimed as Input Tax Credit — ₹${amountToSettle}`,
+    lines, city: cityName, cityId, createdBy,
+  }, cityName);
+
+  return { voucherId, settled: { cgst: settleCgst, sgst: settleSgst, igst: settleIgst } };
+}
+
+/**
  * autoPostSalesEntry — Fix 1: Post Output GST when customer revenue is recognised.
  * Fixes the critical gap where Output CGST/SGST/IGST were never posted to the ledger.
  * Call from RazorpayFlow, InvoiceManagement, and RevenueCaptureSystem on every sale.
