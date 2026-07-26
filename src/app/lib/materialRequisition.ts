@@ -47,6 +47,17 @@ export interface PurchaseOrder {
   poNumber: string;
   vendorId: string;
   vendorName: string;
+  // ✅ NEW: real vendor details, captured from the real Vendor Master
+  // (gstComplianceService's GSTVendor) at the moment the PO is created —
+  // needed to print a compliant PO (previously only vendorName existed,
+  // with no address/GSTIN/PAN captured anywhere on the PO record itself).
+  vendorGstin?: string;
+  vendorPan?: string;
+  vendorAddress?: string;
+  vendorStateCode?: string;
+  vendorContactName?: string;
+  vendorContactPhone?: string;
+  vendorContactEmail?: string;
   dateIssued: string;
   expectedDelivery: string;
   status: "Issued" | "Partially Received" | "Fully Received" | "Cancelled";
@@ -57,12 +68,33 @@ export interface PurchaseOrder {
     rate: number;
     amount: number;
     receivedQty?: number;
+    // ✅ NEW: real per-item GST fields — previously the PO only had one
+    // flat `gst` total with no HSN code or rate captured per line.
+    hsnCode?: string;
+    gstRate?: number;
+    discountPct?: number;
+    taxableValue?: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+    netAmount?: number;
   }[];
   totalAmount: number;
   gst: number;
+  // ✅ NEW: real CGST/SGST/IGST split totals — previously only a single
+  // flat `gst` figure existed, which isn't enough to print a compliant
+  // tax invoice/PO (GST law requires the CGST/SGST or IGST split shown
+  // separately, not just a combined tax total).
+  cgstTotal?: number;
+  sgstTotal?: number;
+  igstTotal?: number;
   grandTotal: number;
   approvedBy: string;
   remarks?: string;
+  // ✅ NEW: the real terms snapshot — a copy of the terms template AS IT
+  // EXISTED at the moment this PO was created, not a live reference. See
+  // poTermsTemplateService.ts for why this must be a snapshot, not a link.
+  termsSnapshot?: string[];
 }
 
 export interface ConsumptionRecord {

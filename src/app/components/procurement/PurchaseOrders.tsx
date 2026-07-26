@@ -21,8 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart, Download } from "lucide-react";
 import { toast } from "sonner";
+// ✅ NEW: real vendor master (already exists, was just never wired into this
+// screen — previously a 4-item hardcoded suppliers array with no
+// GSTIN/address/PAN captured anywhere).
+import { gstComplianceService, COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
+import { calculateGST } from "../../services/accountingEntryService";
+import { snapshotCurrentTerms } from "../../services/poTermsTemplateService";
+import { downloadPurchaseOrderPDF } from "./PurchaseOrderPDF";
+import type { PurchaseOrder } from "../../lib/materialRequisition";
 
 interface PurchaseOrdersProps {
   prefillFromMR?: { mrRef?: string; items?: any[]; urgency?: string } | null;
@@ -49,14 +57,39 @@ function loadPOs(): any[] {
   } catch { return PO_SEED; }
 }
 
+// ✅ FIX: real sequential PO numbering, replacing `PO-${year}-${random4digit}`
+// — a random number could collide or look inconsistent. Mirrors the same
+// safe "max existing sequence + 1" pattern already used correctly by the
+// real accounting engine's generateVoucherNumber(), rather than a simple
+// count (which breaks if a PO is ever deleted).
+function getFinancialYear(): string {
+  const now = new Date();
+  const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${String(year).slice(-2)}${String(year + 1).slice(-2)}`;
+}
+
+function generatePONumber(existing: any[]): string {
+  const fy = getFinancialYear();
+  const prefix = `CCW-PO${fy}`;
+  const maxSeq = existing
+    .map((po) => po.poNumber || "")
+    .filter((n) => n.startsWith(prefix))
+    .map((n) => parseInt(n.slice(prefix.length), 10) || 0)
+    .reduce((max, n) => Math.max(max, n), 0);
+  return `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
+}
+
 export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrdersProps = {}) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [showPODialog, setShowPODialog] = useState(false);
   const [viewPO, setViewPO] = useState<any>(null);
   const [selectedSupplier, setSelectedSupplier] = useState("");
+  const [poDate, setPoDate] = useState(new Date().toISOString().split("T")[0]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [deliveryLocation, setDeliveryLocation] = useState("central");
   const [poItems, setPOItems] = useState([
-    { id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }
+    { id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }
   ]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>(loadPOs);
 
@@ -77,12 +110,10 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     }
   }, [prefillFromMR]);
 
-  const suppliers = [
-    { id: "SUP-001", name: "CleanPro Supplies Pvt Ltd" },
-    { id: "SUP-002", name: "AutoCare Enterprises" },
-    { id: "SUP-003", name: "Karcher India Pvt Ltd" },
-    { id: "SUP-004", name: "Eco Wash Solutions" },
-  ];
+  // ✅ FIX: previously a hardcoded 4-item array with no real address/GSTIN/
+  // PAN — now pulls from the real Vendor Master (gstComplianceService),
+  // the same one the Suppliers tab already manages.
+  const vendors = gstComplianceService.getVendors();
 
   const filteredOrders = purchaseOrders.filter(po =>
     po.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -116,16 +147,63 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
 
   const handleSubmitPO = () => {
     if (!selectedSupplier) { toast.error("Select a supplier"); return; }
-    const supplier = suppliers.find(s => s.id === selectedSupplier);
-    const poNumber = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
+    const vendor = vendors.find(v => v.id === selectedSupplier);
+    if (!vendor) { toast.error("Selected supplier could not be found in the Vendor Master."); return; }
+
+    const poNumber = generatePONumber(purchaseOrders);
+    const validItems = poItems.filter(i => i.itemName && i.quantity > 0);
+    if (validItems.length === 0) { toast.error("Add at least one item with a quantity."); return; }
+
+    // ✅ FIX: real per-item GST, computed the same way the accounting
+    // engine computes it everywhere else in this app — not a flat,
+    // uncomputed `gst` total.
+    const cityIdForGst = deliveryLocation === "branch1" ? "CITY-MUMBAI" : deliveryLocation === "branch2" ? "CITY-AHMEDABAD" : "CITY-SURAT";
+    const realItems = validItems.map((item) => {
+      const discountAmt = item.amount * ((item.discountPct || 0) / 100);
+      const taxableValue = Math.round((item.amount - discountAmt) * 100) / 100;
+      const gst = calculateGST(taxableValue, item.gstRate || 18, vendor.stateCode, "B2B", cityIdForGst);
+      return {
+        itemName: item.itemName, quantity: item.quantity, unit: item.unit, rate: item.rate, amount: item.amount,
+        hsnCode: item.hsnCode, gstRate: item.gstRate, discountPct: item.discountPct,
+        taxableValue, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst,
+        netAmount: Math.round((taxableValue + gst.cgst + gst.sgst + gst.igst) * 100) / 100,
+      };
+    });
+    const totalTaxable = realItems.reduce((s, i) => s + i.taxableValue, 0);
+    const cgstTotal = realItems.reduce((s, i) => s + i.cgst, 0);
+    const sgstTotal = realItems.reduce((s, i) => s + i.sgst, 0);
+    const igstTotal = realItems.reduce((s, i) => s + i.igst, 0);
+    const grandTotal = Math.round((totalTaxable + cgstTotal + sgstTotal + igstTotal) * 100) / 100;
+
+    // ✅ FIX: the real, editable terms template is snapshotted into this PO
+    // right now — not referenced live. See poTermsTemplateService.ts.
+    const termsSnapshot = snapshotCurrentTerms();
+
+    const poRecord: PurchaseOrder = {
+      poNumber, vendorId: vendor.id, vendorName: vendor.name,
+      vendorGstin: vendor.gstin, vendorPan: vendor.pan, vendorAddress: vendor.address,
+      vendorStateCode: vendor.stateCode, vendorContactName: vendor.contactPerson,
+      vendorContactPhone: vendor.contactPhone, vendorContactEmail: vendor.contactEmail,
+      dateIssued: new Date(poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).split("/").join("-"),
+      expectedDelivery: deliveryDate ? new Date(deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).split("/").join("-") : "—",
+      status: "Issued",
+      items: realItems,
+      totalAmount: validItems.reduce((s, i) => s + i.amount, 0),
+      gst: Math.round((cgstTotal + sgstTotal + igstTotal) * 100) / 100,
+      cgstTotal, sgstTotal, igstTotal, grandTotal,
+      approvedBy: "",
+      termsSnapshot,
+    };
+
     const newPO = {
-      poNumber, supplier: supplier?.name ?? selectedSupplier,
-      amount: totalAmount,
+      poNumber, supplier: vendor.name,
+      amount: grandTotal,
       status: "Pending Approval",
       date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
-      items: poItems.filter(i => i.itemName).length,
-      itemsList: poItems.filter(i => i.itemName),
+      items: validItems.length,
+      itemsList: validItems,
       createdAt: new Date().toISOString(),
+      poRecord,
     };
     try {
       const existing = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
@@ -135,7 +213,25 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     toast.success(`${poNumber} created and sent for approval`);
     setShowPODialog(false);
     setSelectedSupplier("");
-    setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);
+    setDeliveryDate("");
+    setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }]);
+  };
+
+  const handleDownloadPDF = async (po: any) => {
+    if (!po.poRecord) {
+      toast.error("This PO was created before PDF generation was added and doesn't have the detail needed to print — this applies to new POs going forward.");
+      return;
+    }
+    try {
+      await downloadPurchaseOrderPDF({
+        po: po.poRecord,
+        createdByName: "Store Manager",
+        authorisedByName: "Owner",
+      });
+      toast.success(`${po.poNumber}.pdf downloaded`);
+    } catch (e) {
+      toast.error("Could not generate the PDF — please try again.");
+    }
   };
 
   const handleAttachPODocument = (poNumber: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -292,6 +388,10 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                     <FileText className="w-4 h-4 mr-1" />
                     View
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDownloadPDF(po)}>
+                    <Download className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
                 </div>
               </div>
             ))}
@@ -324,9 +424,9 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.name}
+                      {vendors.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.id}>
+                          {vendor.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -334,11 +434,11 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                 </div>
                 <div className="space-y-2">
                   <Label>PO Date *</Label>
-                  <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                  <Input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Delivery Required By *</Label>
-                  <Input type="date" />
+                  <Input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Payment Terms *</Label>
@@ -357,7 +457,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                 </div>
                 <div className="space-y-2">
                   <Label>Delivery Location *</Label>
-                  <Select defaultValue="central">
+                  <Select value={deliveryLocation} onValueChange={setDeliveryLocation}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -469,6 +569,34 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                             </Button>
                           )}
                         </div>
+                        {/* ✅ NEW: HSN code, GST rate, and discount — needed for real GST computation and the PO PDF's tax breakup */}
+                        <div className="col-span-4">
+                          <Input
+                            placeholder="HSN code"
+                            value={item.hsnCode}
+                            onChange={(e) => handleItemChange(item.id, "hsnCode", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <Input
+                            type="number"
+                            placeholder="GST %"
+                            value={item.gstRate ?? 18}
+                            onChange={(e) => handleItemChange(item.id, "gstRate", parseFloat(e.target.value) || 0)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <Input
+                            type="number"
+                            placeholder="Disc %"
+                            value={item.discountPct ?? 0}
+                            onChange={(e) => handleItemChange(item.id, "discountPct", parseFloat(e.target.value) || 0)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="col-span-2" />
                       </div>
                     ))}
 

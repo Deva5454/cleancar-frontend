@@ -12,6 +12,7 @@ import { InvoiceMatching } from "../procurement/InvoiceMatching";
 import { PurchaseReturns } from "../procurement/PurchaseReturns";
 import { SupplierPayments } from "../procurement/SupplierPayments";
 import { PurchaseAnalytics } from "../procurement/PurchaseAnalytics";
+import { POTermsSettings } from "../procurement/POTermsSettings";
 
 export function ProcurementModule() {
   const location = useLocation();
@@ -38,6 +39,7 @@ export function ProcurementModule() {
           <TabsTrigger value="requisitions">Requisitions</TabsTrigger>
           <TabsTrigger value="quotations">Quotations</TabsTrigger>
           <TabsTrigger value="purchase-orders">Purchase Orders</TabsTrigger>
+          <TabsTrigger value="po-terms">PO Terms</TabsTrigger>
           <TabsTrigger value="goods-receipt">Goods Receipt</TabsTrigger>
           <TabsTrigger value="invoice-matching">Invoice Matching</TabsTrigger>
           <TabsTrigger value="returns">Purchase Returns</TabsTrigger>
@@ -63,6 +65,10 @@ export function ProcurementModule() {
 
         <TabsContent value="purchase-orders">
           <PurchaseOrders prefillFromMR={prefillMR} onPrefillConsumed={() => setPrefillMR(null)} />
+        </TabsContent>
+
+        <TabsContent value="po-terms">
+          <POTermsSettings />
         </TabsContent>
 
         <TabsContent value="goods-receipt">
