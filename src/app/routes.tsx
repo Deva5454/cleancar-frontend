@@ -111,6 +111,7 @@ const VendorPayment = lazy(() => import("./components/accounts/VendorPayment"));
 const GSTDashboard = lazy(() => import("./components/accounts/GSTDashboard"));
 // Phase 1 Accounting Entry System
 const AccountingEntry = lazy(() => import("./components/accounts/AccountingEntry"));
+const SeedAccountsTestData = lazy(() => import("./components/accounts/SeedAccountsTestData"));
 import { JournalEntry } from "./components/accounts/JournalEntry";
 const AccountsDashboard = lazy(() => import("./components/accounts/AccountsDashboard"));
 const AccountingTransactionList = lazy(() => import("./components/accounts/AccountingTransactionList"));
@@ -446,6 +447,7 @@ export const router = createBrowserRouter([
       { path: "accounts/gst-sub-types", element: <TransactionSubTypeManager /> },
       { path: "accounts/payroll-processing", element: <AccountsPayrollProcessing /> },
       { path: "accounts/accounting-entry", element: <AccountingEntry /> },
+      { path: "accounts/seed-test-data", element: <SeedAccountsTestData /> },
       { path: "accounts/expense-voucher", element: <ExpenseVoucher /> },
       { path: "accounts/item-master", element: <ItemMaster /> },
       { path: "accounts/payables", element: <ErrorBoundary><PayablesDashboard /></ErrorBoundary> },
