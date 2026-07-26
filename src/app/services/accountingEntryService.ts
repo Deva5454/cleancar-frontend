@@ -100,6 +100,15 @@ export interface AccountingEntry {
   // each later step, so neither can be double-processed on the same entry.
   rcmPaidVoucherId?: string;
   rcmItcClaimedVoucherId?: string;
+  // ✅ NEW: real Sale-of-Product fields. Your CA's correction: "SALE OF
+  // PRODUCT to customer will reduce the stock — SALE OF SERVICE will not
+  // reduce the stock." Only set when this Sales entry is genuinely for a
+  // physical inventory item — a service sale (most of this business)
+  // never touches these fields, and therefore never touches real stock.
+  isProductSale?: boolean;
+  productItemId?: string;
+  productQuantity?: number;
+  cogsAmount?: number; // the real FIFO cost of what was sold, from issueFifoStock()
   rcmCgst?: number;
   rcmSgst?: number;
   rcmIgst?: number;
@@ -128,7 +137,15 @@ export interface AccountingEntry {
   updatedBy?: string;
   updatedAt?: string;
   changeHistory: ChangeLog[];
-  status: "Draft" | "Posted" | "Cancelled";
+  // ✅ FIX: added "Superseded" — your CA's specific correction: "Correction
+  // entry will replace original entry (need not be reversed separately)
+  // — only previous entry will be kept visible in audit trail." Previously
+  // there was no real status for this at all, and the only edit function
+  // that existed (updateEntry) directly mutated the entry in place, which
+  // is exactly what the CA said should never happen.
+  status: "Draft" | "Posted" | "Cancelled" | "Superseded";
+  supersedes?: string;     // set on the correction — points to the original entry's id
+  supersededBy?: string;   // set on the original — points to the correction entry's id
 }
 
 export interface ChangeLog {
@@ -613,10 +630,27 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
   }
 
   // Default: simple two-line entry for Sales, PurchaseReturn, SalesReturn
-  return [
+  const defaultLines: JournalLine[] = [
     { accountHead: entry.debitAccount,  accountLabel: entry.debitAccount,  debit: entry.totalBillValue, credit: 0 },
     { accountHead: entry.creditAccount, accountLabel: entry.creditAccount, debit: 0, credit: entry.totalBillValue },
   ];
+
+  // ✅ FIX: real Sale-of-Product stock reduction. Your CA's correction:
+  // "SALE OF PRODUCT to customer will reduce the stock — SALE OF SERVICE
+  // will not reduce the stock." Previously there was no connection at
+  // all between a Sales entry and real inventory — this adds the real
+  // matching cost-of-goods lines, on top of the normal revenue entry
+  // above, only when this Sales entry is genuinely for a physical item
+  // (entry.isProductSale, set by AccountingEntry.tsx after actually
+  // reducing real stock via issueFifoStock()).
+  if (entry.entryType === "Sales" && entry.isProductSale && (entry.cogsAmount ?? 0) > 0) {
+    defaultLines.push(
+      { accountHead: "cogs", accountLabel: "Cost of Goods Sold", debit: entry.cogsAmount!, credit: 0 },
+      { accountHead: "inventory_asset", accountLabel: "Inventory - Consumables", debit: 0, credit: entry.cogsAmount! }
+    );
+  }
+
+  return defaultLines;
 }
 
 /**
@@ -1163,6 +1197,15 @@ class AccountingEntryService {
     return entry;
   }
 
+  // ⚠️ WARNING: this directly mutates an entry in place — never use this
+  // to change financial fields (amounts, GST, ledgers) on a Posted entry.
+  // That's exactly what your CA's correction rule says must never happen
+  // ("Correction entry will replace original entry... only previous entry
+  // will be kept visible in audit trail"). Use correctEntry() below for
+  // any real financial correction. This function remains safe only for
+  // non-financial status/tracking fields — it's currently used exactly
+  // that way, by the RCM lifecycle functions (rcmPaidVoucherId,
+  // rcmItcClaimedVoucherId).
   updateEntry(id: string, changes: Partial<AccountingEntry>, changedBy: string): AccountingEntry | null {
     const all = this.getEntries();
     const idx = all.findIndex(e => e.id === id);
@@ -1181,11 +1224,85 @@ class AccountingEntryService {
     return updated;
   }
 
+  /**
+   * ✅ NEW: the real fix for the CA's correction rule. Never edits a
+   * Posted entry in place — retires the original (status: "Superseded",
+   * excluded from every real report via getByDateRange's filter above,
+   * but the row itself is never deleted, so it stays fully visible for
+   * audit) and posts a brand new, fully-validated entry with the
+   * corrected values, reusing the same real voucher number (the same
+   * real document, corrected — not a new one).
+   *
+   * Re-validates debit=credit on the corrected data before touching
+   * anything, using the exact same real check createEntry() uses —
+   * throws (does not save anything) if the correction itself doesn't
+   * balance.
+   */
+  correctEntry(originalId: string, changes: Partial<AccountingEntry>, correctedBy: string): AccountingEntry {
+    const all = this.getEntries();
+    const idx = all.findIndex(e => e.id === originalId);
+    if (idx < 0) throw new Error("Original entry not found.");
+    const original = all[idx];
+    if (original.status !== "Posted") {
+      throw new Error(`Only a Posted entry can be corrected — this one is ${original.status}.`);
+    }
+
+    const correctedData: AccountingEntry = { ...original, ...changes };
+
+    const lines = autoPostLedger(correctedData);
+    const totalDebit = Math.round(lines.reduce((s, l) => s + (l.debit || 0), 0) * 100) / 100;
+    const totalCredit = Math.round(lines.reduce((s, l) => s + (l.credit || 0), 0) * 100) / 100;
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+      throw new Error(`Correction out of balance: debit ₹${totalDebit} != credit ₹${totalCredit}. Not saved.`);
+    }
+
+    const newEntryId = `ACC-${Date.now()}`;
+    const newEntry: AccountingEntry = {
+      ...correctedData,
+      id: newEntryId,
+      voucherNumber: original.voucherNumber, // same real document, corrected values
+      financialYear: original.financialYear,
+      createdAt: new Date().toISOString(),
+      createdBy: correctedBy,
+      status: "Posted",
+      changeHistory: [],
+      supersedes: originalId,
+      supersededBy: undefined,
+    };
+
+    const updatedOriginal: AccountingEntry = {
+      ...original,
+      status: "Superseded",
+      supersededBy: newEntryId,
+      updatedBy: correctedBy,
+      updatedAt: new Date().toISOString(),
+      changeHistory: [...original.changeHistory, {
+        timestamp: new Date().toISOString(), changedBy: correctedBy,
+        field: "status", previousValue: "Posted", newValue: `Superseded by ${newEntryId}`,
+      }],
+    };
+
+    const updatedAll = all.map((e, i) => (i === idx ? updatedOriginal : e));
+    updatedAll.push(newEntry);
+    this.saveEntries(updatedAll);
+
+    return newEntry;
+  }
+
   getByType(type: EntryType, cityId?: string): AccountingEntry[] {
-    return this.getAllEntries(cityId).filter(e => e.entryType === type);
+    // ✅ FIX: same companion fix as getByDateRange — excludes Superseded
+    // entries, so a corrected entry and its replacement don't both count.
+    return this.getAllEntries(cityId).filter(e => e.entryType === type && e.status !== "Superseded");
   }
   getByDateRange(from: string, to: string, cityId?: string): AccountingEntry[] {
-    return this.getAllEntries(cityId).filter(e => e.date >= from && e.date <= to);
+    // ✅ FIX: previously included every entry regardless of status. Once
+    // corrections became possible (status: "Superseded"), an original
+    // entry and its correction would BOTH count here — double-counting
+    // the same real transaction in every report that reads this
+    // (AccountsDashboard, getAllMovements → Trial Balance, Balance Sheet).
+    // The superseded original still exists and stays visible for audit
+    // purposes (see correctEntry()) — it's just excluded from real totals.
+    return this.getAllEntries(cityId).filter(e => e.date >= from && e.date <= to && e.status !== "Superseded");
   }
   // Get entries where a specific LEDGER ID appears as debit or credit.
   // Also resolves by name cross-reference so system ledger IDs (SYS-...) can
@@ -1202,7 +1319,7 @@ class AccountingEntryService {
         .forEach(l => relatedIds.add(l.id));
     }
     return this.getAllEntries(cityId).filter(
-      e => relatedIds.has(e.debitAccount) || relatedIds.has(e.creditAccount)
+      e => (relatedIds.has(e.debitAccount) || relatedIds.has(e.creditAccount)) && e.status !== "Superseded"
     );
   }
 
@@ -1211,7 +1328,7 @@ class AccountingEntryService {
     const ledgers = this.getLedgers(cityId).filter(l => l.accountHead === accountHead);
     const ledgerIds = new Set(ledgers.map(l => l.id));
     return this.getAllEntries(cityId).filter(
-      e => ledgerIds.has(e.debitAccount) || ledgerIds.has(e.creditAccount)
+      e => (ledgerIds.has(e.debitAccount) || ledgerIds.has(e.creditAccount)) && e.status !== "Superseded"
     );
   }
   createJournal(data: Omit<JournalEntry,"id"|"voucherNumber"|"createdAt"|"status"|"changeHistory"|"financialYear">, cityName: string): JournalEntry {
@@ -1311,6 +1428,16 @@ class AccountingEntryService {
       { name: "Advance Tax", accountHead: "current_assets", accountHeadLabel: "Current Assets", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       // Alias kept for backward compatibility with any journal entries already posted
       { name: "Advance Tax Paid", accountHead: "current_assets", accountHeadLabel: "Current Assets", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      // ✅ NEW: real Inventory asset ledger — needed for Sale of a
+      // Product to correctly credit real stock value when it's sold,
+      // rather than the Material Consumed expense having no matching
+      // asset-side entry at all.
+      { name: "Inventory - Consumables", accountHead: "inventory_asset", accountHeadLabel: "Inventory", nature: "asset", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      // ✅ NEW: real Cost of Goods Sold ledger — the other half of the
+      // Sale-of-Product fix. Uses "cogs", the exact accountHead already
+      // defined in CHART_OF_ACCOUNTS_HEADS for this purpose, rather than
+      // inventing a differently-named ledger.
+      { name: "Cost of Goods Sold", accountHead: "cogs", accountHeadLabel: "Cost of Goods Sold", nature: "expense", type: "other", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // ASSETS - Accounts Receivable
       { name: "Accounts Receivable", accountHead: "accounts_receivable", accountHeadLabel: "Accounts Receivable", nature: "asset", type: "customer", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },

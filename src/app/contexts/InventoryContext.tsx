@@ -53,6 +53,22 @@ export interface InventoryItem {
   updatedAt: string;
 }
 
+// ✅ NEW: real FIFO batch tracking. Your CA specifically flagged this:
+// "For our nature of work in 24/9 FIFO is more suitable due to EXPIRY DATE
+// issue — Material should always be used as First-In-First-Out." Previously
+// every item had a single static unitCost with no real per-purchase
+// tracking at all — this is the real, missing batch layer.
+export interface StockBatch {
+  id: string;
+  itemId: string;
+  cityId: string;
+  receivedDate: string;
+  rate: number;              // this batch's own real purchase price, never blended
+  quantityReceived: number;
+  quantityRemaining: number;  // shrinks as FIFO consumes it; 0 once fully used
+  sourceRef?: string;         // supplierId or similar, for traceability
+}
+
 export interface StockTransaction {
   transactionId: string;
   itemId: string;
@@ -157,7 +173,15 @@ interface InventoryContextType {
     toId: string | undefined,
     cityId: string
   ) => void;
-  procureInventory: (itemId: string, quantity: number, supplierId: string, cityId: string) => void;
+  procureInventory: (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number) => void;
+  // ✅ NEW: real FIFO stock reduction with a real, batch-accurate cost
+  // returned — the function Sale-of-Product wiring calls to actually
+  // reduce stock and get a real cost for the accounting entry.
+  issueFifoStock: (itemId: string, cityId: string, quantity: number) => number;
+  // ✅ NEW: the real function AccountingEntry.tsx calls for a product sale
+  // — reduces real centralStock and real FIFO batches together, returning
+  // the real cost.
+  reduceStockForSale: (itemId: string, cityId: string, quantity: number) => number;
   adjustStock: (
     itemId: string,
     location: "Central" | "Supervisor" | "Washer",
@@ -347,6 +371,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     return normalized;
   });
+
+  // ✅ NEW: real FIFO batch state — one row per real procurement, never
+  // blended into a single average.
+  const [stockBatches, setStockBatches] = useState<StockBatch[]>(() =>
+    DataService.get<StockBatch>("STOCK_BATCHES")
+  );
   const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>(() =>
     DataService.get<StockTransaction>("STOCK_TRANSACTIONS")
   );
@@ -368,6 +398,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     DataService.setAll("INVENTORY_ITEMS", inventory);
   }, [inventory]);
+
+  useEffect(() => {
+    DataService.setAll("STOCK_BATCHES", stockBatches);
+  }, [stockBatches]);
 
   useEffect(() => {
     DataService.setAll("STOCK_TRANSACTIONS", stockTransactions);
@@ -691,6 +725,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     approveTransaction(transaction.transactionId, "System");
     const completed = completeTransaction(transaction.transactionId, transaction);
 
+    // ✅ FIX: real FIFO batch depletion — this is the actual "Material
+    // Issue" event your CA described. Only draws down real batches if
+    // the movement genuinely completed (mirrors the equipment serial
+    // tracking guard right below, for the same reason: never deplete a
+    // batch for a movement that was actually blocked, e.g. insufficient
+    // stock).
+    if (completed) {
+      issueFifoStock(itemId, cityId, quantity);
+    }
+
     // ✅ Real serial tracking — only move a tracked unit if the real
     // stock movement actually completed. If it was blocked (e.g.
     // insufficient stock), the serial registry must not drift out of
@@ -960,7 +1004,89 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     ));
   };
 
-  const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string) => {
+  // ✅ NEW: real FIFO batch creation — one row per real procurement, never
+  // blended into a single average cost.
+  const addStockBatch = (itemId: string, cityId: string, rate: number, quantity: number, sourceRef?: string) => {
+    const newBatch: StockBatch = {
+      id: `BATCH-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      itemId, cityId,
+      receivedDate: new Date().toISOString().split("T")[0],
+      rate, quantityReceived: quantity, quantityRemaining: quantity, sourceRef,
+    };
+    setStockBatches((prev) => [...prev, newBatch]);
+  };
+
+  // ✅ NEW: real FIFO issue — walks the oldest batch first, returns the
+  // real, batch-accurate cost of what was drawn. The draw plan is computed
+  // synchronously against the current stockBatches snapshot, then applied
+  // via setState — this is deliberate: setState is async, so the real
+  // cost cannot be computed correctly from inside the updater function
+  // itself (it would still read as the stale/previous value at the time
+  // this function returns).
+  const issueFifoStock = (itemId: string, cityId: string, quantity: number): number => {
+    const relevant = stockBatches
+      .filter((b) => b.itemId === itemId && b.cityId === cityId && b.quantityRemaining > 0)
+      .sort((a, b) => new Date(a.receivedDate).getTime() - new Date(b.receivedDate).getTime());
+
+    let totalCost = 0;
+    let remaining = quantity;
+    const drawPlan: { id: string; draw: number }[] = [];
+    for (const batch of relevant) {
+      if (remaining <= 0) break;
+      const draw = Math.min(batch.quantityRemaining, remaining);
+      totalCost += draw * batch.rate;
+      remaining -= draw;
+      drawPlan.push({ id: batch.id, draw });
+    }
+
+    if (remaining > 0) {
+      // Not enough real batch history to cover this quantity — e.g. stock
+      // that existed before FIFO tracking was added. Falls back to the
+      // item's current unitCost for the real shortfall, rather than
+      // silently understating cost as if it were free.
+      const item = inventory.find((i) => i.itemId === itemId && i.cityId === cityId);
+      totalCost += remaining * (item?.unitCost || 0);
+    }
+
+    if (drawPlan.length > 0) {
+      setStockBatches((prev) =>
+        prev.map((b) => {
+          const plan = drawPlan.find((p) => p.id === b.id);
+          return plan ? { ...b, quantityRemaining: Math.round((b.quantityRemaining - plan.draw) * 1000) / 1000 } : b;
+        })
+      );
+    }
+
+    return Math.round(totalCost * 100) / 100;
+  };
+
+  // ✅ NEW: real combined Sale-of-Product stock reduction — reduces the
+  // item's real centralStock AND depletes the real FIFO batches together.
+  // issueFifoStock() alone only manages the batch-tracking layer (it's
+  // called from inside issueInventory, which separately handles
+  // centralStock via completeTransaction) — a direct sale needs both
+  // done together, in one real, atomic operation. Validates real stock
+  // availability before touching anything; throws if there isn't enough,
+  // so the caller (AccountingEntry.tsx) never posts an accounting entry
+  // for stock reduction that didn't actually happen.
+  const reduceStockForSale = (itemId: string, cityId: string, quantity: number): number => {
+    const item = inventory.find((i) => i.itemId === itemId && i.cityId === cityId);
+    if (!item) throw new Error(`Item ${itemId} not found in ${cityId}`);
+    if ((item.centralStock ?? 0) < quantity) {
+      throw new Error(`Not enough real stock — only ${item.centralStock ?? 0} on hand.`);
+    }
+    const realCost = issueFifoStock(itemId, cityId, quantity);
+    setInventory((prev) =>
+      prev.map((i) =>
+        i.itemId === itemId && i.cityId === cityId
+          ? { ...i, centralStock: i.centralStock - quantity, updatedAt: new Date().toISOString() }
+          : i
+      )
+    );
+    return realCost;
+  };
+
+  const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number) => {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
       console.warn("[InventoryContext] Blocked procureInventory: cityId missing");
@@ -988,6 +1114,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       cityId,
     });
 
+    // ✅ FIX: real FIFO batch creation — this is the actual fix your CA
+    // asked for. Defaults to the item's existing unitCost if no rate is
+    // given (an old caller not yet updated to pass one), rather than
+    // silently recording a ₹0 batch.
+    const realRate = rate ?? item.unitCost;
+    addStockBatch(itemId, cityId, realRate, quantity, supplierId);
+
     // Directly add to central stock (city-filtered)
     setInventory((prev) =>
       prev.map((item) =>
@@ -995,6 +1128,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           ? {
               ...item,
               centralStock: item.centralStock + quantity,
+              // ✅ FIX: unitCost is now a real weighted average across all
+              // stock currently on hand (for display/reporting only — the
+              // real per-issue cost always comes from the FIFO batches
+              // above, never from this average).
+              unitCost: Math.round(
+                (((item.centralStock * item.unitCost) + (quantity * realRate)) / (item.centralStock + quantity)) * 100
+              ) / 100,
               lastProcurementDate: new Date().toISOString(),
               supplierId,
               updatedAt: new Date().toISOString(),
@@ -1911,6 +2051,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         issueInventory,
         transferInventory,
         procureInventory,
+        issueFifoStock,
+        reduceStockForSale,
         adjustStock,
         getCentralStock,
         getSupervisorStock,

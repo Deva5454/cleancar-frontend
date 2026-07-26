@@ -59,7 +59,11 @@ export function KimUniformReceiptScreen() {
     entries.forEach(([size, qtyStr]) => {
       const qty = parseInt(qtyStr, 10);
       const item = ensureItem(`${garmentType} - ${size}`);
-      procureInventory(item.itemId, qty, supplierName.trim(), city);
+      // ✅ FIX: real FIFO batch needs a real rate — this screen has no
+      // rate-input field of its own (a simpler receipt flow), so this
+      // uses the item's last known real cost as a defensible default
+      // rather than recording a batch at ₹0.
+      procureInventory(item.itemId, qty, supplierName.trim(), city, item.unitCost);
       totalReceived += qty;
     });
     toast.success(`Received ${totalReceived} ${garmentType.toLowerCase()}${totalReceived !== 1 ? "s" : ""} — real stock updated`);

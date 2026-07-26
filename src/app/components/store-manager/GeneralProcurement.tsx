@@ -44,6 +44,7 @@ export function GeneralProcurement() {
   const [newUnit, setNewUnit] = useState<typeof UNITS[number]>("Pcs");
   const [newReorderLevel, setNewReorderLevel] = useState("10");
   const [newUnitCost, setNewUnitCost] = useState("");
+  const [existingItemRate, setExistingItemRate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [supplierName, setSupplierName] = useState("");
 
@@ -94,11 +95,16 @@ export function GeneralProcurement() {
     } else if (!itemId) {
       toast.error("Select an item");
       return;
+    } else if (!existingItemRate || parseFloat(existingItemRate) <= 0) {
+      toast.error("Enter this delivery's real rate — needed for accurate FIFO stock costing");
+      return;
     }
 
-    procureInventory(targetItemId, qty, supplierName.trim(), city);
+    const realRate = mode === "existing" ? parseFloat(existingItemRate) : parseFloat(newUnitCost) || 0;
+    procureInventory(targetItemId, qty, supplierName.trim(), city, realRate);
     toast.success(`Received ${qty} ${targetItemName} from ${supplierName.trim()} — real central stock updated`);
     setQuantity("");
+    setExistingItemRate("");
     setNewItemName("");
     setNewUnitCost("");
     if (mode === "new") setItemId(targetItemId);
@@ -121,23 +127,44 @@ export function GeneralProcurement() {
           </div>
 
           {mode === "existing" ? (
-            <div>
-              <Label>Item</Label>
-              <Select value={itemId} onValueChange={setItemId}>
-                <SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger>
-                <SelectContent>
-                  {cityItems.map((i: any) => (
-                    <SelectItem key={i.itemId} value={i.itemId}>
-                      {i.itemName} ({i.category}) — on hand: {i.centralStock ?? 0}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedItem && (
+            <div className="space-y-3">
+              <div>
+                <Label>Item</Label>
+                <Select value={itemId} onValueChange={setItemId}>
+                  <SelectTrigger><SelectValue placeholder="Select an item" /></SelectTrigger>
+                  <SelectContent>
+                    {cityItems.map((i: any) => (
+                      <SelectItem key={i.itemId} value={i.itemId}>
+                        {i.itemName} ({i.category}) — on hand: {i.centralStock ?? 0}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedItem && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Current real central stock: <strong>{selectedItem.centralStock ?? 0} {selectedItem.unit}</strong>
+                    {selectedItem.unitCost ? <> · last recorded rate: <strong>₹{selectedItem.unitCost}</strong></> : null}
+                  </p>
+                )}
+              </div>
+              {/* ✅ FIX: real rate capture for existing items — previously
+                  this flow never asked for a rate at all, meaning every
+                  re-procurement of an existing item had no real FIFO batch
+                  cost recorded. Defaults to blank so the person actively
+                  confirms this delivery's real price, rather than silently
+                  assuming it matches last time. */}
+              <div>
+                <Label>This Delivery's Rate (per {selectedItem?.unit || "unit"}) *</Label>
+                <Input
+                  type="number" min="0" step="0.01"
+                  value={existingItemRate}
+                  onChange={(e) => setExistingItemRate(e.target.value)}
+                  placeholder={selectedItem?.unitCost ? String(selectedItem.unitCost) : "0.00"}
+                />
                 <p className="text-xs text-gray-500 mt-1">
-                  Current real central stock: <strong>{selectedItem.centralStock ?? 0} {selectedItem.unit}</strong>
+                  Real, this-delivery price — kept as its own FIFO batch, not blended into one average.
                 </p>
-              )}
+              </div>
             </div>
           ) : (
             <div className="space-y-3 border rounded-lg p-3 bg-gray-50">

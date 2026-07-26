@@ -12,6 +12,7 @@ import {
   type PaymentMode,
 } from "../../services/accountingEntryService";
 import { gstComplianceService, COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
+import { useInventory } from "../../contexts/InventoryContext";
 import { toast } from "sonner";
 
 const ENTRY_TYPES: EntryType[] = ["Expense", "Purchase", "PurchaseReturn", "Sales", "SalesReturn", "AssetPurchase"];
@@ -43,6 +44,12 @@ export function AccountingEntry() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [selectedPackageCode, setSelectedPackageCode] = useState("");
+  // ✅ NEW: real Sale-of-Product state - your CA's correction: a product
+  // sale reduces real stock, a service sale never does.
+  const [isProductSale, setIsProductSale] = useState(false);
+  const [productItemId, setProductItemId] = useState("");
+  const [productQuantity, setProductQuantity] = useState("");
+  const { inventory, reduceStockForSale } = useInventory();
   const [vendorName, setVendorName] = useState("");
   const [vendorGstin, setVendorGstin] = useState("");
   const [vendorStateCode, setVendorStateCode] = useState("");
@@ -234,6 +241,32 @@ export function AccountingEntry() {
       toast.error("Invoice number is required.");
       return;
     }
+    // ✅ NEW: real Sale-of-Product validation and stock reduction.
+    let realCogsAmount: number | undefined;
+    if (activeTab === "Sales" && isProductSale) {
+      const qty = parseFloat(productQuantity);
+      if (!productItemId) {
+        toast.error("Select which item this product sale is for.");
+        return;
+      }
+      if (!qty || qty <= 0) {
+        toast.error("Enter a real quantity sold.");
+        return;
+      }
+      const item = inventory.find((i: any) => i.itemId === productItemId && i.cityId === city);
+      if (!item || (item.centralStock ?? 0) < qty) {
+        toast.error(`Not enough real stock — only ${item?.centralStock ?? 0} on hand.`);
+        return;
+      }
+      // Real FIFO stock reduction happens here, before the accounting
+      // entry is created — if this fails/throws, nothing is posted.
+      try {
+        realCogsAmount = reduceStockForSale(productItemId, city, qty);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not reduce real stock for this sale.");
+        return;
+      }
+    }
 
     // Create entry
     // ✅ FIX (ACC-DEF-01): createEntry() can now throw if the resulting
@@ -268,6 +301,13 @@ export function AccountingEntry() {
           debitAccount,
           creditAccount,
           narration,
+          // ✅ NEW: real Sale-of-Product fields, set only when this Sales
+          // entry is genuinely for a physical item — undefined for every
+          // service sale, matching your CA's exact distinction.
+          isProductSale: activeTab === "Sales" && isProductSale ? true : undefined,
+          productItemId: activeTab === "Sales" && isProductSale ? productItemId : undefined,
+          productQuantity: activeTab === "Sales" && isProductSale ? parseFloat(productQuantity) : undefined,
+          cogsAmount: activeTab === "Sales" && isProductSale ? realCogsAmount : undefined,
           attachmentFileName: attachmentFileName || undefined,
           attachmentFileType: attachmentFileType || undefined,
           attachmentFileBase64: attachmentFileBase64 || undefined,
@@ -291,6 +331,9 @@ export function AccountingEntry() {
     setAttachmentFileBase64("");
     setSelectedVendorId("");
     setSelectedPackageCode("");
+    setIsProductSale(false);
+    setProductItemId("");
+    setProductQuantity("");
     setVendorName("");
     setVendorGstin("");
     setVendorStateCode("");
@@ -557,6 +600,56 @@ export function AccountingEntry() {
                         </option>
                       ))}
                   </select>
+                </div>
+              )}
+
+              {/* ✅ NEW: real Sale-of-Product wiring — your CA's correction:
+                  "SALE OF PRODUCT to customer will reduce the stock — SALE
+                  OF SERVICE will not reduce the stock." A wash/service sale
+                  (most sales here) leaves this unchecked and never touches
+                  real stock; checking it requires picking a real item with
+                  enough real stock on hand, and reduces it for real via
+                  FIFO at submit time. */}
+              {activeTab === "Sales" && (
+                <div className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      checked={isProductSale}
+                      onChange={(e) => { setIsProductSale(e.target.checked); if (!e.target.checked) { setProductItemId(""); setProductQuantity(""); } }}
+                    />
+                    This is a Sale of a Product (reduces real stock)
+                  </label>
+                  {isProductSale && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Item</label>
+                        <select
+                          value={productItemId}
+                          onChange={(e) => setProductItemId(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Select item</option>
+                          {inventory
+                            .filter((i: any) => i.cityId === city)
+                            .map((i: any) => (
+                              <option key={i.itemId} value={i.itemId}>
+                                {i.itemName} — on hand: {i.centralStock ?? 0} {i.unit}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Quantity</label>
+                        <input
+                          type="number" min="0" step="1"
+                          value={productQuantity}
+                          onChange={(e) => setProductQuantity(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

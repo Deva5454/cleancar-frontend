@@ -126,6 +126,7 @@ const STORAGE_KEYS = {
   // ── Added: keys used by contexts but previously missing from this map ──
   INVENTORY_ITEMS:         "inventory_items",         // InventoryContext
   STOCK_TRANSACTIONS:      "stock_transactions",      // InventoryContext
+  STOCK_BATCHES:           "stock_batches",           // InventoryContext — real, per-batch FIFO cost tracking
   EQUIPMENT_UNITS:         "equipment_units",         // InventoryContext — real, per-serial equipment tracking
   FINANCE_BUDGETS:         "finance_budgets",         // FinanceContext
   FINANCE_ALERTS:          "finance_alerts",          // FinanceContext
