@@ -179,6 +179,17 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     // right now — not referenced live. See poTermsTemplateService.ts.
     const termsSnapshot = snapshotCurrentTerms();
 
+    // ✅ FIX: real delivery address, matching whichever location was
+    // actually selected on the form — previously this was captured in
+    // local state but never stored on the PO record, so the PDF always
+    // fell back to a fixed default string no matter what was selected.
+    const DELIVERY_ADDRESSES: Record<string, string> = {
+      central: "Central Store, Vesu, Surat, Gujarat",
+      branch1: "Branch Store, Mumbai, Maharashtra",
+      branch2: "Branch Store, Ahmedabad, Gujarat",
+    };
+    const deliveryAddress = DELIVERY_ADDRESSES[deliveryLocation] || DELIVERY_ADDRESSES.central;
+
     const poRecord: PurchaseOrder = {
       poNumber, vendorId: vendor.id, vendorName: vendor.name,
       vendorGstin: vendor.gstin, vendorPan: vendor.pan, vendorAddress: vendor.address,
@@ -186,6 +197,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
       vendorContactPhone: vendor.contactPhone, vendorContactEmail: vendor.contactEmail,
       dateIssued: new Date(poDate).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).split("/").join("-"),
       expectedDelivery: deliveryDate ? new Date(deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).split("/").join("-") : "—",
+      deliveryAddress,
       status: "Issued",
       items: realItems,
       totalAmount: validItems.reduce((s, i) => s + i.amount, 0),
@@ -225,6 +237,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     try {
       await downloadPurchaseOrderPDF({
         po: po.poRecord,
+        deliveryAddress: po.poRecord.deliveryAddress,
         createdByName: "Store Manager",
         authorisedByName: "Owner",
       });
@@ -317,25 +330,25 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">1</p>
+            <p className="text-2xl font-bold text-orange-600">{purchaseOrders.filter(po => po.status === "Pending Approval").length}</p>
             <p className="text-xs text-gray-500">Pending Approval</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">2</p>
+            <p className="text-2xl font-bold text-blue-600">{purchaseOrders.filter(po => po.status === "Approved").length}</p>
             <p className="text-xs text-gray-500">Approved</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-purple-600">1</p>
+            <p className="text-2xl font-bold text-purple-600">{purchaseOrders.filter(po => po.status === "In Transit").length}</p>
             <p className="text-xs text-gray-500">In Transit</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">1</p>
+            <p className="text-2xl font-bold text-green-600">{purchaseOrders.filter(po => po.status === "Delivered").length}</p>
             <p className="text-xs text-gray-500">Delivered</p>
           </CardContent>
         </Card>

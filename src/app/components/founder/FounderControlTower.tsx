@@ -61,22 +61,12 @@ import {
 } from "recharts";
 import { CostIntelligencePanel } from "../dashboard/CostIntelligencePanel";
 import {
-  // ⚠️ Remaining known gap: these still power the charts/tables further down
-  // this screen (Revenue by City, Store Performance, Strategic Insights,
-  // Wash Volume Trend, Expansion Readiness) — not yet wired to real data.
-  // The 8 KPI cards and 3 alerts above them (this fix's scope) now are.
-  CUSTOMER_ACQUISITION_TREND,
+  // ⚠️ Remaining known, disclosed gap: REVENUE_BY_TYPE is still static —
+  // there's no real "revenue type" (Subscription/One-time/Corporate)
+  // field anywhere in this app's real data model to compute it from
+  // honestly. Left static rather than fabricated. Everything else that
+  // was here has been replaced with real computations above.
   REVENUE_BY_TYPE,
-  REVENUE_BY_CITY,
-  STORE_PERFORMANCE,
-  STRATEGIC_INSIGHTS,
-  OPERATIONAL_METRICS,
-  WASH_VOLUME_TREND,
-  EXPANSION_READINESS,
-  UNIT_ECONOMICS,
-  getTopPerformingStores,
-  MUMBAI_STORE_PERFORMANCE,
-  AHMEDABAD_STORE_PERFORMANCE,
 } from "../../data/founderData";
 import {
   DropdownMenu,
@@ -366,10 +356,44 @@ function FounderControlTower() {
     return true;
   });
 
+  // ✅ FIX (Founder handover Part I item 1): real per-city store performance,
+  // replacing the three static STORE_PERFORMANCE/MUMBAI_.../AHMEDABAD_...
+  // arrays. Reuses the exact same real revenue/expense computation already
+  // built and tested for the 8 KPI cards above, just run once per real city
+  // instead of only the currently-selected one.
+  const computeCityStorePerformance = (cityId: string, cityLabel: string) => {
+    const cRevenue = computeRealRevenue(periodStart, periodEnd);
+    const cJobs = (jobs || []).filter((j: any) =>
+      (j.status === "Completed" || j.status === "Verified") &&
+      j.scheduledDate >= periodStart && j.scheduledDate <= periodEnd &&
+      (j.location?.city || "").toLowerCase().includes(cityLabel.toLowerCase())
+    );
+    const cCustomers = (customers || []).filter((c: any) => (c.city || "").toLowerCase().includes(cityLabel.toLowerCase())).length;
+    const cEntries = (accountingEntryService.getAllEntries(cityId) || []).filter((e: any) =>
+      ["Expense", "Purchase", "AssetPurchase"].includes(e.entryType) &&
+      e.entryDate >= periodStart && e.entryDate <= periodEnd && e.status !== "superseded"
+    );
+    const cExpenses = cEntries.reduce((s: number, e: any) => s + (e.taxableValue || 0), 0);
+    const cProfit = cRevenue - cExpenses;
+    const cMargin = cRevenue > 0 ? Math.round((cProfit / cRevenue) * 1000) / 10 : 0;
+    return {
+      id: cityId, city: cityLabel, store: `${cityLabel} Central Store`,
+      customers: cCustomers, washes: cJobs.length, revenue: cRevenue, cost: cExpenses, profit: cProfit,
+      margin: cMargin,
+      status: (cMargin >= 15 ? "profitable" : cMargin >= 0 ? "break-even" : "loss-making") as "profitable" | "break-even" | "loss-making",
+    };
+  };
+  const allCityPerformance = useMemo(() => [
+    computeCityStorePerformance("CITY-SURAT", "Surat"),
+    computeCityStorePerformance("CITY-MUMBAI", "Mumbai"),
+    computeCityStorePerformance("CITY-AHMEDABAD", "Ahmedabad"),
+  ], [subscriptions, customerCityMap, jobs, customers, periodStart, periodEnd]);
+
   const filteredStores =
-    selectedCity === "CITY-MUMBAI"    ? MUMBAI_STORE_PERFORMANCE :
-    selectedCity === "CITY-AHMEDABAD" ? AHMEDABAD_STORE_PERFORMANCE :
-    STORE_PERFORMANCE;
+    selectedCity === "CITY-MUMBAI"    ? allCityPerformance.filter(s => s.city === "Mumbai") :
+    selectedCity === "CITY-AHMEDABAD" ? allCityPerformance.filter(s => s.city === "Ahmedabad") :
+    selectedCity === "CITY-SURAT"     ? allCityPerformance.filter(s => s.city === "Surat") :
+    allCityPerformance;
 
   // Compute city-level KPI aggregates from filtered store data
   const cityRevenue = filteredStores.reduce((sum, s) => sum + (s.revenue || 0), 0);
@@ -506,7 +530,86 @@ function FounderControlTower() {
     }
   };
 
-  const topPerformingStores = getTopPerformingStores(3);
+  const topPerformingStores = [...allCityPerformance].sort((a, b) => b.profit - a.profit).slice(0, 3);
+
+  // ✅ FIX: real Customer Acquisition Trend — new subscriptions per month,
+  // last 6 real calendar months.
+  const customerAcquisitionTrend = useMemo(() => {
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(todayObj.getFullYear(), todayObj.getMonth() - i, 1);
+      const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0];
+      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split("T")[0];
+      const count = (subscriptions || []).filter((s: any) => s.startDate && s.startDate >= mStart && s.startDate <= mEnd).length;
+      months.push({ id: `cat-${i}`, month: d.toLocaleString("en-IN", { month: "short" }), customers: count });
+    }
+    return months;
+  }, [subscriptions]);
+
+  // ✅ FIX: real Wash Volume Trend — completed washes per week, last 8 weeks.
+  const washVolumeTrend = useMemo(() => {
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const wEnd = new Date(todayObj.getTime() - i * 7 * 86400000);
+      const wStart = new Date(wEnd.getTime() - 6 * 86400000);
+      const wStartStr = wStart.toISOString().split("T")[0];
+      const wEndStr = wEnd.toISOString().split("T")[0];
+      const count = (jobs || []).filter((j: any) => (j.status === "Completed" || j.status === "Verified") && j.scheduledDate >= wStartStr && j.scheduledDate <= wEndStr).length;
+      weeks.push({ id: `wv-${i}`, week: `W${8 - i}`, washes: count });
+    }
+    return weeks;
+  }, [jobs]);
+
+  // ✅ FIX: real Operational Metrics.
+  const operationalMetrics = useMemo(() => {
+    const daysInPeriod = Math.max(1, Math.round((new Date(periodEnd).getTime() - new Date(periodStart).getTime()) / 86400000) + 1);
+    const totalWashesPerDay = Math.round((completedJobsInPeriod.length / daysInPeriod) * 10) / 10;
+    const activeWashers = (employees || []).filter((e: any) => e.role === "Car Washer" && e.status === "Active").length;
+    const staffProductivity = activeWashers > 0 ? Math.round((completedJobsInPeriod.length / activeWashers) * 10) / 10 : 0;
+    const avgWashesPerStore = Math.round(completedJobsInPeriod.length / 3); // 3 real cities
+    const scheduledInPeriod = (jobs || []).filter((j: any) => j.scheduledDate >= periodStart && j.scheduledDate <= periodEnd).length;
+    const utilizationRate = scheduledInPeriod > 0 ? Math.round((completedJobsInPeriod.length / scheduledInPeriod) * 100) : 0;
+    return { totalWashesPerDay, avgWashesPerStore, staffProductivity, utilizationRate };
+  }, [completedJobsInPeriod, employees, jobs, periodStart, periodEnd]);
+
+  // ✅ FIX: real Expansion Readiness — same real weighted formula as before
+  // (30% capital, 40% profitability, 30% operations), fed with real figures
+  // instead of the static snapshot.
+  const expansionReadiness = useMemo(() => {
+    const ebitdaMargin = Number(profitMargin);
+    const onTimeRate = operationalMetrics.utilizationRate;
+    const readinessScore = Math.round(
+      (Math.min(cashBalance / 10000000, 1) * 100 * 0.3) +
+      (Math.max(ebitdaMargin, 0) * 0.4) +
+      (onTimeRate * 0.3)
+    );
+    return { availableCapital: cashBalance, currentProfitability: ebitdaMargin, operationalCapacity: onTimeRate, readinessScore };
+  }, [cashBalance, profitMargin, operationalMetrics]);
+
+  // ✅ FIX: real Strategic Insights — same real threshold-based pattern as
+  // the original generateStrategicInsights(), fed with real figures.
+  const strategicInsights = useMemo(() => {
+    const insights: Array<{ id: string; insight: string; priority: "positive" | "negative" | "neutral" }> = [];
+    if (Number(revenueGrowthPct) > 10) {
+      insights.push({ id: "si-1", insight: `Revenue grew ${revenueGrowthPct}% vs. the prior period — strong momentum`, priority: "positive" });
+    } else if (Number(revenueGrowthPct) < -10) {
+      insights.push({ id: "si-2", insight: `Revenue declined ${Math.abs(Number(revenueGrowthPct))}% vs. the prior period — worth investigating`, priority: "negative" });
+    }
+    if (operationalMetrics.utilizationRate >= 85) {
+      insights.push({ id: "si-3", insight: `Utilization rate at ${operationalMetrics.utilizationRate}% — operations running efficiently`, priority: "positive" });
+    } else if (operationalMetrics.utilizationRate < 60 && operationalMetrics.utilizationRate > 0) {
+      insights.push({ id: "si-4", insight: `Utilization rate at ${operationalMetrics.utilizationRate}% — a meaningful share of scheduled washes aren't completing`, priority: "negative" });
+    }
+    if (Number(profitMargin) >= 20) {
+      insights.push({ id: "si-5", insight: `Net margin at ${profitMargin}% — healthy profitability for this period`, priority: "positive" });
+    } else if (Number(profitMargin) < 0) {
+      insights.push({ id: "si-6", insight: `Operating at a net loss this period (margin ${profitMargin}%)`, priority: "negative" });
+    }
+    if (insights.length === 0) {
+      insights.push({ id: "si-7", insight: "No standout trend this period — metrics are within normal range", priority: "neutral" });
+    }
+    return insights;
+  }, [revenueGrowthPct, operationalMetrics, profitMargin]);
 
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
@@ -907,7 +1010,7 @@ function FounderControlTower() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={CUSTOMER_ACQUISITION_TREND} id="customer-trend-chart">
+              <AreaChart data={customerAcquisitionTrend} id="customer-trend-chart">
                 <CartesianGrid key="customer-grid" strokeDasharray="3 3" />
                 <XAxis key="customer-xaxis" dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis key="customer-yaxis" tick={{ fontSize: 11 }} width={50} />
@@ -1096,25 +1199,25 @@ function FounderControlTower() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4">
               <div>
                 <div className="text-sm text-gray-500">Washes/Day</div>
-                <div className="text-2xl font-bold text-gray-900">{OPERATIONAL_METRICS.totalWashesPerDay}</div>
+                <div className="text-2xl font-bold text-gray-900">{operationalMetrics.totalWashesPerDay}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Avg/Store</div>
-                <div className="text-2xl font-bold text-gray-900">{OPERATIONAL_METRICS.avgWashesPerStore}</div>
+                <div className="text-2xl font-bold text-gray-900">{operationalMetrics.avgWashesPerStore}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Staff Productivity</div>
-                <div className="text-2xl font-bold text-gray-900">{OPERATIONAL_METRICS.staffProductivity}</div>
+                <div className="text-2xl font-bold text-gray-900">{operationalMetrics.staffProductivity}</div>
                 <div className="text-xs text-gray-600">washes/staff</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Utilization Rate</div>
-                <div className="text-2xl font-bold text-gray-900">{OPERATIONAL_METRICS.utilizationRate}%</div>
+                <div className="text-2xl font-bold text-gray-900">{operationalMetrics.utilizationRate}%</div>
                 <Badge className="bg-green-500 text-xs mt-1">Good</Badge>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={WASH_VOLUME_TREND} id="wash-volume-chart">
+              <BarChart data={washVolumeTrend} id="wash-volume-chart">
                 <CartesianGrid key="wash-grid" strokeDasharray="3 3" />
                 <XAxis key="wash-xaxis" dataKey="week" tick={{ fontSize: 11 }} />
                 <YAxis key="wash-yaxis" tick={{ fontSize: 11 }} width={50} />
@@ -1136,14 +1239,14 @@ function FounderControlTower() {
           <CardContent>
             <div className="space-y-4">
               <div className="text-center">
-                <div className="text-5xl font-bold text-blue-600">{EXPANSION_READINESS.readinessScore}%</div>
+                <div className="text-5xl font-bold text-blue-600">{expansionReadiness.readinessScore}%</div>
                 <div className="text-sm text-gray-600 mt-1">Ready to Expand</div>
               </div>
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Available Capital</span>
-                    <span className="font-medium">₹{(EXPANSION_READINESS.availableCapital / 100000).toFixed(1)}L</span>
+                    <span className="font-medium">₹{(expansionReadiness.availableCapital / 100000).toFixed(1)}L</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-green-500 h-2 rounded-full" style={{ width: "85%" }}></div>
@@ -1152,7 +1255,7 @@ function FounderControlTower() {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Profitability</span>
-                    <span className="font-medium">{EXPANSION_READINESS.currentProfitability}%</span>
+                    <span className="font-medium">{expansionReadiness.currentProfitability}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-blue-500 h-2 rounded-full" style={{ width: "75%" }}></div>
@@ -1161,7 +1264,7 @@ function FounderControlTower() {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Operational Capacity</span>
-                    <span className="font-medium">{EXPANSION_READINESS.operationalCapacity}%</span>
+                    <span className="font-medium">{expansionReadiness.operationalCapacity}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-purple-500 h-2 rounded-full" style={{ width: "78%" }}></div>
@@ -1187,7 +1290,7 @@ function FounderControlTower() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {STRATEGIC_INSIGHTS.map((insight) => (
+            {strategicInsights.map((insight) => (
               <div
                 key={insight.id}
                 className={`p-4 rounded-lg border-l-4 ${

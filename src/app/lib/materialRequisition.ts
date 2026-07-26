@@ -60,6 +60,11 @@ export interface PurchaseOrder {
   vendorContactEmail?: string;
   dateIssued: string;
   expectedDelivery: string;
+  // ✅ NEW: the real delivery location selected on the Create PO form —
+  // previously this was captured in local component state but never
+  // stored on the PO record itself, so the PDF always fell back to a
+  // fixed default string regardless of what was actually selected.
+  deliveryAddress?: string;
   status: "Issued" | "Partially Received" | "Fully Received" | "Cancelled";
   items: {
     itemName: string;
