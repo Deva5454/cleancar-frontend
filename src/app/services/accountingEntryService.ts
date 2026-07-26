@@ -890,12 +890,22 @@ class AccountingEntryService {
     const refund = all[idx];
     const ledgers = this.getLedgers(cityId);
     const arLedger = ledgers.find((l) => l.name === "Accounts Receivable");
-    if (arLedger) {
+    const returnsLedger = ledgers.find((l) => l.name === "Sales Returns & Allowances");
+    if (arLedger && returnsLedger) {
+      // ✅ FIX: real two-line entry — this step only RECOGNIZES the
+      // refund (reducing revenue, reducing what the customer is
+      // considered to owe), no cash actually leaves the business yet.
+      // The real cash disbursement happens in markRefundPaid() below,
+      // matching this app's own RefundRequest status model
+      // (Approved → Paid are genuinely two separate real steps).
       this.createJournal(
         {
           date: new Date().toISOString().split("T")[0],
           narration: `Refund approved — ${refund.customerName} — ${refund.reason}`,
-          lines: [{ accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${refund.customerName}`, debit: refund.amount, credit: 0 }],
+          lines: [
+            { accountHead: returnsLedger.id, accountLabel: "Sales Returns & Allowances", debit: refund.amount, credit: 0 },
+            { accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${refund.customerName}`, debit: 0, credit: refund.amount },
+          ],
           city: cityName,
           cityId,
           createdBy: reviewedBy,
@@ -997,6 +1007,31 @@ class AccountingEntryService {
     const all = this.getRefundRequests(cityId);
     const idx = all.findIndex((r) => r.id === refundId);
     if (idx < 0) return false;
+    const refund = all[idx];
+
+    // ✅ FIX: this previously updated only the status fields — no real
+    // cash disbursement was ever posted anywhere. This is the actual
+    // payment step: Dr Accounts Receivable (clearing what
+    // approveRefund() recognized), Cr Bank (the real cash leaving).
+    const ledgers = this.getLedgers(cityId);
+    const arLedger = ledgers.find((l) => l.name === "Accounts Receivable");
+    if (arLedger) {
+      this.createJournal(
+        {
+          date: new Date().toISOString().split("T")[0],
+          narration: `Refund paid — ${refund.customerName} — ref ${paymentReference}`,
+          lines: [
+            { accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${refund.customerName}`, debit: refund.amount, credit: 0 },
+            { accountHead: "bank", accountLabel: "Bank Account", debit: 0, credit: refund.amount },
+          ],
+          city: refund.city,
+          cityId,
+          createdBy: "Accounts",
+        },
+        refund.city
+      );
+    }
+
     all[idx] = { ...all[idx], status: "Paid", paidAt: new Date().toISOString(), paymentReference };
     DataService.setAll("REFUND_REQUESTS", all, cityId);
     return true;
@@ -1358,6 +1393,13 @@ class AccountingEntryService {
       // delivered, matching the real matching principle.
       { name: "Contract Liability", accountHead: "contract_liability", accountHeadLabel: "Contract Liability", nature: "liability", type: "other", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Package Revenue - Multi-Month Bundle", accountHead: "sales_package_bundle", accountHeadLabel: "Sales — Multi-Month Bundle", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
+      // ✅ NEW: Sales Returns & Allowances — a contra-revenue ledger
+      // (normally carries a debit balance, reducing net revenue on the
+      // P&L), needed to correctly post customer refunds and Credit/Debit
+      // Notes. Previously these posted a single, unbalanced line directly
+      // against Accounts Receivable with no real revenue-side effect at
+      // all — this is the missing other side of that entry.
+      { name: "Sales Returns & Allowances", accountHead: "sales_returns_allowances", accountHeadLabel: "Sales Returns & Allowances", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Dr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
       { name: "Bundle Forfeiture & Cancellation Income", accountHead: "sales_bundle_forfeiture", accountHeadLabel: "Sales — Bundle Forfeiture/Cancellation", nature: "income", type: "sales", openingBalance: 0, openingBalanceType: "Cr", city: cityDisplayName, cityId, isSystem: true, status: "Active", createdAt: "2026-01-01T00:00:00.000Z" },
 
       // INCOME - Sales Service

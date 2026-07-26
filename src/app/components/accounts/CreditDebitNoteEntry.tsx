@@ -139,20 +139,33 @@ export function CreditDebitNoteEntry() {
           setSubmitting(false);
           return;
         }
+        const returnsLedger = ledgers.find((l) => l.name === "Sales Returns & Allowances");
+        if (!returnsLedger) {
+          toast.error("Could not find the Sales Returns & Allowances ledger.");
+          setSubmitting(false);
+          return;
+        }
         const narration = `${ourNoteLabel} — ${customerName}${customerInvoiceRef ? " — Invoice " + customerInvoiceRef : ""}`;
-        // decrease (Credit Note): DR Sales/Revenue reduction is out of
-        // scope of a single generic ledger here, so we credit AR directly
-        // against a Sales Returns & Allowances style adjustment on the
-        // Accounts Payable ledger's mirror — using Accounts Receivable
-        // itself as both sides would net to zero, so instead this posts
-        // against the same Accounts Receivable ledger's customer sub-view,
-        // consistent with how PartyLedger already reads AR entries.
+        // ✅ FIX: previously a single, unbalanced line directly against
+        // Accounts Receivable, with no real revenue-side effect. Now
+        // genuinely mirrors the Vendor pattern above (same real
+        // decrease/increase logic, just Sales Returns & Allowances
+        // instead of an expense ledger) — a credit/debit note is a pure
+        // receivable adjustment, no cash moves either way.
+        // decrease (Credit Note): DR Sales Returns & Allowances, CR Accounts Receivable (revenue reduces, customer owes less)
+        // increase (Debit Note): DR Accounts Receivable, CR Sales Returns & Allowances (customer owes more, revenue increases back)
         accountingEntryService.createJournal({
           date: new Date().toISOString().split("T")[0],
           narration,
           lines: effect === "decrease"
-            ? [{ accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${customerName}`, debit: 0, credit: total }]
-            : [{ accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${customerName}`, debit: total, credit: 0 }],
+            ? [
+                { accountHead: returnsLedger.id, accountLabel: returnsLedger.name, debit: total, credit: 0 },
+                { accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${customerName}`, debit: 0, credit: total },
+              ]
+            : [
+                { accountHead: arLedger.id, accountLabel: `${arLedger.name} — ${customerName}`, debit: total, credit: 0 },
+                { accountHead: returnsLedger.id, accountLabel: returnsLedger.name, debit: 0, credit: total },
+              ],
           city: cityInfo.displayName,
           cityId: city,
           createdBy: "Accounts",
