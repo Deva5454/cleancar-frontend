@@ -260,23 +260,47 @@ async function recordPayment(
   paymentData: PaymentFormData,
   invoice: Invoice,
   recordRevenueFn: any,
-  cityId: string
+  cityId: string,
+  allRevenues: any[],
+  updateRevenueFn: any
 ): Promise<void> {
   // Mock delay
   await new Promise((resolve) => setTimeout(resolve, 800));
 
-  // Bridge invoice payment to Revenue in FinanceContext
-  recordRevenueFn({
-    customerId: invoice.customerId || "UNKNOWN",
-    subscriptionId: invoice.serviceId,
-    type: invoice.serviceType?.toLowerCase().includes("subscription") ? "Subscription" : "One-Time",
-    amount: parseFloat(paymentData.amount),
-    receivedDate: paymentData.paymentDate,
-    paymentMethod: paymentData.paymentMode === "CASH" ? "Cash" : paymentData.paymentMode === "UPI" ? "UPI" : "Bank Transfer",
-    invoiceNumber: invoice.invoiceNumber,
-    status: "Received",
-    cityId: cityId,
-  });
+  // ✅ FIX (CA observation, 27 Jul 2026): "Once any payment is received
+  // against invoice that invoice needs to be closed... misapplication of
+  // payment receipt is not possible." Previously this always called
+  // recordRevenueFn, which always appends a brand-new revenue record —
+  // since Invoice.id is derived from invoiceNumber, this left the
+  // ORIGINAL "Pending" record still present and matchable by the same
+  // id, so the invoice could still show as unpaid and accept a second
+  // payment. Now updates the existing Pending record in place when one
+  // exists for this invoice, instead of creating a parallel duplicate.
+  const existingRevenue = allRevenues.find(
+    (r) => r.invoiceNumber === invoice.invoiceNumber && r.status === "Pending"
+  );
+  if (existingRevenue) {
+    updateRevenueFn(existingRevenue.revenueId, {
+      amount: parseFloat(paymentData.amount),
+      receivedDate: paymentData.paymentDate,
+      paymentMethod: paymentData.paymentMode === "CASH" ? "Cash" : paymentData.paymentMode === "UPI" ? "UPI" : "Bank Transfer",
+      status: "Received",
+    });
+  } else {
+    // No existing Pending record for this invoice (e.g. a job/web invoice
+    // that was never backed by one) — real fallback, creates a new record.
+    recordRevenueFn({
+      customerId: invoice.customerId || "UNKNOWN",
+      subscriptionId: invoice.serviceId,
+      type: invoice.serviceType?.toLowerCase().includes("subscription") ? "Subscription" : "One-Time",
+      amount: parseFloat(paymentData.amount),
+      receivedDate: paymentData.paymentDate,
+      paymentMethod: paymentData.paymentMode === "CASH" ? "Cash" : paymentData.paymentMode === "UPI" ? "UPI" : "Bank Transfer",
+      invoiceNumber: invoice.invoiceNumber,
+      status: "Received",
+      cityId: cityId,
+    });
+  }
 
   // ── Post double-entry to accounting ledger ────────────────────────────────
   // On payment receipt: DR Bank/Cash, CR Accounts Receivable
@@ -435,7 +459,7 @@ function isOverdue(dueDate: string, status: Invoice["status"]): boolean {
 
 export default function InvoiceManagement() {
   const { city, cityInfo } = useCity(); const cityId = city;
-  const { recordRevenue, revenues } = useFinance();
+  const { recordRevenue, updateRevenue, revenues } = useFinance();
   const { customers } = useCustomers();
   const { subscriptions } = useCustomerSubscriptions();
 
@@ -599,7 +623,7 @@ export default function InvoiceManagement() {
     setIsSubmittingPayment(true);
 
     try {
-      await recordPayment(selectedInvoice.id, paymentForm, selectedInvoice, recordRevenue, city);
+      await recordPayment(selectedInvoice.id, paymentForm, selectedInvoice, recordRevenue, city, revenues, updateRevenue);
       setIsPaymentDrawerOpen(false);
       loadInvoices(); // Reload to get updated invoice status
       toast.success("Payment recorded successfully");

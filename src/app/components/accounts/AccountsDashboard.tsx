@@ -274,24 +274,37 @@ export function AccountsDashboard() {
       </div>
 
       {/* Profit & Cash */}
+      {/* ✅ FIX (CA observation, 27 Jul 2026): "Data is seem numbers (Not
+          hyperlinked)." These three now genuinely navigate somewhere real,
+          matching the same clickable-KPI pattern FinanceAnalyticsDashboard.tsx
+          already uses correctly elsewhere in this app. */}
       <div className="grid grid-cols-3 gap-6">
-        <div className="bg-white border-l-4 border-blue-500 p-4 rounded shadow">
+        <button
+          onClick={() => navigate("/accounts/balance-sheet")}
+          className="text-left bg-white border-l-4 border-blue-500 p-4 rounded shadow hover:shadow-md transition-shadow cursor-pointer"
+        >
           <p className="text-sm text-gray-600">Net Profit (Live)</p>
           <p className={`text-3xl font-bold ${netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
             ₹{netProfit.toFixed(2)}
           </p>
-          <p className="text-xs text-gray-500 mt-1">Income − Expenses</p>
-        </div>
-        <div className="bg-white border-l-4 border-blue-600 p-4 rounded shadow">
+          <p className="text-xs text-gray-500 mt-1">Income − Expenses · click for Balance Sheet</p>
+        </button>
+        <button
+          onClick={() => navigate("/accounts/ledger")}
+          className="text-left bg-white border-l-4 border-blue-600 p-4 rounded shadow hover:shadow-md transition-shadow cursor-pointer"
+        >
           <p className="text-sm text-gray-600">Cash Balance</p>
           <p className="text-3xl font-bold text-gray-900">₹{cashBalance.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-1">Petty Cash ledger</p>
-        </div>
-        <div className="bg-white border-l-4 border-blue-700 p-4 rounded shadow">
+          <p className="text-xs text-gray-500 mt-1">Petty Cash ledger · click to view</p>
+        </button>
+        <button
+          onClick={() => navigate("/accounts/ledger")}
+          className="text-left bg-white border-l-4 border-blue-700 p-4 rounded shadow hover:shadow-md transition-shadow cursor-pointer"
+        >
           <p className="text-sm text-gray-600">Bank Balance</p>
           <p className="text-3xl font-bold text-gray-900">₹{bankBalance.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-1">Axis Bank ledger</p>
-        </div>
+          <p className="text-xs text-gray-500 mt-1">Axis Bank ledger · click to view</p>
+        </button>
       </div>
 
       {/* Ledger KPIs */}

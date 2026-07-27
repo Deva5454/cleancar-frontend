@@ -130,6 +130,13 @@ interface FinanceContextType {
   // Revenue
   revenues: Revenue[];
   recordRevenue: (revenue: Omit<Revenue, "revenueId" | "createdAt">) => Revenue;
+  // ✅ NEW: real update-in-place for an existing revenue record. Needed to
+  // fix a real invoice-payment bug: recordRevenue() always appends a new
+  // record, so paying an invoice created a SECOND record sharing the same
+  // invoiceNumber as the original "Pending" one — since Invoice.id is
+  // derived from invoiceNumber, this left two invoice-shaped objects with
+  // the same id, and a lookup could still find the stale unpaid one.
+  updateRevenue: (revenueId: string, changes: Partial<Revenue>) => void;
   getRevenueForMonth: (month: string) => Revenue[];
   getTotalRevenue: (month: string) => number;
 
@@ -731,6 +738,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return newRevenue;
   };
 
+  // ✅ NEW: real update-in-place for an existing revenue record — see the
+  // interface comment above for why this is needed.
+  const updateRevenue = (revenueId: string, changes: Partial<Revenue>) => {
+    setRevenues((prev) => prev.map((r) => (r.revenueId === revenueId ? { ...r, ...changes } : r)));
+  };
+
   const getRevenueForMonth = (month: string): Revenue[] => {
     return revenues.filter((r) => r.receivedDate.startsWith(month));
   };
@@ -1318,6 +1331,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getOverduePayables,
     revenues,
     recordRevenue,
+    updateRevenue,
     getRevenueForMonth,
     getTotalRevenue,
     ledgerEntries,
@@ -1380,7 +1394,7 @@ export function useFinance() {
       payables: [], createPayable: noop, updatePayable: noop, markAsPaid: noop,
       approvePayable: noop, getSalaryPayables: noopArray, getTravelPayables: noopArray, getVendorPayables: noopArray,
       getStatutoryPayables: noopArray, getPendingPayables: noopArray, getOverduePayables: noopArray,
-      revenues: [], recordRevenue: noop, getRevenueForMonth: noopArray, getTotalRevenue: noopNumber,
+      revenues: [], recordRevenue: noop, updateRevenue: noop, getRevenueForMonth: noopArray, getTotalRevenue: noopNumber,
       ledgerEntries: [], createLedgerEntry: noop, getLedgerEntriesByAccount: noopArray,
       getLedgerEntriesForPeriod: noopArray, getRevenueFromLedger: noopNumber, getExpensesFromLedger: noopNumber,
       getMRRByCity: noopArray, getRevenueByCity: noopArray, getPayablesByCity: noopArray, getLedgerEntriesByCity: noopArray,

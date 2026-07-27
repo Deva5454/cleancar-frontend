@@ -237,6 +237,15 @@ export function AccountingEntry() {
       toast.error("GST calculation error. Please re-enter taxable value.");
       return;
     }
+    // ✅ FIX (CA observation, 27 Jul 2026): "Any Expense which is non GST
+    // Expense that should be available in Taxable value so need to make
+    // that compulsory." Previously there was no check requiring this at
+    // all for Non-GST entries — only the GST-calculation check above,
+    // which never applies to a Non-GST entry.
+    if (gstEntryType === "NonGST" && (!taxableValue || taxableValue <= 0)) {
+      toast.error("Taxable value is required for a Non-GST expense.");
+      return;
+    }
     if (!invoiceNumber.trim()) {
       toast.error("Invoice number is required.");
       return;
