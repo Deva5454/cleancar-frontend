@@ -512,6 +512,29 @@ export function CostPerWashModule() {
               <div className="flex-1">
                 <p className="text-sm text-gray-500 mb-1">Actual Cost per Wash</p>
                 <h3 className="text-3xl font-bold text-gray-900 mb-2">₹{actualCostPerWash}</h3>
+                {/* ✅ FIX (CA observation, 27 Jul 2026 — "cost breakdown
+                    shows 12000 as cost per wash — incorrect formula"): the
+                    math (totalExpenses / washCount) is correct, but two
+                    real issues make the result unreliable and worth
+                    disclosing rather than hiding:
+                    1. getExpensesFromLedger only reads real expenses
+                       recorded through the Payables workflow (salary,
+                       vendor, statutory) — it never sees expenses entered
+                       through the main Accounting Entry screen, so
+                       totalExpenses can be a real but incomplete figure.
+                    2. Dividing by a small real wash count inflates the
+                       result — this is a genuine small-sample problem, not
+                       a wrong formula. Properly unifying this with the
+                       real accounting engine (accountingEntryService.ts)
+                       is a larger, separate fix matching the CA's own
+                       "one source of truth" observation — not something
+                       to force through here. This instead makes the real
+                       limitation visible on screen. */}
+                {washesThisMonthForImpact > 0 && washesThisMonthForImpact < 10 && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+                    Based on only {washesThisMonthForImpact} real wash{washesThisMonthForImpact === 1 ? "" : "es"} this month — too small a sample to be reliable. Also only counts expenses recorded via Payables, not all Accounting Entries.
+                  </p>
+                )}
                 <div className="flex items-center gap-1">
                   {actualVsLastMonthPct >= 0
                     ? <ArrowUpRight className="w-4 h-4 text-red-600" />

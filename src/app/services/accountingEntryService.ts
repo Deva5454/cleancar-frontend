@@ -834,7 +834,7 @@ class AccountingEntryService {
     const all = this.getRecurringTemplates(cityId);
     const template: RecurringTemplate = {
       ...data,
-      id: `RT-${Date.now()}`,
+      id: `RT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       nextRunDate: nextRunDateFor(data.dayOfMonth),
       createdAt: new Date().toISOString(),
     };
@@ -905,7 +905,7 @@ class AccountingEntryService {
     const all = this.getRefundRequests(cityId);
     const request: RefundRequest = {
       ...data,
-      id: `REFUND-${Date.now()}`,
+      id: `REFUND-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       status: "Pending",
       requestedAt: new Date().toISOString(),
     };
@@ -1118,7 +1118,7 @@ class AccountingEntryService {
 
   requestCallback(data: Omit<CallbackRequest, "id" | "status" | "createdAt">, cityId: string): CallbackRequest {
     const all = this.getCallbackRequests(cityId);
-    const request: CallbackRequest = { ...data, id: `CB-${Date.now()}`, status: "Pending", createdAt: new Date().toISOString() };
+    const request: CallbackRequest = { ...data, id: `CB-${Date.now()}-${Math.floor(Math.random() * 10000)}`, status: "Pending", createdAt: new Date().toISOString() };
     DataService.setAll("CALLBACK_REQUESTS", [...all, request], cityId);
     return request;
   }
@@ -1153,7 +1153,17 @@ class AccountingEntryService {
     const all = this.getEntries();
     const entry: AccountingEntry = {
       ...data,
-      id: `ACC-${Date.now()}`,
+      // ✅ FIX (CA observation, 27 Jul 2026 — "Finance Transaction shows 71
+      // but only 1 visible"): Date.now() alone collides when multiple
+      // entries are created in quick succession (confirmed directly — 5
+      // of 7 rapid calls returned the identical millisecond). Since
+      // FinanceTransactions.tsx uses `key={txn.id}` for its row list,
+      // colliding IDs made React silently drop all but one matching row
+      // from the DOM, even though the .length-based count badge still
+      // counted them correctly — explaining the exact "71 vs 1" mismatch.
+      // Fixed the same way across every ID generator in this file that had
+      // the same vulnerability (RT, REFUND, CB, ACC, JV).
+      id: `ACC-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       voucherNumber: generateVoucherNumber(data.entryType, cityName, all),
       financialYear: getFinancialYear(),
       createdAt: new Date().toISOString(),
@@ -1334,7 +1344,7 @@ class AccountingEntryService {
   createJournal(data: Omit<JournalEntry,"id"|"voucherNumber"|"createdAt"|"status"|"changeHistory"|"financialYear">, cityName: string): JournalEntry {
     const all = this.getJournals();
     const entry: JournalEntry = {
-      ...data, id: `JV-${Date.now()}`,
+      ...data, id: `JV-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       voucherNumber: generateJournalVoucherNumber(cityName, all),
       financialYear: getFinancialYear(),
       createdAt: new Date().toISOString(),

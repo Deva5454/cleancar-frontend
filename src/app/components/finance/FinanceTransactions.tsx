@@ -1,4 +1,5 @@
 import { BackButton } from "../ui/back-button";
+import { toast } from "sonner";
 import { accountingEntryService } from "../../services/accountingEntryService";
 /**
  * Finance Transactions - Transaction-based model
@@ -323,10 +324,30 @@ export function FinanceTransactions() {
               Transaction-based accounting (Revenue, Expense, Refund, Salary)
             </p>
           </div>
-          <Badge variant="outline" className="flex items-center gap-2 px-3 py-1.5">
-            <Database className="w-4 h-4 text-blue-600" />
-            <span className="text-sm">Transaction Model</span>
-          </Badge>
+          <div className="flex items-center gap-2">
+            {/* ✅ FIX (CA observation, 27 Jul 2026 — "missing transaction-
+                source entries"): transactions was frozen at mount time
+                (useState(() => buildLiveTransactions(...)) only runs
+                once) — real entries created elsewhere while this screen
+                stayed open never appeared without a full page reload.
+                RefreshCw was already imported but never actually wired
+                to anything. */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTransactions(buildLiveTransactions(cityInfo.displayName));
+                toast.success("Transactions refreshed from real data");
+              }}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Badge variant="outline" className="flex items-center gap-2 px-3 py-1.5">
+              <Database className="w-4 h-4 text-blue-600" />
+              <span className="text-sm">Transaction Model</span>
+            </Badge>
+          </div>
         </div>
 
         {/* Engine Label */}

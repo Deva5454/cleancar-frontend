@@ -98,7 +98,12 @@ export function RevenueCaptureSystem() {
   const allEmps = employeeDatabaseService.getAll();
 
   // â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [selectedMonth,    setSelectedMonth]    = useState("2026-04");
+  // ✅ FIX (CA observation, 27 Jul 2026 — "payments receipt entry done but
+  // this section is still blank"): previously hardcoded to "2026-04",
+  // meaning every real revenue record created in any OTHER month (like
+  // the actual current month) was filtered out entirely. Real current
+  // month, computed fresh, not a fixed string.
+  const [selectedMonth,    setSelectedMonth]    = useState(() => new Date().toISOString().slice(0, 7));
   const [prevMonth,        setPrevMonth]        = useState("2026-03");
   const [filterCityId,     setFilterCityId]     = useState(city);
   const [filterPincode,    setFilterPincode]    = useState("All");
@@ -116,11 +121,23 @@ export function RevenueCaptureSystem() {
     const thisMonth = selectedMonth;
     const monthRevenues = allRevenues.filter(r => r.receivedDate?.startsWith(thisMonth));
     if (monthRevenues.length === 0) return;
-    const existingEntries = accountingEntryService.getAll
-      ? accountingEntryService.getAll(cityId).filter((e: any) => e.entryType === "Revenue")
+    // ✅ FIX: previously checked accountingEntryService.getAll(cityId) for
+    // entryType === "Revenue" — a value that never exists on a real
+    // AccountingEntry (revenue postings here go through createJournal(),
+    // producing JournalEntry records instead). This "already posted"
+    // check could never find a real match, risking the same revenue
+    // being posted to the ledger again on every visit to this screen.
+    // JournalEntry has no dedicated invoiceNumber field, so matching by
+    // the real narration format this same code creates below.
+    const existingJournals = accountingEntryService.getAllJournals
+      ? accountingEntryService.getAllJournals(cityId)
       : [];
-    const postedInvoices = new Set(existingEntries.map((e: any) => e.invoiceNumber));
-    const existingNums = existingEntries.map((e: any) => e.invoiceNumber).filter(Boolean);
+    const postedInvoices = new Set(
+      existingJournals
+        .map((j: any) => (j.narration?.match(/Invoice (\S+)/) || [])[1])
+        .filter(Boolean)
+    );
+    const existingNums = Array.from(postedInvoices) as string[];
 
     monthRevenues.forEach(r => {
       const invoiceRef = r.invoiceNumber || r.revenueId;

@@ -866,20 +866,30 @@ export default function InvoiceManagement() {
             </div>
           ) : (
             <div className="overflow-x-auto -mx-3 sm:mx-0">
-              <div className="min-w-[1000px] sm:min-w-0">
+              <div>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Invoice Date</TableHead>
-                      <TableHead>Due Date</TableHead>
+                      {/* ✅ FIX (CA observation, 27 Jul 2026 — "need to drag
+                          at the right end to view amount details and
+                          invoice"): Service, Due Date, and City hidden on
+                          smaller screens so the amount/invoice columns the
+                          CA specifically called out stay visible without
+                          scrolling. The previous min-w-[1000px] forced
+                          horizontal scroll on most real screens with 11
+                          columns — removed in favor of these columns
+                          simply not competing for space at all below the
+                          lg breakpoint. */}
+                      <TableHead className="hidden lg:table-cell">Service</TableHead>
+                      <TableHead className="hidden xl:table-cell">Invoice Date</TableHead>
+                      <TableHead className="hidden lg:table-cell">Due Date</TableHead>
                       <TableHead>Total</TableHead>
-                      <TableHead>Paid</TableHead>
+                      <TableHead className="hidden md:table-cell">Paid</TableHead>
                       <TableHead>Balance</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>City</TableHead>
+                      <TableHead className="hidden xl:table-cell">City</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -890,9 +900,9 @@ export default function InvoiceManagement() {
                       {invoice.invoiceNumber}
                     </TableCell>
                     <TableCell>{invoice.customerName}</TableCell>
-                    <TableCell>{invoice.serviceType || "—"}</TableCell>
-                    <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">{invoice.serviceType || "—"}</TableCell>
+                    <TableCell className="hidden xl:table-cell">{formatDate(invoice.invoiceDate)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <span
                         className={
                           isOverdue(invoice.dueDate, invoice.status)
@@ -907,12 +917,12 @@ export default function InvoiceManagement() {
                       </span>
                     </TableCell>
                     <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
-                    <TableCell>{formatCurrency(invoice.paidAmount)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{formatCurrency(invoice.paidAmount)}</TableCell>
                     <TableCell className="font-semibold">
                       {formatCurrency(invoice.balanceDue)}
                     </TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                    <TableCell>{invoice.city || "—"}</TableCell>
+                    <TableCell className="hidden xl:table-cell">{invoice.city || "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
