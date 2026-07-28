@@ -575,8 +575,20 @@ export function JobProvider({ children }: { children: ReactNode }) {
           const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
             .filter((s: any) => s.status === "Active");
           const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
+          // Real fix: a washer is only excluded from tomorrow's jobs if
+          // they're genuinely marked absent in the real roster for that
+          // specific date - checked against AttendanceContext's real data,
+          // the only real source of attendance per its own code comment.
+          // Jobs are generated every day, including Sundays/holidays -
+          // there is no real day-of-week exception for monthly subscriptions.
+          const attendanceRecords: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || localStorage.getItem("cleancar_attendance_records") || "[]");
+          const unavailableStatuses = ["Absent", "Leave", "Week Off"];
+          const isWasherAvailable = (washerId: string, dateStr: string): boolean => {
+            const record = attendanceRecords.find((a: any) => a.employeeId === washerId && a.date === dateStr);
+            return !record || !unavailableStatuses.includes(record.status);
+          };
           const washers: any[] = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]")
-            .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR"));
+            .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR") && isWasherAvailable(e.id, tomorrowStr));
           const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
 
           // Build pincodeâ†’washer map for round-robin assignment
@@ -766,8 +778,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
         const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
           .filter((s: any) => s.status === "Active");
         const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
+        // Real fix: same real attendance check as the nightly seeder -
+        // a washer is only excluded if genuinely marked absent for today.
+        const attendanceRecordsCatchUp: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || localStorage.getItem("cleancar_attendance_records") || "[]");
+        const unavailableStatusesCatchUp = ["Absent", "Leave", "Week Off"];
+        const isWasherAvailableCatchUp = (washerId: string, dateStr: string): boolean => {
+          const record = attendanceRecordsCatchUp.find((a: any) => a.employeeId === washerId && a.date === dateStr);
+          return !record || !unavailableStatusesCatchUp.includes(record.status);
+        };
         const washers: any[] = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]")
-          .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR"));
+          .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR") && isWasherAvailableCatchUp(e.id, todayCatchUp));
         const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
         const existingSubIds = new Set(existingJobs.filter((j: any) => j.scheduledDate === todayCatchUp).map((j: any) => j.subscriptionId));
 
