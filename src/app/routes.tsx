@@ -64,6 +64,7 @@ const WasherIssuances = lazy(() => import("./components/inventory/WasherIssuance
 import { WasherStockLedger } from "./components/inventory/WasherStockLedger";
 const MonthEndVerification = lazy(() => import("./components/inventory/MonthEndVerification"));
 import { MyStock } from "./components/washer/MyStock";
+import { WasherJobHistory } from "./components/washer/WasherJobHistory";
 import { StoreModule } from "./components/modules/StoreModule";
 import { ProcurementModule } from "./components/modules/ProcurementModule";
 const FinanceModule = lazy(() => import("./components/modules/FinanceModule"));
@@ -397,6 +398,7 @@ export const router = createBrowserRouter([
       { path: "inventory/washer-stock-ledger", element: <WasherStockLedger /> },
       { path: "inventory/month-end-verification", element: <MonthEndVerification /> },
       { path: "inventory/my-stock", element: <MyStock /> },
+      { path: "washer/my-job-history", element: <WasherJobHistory /> },
       { path: "store", element: <StoreModule /> },
       { path: "procurement", element: <ProcurementModule /> },
       { path: "finance", element: <FinanceModule /> },

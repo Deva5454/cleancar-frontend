@@ -391,6 +391,7 @@ export const QUICK_ACTIONS: NavItem[] = [
   { label: "My Account", path: "/my-account", icon: Phone, module: "dashboard", match: "prefix" },
   { label: "Cloth Exchange", path: "/cloth-tracking/exchange", icon: Scan, module: "cloth-tracking", match: "prefix" },
   { label: "My Stock", path: "/inventory/my-stock", icon: Package, module: "car-washer", match: "prefix" },
+  { label: "My Job History", path: "/washer/my-job-history", icon: Briefcase, module: "car-washer", match: "prefix" },
   { label: "Approvals", path: "/approvals", icon: CheckSquare, module: "approvals", match: "prefix" },
   { label: "Performance", path: "/performance", icon: TrendingUp, module: "performance", match: "prefix" },
 
