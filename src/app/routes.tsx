@@ -569,7 +569,7 @@ export const router = createBrowserRouter([
         element: <Outlet />,
         children: [
           { index: true, element: <Navigate to="/subscription/plan-management" replace /> },
-          { path: "plan-management", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
+          { path: "plan-management", element: <ErrorBoundary><AdminPlanManagement /></ErrorBoundary> },
           { path: "plan-editor", element: <PlanEditor /> },
         ]
       },
@@ -692,7 +692,7 @@ export const router = createBrowserRouter([
       { path: "subscription-app", element: <SubscriptionApp /> },
       { path: "plans", element: <PlanSelectionScreen /> },
       { path: "buy",   element: <CustomerPlanPage /> },
-      { path: "admin/plans", element: <ErrorBoundary><AdminPlanManagement userRole="ADMIN" /></ErrorBoundary> },
+      { path: "admin/plans", element: <ErrorBoundary><AdminPlanManagement /></ErrorBoundary> },
       { path: "admin/plan-page-editor", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminPlanEditor /></Suspense></ErrorBoundary> },
       { path: "subscription-diagnostics", element: <DevOnlyRoute element={<SubscriptionDiagnostics />} /> },
 

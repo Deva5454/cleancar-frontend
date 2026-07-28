@@ -13,8 +13,8 @@ const SEED_ITEMS: Omit<ItemMaster, "id"|"createdAt"|"defaultExpenseLedgerId">[] 
   { itemName: "Rent - Office Space",   hsnCode: "997212", defaultExpenseLedgerName: "Rent Expense",                 defaultGSTRate: 18, unitOfMeasure: "Month",  status: "Active" },
 ];
 
-export function ItemMaster() {
-  const { cityId } = useCity();
+export function ItemMasterScreen() {
+  const { city: cityId } = useCity();
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [showPanel, setShowPanel] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
@@ -370,4 +370,4 @@ export function ItemMaster() {
   );
 }
 
-export default ItemMaster;
+export default ItemMasterScreen;
