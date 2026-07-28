@@ -308,7 +308,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (_dbJobsTimer.current) clearTimeout(_dbJobsTimer.current);
     _dbJobsTimer.current = setTimeout(() => {
-      if (allJobs.length > 0) DataService.setAll("JOBS", allJobs.slice(-50));
+      // Real fix: this previously saved only allJobs.slice(-50) - the most
+      // recent 50 records by array position, discarding everything else on
+      // every single save. Real customer job history was being silently
+      // truncated the moment enough jobs existed at once (the nightly
+      // seeder alone can add dozens in one run). Real job history should
+      // never be arbitrarily capped - saving the genuine, full array.
+      if (allJobs.length > 0) DataService.setAll("JOBS", allJobs);
     }, 500);
   }, [allJobs]);
 
@@ -650,6 +656,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
             localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existingJobs, ...newJobs]));
             localStorage.setItem(seedKey, "1");
             console.info(`[Scheduler] Generated ${newJobs.length} jobs for ${tomorrowStr}`);
+            // Real fix: previously this wrote directly to storage without
+            // ever updating React's allJobs state. The next unrelated state
+            // change would then save the stale, seeder-unaware array right
+            // back over this real work, silently undoing it.
+            setAllJobs([...existingJobs, ...newJobs]);
 
             // ── Supervisor bell notification ──────────────────────────────
             try {
@@ -807,6 +818,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existingJobs, ...catchUpJobs]));
           localStorage.setItem(catchUpKey, "1");
           console.info(`[Catch-up Seeder] Generated ${catchUpJobs.length} jobs for ${todayCatchUp}`);
+          // Real fix: same real gap as the nightly seeder above - sync
+          // React state immediately so a later, unrelated save can't
+          // silently overwrite these real catch-up jobs with a stale array.
+          setAllJobs([...existingJobs, ...catchUpJobs]);
 
           // Supervisor notification
           try {
