@@ -750,16 +750,33 @@ export function JobProvider({ children }: { children: ReactNode }) {
             const { sendWeeklyRatingRequest } = await import("../services/whatsappService");
             const customers = DataService.get<any>("CUSTOMERS") || [];
             const subs = DataService.get<any>("SUBSCRIPTIONS") || [];
-            // Send to all active monthly subscription customers
-            const activeMonthlyCustIds = new Set(
-              subs.filter((s: any) => s.status === "Active" && s.billingCycle === "Monthly").map((s: any) => s.customerId)
+            // Real fix: previously only the customerId survived here, losing
+            // the real subscriptionId the message actually needs. Keeping
+            // the full real active subscription per customer instead.
+            const activeMonthlySubByCust = new Map(
+              subs.filter((s: any) => s.status === "Active" && s.billingCycle === "Monthly").map((s: any) => [s.customerId, s])
             );
-            customers.filter((c: any) => activeMonthlyCustIds.has(c.customerId) && c.phone).forEach((c: any) => {
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+            customers.filter((c: any) => activeMonthlySubByCust.has(c.customerId) && c.phone).forEach((c: any) => {
               try {
-                sendWeeklyRatingRequest({ customerPhone: c.phone, customerName: c.firstName || "Customer" });
+                const sub = activeMonthlySubByCust.get(c.customerId);
+                // Real fix: previously washCount was never provided at all,
+                // leaving it undefined in the actual message sent. Counting
+                // genuine completed jobs for this customer in the last 7 days.
+                const washCount = allJobs.filter((j: any) =>
+                  j.customerId === c.customerId &&
+                  ["Completed", "Verified"].includes(j.status) &&
+                  (j.completedAt || j.scheduledDate || "") >= sevenDaysAgo
+                ).length;
+                sendWeeklyRatingRequest({
+                  customerPhone: c.phone,
+                  customerName: c.firstName || "Customer",
+                  subscriptionId: sub?.subscriptionId || "",
+                  washCount,
+                });
               } catch {}
             });
-            console.info(`[Scheduler] Weekly rating WA sent to ${activeMonthlyCustIds.size} customers`);
+            console.info(`[Scheduler] Weekly rating WA sent to ${activeMonthlySubByCust.size} customers`);
           }
         }
       } catch(e) { console.warn("[Scheduler] Weekly rating error:", e); }
@@ -991,14 +1008,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
         const customers: any[] = DataService.get<any>("CUSTOMERS") || [];
         const cust = customers.find((c: any) => c.customerId === job.customerId);
         if (cust?.phone) {
-          sendBookingConfirmed({
-            customerPhone: cust.phone,
-            customerName: cust.firstName || "Customer",
-            planLabel: job.packageName || "Wash",
-            slot: job.timeSlot || (job as any).scheduledTime || "Morning",
-            supervisorName: "",
-            supervisorPhone: "",
-          });
+          sendBookingConfirmed(
+            cust.phone,
+            cust.firstName || "Customer",
+            job.packageName || "Wash",
+            job.timeSlot || (job as any).scheduledTime || "Morning",
+            "",
+            "",
+            `https://249carwashing.genxa.in/track/${job.jobId}`
+          );
         }
       } catch {}
     }
@@ -1021,7 +1039,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
             customerName: cust.firstName || "Customer",
             washerName: job.washerName || "your washer",
             trackingUrl: `https://249carwashing.genxa.in/track/${job.jobId}`,
+            supervisorName: "",
             supervisorPhone: "",
+            planLabel: job.packageName || "Wash",
           });
         }
       } catch {}
