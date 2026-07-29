@@ -677,7 +677,24 @@ export function ExitFFSettlement() {
 
               {/* HR Verification */}
               {exit.status === "Supervisor Verified" && isHR && (
-                <div className="border-t pt-4">
+                <div className="border-t pt-4 space-y-3">
+                  {(() => {
+                    const damaged = exit.materials.filter(m => m.condition !== "Good");
+                    if (damaged.length === 0) return null;
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded p-3">
+                        <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          {damaged.length} item(s) were not returned in good condition — remember to enter a deduction below in Equipment Damage
+                        </p>
+                        <ul className="mt-2 text-xs text-red-700 space-y-1">
+                          {damaged.map(m => (
+                            <li key={m.id}>• {m.name} — {m.condition}{m.comments ? `: ${m.comments}` : ""}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                   <Button 
                     size="sm" 
                     className="bg-blue-600 hover:bg-blue-700"

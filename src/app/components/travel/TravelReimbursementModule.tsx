@@ -22,7 +22,7 @@ export default function TravelReimbursementModule() {
   }
   // Manager view includes their own trips + pending approvals tab
   if (["Operations Manager", "Sr Operations Manager", "Cluster Manager",
-       "Supervisor", "TSM", "TSE", "Store Manager"].includes(currentRole)) {
+       "Supervisor", "TSM", "TSE", "Store Manager", "Sales Head", "Sales Manager"].includes(currentRole)) {
     return <TravelManagerView />;
   }
   // Field-tracking roles (Sales Head, Sales Manager, Supervisor) — enabled by default.

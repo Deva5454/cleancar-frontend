@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Checkbox } from "../ui/checkbox";
 import { ConfirmationModal } from "../shared/ConfirmationModal";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
@@ -267,6 +268,37 @@ export function PayrollReviewApproval() {
   });
   const { currentUser, currentRole } = useRole();
   const canReview = currentRole === "HR" || currentRole === "Super Admin";
+  // Real, previously-missing bulk approval - selection state and a real
+  // handler that applies the exact same per-employee approval logic
+  // handleApproveLine already uses, just run once per selected employee.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const approvableEmployees = employees.filter(e => e.reviewStatus !== "Approved");
+  const allSelected = approvableEmployees.length > 0 && approvableEmployees.every(e => selectedIds.has(e.employeeId));
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(approvableEmployees.map(e => e.employeeId)));
+  };
+  const toggleSelectOne = (employeeId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(employeeId)) next.delete(employeeId); else next.add(employeeId);
+      return next;
+    });
+  };
+  const handleBulkApprove = () => {
+    if (!canReview) { toast.error("Only HR or Super Admin can approve payroll"); return; }
+    if (selectedIds.size === 0) { toast.error("Select at least one employee to approve"); return; }
+    const count = selectedIds.size;
+    setEmployees(prev => prev.map(e => selectedIds.has(e.employeeId) ? {
+      ...e,
+      reviewStatus: "Approved",
+      reviewLog: [...e.reviewLog, {
+        action: "Approved", by: currentUser?.name || "HR", byRole: currentRole,
+        at: new Date().toISOString(),
+      }],
+    } : e));
+    setSelectedIds(new Set());
+    toast.success(`${count} employee(s) approved`);
+  };
   const currentMonthKey = "2026-04";
   const monthRuns = getPayrollForMonth ? getPayrollForMonth(currentMonthKey) : [];
   const activeRun = monthRuns && monthRuns.length > 0 ? monthRuns[0] : null;
@@ -568,12 +600,30 @@ export function PayrollReviewApproval() {
       {/* Employee Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Employee Payroll Details</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Employee Payroll Details</CardTitle>
+            {canReview && (
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+                disabled={selectedIds.size === 0}
+                onClick={handleBulkApprove}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                Approve Selected ({selectedIds.size})
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                {canReview && (
+                  <TableHead className="w-10">
+                    <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Select all" />
+                  </TableHead>
+                )}
                 <TableHead>Employee</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead className="text-right">Base Salary</TableHead>
@@ -591,6 +641,17 @@ export function PayrollReviewApproval() {
                   key={employee.employeeId}
                   className={employee.hasAnomaly ? "bg-red-50" : ""}
                 >
+                  {canReview && (
+                    <TableCell>
+                      {employee.reviewStatus !== "Approved" && (
+                        <Checkbox
+                          checked={selectedIds.has(employee.employeeId)}
+                          onCheckedChange={() => toggleSelectOne(employee.employeeId)}
+                          aria-label={`Select ${employee.employeeName}`}
+                        />
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {employee.hasAnomaly && (
