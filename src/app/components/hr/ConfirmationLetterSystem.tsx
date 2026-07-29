@@ -105,7 +105,11 @@ const calculateProbationEndDate = (joiningDate: string, probationMonths: number 
 };
 
 // Parse probation period string to number of months
-const parseProbationMonths = (probationPeriod: string): number => {
+const parseProbationMonths = (probationPeriod: string | undefined | null): number => {
+  // Real fix: probationPeriod can genuinely be undefined on a real employee
+  // record - this crashed the entire page in production the moment any
+  // employee was missing this field, since .match() was called unguarded.
+  if (!probationPeriod) return 3; // Default to 3 months if genuinely missing
   const match = probationPeriod.match(/(\d+)\s*month/i);
   return match ? parseInt(match[1], 10) : 3; // Default to 3 months if parsing fails
 };

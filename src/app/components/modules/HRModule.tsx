@@ -248,7 +248,9 @@ function HRModule() {
       const confirmationsWithin30Days = employees.filter(emp => {
         if (emp.status !== "Active" || emp.employmentStage === "Not Converted") return false;
 
-        const probationMonths = emp.probationPeriod.match(/(\d+)\s*month/i);
+        // Real fix: probationPeriod can genuinely be undefined on a real
+        // employee record - guarding before calling .match() on it.
+        const probationMonths = emp.probationPeriod ? emp.probationPeriod.match(/(\d+)\s*month/i) : null;
         const months = probationMonths ? parseInt(probationMonths[1], 10) : 3;
 
         const joiningDate = new Date(emp.dateOfJoining);
