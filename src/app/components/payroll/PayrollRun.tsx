@@ -38,6 +38,7 @@ import {
   Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
 import { DataService } from "../../services/DataService";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 import { formatCurrency } from "../../lib/formatters";
@@ -180,6 +181,16 @@ export function PayrollRun() {
       const financialYear = `${financialYearStart}-${String((financialYearStart + 1) % 100).padStart(2, "0")}`;
       const periodStart = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-01`;
       const periodEnd = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+
+      // Real, confirmed policy: any regularization request still pending
+      // manager or HR action for this real period auto-rejects the
+      // instant this specific payroll run starts - rather than blocking
+      // payroll, or letting a stale request silently linger past the
+      // period it was meant to correct.
+      const autoRejectedCount = autoRejectPendingForPayrollPeriod(currentCityId, periodEnd);
+      if (autoRejectedCount > 0) {
+        toast.info(`${autoRejectedCount} pending regularization request(s) auto-rejected — payroll period closed`);
+      }
 
       let generated = 0;
       let skippedNoSalary = 0;
