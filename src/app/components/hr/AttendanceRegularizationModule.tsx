@@ -9,6 +9,7 @@ import { useRole } from "../../contexts/RoleContext";
 import { RegularizationRequestForm } from "./RegularizationRequestForm";
 import { RegularizationManagerApprovals } from "./RegularizationManagerApprovals";
 import { RegularizationHRQueue } from "./RegularizationHRQueue";
+import { LateMarkFlags } from "./LateMarkFlags";
 import { BackButton } from "../ui/back-button";
 
 export function AttendanceRegularizationModule() {
@@ -28,6 +29,7 @@ export function AttendanceRegularizationModule() {
       </div>
 
       {isHR && <RegularizationHRQueue />}
+      {(isHR || isManager) && <LateMarkFlags />}
       {isManager && <RegularizationManagerApprovals />}
       <RegularizationRequestForm />
     </div>
