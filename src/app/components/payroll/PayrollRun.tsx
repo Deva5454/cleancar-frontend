@@ -88,7 +88,7 @@ export function PayrollRun() {
   const { employees: allEmployees } = useEmployee();
   // Previously filtered to only Car Washer/Supervisor — every active
   // employee should be eligible for a payroll run regardless of role.
-  const cityEmployees = allEmployees.filter(e => e.status === "Active");
+  const cityEmployees = allEmployees.filter((e: any) => e.status === "Active");
 
   // Real salary first (employeeSalaryService, populated via Employee Salary
   // Assignment); falls back to a role-based illustrative gross — clearly
@@ -119,7 +119,7 @@ export function PayrollRun() {
     const monthStr = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}`;
     const monthPayrolls = getPayrollForMonth(monthStr);
 
-    const results: PayrollResult[] = monthPayrolls.map((pr) => {
+    const results: PayrollResult[] = monthPayrolls.map((pr: any) => {
       const employee = getEmployeeById(pr.employeeId);
       return {
         employeeId: pr.employeeId,
@@ -313,7 +313,7 @@ export function PayrollRun() {
       // ✅ H09 FIX: Real payroll run — reads attendance for each employee
       // computeDaysPresent uses AttendanceContext (Present=1, Late=1, HalfDay=0.5)
       let processed = 0;
-      for (const run of payrollRuns.filter(r =>
+      for (const run of payrollRuns.filter((r: any) =>
         r.month === String(selectedMonth) && r.year === Number(selectedYear)
       )) {
         const days = computeDaysPresent(run.employeeId, `${selectedYear}-${String(selectedMonth).padStart(2,"0")}`);
