@@ -219,6 +219,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Documents", path: "/hr/letters-documents", icon: FileText, module: "hr", match: "prefix" },
       { label: "Advances", path: "/advance/hr-management", icon: Banknote, module: "hr", match: "prefix" },
       { label: "Travel Reimbursement", path: "/travel",        icon: Car,        module: "hr", match: "prefix" },
+      { label: "Duty Roster", path: "/hr/duty-roster",        icon: Calendar,   module: "hr", match: "prefix" },
       { label: "Attendance Regularization", path: "/attendance/regularization", icon: Clock, module: "hr", match: "prefix" },
       { label: "Field Tracker",        path: "/field-tracker", icon: Navigation,  module: "hr", match: "prefix" },
       { label: "Other Earnings", path: "/advance/other-earnings", icon: PlusCircle, module: "hr", match: "prefix" },

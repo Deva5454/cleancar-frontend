@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
+import { useOrg } from "./OrgContext";
+import { getRealWorkingDaysInMonth, checkHolidayWork, grantCompOff } from "../../services/holidayPayService";
 import { DataService } from "../../services/DataService";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 import { formatCurrency } from "../../lib/formatters";
@@ -80,7 +82,8 @@ export function PayrollRun() {
   const { payrollRuns, employees, getEmployeeById, getPayrollForMonth, processPayroll } = useEmployeeData();
   const { currentUser } = useRole();
   const { city: currentCityId } = useCity();
-  const { computeDaysPresent } = useAttendance();
+  const { computeDaysPresent, attendanceRecords } = useAttendance();
+  const { publicHolidays } = useOrg();
   const canApprove = hasPermission(currentUser, "payroll", "approve");
   const { employees: allEmployees } = useEmployee();
   // Previously filtered to only Car Washer/Supervisor — every active
@@ -176,7 +179,12 @@ export function PayrollRun() {
       // unpaid leave, verified investment declarations (for TDS), and
       // computes real PF/ESIC/PT/TDS via the compliance engine.
       const daysInMonth = new Date(Number(selectedYear), monthIndex + 1, 0).getDate();
-      const totalWorkingDays = 26; // matches PayrollContext.processPayroll()'s own default/convention
+      // Real, confirmed fix: this previously used a fixed 26 regardless
+      // of the actual month - now reflects the genuine number of real
+      // working days (excludes real Sundays and every real public
+      // holiday in this specific month, from the shared calendar).
+      const monthHolidayDates = publicHolidays.filter((h: any) => h.date.startsWith(monthStr)).map((h: any) => h.date);
+      const totalWorkingDays = getRealWorkingDaysInMonth(Number(selectedYear), monthIndex + 1, monthHolidayDates);
       const financialYearStart = monthIndex >= 3 ? Number(selectedYear) : Number(selectedYear) - 1;
       const financialYear = `${financialYearStart}-${String((financialYearStart + 1) % 100).padStart(2, "0")}`;
       const periodStart = `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-01`;
@@ -246,6 +254,26 @@ export function PayrollRun() {
         const attendanceFactor = (hasAttendanceData && daysWorked < totalWorkingDays) ? daysWorked / totalWorkingDays : 1;
         const adjustedGross = hasAttendanceData ? Math.round(components.monthlyGross * attendanceFactor) : components.monthlyGross;
 
+        // Real, confirmed policy: working a real public holiday pays 2x
+        // the real per-day rate (gross ÷ real working days this month).
+        // If that same date was also this employee's genuine day off per
+        // the real duty roster, they additionally earn one real comp-off.
+        const perDayRate = totalWorkingDays > 0 ? components.monthlyGross / totalWorkingDays : 0;
+        let holidayPay = 0;
+        publicHolidays
+          .filter((h: any) => h.date >= periodStart && h.date <= periodEnd)
+          .forEach((h: any) => {
+            const { workedOnHoliday, earnsCompOff } = checkHolidayWork(
+              emp.employeeId, emp.fullName || emp.name || "Employee", h.date, empCityId, attendanceRecords
+            );
+            if (workedOnHoliday) {
+              holidayPay += perDayRate * 2;
+              if (earnsCompOff) {
+                grantCompOff(emp.employeeId, emp.fullName || emp.name || "Employee", h.date);
+              }
+            }
+          });
+
         processPayroll({
           employeeId: emp.employeeId,
           month: monthStr,
@@ -254,7 +282,7 @@ export function PayrollRun() {
           stateCode: state,
           baseSalary: components.basic,
           incentiveAmount: 0, // Not yet wired to a real incentive ledger — see audit note
-          addOnEarnings: 0,
+          addOnEarnings: Math.round(holidayPay),
           allowances: components.hra + components.conveyance + components.medical + components.specialAllowance,
           grossSalary: components.monthlyGross,
           pf: compliance.deductions.pf.employee,
@@ -266,7 +294,7 @@ export function PayrollRun() {
           totalDeductions,
           daysWorked,
           totalDays: totalWorkingDays,
-          netSalary: adjustedGross - totalDeductions,
+          netSalary: adjustedGross + Math.round(holidayPay) - totalDeductions,
           status: "draft",
           createdBy: currentUser?.name || "Payroll Run",
         });

@@ -20,6 +20,7 @@ const HRModule = lazy(() => import("./components/modules/HRModule"));
 const ProfessionalLeaveManagement = lazy(() => import("./components/hr/ProfessionalLeaveManagement"));
 const StatutoryFormsOnboarding = lazy(() => import("./components/hr/StatutoryFormsOnboarding"));
 const TravelReimbursementModule = lazy(() => import("./components/travel/TravelReimbursementModule"));
+const ShiftRosterManager = lazy(() => import("./components/hr/ShiftRosterManager").then(m => ({ default: m.ShiftRosterManager })));
 const AttendanceRegularizationModule = lazy(() => import("./components/hr/AttendanceRegularizationModule"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
@@ -603,6 +604,7 @@ export const router = createBrowserRouter([
       { path: "advance/adjustments-report", element: <AdjustmentsReport /> },
       // Travel Reimbursement
       { path: "travel", element: <TravelReimbursementModule /> },
+      { path: "hr/duty-roster", element: <ShiftRosterManager /> },
       { path: "attendance/regularization", element: <AttendanceRegularizationModule /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },

@@ -12,7 +12,7 @@
  */
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { DataService } from "../services/DataService";
+import { DataService } from "../../services/DataService";
 
 // ========== TYPES ==========
 
