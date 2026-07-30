@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import {
   performanceManagementService,
   RATING_LABELS,
   type GoalCategory, type RatingValue, type GoalRating,
 } from "../../services/performanceManagementService";
+import { generateGoalsFromKraAssignment } from "../../services/kraGoalsBridge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -27,10 +28,19 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function GoalsAndSelfAppraisalView() {
-  const { currentUser } = useRole();
+  const { currentUser, currentRole } = useRole();
   const [refresh, setRefresh] = useState(0);
 
   const cycle = useMemo(() => performanceManagementService.getActiveCycle(), [refresh]);
+
+  // Real, confirmed merge - if this employee has a real, active KRA
+  // structure, generate real, measured KPI-category goals from it.
+  // Idempotent - safe to run every time this screen loads.
+  useEffect(() => {
+    if (!cycle || !currentUser?.employeeId || !currentRole) return;
+    const { created } = generateGoalsFromKraAssignment(currentUser.employeeId, currentUser.name, currentRole, cycle.id);
+    if (created > 0) setRefresh((r) => r + 1);
+  }, [cycle, currentUser?.employeeId, currentUser?.name, currentRole]);
 
   // ── Goal form state ──
   const [title, setTitle] = useState("");
