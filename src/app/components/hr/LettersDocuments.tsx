@@ -4,10 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { BackButton } from "../ui/back-button";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
-import { FileText, FileCheck, UserCheck, Info, X } from "lucide-react";
+import { FileText, FileCheck, UserCheck, Info, X, Settings } from "lucide-react";
 import { OfferLetterGenerator } from "./OfferLetterGenerator";
 import { AppointmentLetterGenerator } from "./AppointmentLetterGenerator";
 import { ConfirmationLetterSystem } from "./ConfirmationLetterSystem";
+import { LetterTemplateSettings } from "./LetterTemplateSettings";
 
 const INFO_BANNER_DISMISSED_KEY = "letters_documents_info_banner_dismissed";
 
@@ -74,6 +75,10 @@ export function LettersDocuments() {
             <UserCheck className="w-4 h-4 mr-2" />
             Confirmation Letter
           </TabsTrigger>
+          <TabsTrigger value="templates">
+            <Settings className="w-4 h-4 mr-2" />
+            Templates
+          </TabsTrigger>
         </TabsList>
 
         {/* UNIFIED OFFER LETTER SYSTEM */}
@@ -89,6 +94,11 @@ export function LettersDocuments() {
         {/* CONFIRMATION LETTER SYSTEM */}
         <TabsContent value="confirmation" className="space-y-6">
           <ConfirmationLetterSystem />
+        </TabsContent>
+
+        {/* REAL LETTERHEAD & TEMPLATE SETTINGS */}
+        <TabsContent value="templates" className="space-y-6">
+          <LetterTemplateSettings />
         </TabsContent>
       </Tabs>
     </div>

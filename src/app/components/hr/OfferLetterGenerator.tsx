@@ -42,6 +42,7 @@ import type { SalaryStructure, SalaryComponents } from "../../services/salaryStr
 import { SalaryStructureSelector } from "./SalaryStructureSelector";
 import { useRole } from "../../contexts/RoleContext";
 import { buildOfferLetterDefaults } from "../../config/offerLetterPolicyConfig";
+import { getLetterheadImage, computeLeaveEntitlementText } from "../../services/letterTemplateService";
 
 type OfferStatus = "Draft" | "Sent" | "Accepted" | "Rejected";
 type OfferLetter = OfferLetterRecord;
@@ -65,7 +66,6 @@ const initialOffers: OfferLetter[] = [
     salaryComponents: calculateCTCFromGross(13600), // Using GROSS = 13,600
     dateOfJoining: "2026-03-15",
     probationPeriod: "3 months",
-    workingHours: "9:00 AM – 6:00 PM, 6 days/week",
     leaveEntitlement: "CL: 12/year, SL: 6/year, EL: 15/year (after 1 year)",
     issueDate: "2026-03-15",
     acceptanceDeadline: "2026-03-22",
@@ -88,7 +88,6 @@ const initialOffers: OfferLetter[] = [
     salaryComponents: calculateCTCFromGross(20000), // Using GROSS = 20,000
     dateOfJoining: "2026-03-14",
     probationPeriod: "3 months",
-    workingHours: "9:00 AM – 6:00 PM, 6 days/week",
     leaveEntitlement: "CL: 12/year, SL: 6/year, EL: 15/year (after 1 year)",
     issueDate: "2026-03-14",
     acceptanceDeadline: "2026-03-21",
@@ -252,12 +251,11 @@ export function OfferLetterGenerator() {
       salaryStructureId: selectedStructure.id,
       dateOfJoining: employee.dateOfJoining,
       probationPeriod: employee.probationPeriod,
-      workingHours: "9:00 AM – 6:00 PM, 6 days/week",
-      leaveEntitlement: "CL: 12/year, SL: 6/year, EL: 15/year (after 1 year)",
+      leaveEntitlement: computeLeaveEntitlementText(),
       issueDate: today,
       acceptanceDeadline: acceptanceDeadline,
       status: "Draft",
-      ...buildOfferLetterDefaults(employee.designation, employee.department, employee.workLocation || "Surat"),
+      ...buildOfferLetterDefaults(employee.designation, employee.department, employee.workLocation || "Surat", employee.probationPeriod),
     };
 
     offerLetterService.add(newOffer as any);
@@ -830,14 +828,8 @@ export function OfferLetterGenerator() {
             </CardHeader>
             <CardContent className="p-8">
               <div className="bg-white p-8 border border-gray-300">
-                {/* Letterhead */}
-                <div className="border-b-2 border-blue-600 pb-4 mb-6">
-                  <h1 className="text-2xl font-bold text-blue-600">{selectedOffer.companyName}</h1>
-                  <p className="text-sm text-gray-600 mt-1">Professional Car Care | Subscription-Based Home Wash</p>
-                  <p className="text-xs text-gray-500">
-                    Mobile: {selectedOffer.companyPhone} | Email: {selectedOffer.companyEmail}
-                  </p>
-                </div>
+                {/* Real, dynamic letterhead - reflects whatever HR most recently uploaded */}
+                <img src={getLetterheadImage()} alt="Company letterhead" className="w-full mb-6" />
 
                 {/* Date */}
                 <div className="text-right text-sm text-gray-700 mb-6">

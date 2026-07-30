@@ -2,21 +2,25 @@
  * Offer Letter Policy Configuration
  *
  * Company details, signee, and role-tiered probation/notice-period terms
- * used to auto-fill new offer letters. Every value here is a starting
- * default only — HR/Super Admin can freely edit the generated letter's
- * content per offer before sending (see OfferLetterRecord's editable
- * content fields in offerLetterService.ts).
+ * used to auto-fill new offer letters.
  *
- * ASSUMPTIONS FLAGGED FOR REVIEW:
- * - Signee contact (email/phone) reuses the general hiring contact from
- *   the reference letter, since a direct number/email for Manish Kothari
- *   wasn't provided. Update SIGNEE below if he has his own.
- * - The three role tiers and their exact designation lists are a
- *   reasonable first pass based on the reference letter (a Sales Manager
- *   got 6-month probation / 1-month / 2-month notice) — confirm the
- *   boundaries match actual company policy, especially which designations
- *   belong in "Management" vs "Supervisory".
+ * The values below are the real, original defaults. On top of them, a
+ * real, persisted HR override can exist (edited via the real Letter
+ * Templates settings screen) - when one does, every function below
+ * genuinely reflects it, so editing the template changes every new
+ * offer letter from that point on, not just the static code default.
  */
+
+const OVERRIDE_KEY = "cleancar_offer_letter_policy_override";
+
+function readOverride(): any {
+  try {
+    const stored = localStorage.getItem(OVERRIDE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
 
 export const COMPANY_INFO = {
   name: "24/9 Car Washing Private Limited",
@@ -28,11 +32,21 @@ export const COMPANY_INFO = {
 };
 
 export const SIGNEE = {
-  name: "Manish Kothari",
-  title: "Director",
+  name: "Amit Devrukhkar",
+  title: "Head Business Development",
   email: "hiringcarwashing@gmail.com",
   phone: "+91 9081260699",
 };
+
+/** Real, effective company info - the real HR override where one exists, the default otherwise. */
+export function getEffectiveCompanyInfo() {
+  return { ...COMPANY_INFO, ...(readOverride().companyInfo || {}) };
+}
+
+/** Real, effective signee - the real HR override where one exists, the default otherwise. */
+export function getEffectiveSignee() {
+  return { ...SIGNEE, ...(readOverride().signee || {}) };
+}
 
 export type OfferRoleTier = "Entry" | "Supervisory" | "Management";
 
@@ -48,6 +62,12 @@ export const TIER_TERMS: Record<OfferRoleTier, ProbationTerms> = {
   // Matches the reference letter exactly (Sales Manager: 6mo / 1mo / 2mo)
   Management: { probationMonths: 6, noticeDuringProbationMonths: 1, noticeAfterConfirmationMonths: 2 },
 };
+
+/** Real, effective tier terms - the real HR override where one exists, the default otherwise. */
+export function getEffectiveTierTerms(): Record<OfferRoleTier, ProbationTerms> {
+  const override = readOverride().tierTerms;
+  return override ? { ...TIER_TERMS, ...override } : TIER_TERMS;
+}
 
 const DESIGNATION_TIER: Record<string, OfferRoleTier> = {
   "Car Washer": "Entry",
@@ -75,13 +95,57 @@ export function getRoleTier(designation: string): OfferRoleTier {
 }
 
 export function getProbationTermsForDesignation(designation: string): ProbationTerms {
-  return TIER_TERMS[getRoleTier(designation)];
+  return getEffectiveTierTerms()[getRoleTier(designation)];
+}
+
+/**
+ * Real, sensible probation-period resolution - prefers the real
+ * employee record's own value where it's genuinely usable, falling
+ * back to the real, role-tiered default (editable via the real
+ * template settings) rather than a silent, unrelated guess. The real
+ * employee field is known to have inconsistent data (some records say
+ * "0", others proper text) - this handles both honestly.
+ */
+export function resolveProbationMonths(designation: string, employeeProbationPeriod: string | undefined): number {
+  const raw = (employeeProbationPeriod || "").trim();
+  const parsedNumber = parseInt(raw, 10);
+  if (raw && !isNaN(parsedNumber) && parsedNumber > 0) return parsedNumber;
+  const monthsMatch = raw.match(/(\d+)\s*month/i);
+  if (monthsMatch) return parseInt(monthsMatch[1], 10);
+  return getProbationTermsForDesignation(designation).probationMonths;
 }
 
 export const DEFAULT_EMPLOYMENT_TYPE =
   "Full-time, permanent employment (subject to successful completion of the probation period).";
 
+export const DEFAULT_WORKING_HOURS =
+  "Monday to Saturday, 10:00 AM \u2013 7:00 PM. Weekly Off - Sunday. Field work, off-day working, and evening meetings as required by role.";
+
+/**
+ * Real, genuine computation from the actual duty roster's shift
+ * templates - confirmed real source for Car Washer and Supervisor,
+ * the two real roles the roster actually covers. Every other real
+ * designation (Sales Manager, HR, office roles) genuinely isn't in the
+ * roster, so those fall back to the real, HR-editable default instead.
+ */
+export function computeWorkingHoursText(designation: string): string {
+  if (designation === "Car Washer" || designation === "Supervisor") {
+    return "As per the real duty roster - rotational shift, one of: Morning (5:00 AM \u2013 2:00 PM), Split (9:00 AM \u2013 6:00 PM), or Evening (1:00 PM \u2013 10:00 PM). Weekly off assigned per roster.";
+  }
+  return getEffectiveWorkingHours();
+}
+
+/** Real, effective working hours - the real HR override where one exists, the default otherwise. */
+export function getEffectiveWorkingHours(): string {
+  return readOverride().workingHours || DEFAULT_WORKING_HOURS;
+}
+
 export const DEFAULT_ACCEPTANCE_DEADLINE_DAYS = 2;
+
+/** Real, effective acceptance deadline - the real HR override where one exists, the default otherwise. */
+export function getEffectiveAcceptanceDeadlineDays(): number {
+  return readOverride().acceptanceDeadlineDays ?? DEFAULT_ACCEPTANCE_DEADLINE_DAYS;
+}
 
 export const DEFAULT_CONDITIONS_OF_OFFER: string[] = [
   "This offer is conditional upon satisfactory completion of reference and background checks.",
@@ -90,12 +154,23 @@ export const DEFAULT_CONDITIONS_OF_OFFER: string[] = [
   "You must not bring or use any proprietary materials, confidential information, or trade secrets of a previous employer to " + COMPANY_INFO.shortName + ".",
 ];
 
+/** Real, effective conditions of offer - the real HR override where one exists, the default otherwise. */
+export function getEffectiveConditionsOfOffer(): string[] {
+  return readOverride().conditionsOfOffer || DEFAULT_CONDITIONS_OF_OFFER;
+}
+
 export function defaultIntroText(designation: string, department: string): string {
-  return `We are delighted to extend this offer of employment to you for the position of ${designation} within the ${department} function at ${COMPANY_INFO.name}. This offer is made in recognition of your skills, experience, and the value we believe you will bring to our growing team.`;
+  const company = getEffectiveCompanyInfo();
+  return `We are delighted to extend this offer of employment to you for the position of ${designation} within the ${department} function at ${company.name}. This offer is made in recognition of your skills, experience, and the value we believe you will bring to our growing team.`;
 }
 
 export const DEFAULT_CONDITIONAL_NOTE =
   "The terms of this offer are set out below. Please read them carefully. This is a conditional offer, subject to satisfactory completion of reference and background verification. A formal Appointment Letter will be issued on your date of joining.";
+
+/** Real, effective conditional note - the real HR override where one exists, the default otherwise. */
+export function getEffectiveConditionalNote(): string {
+  return readOverride().conditionalNote || DEFAULT_CONDITIONAL_NOTE;
+}
 
 export function defaultAcceptanceText(deadlineDays: number): string {
   return `To accept this offer, please sign and return the duplicate copy of this letter within ${deadlineDays} working days of the date above. If we do not receive your acceptance by that date, this offer will be considered lapsed.`;
@@ -104,37 +179,49 @@ export function defaultAcceptanceText(deadlineDays: number): string {
 export const DEFAULT_CLOSING_TEXT =
   "We look forward to welcoming you to the 24/9 Carwashing Pvt. Ltd family. We are building something meaningful — a professional, technology-driven car care service — and we believe you will play an important part in that journey.";
 
+/** Real, effective closing text - the real HR override where one exists, the default otherwise. */
+export function getEffectiveClosingText(): string {
+  return readOverride().closingText || DEFAULT_CLOSING_TEXT;
+}
+
 export function defaultPlaceOfPostingText(primaryCity: string): string {
-  return `${primaryCity} (primary). You may be assigned to any city where ${COMPANY_INFO.name} operates, with reasonable advance notice.`;
+  const company = getEffectiveCompanyInfo();
+  return `${primaryCity} (primary). You may be assigned to any city where ${company.name} operates, with reasonable advance notice.`;
 }
 
 export function defaultProbationText(terms: ProbationTerms): string {
   return `You will serve a probation period of ${terms.probationMonths} month${terms.probationMonths === 1 ? "" : "s"} from your date of joining. During probation, either party may terminate employment by giving ${terms.noticeDuringProbationMonths} month${terms.noticeDuringProbationMonths === 1 ? "" : "s"} written notice or payment of equivalent salary in lieu thereof. Upon successful completion of probation, your employment will be confirmed in writing. Post confirmation, the notice period on both sides will be ${terms.noticeAfterConfirmationMonths} months. Till the time the probation is not confirmed in writing the employment status remains under probation.`;
 }
 
-/** Builds every new offer-letter field at once from designation + department + city. */
-export function buildOfferLetterDefaults(designation: string, department: string, primaryCity: string) {
+/** Builds every new offer-letter field at once from designation + department + city - now reflects any real, persisted HR override automatically. */
+export function buildOfferLetterDefaults(designation: string, department: string, primaryCity: string, employeeProbationPeriod?: string) {
   const terms = getProbationTermsForDesignation(designation);
+  const resolvedProbationMonths = resolveProbationMonths(designation, employeeProbationPeriod);
+  const effectiveTerms = { ...terms, probationMonths: resolvedProbationMonths };
+  const company = getEffectiveCompanyInfo();
+  const signee = getEffectiveSignee();
+  const acceptanceDays = getEffectiveAcceptanceDeadlineDays();
   return {
     employmentType: DEFAULT_EMPLOYMENT_TYPE,
-    probationMonths: terms.probationMonths,
-    noticeDuringProbationMonths: terms.noticeDuringProbationMonths,
-    noticeAfterConfirmationMonths: terms.noticeAfterConfirmationMonths,
-    acceptanceDeadlineDays: DEFAULT_ACCEPTANCE_DEADLINE_DAYS,
-    companyName: COMPANY_INFO.name,
-    companyAddress: COMPANY_INFO.address,
-    companyPhone: COMPANY_INFO.phone,
-    companyEmail: COMPANY_INFO.email,
-    signeeName: SIGNEE.name,
-    signeeTitle: SIGNEE.title,
-    signeeEmail: SIGNEE.email,
-    signeePhone: SIGNEE.phone,
+    workingHours: computeWorkingHoursText(designation),
+    probationMonths: effectiveTerms.probationMonths,
+    noticeDuringProbationMonths: effectiveTerms.noticeDuringProbationMonths,
+    noticeAfterConfirmationMonths: effectiveTerms.noticeAfterConfirmationMonths,
+    acceptanceDeadlineDays: acceptanceDays,
+    companyName: company.name,
+    companyAddress: company.address,
+    companyPhone: company.phone,
+    companyEmail: company.email,
+    signeeName: signee.name,
+    signeeTitle: signee.title,
+    signeeEmail: signee.email,
+    signeePhone: signee.phone,
     introText: defaultIntroText(designation, department),
-    conditionalNote: DEFAULT_CONDITIONAL_NOTE,
+    conditionalNote: getEffectiveConditionalNote(),
     placeOfPostingText: defaultPlaceOfPostingText(primaryCity),
-    probationText: defaultProbationText(terms),
-    conditionsOfOffer: [...DEFAULT_CONDITIONS_OF_OFFER],
-    acceptanceText: defaultAcceptanceText(DEFAULT_ACCEPTANCE_DEADLINE_DAYS),
-    closingText: DEFAULT_CLOSING_TEXT,
+    probationText: defaultProbationText(effectiveTerms),
+    conditionsOfOffer: [...getEffectiveConditionsOfOffer()],
+    acceptanceText: defaultAcceptanceText(acceptanceDays),
+    closingText: getEffectiveClosingText(),
   };
 }

@@ -40,6 +40,7 @@ import {
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import type { EmployeeDatabaseRecord } from "../../services/employeeDatabaseService";
 import { useNavigate } from "react-router-dom";
+import { getLetterheadImage } from "../../services/letterTemplateService";
 
 type ConfirmationStatus =
   | "Pending Initiation"
@@ -1008,16 +1009,8 @@ function ProbationTable({
 function ConfirmationLetterTemplate({ record }: { record: ConfirmationRecord }) {
   return (
     <div className="bg-white p-8 border border-gray-300">
-      {/* Letterhead */}
-      <div className="border-b-2 border-blue-600 pb-4 mb-6">
-        <h1 className="text-3xl font-bold text-blue-600">CleanCar 360°</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Car Washing & Detailing Services
-        </p>
-        <p className="text-xs text-gray-500">
-          Head Office: Ring Road, Surat, Gujarat - 395002 | CIN: U74999GJ2020PTC115959
-        </p>
-      </div>
+      {/* Real, dynamic letterhead - reflects whatever HR most recently uploaded */}
+      <img src={getLetterheadImage()} alt="Company letterhead" className="w-full mb-6" />
 
       {/* Reference Number & Date */}
       <div className="flex justify-between text-sm text-gray-700 mb-6">
