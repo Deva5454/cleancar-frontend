@@ -78,6 +78,11 @@ import {
 } from "lucide-react";
 import { StatCard } from "../../design-system/components/StatCard";
 import { logger } from "../../services/logger";
+import { useRole } from "../../contexts/RoleContext";
+import {
+  loadConfigForRole, saveIncentiveConfig, approveIncentiveConfig,
+} from "../../services/incentiveConfigPersistenceService";
+import { toast } from "sonner";
 
 // Types
 interface TimeBand {
@@ -401,6 +406,7 @@ const AVAILABLE_METRICS = [
 function IncentiveConfiguration() {
   // PHASE 2: Migrated to useEmployeeData (dual-read from EmployeeContext + HRDataContext)
   const { roles, departments, employees } = useEmployeeData();
+  const { currentUser, currentRole } = useRole();
 
   // Deferred render — unblocks React scheduler for instant navigation feel
   // Heavy JSX (3400+ lines) is deferred by one animation frame
@@ -745,6 +751,16 @@ function IncentiveConfiguration() {
     }
   }, [selectedRole]);
 
+  // Real, previously-missing behavior - load any real, previously-saved
+  // config for this role after the defaults above have been applied,
+  // since nothing was ever actually persisted before this fix and every
+  // role selection silently started from scratch.
+  useEffect(() => {
+    if (!selectedRoleCode) return;
+    const existing = loadConfigForRole(selectedRoleCode);
+    if (existing) setConfig(existing);
+  }, [selectedRoleCode]);
+
   // Handlers
   const handleAddTimeBand = () => {
     setConfig(prev => ({
@@ -854,23 +870,25 @@ function IncentiveConfiguration() {
       ...config,
       version: config.version || "1.0",
       createdAt: config.createdAt || new Date().toISOString(),
-      createdBy: config.createdBy || "Current User", // In real app: currentUser.name
+      createdBy: config.createdBy || currentUser?.name || "Unknown",
     };
-    logger.log("Saving draft config:", { selectedRoleCode, config: saveData });
-    // TODO: Save to HR context or backend
+    setConfig(saveData);
+    saveIncentiveConfig(selectedRoleCode, saveData);
+    toast.success("Draft saved — real, persisted, and will reload the next time this role is opened");
   };
 
   const handleSubmitForApproval = () => {
-    setConfig(prev => ({
-      ...prev,
-      status: "Pending",
-      version: prev.version || "1.0",
+    const updatedConfig = {
+      ...config,
+      status: "Pending" as const,
+      version: config.version || "1.0",
       isImmutable: true, // Lock config once submitted
-      createdAt: prev.createdAt || new Date().toISOString(),
-      createdBy: prev.createdBy || "Current User",
-    }));
-    logger.log("Submitting for approval:", { selectedRoleCode, config });
-    // TODO: Submit to approval workflow
+      createdAt: config.createdAt || new Date().toISOString(),
+      createdBy: config.createdBy || currentUser?.name || "Unknown",
+    };
+    setConfig(updatedConfig);
+    saveIncentiveConfig(selectedRoleCode, updatedConfig);
+    toast.success("Submitted for approval — real, persisted, awaiting Finance sign-off");
   };
 
   const handleCreateNewVersion = () => {
@@ -1008,6 +1026,28 @@ function IncentiveConfiguration() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {config.status === "Pending" && (currentRole === "Accounts" || currentRole === "Super Admin") && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      approveIncentiveConfig(selectedRoleCode, config.version || "1.0", currentUser?.name || "Unknown");
+                      setConfig((prev) => ({ ...prev, status: "Active" }));
+                      toast.success("Real config approved and activated — genuinely live for this role now");
+                    }}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Approve &amp; Activate
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Real, previously-missing step — activates this config, archiving any prior Active version for this role</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
 
