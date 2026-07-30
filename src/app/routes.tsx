@@ -22,6 +22,7 @@ const StatutoryFormsOnboarding = lazy(() => import("./components/hr/StatutoryFor
 const TravelReimbursementModule = lazy(() => import("./components/travel/TravelReimbursementModule"));
 const ShiftRosterManager = lazy(() => import("./components/hr/ShiftRosterManager").then(m => ({ default: m.ShiftRosterManager })));
 const AttendanceRegularizationModule = lazy(() => import("./components/hr/AttendanceRegularizationModule"));
+const WasherKraDashboard = lazy(() => import("./components/incentives/WasherKraDashboard"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const PerformanceManagementModule = lazy(() => import("./components/hr/PerformanceManagementModule"));
@@ -606,6 +607,7 @@ export const router = createBrowserRouter([
       { path: "travel", element: <TravelReimbursementModule /> },
       { path: "hr/duty-roster", element: <ShiftRosterManager /> },
       { path: "attendance/regularization", element: <AttendanceRegularizationModule /> },
+      { path: "incentives/washer-kra", element: <WasherKraDashboard /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
       { path: "performance-management", element: <PerformanceManagementModule /> },

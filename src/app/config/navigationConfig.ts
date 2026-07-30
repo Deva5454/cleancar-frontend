@@ -221,6 +221,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Travel Reimbursement", path: "/travel",        icon: Car,        module: "hr", match: "prefix" },
       { label: "Duty Roster", path: "/hr/duty-roster",        icon: Calendar,   module: "hr", match: "prefix" },
       { label: "Attendance Regularization", path: "/attendance/regularization", icon: Clock, module: "hr", match: "prefix" },
+      { label: "Washer KRA Scorecard", path: "/incentives/washer-kra", icon: Target, module: "hr", match: "prefix" },
       { label: "Field Tracker",        path: "/field-tracker", icon: Navigation,  module: "hr", match: "prefix" },
       { label: "Other Earnings", path: "/advance/other-earnings", icon: PlusCircle, module: "hr", match: "prefix" },
       { label: "Other Deductions", path: "/advance/other-deductions", icon: MinusCircle, module: "hr", match: "prefix" },
