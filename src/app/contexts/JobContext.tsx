@@ -575,32 +575,17 @@ export function JobProvider({ children }: { children: ReactNode }) {
           const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
             .filter((s: any) => s.status === "Active");
           const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
-          // Real fix: a washer is only excluded from tomorrow's jobs if
-          // they're genuinely marked absent in the real roster for that
-          // specific date - checked against AttendanceContext's real data,
-          // the only real source of attendance per its own code comment.
-          // Jobs are generated every day, including Sundays/holidays -
-          // there is no real day-of-week exception for monthly subscriptions.
-          const attendanceRecords: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || localStorage.getItem("cleancar_attendance_records") || "[]");
-          const unavailableStatuses = ["Absent", "Leave", "Week Off"];
-          const isWasherAvailable = (washerId: string, dateStr: string): boolean => {
-            const record = attendanceRecords.find((a: any) => a.employeeId === washerId && a.date === dateStr);
-            return !record || !unavailableStatuses.includes(record.status);
-          };
-          const washers: any[] = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]")
-            .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR") && isWasherAvailable(e.id, tomorrowStr));
+          // Real, confirmed policy - jobs are generated every day,
+          // including Sundays/holidays, with no day-of-week exception
+          // for monthly subscriptions. Real washer availability (both
+          // attendance and real duty-roster awareness) is handled by
+          // the real, existing SupervisorJobQueue screen at the point
+          // the supervisor actually assigns a washer - confirmed that
+          // screen's jobRoutingService.isWasherEligibleForJob() already
+          // checks the real shiftRosterService, so duplicating an
+          // availability check here would only risk a second,
+          // inconsistent version.
           const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
-
-          // Build pincodeâ†’washer map for round-robin assignment
-          const washerByPin: Record<string, any[]> = {};
-          washers.forEach((w: any) => {
-            (w.pinCodes || ["395001"]).forEach((pin: string) => {
-              const p = pin.replace("PIN-", "");
-              if (!washerByPin[p]) washerByPin[p] = [];
-              washerByPin[p].push(w);
-            });
-          });
-          const washerIdx: Record<string, number> = {};
 
           const PKG_MAP: Record<string, string> = {
             Basic: "EXPRESS_WASH", SHINE: "EXPRESS_WASH",
@@ -616,29 +601,24 @@ export function JobProvider({ children }: { children: ReactNode }) {
               .map((j: any) => j.subscriptionId)
           );
 
+          const slotIdxByPin: Record<string, number> = {};
           const newJobs: any[] = [];
           activeSubs.forEach((sub: any, i: number) => {
             if (existingSubIds.has(sub.subscriptionId)) return; // already have tomorrow's job
             const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
             const pin = (cust.pinCode || "395001").replace("PIN-", "");
-            const available = washerByPin[pin] || washerByPin["395001"] || washers;
-            if (!available || available.length === 0) return;
-
-            const idx = washerIdx[pin] || 0;
-            const washer = available[idx % available.length];
-            washerIdx[pin] = idx + 1;
 
             const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
-            const slotIdx = (washerIdx[pin] - 1) % SLOTS.length;
+            const slotIdx = (slotIdxByPin[pin] || 0) % SLOTS.length;
+            slotIdxByPin[pin] = (slotIdxByPin[pin] || 0) + 1;
 
             newJobs.push({
               jobId: `JOB-${tomorrowStr}-${String(i).padStart(4, "0")}`,
               customerId: sub.customerId,
               subscriptionId: sub.subscriptionId,
-              washerId: washer.id,
               scheduledDate: tomorrowStr,
               timeSlot: SLOTS[slotIdx],
-              status: "Assigned", // Auto-assigned by pincode — washer sees immediately
+              status: "Unassigned", // Real, confirmed requirement - routes to supervisor, matching the established pattern for every other real job-creation path in this app
               jobType: "Regular",
               packageName: pkgType,
               packageType: pkgType,
@@ -681,61 +661,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
               supNotifs.unshift({
                 id: `NOTIF-JOBS-${tomorrowStr}`,
                 type: "JOBS_SEEDED",
-                title: `${newJobs.length} jobs assigned for tomorrow`,
-                body: `${tomorrowStr} — All active subscription customers assigned to their washers`,
+                title: `${newJobs.length} jobs need washer assignment for tomorrow`,
+                body: `${tomorrowStr} — ${newJobs.length} active subscription job(s) created and awaiting washer assignment`,
                 date: tomorrowStr,
                 jobCount: newJobs.length,
-                washerSummary: washers.map((w: any) => ({
-                  name: w.fullName || w.firstName,
-                  count: newJobs.filter((j: any) => j.washerId === w.id).length,
-                })).filter((w: any) => w.count > 0),
                 read: false,
                 createdAt: new Date().toISOString(),
               });
               localStorage.setItem(supNotifKey, JSON.stringify(supNotifs.slice(0, 30)));
             } catch(_) {}
-
-            // ── Per-washer notifications ──────────────────────────────────
-            washers.forEach((w: any) => {
-              try {
-                const myJobs = newJobs.filter((j: any) => j.washerId === w.id);
-                if (myJobs.length === 0) return;
-                const washerNotifKey = `WASHER_NOTIFICATIONS_${w.id}`;
-                const washerNotifs = JSON.parse(localStorage.getItem(washerNotifKey) || "[]");
-                washerNotifs.unshift({
-                  id: `NOTIF-${w.id}-${tomorrowStr}`,
-                  type: "JOBS_ASSIGNED",
-                  title: `${myJobs.length} jobs scheduled for tomorrow`,
-                  body: `${tomorrowStr} — Your wash schedule is ready. First job at ${myJobs[0]?.timeSlot || "05:00 AM"}.`,
-                  date: tomorrowStr,
-                  jobs: myJobs.map((j: any) => ({
-                    jobId: j.jobId,
-                    customerName: j.customerName,
-                    timeSlot: j.timeSlot,
-                    packageType: j.packageType,
-                    area: j.location?.area,
-                  })),
-                  read: false,
-                  createdAt: new Date().toISOString(),
-                });
-                localStorage.setItem(washerNotifKey, JSON.stringify(washerNotifs.slice(0, 50)));
-              } catch(_) {}
-            });
-
-            // ── WhatsApp to each washer ───────────────────────────────────
-            import("../services/whatsappService").then(ws => {
-              washers.forEach((w: any) => {
-                const myJobs = newJobs.filter((j: any) => j.washerId === w.id);
-                if (myJobs.length === 0 || !w.mobile) return;
-                const jobList = myJobs.slice(0, 5).map((j: any) =>
-                  `${j.timeSlot} — ${j.customerName} (${(j.packageType||"").replace(/_/g," ")})`
-                ).join("\n");
-                const msg = `Hi ${w.fullName || w.firstName},\n\nTomorrow's schedule (${tomorrowStr}):\n${jobList}${myJobs.length > 5 ? `\n...and ${myJobs.length - 5} more` : ""}\n\nPlease check your app for full details.\n\n— 249 Carwashing`;
-                try {
-                  (ws as any).sendWhatsApp(w.mobile, msg);
-                } catch(_) {}
-              });
-            }).catch(() => {});
           }
         }
       } catch(e) { console.warn("[Scheduler] Job seeder error:", e); }
@@ -789,22 +723,12 @@ export function JobProvider({ children }: { children: ReactNode }) {
         const catchUpKey = `cc360_catchup_seeded_${todayCatchUp}`;
         if (localStorage.getItem(catchUpKey)) return;
         const allJobsToday = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]")
-          .filter((j: any) => j.scheduledDate === todayCatchUp && j.status === "Assigned");
+          .filter((j: any) => j.scheduledDate === todayCatchUp);
         if (allJobsToday.length > 0) return; // Jobs exist — no catch-up needed
 
         const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
           .filter((s: any) => s.status === "Active");
         const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
-        // Real fix: same real attendance check as the nightly seeder -
-        // a washer is only excluded if genuinely marked absent for today.
-        const attendanceRecordsCatchUp: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || localStorage.getItem("cleancar_attendance_records") || "[]");
-        const unavailableStatusesCatchUp = ["Absent", "Leave", "Week Off"];
-        const isWasherAvailableCatchUp = (washerId: string, dateStr: string): boolean => {
-          const record = attendanceRecordsCatchUp.find((a: any) => a.employeeId === washerId && a.date === dateStr);
-          return !record || !unavailableStatusesCatchUp.includes(record.status);
-        };
-        const washers: any[] = JSON.parse(localStorage.getItem("EMPLOYEE_DATABASE_RECORDS") || "[]")
-          .filter((e: any) => e.designation === "Car Washer" && e.id.includes("SUR") && isWasherAvailableCatchUp(e.id, todayCatchUp));
         const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
         const existingSubIds = new Set(existingJobs.filter((j: any) => j.scheduledDate === todayCatchUp).map((j: any) => j.subscriptionId));
 
@@ -813,33 +737,22 @@ export function JobProvider({ children }: { children: ReactNode }) {
           Premium:"ELITE_WASH",ELITE:"ELITE_WASH",EXPRESS_WASH:"EXPRESS_WASH",SMART_WASH:"SMART_WASH",ELITE_WASH:"ELITE_WASH",
         };
         const SLOTS = ["05:00 AM","05:30 AM","06:00 AM","06:30 AM","07:00 AM","07:30 AM","08:00 AM","08:30 AM"];
-        const washerByPin: Record<string, any[]> = {};
-        washers.forEach((w: any) => {
-          (w.pinCodes || ["395001"]).forEach((pin: string) => {
-            const p = pin.replace("PIN-","");
-            if (!washerByPin[p]) washerByPin[p] = [];
-            washerByPin[p].push(w);
-          });
-        });
-        const washerIdx: Record<string, number> = {};
+        const slotIdxByPinCatchUp: Record<string, number> = {};
         const catchUpJobs: any[] = [];
 
         activeSubs.forEach((sub: any, i: number) => {
           if (existingSubIds.has(sub.subscriptionId)) return;
           const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
           const pin = (cust.pinCode || "395001").replace("PIN-","");
-          const available = washerByPin[pin] || washerByPin["395001"] || washers;
-          if (!available?.length) return;
-          const idx = washerIdx[pin] || 0;
-          const washer = available[idx % available.length];
-          washerIdx[pin] = idx + 1;
           const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
+          const slotIdx = (slotIdxByPinCatchUp[pin] || 0) % SLOTS.length;
+          slotIdxByPinCatchUp[pin] = (slotIdxByPinCatchUp[pin] || 0) + 1;
           catchUpJobs.push({
             jobId: `JOB-CATCHUP-${todayCatchUp}-${String(i).padStart(4,"0")}`,
             customerId: sub.customerId, subscriptionId: sub.subscriptionId,
-            washerId: washer.id, scheduledDate: todayCatchUp,
-            timeSlot: SLOTS[(washerIdx[pin]-1) % SLOTS.length],
-            status: "Assigned", jobType: "Regular",
+            scheduledDate: todayCatchUp,
+            timeSlot: SLOTS[slotIdx],
+            status: "Unassigned", jobType: "Regular", // Real, confirmed requirement - routes to supervisor
             packageName: pkgType, packageType: pkgType,
             customerName: `${cust.firstName||""} ${cust.lastName||""}`.trim() || sub.customerId,
             vehicleDetails: { category: sub.serviceDetails?.vehicleType||"Sedan", color:"White", brand:"Maruti", registration: cust.vehicleReg||`GJ05${String(i).padStart(4,"0")}` },
@@ -864,26 +777,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
           try {
             const supNotifs = JSON.parse(localStorage.getItem("SUPERVISOR_JOB_NOTIFICATIONS")||"[]");
             supNotifs.unshift({ id:`NOTIF-CATCHUP-${todayCatchUp}`, type:"JOBS_SEEDED",
-              title:`${catchUpJobs.length} jobs assigned for today (catch-up)`,
-              body:`${todayCatchUp} — Jobs generated on app open (missed 9 PM schedule)`,
+              title:`${catchUpJobs.length} jobs need washer assignment for today (catch-up)`,
+              body:`${todayCatchUp} — Jobs generated on app open (missed 9 PM schedule), awaiting washer assignment`,
               date: todayCatchUp, jobCount: catchUpJobs.length, read: false, createdAt: new Date().toISOString() });
             localStorage.setItem("SUPERVISOR_JOB_NOTIFICATIONS", JSON.stringify(supNotifs.slice(0,30)));
           } catch(_) {}
-
-          // Per-washer notifications
-          washers.forEach((w: any) => {
-            try {
-              const myJobs = catchUpJobs.filter((j: any) => j.washerId === w.id);
-              if (!myJobs.length) return;
-              const nKey = `WASHER_NOTIFICATIONS_${w.id}`;
-              const nList = JSON.parse(localStorage.getItem(nKey)||"[]");
-              nList.unshift({ id:`NOTIF-CATCHUP-${w.id}-${todayCatchUp}`, type:"JOBS_ASSIGNED",
-                title:`${myJobs.length} jobs ready for today`, body:`Your wash schedule for ${todayCatchUp} is ready.`,
-                date: todayCatchUp, jobs: myJobs.map((j: any) => ({ jobId:j.jobId, customerName:j.customerName, timeSlot:j.timeSlot, packageType:j.packageType })),
-                read: false, createdAt: new Date().toISOString() });
-              localStorage.setItem(nKey, JSON.stringify(nList.slice(0,50)));
-            } catch(_) {}
-          });
         }
       } catch(e) { console.warn("[Catch-up Seeder] Error:", e); }
     }, 5000); // Run 5 seconds after mount
