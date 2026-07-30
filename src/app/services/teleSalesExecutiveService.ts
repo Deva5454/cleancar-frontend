@@ -33,7 +33,6 @@ import {
   EBITDA_FLOOR,
   INCENTIVE_MULTIPLIERS,
   FIXED_SALARY,
-  COMMISSION_TIERS,
   RENEWAL_BONUS,
 } from "../constants/teleSalesExecutive.constants";
 import { subscriptionPlansService } from "./subscriptionPlansService";

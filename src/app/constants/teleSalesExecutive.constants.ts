@@ -192,31 +192,6 @@ export const FIXED_SALARY = {
   TYPICAL: 17500,
 } as const;
 
-/** Commission tiers */
-export const COMMISSION_TIERS = [
-  {
-    tier: "TIER_1" as const,
-    min: 0,
-    max: 100000,
-    rate: 3,
-    label: "Up to ₹1 lakh",
-  },
-  {
-    tier: "TIER_2" as const,
-    min: 100000,
-    max: 200000,
-    rate: 5,
-    label: "₹1-2 lakh",
-  },
-  {
-    tier: "TIER_3" as const,
-    min: 200000,
-    max: Infinity,
-    rate: 7,
-    label: "Above ₹2 lakh",
-  },
-] as const;
-
 /** Renewal bonus */
 export const RENEWAL_BONUS = {
   PER_RENEWAL: 100, // ₹100 per confirmed renewal

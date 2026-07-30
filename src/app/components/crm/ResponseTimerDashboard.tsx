@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useCustomers } from "../../contexts/CustomerContext";
 import type { Lead } from "../../services/leadConversionService";
-import { SLA_THRESHOLDS } from "../../services/teleSalesExecutive.constants";
+import { SLA_THRESHOLDS } from "../../constants/teleSalesExecutive.constants";
 
 type ResponseLead = {
   id: string;
