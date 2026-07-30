@@ -121,7 +121,6 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditContentModal, setShowEditContentModal] = useState(false);
   const [showEditModeChoice, setShowEditModeChoice] = useState(false);
-  const [showInternalBreakdown, setShowInternalBreakdown] = useState(false);
   const [editDraft, setEditDraft] = useState<Partial<OfferLetter> | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<OfferLetter | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -913,32 +912,84 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
                   <div>
                     <h4 className="font-semibold text-blue-900 mb-2">2. Compensation &amp; Benefits</h4>
                     <table className="w-full text-sm border border-gray-300">
+                      <thead>
+                        <tr className="bg-blue-50">
+                          <th className="py-2 px-3 text-left font-semibold border-b border-gray-300">Salary Component</th>
+                          <th className="py-2 px-3 text-right font-semibold border-b border-gray-300">Monthly (₹)</th>
+                          <th className="py-2 px-3 text-right font-semibold border-b border-gray-300">Annual (₹)</th>
+                        </tr>
+                      </thead>
                       <tbody>
                         <tr className="border-b border-gray-300">
-                          <td className="py-2 px-3 font-semibold bg-gray-50 w-1/3">Fixed Annual CTC</td>
-                          <td className="py-2 px-3 font-semibold">
-                            ₹{(selectedOffer?.salaryComponents?.annualCTC ?? 0).toLocaleString("en-IN")}/- Annually
-                          </td>
+                          <td className="py-2 px-3">Basic Salary</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.basic ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.basic ?? 0) * 12).toLocaleString("en-IN")}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3">House Rent Allowance (HRA)</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.hra ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.hra ?? 0) * 12).toLocaleString("en-IN")}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3">Conveyance Allowance</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.conveyance ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.conveyance ?? 0) * 12).toLocaleString("en-IN")}</td>
+                        </tr>
+                        {(selectedOffer?.salaryComponents?.medical ?? 0) > 0 && (
+                          <tr className="border-b border-gray-300">
+                            <td className="py-2 px-3">Medical Allowance</td>
+                            <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.medical ?? 0).toLocaleString("en-IN")}</td>
+                            <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.medical ?? 0) * 12).toLocaleString("en-IN")}</td>
+                          </tr>
+                        )}
+                        {(selectedOffer?.salaryComponents?.specialAllowance ?? 0) > 0 && (
+                          <tr className="border-b border-gray-300">
+                            <td className="py-2 px-3">Special Allowance</td>
+                            <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.specialAllowance ?? 0).toLocaleString("en-IN")}</td>
+                            <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.specialAllowance ?? 0) * 12).toLocaleString("en-IN")}</td>
+                          </tr>
+                        )}
+                        <tr className="border-b border-t-2 border-gray-400 bg-gray-50 font-semibold">
+                          <td className="py-2 px-3">Gross Salary</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.monthlyGross ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.monthlyGross ?? 0) * 12).toLocaleString("en-IN")}</td>
+                        </tr>
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 px-3">Employer's PF Contribution</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.employerPF ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.employerPF ?? 0) * 12).toLocaleString("en-IN")}</td>
+                        </tr>
+                        {(selectedOffer?.salaryComponents?.employerESIC ?? 0) > 0 && (
+                          <tr className="border-b border-gray-300">
+                            <td className="py-2 px-3">Employer's ESIC Contribution</td>
+                            <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.employerESIC ?? 0).toLocaleString("en-IN")}</td>
+                            <td className="py-2 px-3 text-right">{((selectedOffer?.salaryComponents?.employerESIC ?? 0) * 12).toLocaleString("en-IN")}</td>
+                          </tr>
+                        )}
+                        <tr className="border-b-2 border-t-2 border-gray-400 bg-blue-50 font-bold">
+                          <td className="py-2 px-3">Total Cost to Company (CTC)</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.totalCTC ?? 0).toLocaleString("en-IN")}</td>
+                          <td className="py-2 px-3 text-right">{(selectedOffer?.salaryComponents?.annualCTC ?? 0).toLocaleString("en-IN")}</td>
                         </tr>
                         <tr className="border-b border-gray-300">
                           <td className="py-2 px-3 font-semibold bg-gray-50">Variable / Incentive</td>
-                          <td className="py-2 px-3">As per Incentive Policy</td>
+                          <td className="py-2 px-3" colSpan={2}>As per Incentive Policy</td>
                         </tr>
                         <tr className="border-b border-gray-300">
                           <td className="py-2 px-3 font-semibold bg-gray-50">Provident Fund (PF)</td>
-                          <td className="py-2 px-3">As per the EPF Act.</td>
+                          <td className="py-2 px-3" colSpan={2}>As per the EPF Act.</td>
                         </tr>
                         <tr className="border-b border-gray-300">
                           <td className="py-2 px-3 font-semibold bg-gray-50">ESIC</td>
-                          <td className="py-2 px-3">Applicable as per statutory limits under the ESI Act, 1948.</td>
+                          <td className="py-2 px-3" colSpan={2}>Applicable as per statutory limits under the ESI Act, 1948.</td>
                         </tr>
                         <tr className="border-b border-gray-300">
                           <td className="py-2 px-3 font-semibold bg-gray-50">Annual Leave</td>
-                          <td className="py-2 px-3">As per Leave Policy</td>
+                          <td className="py-2 px-3" colSpan={2}>As per Leave Policy</td>
                         </tr>
                         <tr>
                           <td className="py-2 px-3 font-semibold bg-gray-50">Working Hours</td>
-                          <td className="py-2 px-3">{selectedOffer.workingHours}</td>
+                          <td className="py-2 px-3" colSpan={2}>{selectedOffer.workingHours}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -946,43 +997,6 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
                       Note: Compensation is strictly confidential. Disclosure to any third party other than immediate family constitutes a breach of this offer and may result in disciplinary action.
                     </p>
                   </div>
-
-                  {/* HR-only detailed breakdown — not part of the printed/sent letter */}
-                  {canEditContent && (
-                    <div className="print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => setShowInternalBreakdown((v) => !v)}
-                        className="text-xs font-semibold text-purple-700 hover:underline"
-                      >
-                        {showInternalBreakdown ? "▾" : "▸"} Internal View Only — Detailed Monthly Breakdown (not shown to candidate)
-                      </button>
-                      {showInternalBreakdown && (
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mt-2">
-                          <table className="w-full text-sm">
-                            <tbody>
-                              <tr className="border-b"><td className="py-1">Basic Salary</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.basic ?? 0).toLocaleString()}</td></tr>
-                              <tr className="border-b"><td className="py-1">HRA</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.hra ?? 0).toLocaleString()}</td></tr>
-                              <tr className="border-b"><td className="py-1">Conveyance Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.conveyance ?? 0).toLocaleString()}</td></tr>
-                              {selectedOffer.salaryComponents.medical > 0 && (
-                                <tr className="border-b"><td className="py-1">Medical Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.medical ?? 0).toLocaleString()}</td></tr>
-                              )}
-                              {selectedOffer.salaryComponents.specialAllowance > 0 && (
-                                <tr className="border-b"><td className="py-1">Special Allowance</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.specialAllowance ?? 0).toLocaleString()}</td></tr>
-                              )}
-                              <tr className="border-b border-t-2 border-gray-400 font-semibold"><td className="py-1">Gross Salary (Monthly)</td><td className="text-right py-1">₹{(selectedOffer?.salaryComponents?.monthlyGross ?? 0).toLocaleString()}</td></tr>
-                              <tr className="border-b text-red-600"><td className="py-1">PF (Employee)</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.employeePF ?? 0).toLocaleString()}</td></tr>
-                              {selectedOffer.salaryComponents.employeeESIC > 0 && (
-                                <tr className="border-b text-red-600"><td className="py-1">ESIC (Employee)</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.employeeESIC ?? 0).toLocaleString()}</td></tr>
-                              )}
-                              <tr className="border-b text-red-600"><td className="py-1">Professional Tax</td><td className="text-right py-1">-₹{(selectedOffer?.salaryComponents?.professionalTax ?? 0).toLocaleString()}</td></tr>
-                              <tr className="border-t-2 border-gray-400 font-bold text-green-700"><td className="py-2">Net Take Home (Monthly)</td><td className="text-right py-2">₹{(selectedOffer?.salaryComponents?.netTakeHome ?? 0).toLocaleString()}</td></tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* 3. Probation & Confirmation */}
                   <div>
