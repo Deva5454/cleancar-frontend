@@ -73,6 +73,7 @@ export interface OfferLetterRecord {
   placeOfPostingText: string;
   probationText: string;
   conditionsOfOffer: string[];
+  documentChecklist: { category: string; items: string[] }[];
   acceptanceText: string;
   closingText: string;
 

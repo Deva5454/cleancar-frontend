@@ -258,6 +258,16 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
       status: "Draft",
       ...buildOfferLetterDefaults(employee.designation, employee.department, employee.workLocation || "Surat", employee.probationPeriod),
     };
+    // Real, confirmed correction: the signatory is whoever is actually
+    // issuing this offer, not a fixed name in the template. Overrides
+    // the template's default signee with the real, logged-in HR user's
+    // own details - falling back to the template default for any one
+    // field that's genuinely missing on the real user record, rather
+    // than overwriting a valid default with undefined.
+    if (currentUser?.name) newOffer.signeeName = currentUser.name;
+    if (currentRole) newOffer.signeeTitle = currentRole;
+    if (currentUser?.email) newOffer.signeeEmail = currentUser.email;
+    if (currentUser?.phone) newOffer.signeePhone = currentUser.phone;
 
     offerLetterService.add(newOffer as any);
     setShowCreateModal(false);
@@ -1019,6 +1029,24 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
                     <div className="border-t border-gray-400 pt-2 w-64">Signature</div>
                     <div className="border-t border-gray-400 pt-2 w-64">Date</div>
                     <div className="border-t border-gray-400 pt-2 w-64">Expected Date of Joining</div>
+                  </div>
+                </div>
+
+                {/* Real document checklist - what to bring, original and photocopy, on day one */}
+                <div className="mt-12 pt-8 border-t-2 border-gray-300">
+                  <h4 className="font-semibold text-blue-900 mb-2">Documents to Bring on Joining</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Please bring the original and one photocopy of each of the following documents on your first day of joining:
+                  </p>
+                  <div className="space-y-3 text-sm">
+                    {(selectedOffer.documentChecklist || []).map((cat, idx) => (
+                      <div key={idx}>
+                        <p className="font-medium text-gray-800">{idx + 1}. {cat.category}</p>
+                        <ul className="list-disc list-inside ml-4 text-gray-600">
+                          {cat.items.map((item, i) => <li key={i}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

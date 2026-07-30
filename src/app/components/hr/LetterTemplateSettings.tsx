@@ -18,6 +18,7 @@ import {
   getEffectiveCompanyInfo, getEffectiveSignee, getEffectiveTierTerms,
   getEffectiveConditionsOfOffer, getEffectiveConditionalNote, getEffectiveClosingText,
   getEffectiveAcceptanceDeadlineDays, getEffectiveWorkingHours, saveOfferLetterPolicyOverride,
+  getEffectiveDocumentChecklist, type DocumentChecklistCategory,
   getConfirmationLetterTemplate, saveConfirmationLetterTemplate, type ConfirmationLetterTemplate,
   type OfferRoleTier,
 } from "../../services/letterTemplateService";
@@ -71,14 +72,28 @@ export function LetterTemplateSettings() {
   const [workingHours, setWorkingHours] = useState(getEffectiveWorkingHours());
   const [closingText, setClosingText] = useState(getEffectiveClosingText());
   const [acceptanceDays, setAcceptanceDays] = useState(getEffectiveAcceptanceDeadlineDays());
+  const [documentChecklist, setDocumentChecklist] = useState<DocumentChecklistCategory[]>(getEffectiveDocumentChecklist());
 
   const handleSaveOfferPolicy = () => {
     saveOfferLetterPolicyOverride({
       companyInfo, signee, tierTerms, conditionsOfOffer: conditions,
-      conditionalNote, closingText, acceptanceDeadlineDays: acceptanceDays, workingHours,
+      conditionalNote, closingText, acceptanceDeadlineDays: acceptanceDays, workingHours, documentChecklist,
     }, currentUser?.name || "HR");
     toast.success("Real offer letter template saved — every new offer letter from now on uses this");
   };
+
+  const updateChecklistCategory = (idx: number, category: string) => {
+    const next = [...documentChecklist];
+    next[idx] = { ...next[idx], category };
+    setDocumentChecklist(next);
+  };
+  const updateChecklistItems = (idx: number, itemsText: string) => {
+    const next = [...documentChecklist];
+    next[idx] = { ...next[idx], items: itemsText.split("\n").map((s) => s.trim()).filter(Boolean) };
+    setDocumentChecklist(next);
+  };
+  const addChecklistCategory = () => setDocumentChecklist([...documentChecklist, { category: "", items: [] }]);
+  const removeChecklistCategory = (idx: number) => setDocumentChecklist(documentChecklist.filter((_, i) => i !== idx));
 
   const updateCondition = (idx: number, value: string) => {
     const next = [...conditions];
@@ -225,6 +240,22 @@ export function LetterTemplateSettings() {
               <Label>Signatory Phone</Label>
               <Input value={signee.phone} onChange={(e) => setSignee({ ...signee, phone: e.target.value })} />
             </div>
+          </div>
+
+          <div>
+            <Label>Documents to Bring on Joining (original + photocopy)</Label>
+            {documentChecklist.map((cat, idx) => (
+              <div key={idx} className="border rounded-lg p-3 mt-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input value={cat.category} onChange={(e) => updateChecklistCategory(idx, e.target.value)} placeholder="Category name" className="flex-1" />
+                  <Button size="sm" variant="ghost" onClick={() => removeChecklistCategory(idx)}><X className="w-4 h-4" /></Button>
+                </div>
+                <Textarea rows={3} value={cat.items.join("\n")} onChange={(e) => updateChecklistItems(idx, e.target.value)} placeholder="One item per line" />
+              </div>
+            ))}
+            <Button size="sm" variant="outline" className="mt-2" onClick={addChecklistCategory}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Category
+            </Button>
           </div>
 
           <Button onClick={handleSaveOfferPolicy}>Save Offer Letter Template</Button>

@@ -28,6 +28,7 @@ import {
   getEffectiveCompanyInfo, getEffectiveSignee, getEffectiveTierTerms,
   getEffectiveConditionsOfOffer, getEffectiveConditionalNote, getEffectiveClosingText,
   getEffectiveAcceptanceDeadlineDays, getEffectiveWorkingHours,
+  getEffectiveDocumentChecklist, DEFAULT_DOCUMENT_CHECKLIST, type DocumentChecklistCategory,
 } from "../config/offerLetterPolicyConfig";
 
 // Re-export the real, effective getters so the settings screen and any
@@ -37,8 +38,9 @@ export {
   getEffectiveCompanyInfo, getEffectiveSignee, getEffectiveTierTerms,
   getEffectiveConditionsOfOffer, getEffectiveConditionalNote, getEffectiveClosingText,
   getEffectiveAcceptanceDeadlineDays, getEffectiveWorkingHours,
+  getEffectiveDocumentChecklist,
 };
-export type { OfferRoleTier, ProbationTerms };
+export type { OfferRoleTier, ProbationTerms, DocumentChecklistCategory };
 
 const LETTERHEAD_KEY = "cleancar_letter_letterhead_image";
 const OFFER_POLICY_OVERRIDE_KEY = "cleancar_offer_letter_policy_override";
@@ -53,6 +55,7 @@ export interface OfferLetterPolicyOverride {
   closingText?: string;
   acceptanceDeadlineDays?: number;
   workingHours?: string;
+  documentChecklist?: DocumentChecklistCategory[];
   updatedAt?: string;
   updatedBy?: string;
 }

@@ -159,6 +159,27 @@ export function getEffectiveConditionsOfOffer(): string[] {
   return readOverride().conditionsOfOffer || DEFAULT_CONDITIONS_OF_OFFER;
 }
 
+export interface DocumentChecklistCategory {
+  category: string;
+  items: string[];
+}
+
+/** Real, confirmed document checklist - what a candidate must bring, original and photocopy, on the first day of joining. */
+export const DEFAULT_DOCUMENT_CHECKLIST: DocumentChecklistCategory[] = [
+  { category: "Personal Identity Proofs", items: ["Aadhar Card (Updated with Date of Birth)", "PAN Card (Linked with Aadhar Card)", "Passport", "Voter ID Card"] },
+  { category: "Educational Certificates", items: ["Degree Certificates (Graduation, Post-Graduation, or Diploma)", "Marksheets (10th, 12th, and relevant degree)", "Professional Certification (if any)"] },
+  { category: "Work Experience Documents (for experienced candidates)", items: ["Offer Letters from previous companies", "Relieving Letter from the last employer", "Experience Certificates", "Last 3 months' Pay slips"] },
+  { category: "Bank Details", items: ["Cancelled Cheque or Bank Passbook/Statement"] },
+  { category: "Passport-Size Photographs", items: ["3 to 5 recent passport-size photos"] },
+  { category: "Medical Certificate", items: ["A fitness certificate", "Blood Group Report"] },
+  { category: "Background Check Documents", items: ["References (name and contact details of previous managers or mentors)"] },
+];
+
+/** Real, effective document checklist - the real HR override where one exists, the default otherwise. */
+export function getEffectiveDocumentChecklist(): DocumentChecklistCategory[] {
+  return readOverride().documentChecklist || DEFAULT_DOCUMENT_CHECKLIST;
+}
+
 export function defaultIntroText(designation: string, department: string): string {
   const company = getEffectiveCompanyInfo();
   return `We are delighted to extend this offer of employment to you for the position of ${designation} within the ${department} function at ${company.name}. This offer is made in recognition of your skills, experience, and the value we believe you will bring to our growing team.`;
@@ -221,6 +242,7 @@ export function buildOfferLetterDefaults(designation: string, department: string
     placeOfPostingText: defaultPlaceOfPostingText(primaryCity),
     probationText: defaultProbationText(effectiveTerms),
     conditionsOfOffer: [...getEffectiveConditionsOfOffer()],
+    documentChecklist: getEffectiveDocumentChecklist(),
     acceptanceText: defaultAcceptanceText(acceptanceDays),
     closingText: getEffectiveClosingText(),
   };
