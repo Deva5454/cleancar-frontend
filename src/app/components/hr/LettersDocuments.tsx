@@ -14,6 +14,7 @@ const INFO_BANNER_DISMISSED_KEY = "letters_documents_info_banner_dismissed";
 
 export function LettersDocuments() {
   const [showInfoBanner, setShowInfoBanner] = useState(false);
+  const [activeTab, setActiveTab] = useState("offer");
 
   useEffect(() => {
     const dismissed = sessionStorage.getItem(INFO_BANNER_DISMISSED_KEY);
@@ -61,7 +62,7 @@ export function LettersDocuments() {
         </Card>
       )}
 
-      <Tabs defaultValue="offer" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="offer">
             <FileText className="w-4 h-4 mr-2" />
@@ -83,7 +84,7 @@ export function LettersDocuments() {
 
         {/* UNIFIED OFFER LETTER SYSTEM */}
         <TabsContent value="offer" className="space-y-6">
-          <OfferLetterGenerator />
+          <OfferLetterGenerator onSwitchToTemplates={() => setActiveTab("templates")} />
         </TabsContent>
 
         {/* APPOINTMENT LETTER */}
@@ -93,7 +94,7 @@ export function LettersDocuments() {
 
         {/* CONFIRMATION LETTER SYSTEM */}
         <TabsContent value="confirmation" className="space-y-6">
-          <ConfirmationLetterSystem />
+          <ConfirmationLetterSystem onSwitchToTemplates={() => setActiveTab("templates")} />
         </TabsContent>
 
         {/* REAL LETTERHEAD & TEMPLATE SETTINGS */}

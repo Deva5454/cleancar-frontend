@@ -96,7 +96,7 @@ const initialOffers: OfferLetter[] = [
   },
 ];
 
-export function OfferLetterGenerator() {
+export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTemplates?: () => void } = {}) {
   const { currentUser, currentRole } = useRole();
   const canEditContent = currentRole === "HR" || currentRole === "Super Admin";
   const [offers, setOffers] = useState<OfferLetter[]>(() => {
@@ -120,6 +120,7 @@ export function OfferLetterGenerator() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showEditContentModal, setShowEditContentModal] = useState(false);
+  const [showEditModeChoice, setShowEditModeChoice] = useState(false);
   const [showInternalBreakdown, setShowInternalBreakdown] = useState(false);
   const [editDraft, setEditDraft] = useState<Partial<OfferLetter> | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<OfferLetter | null>(null);
@@ -806,7 +807,7 @@ export function OfferLetterGenerator() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { setShowPreviewModal(false); handleOpenEditContent(selectedOffer); }}
+                      onClick={() => { setShowPreviewModal(false); setShowEditModeChoice(true); }}
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Edit Content
@@ -1021,6 +1022,34 @@ export function OfferLetterGenerator() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Real, explicit choice between per-letter and template-level editing */}
+      {showEditModeChoice && selectedOffer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>How do you want to edit?</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <button
+                onClick={() => { setShowEditModeChoice(false); handleOpenEditContent(selectedOffer); }}
+                className="w-full text-left border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-900">Edit This Letter Only</p>
+                <p className="text-xs text-gray-500 mt-1">Changes apply only to {selectedOffer.candidateName}'s letter — won't affect the template for future offers.</p>
+              </button>
+              <button
+                onClick={() => { setShowEditModeChoice(false); onSwitchToTemplates?.(); }}
+                className="w-full text-left border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+              >
+                <p className="font-medium text-gray-900">Edit the Real Template</p>
+                <p className="text-xs text-gray-500 mt-1">Changes apply to every new offer letter generated from now on, not just this one.</p>
+              </button>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditModeChoice(false)} className="w-full">Cancel</Button>
             </CardContent>
           </Card>
         </div>

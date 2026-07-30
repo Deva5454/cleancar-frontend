@@ -28,6 +28,7 @@ import {
   User,
   CreditCard,
   FolderOpen,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -150,7 +151,7 @@ const generateConfirmationRecords = (): ConfirmationRecord[] => {
     });
 };
 
-export function ConfirmationLetterSystem() {
+export function ConfirmationLetterSystem({ onSwitchToTemplates }: { onSwitchToTemplates?: () => void } = {}) {
   const navigate = useNavigate();
   const [records, setRecords] = useState<ConfirmationRecord[]>(generateConfirmationRecords());
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -396,6 +397,14 @@ export function ConfirmationLetterSystem() {
 
   return (
     <div className="space-y-6">
+      {onSwitchToTemplates && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={onSwitchToTemplates}>
+            <Settings className="w-4 h-4 mr-2" />
+            Edit Real Template (applies to future confirmation letters)
+          </Button>
+        </div>
+      )}
       {/* Notifications Banner */}
       {notifications.length > 0 && (
         <Card className="border-2 border-red-300 bg-red-50">
