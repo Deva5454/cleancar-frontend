@@ -223,6 +223,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Attendance Regularization", path: "/attendance/regularization", icon: Clock, module: "hr", match: "prefix" },
       { label: "Washer KRA Scorecard", path: "/incentives/washer-kra", icon: Target, module: "hr", match: "prefix" },
       { label: "OM KRA Scorecard", path: "/incentives/om-kra", icon: TrendingUp, module: "hr", match: "prefix" },
+      { label: "City Manager KRA Scorecard", path: "/incentives/city-kra", icon: Building2, module: "hr", match: "prefix" },
       { label: "Field Tracker",        path: "/field-tracker", icon: Navigation,  module: "hr", match: "prefix" },
       { label: "Other Earnings", path: "/advance/other-earnings", icon: PlusCircle, module: "hr", match: "prefix" },
       { label: "Other Deductions", path: "/advance/other-deductions", icon: MinusCircle, module: "hr", match: "prefix" },

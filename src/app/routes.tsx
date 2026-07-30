@@ -24,6 +24,7 @@ const ShiftRosterManager = lazy(() => import("./components/hr/ShiftRosterManager
 const AttendanceRegularizationModule = lazy(() => import("./components/hr/AttendanceRegularizationModule"));
 const WasherKraDashboard = lazy(() => import("./components/incentives/WasherKraDashboard"));
 const OMKraDashboard = lazy(() => import("./components/incentives/OMKraDashboard"));
+const CityKraDashboard = lazy(() => import("./components/incentives/CityKraDashboard"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const PerformanceManagementModule = lazy(() => import("./components/hr/PerformanceManagementModule"));
@@ -610,6 +611,7 @@ export const router = createBrowserRouter([
       { path: "attendance/regularization", element: <AttendanceRegularizationModule /> },
       { path: "incentives/washer-kra", element: <WasherKraDashboard /> },
       { path: "incentives/om-kra", element: <OMKraDashboard /> },
+      { path: "incentives/city-kra", element: <CityKraDashboard /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
       { path: "performance-management", element: <PerformanceManagementModule /> },

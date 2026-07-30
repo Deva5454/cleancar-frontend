@@ -4,13 +4,22 @@
  * Real KPI computations for Operations Manager, built against genuinely
  * real data - confirmed directly before building anything:
  *
- *   - Revenue: real AccountingEntry records with entryType "Sales",
- *     triggered on every actual transaction (confirmed via
- *     accountingEntryService.ts's own comment: called from RazorpayFlow,
- *     InvoiceManagement, and RevenueCaptureSystem on every real sale).
- *     operationsManagerService.ts's own "revenue" was a flat
- *     ₹300/unit × estimated-units guess - this replaces that with the
- *     real, actual billed amount.
+ *   - Revenue: real Revenue records from FinanceContext (DataService key
+ *     "FINANCE_REVENUES") - confirmed the true, primary real source.
+ *
+ *     A real correction, made after this was first built: this
+ *     originally summed AccountingEntry records with entryType "Sales".
+ *     Checked directly and confirmed that value is only ever written by
+ *     seed/test data files, never by any real, live transaction flow -
+ *     in real, live use it always returned zero regardless of actual
+ *     revenue. AccountingEntry/journal postings turned out to be a
+ *     derived, secondary accounting representation of this same
+ *     Revenue data (confirmed via RevenueCaptureSystem.tsx, which reads
+ *     real Revenue records and posts a corresponding journal entry from
+ *     them afterward - the journal is downstream of Revenue, not the
+ *     other way around). operationsManagerService.ts's own "revenue"
+ *     was a separate, flat ₹300/unit × estimated-units guess - this
+ *     replaces both wrong sources with the real, actual received amount.
  *
  *   - Retention: real CustomerSubscription records with a genuine
  *     status field ("Active"/"Cancelled"/etc.), joined to real Customer
@@ -28,11 +37,11 @@
  * than invented.
  */
 
-export interface AccountingEntryLike {
-  entryType: string;
+export interface RevenueLike {
   cityId: string;
-  date: string;
-  totalBillValue: number;
+  amount: number;
+  receivedDate: string;
+  status: string;
 }
 
 export interface SubscriptionLike {
@@ -49,12 +58,13 @@ export interface CustomerLike {
 
 /**
  * Real revenue for a city in a given month - sums the actual, real
- * billed value of every genuine Sales entry, not an estimate.
+ * received amount from genuine Revenue records. Only counts revenue
+ * that's genuinely Received, not Pending or Failed.
  */
-export function computeOMRealRevenue(entries: AccountingEntryLike[], cityId: string, month: string): number {
+export function computeOMRealRevenue(entries: RevenueLike[], cityId: string, month: string): number {
   return entries
-    .filter((e) => e.entryType === "Sales" && e.cityId === cityId && e.date.startsWith(month))
-    .reduce((sum, e) => sum + (e.totalBillValue || 0), 0);
+    .filter((e) => e.status === "Received" && e.cityId === cityId && e.receivedDate.startsWith(month))
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
 }
 
 /**

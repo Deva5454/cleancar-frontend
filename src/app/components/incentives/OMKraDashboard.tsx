@@ -11,8 +11,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCustomerSubscriptions } from "../../contexts/CustomerSubscriptionContext";
 import { useCustomers } from "../../contexts/CustomerContext";
+import { useFinance } from "../../contexts/FinanceContext";
 import { useRole } from "../../contexts/RoleContext";
-import { accountingEntryService } from "../../services/accountingEntryService";
 import { seedOMKraTemplateIfMissing, computeOMKraScores } from "../../services/kraOMPilot";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Progress } from "../ui/progress";
@@ -23,6 +23,7 @@ const CITIES = ["CITY-SURAT", "CITY-VADODARA", "CITY-AHMEDABAD"];
 export function OMKraDashboard() {
   const { subscriptions } = useCustomerSubscriptions();
   const { customers } = useCustomers();
+  const { getRevenueByCity } = useFinance();
   const { currentUser } = useRole();
 
   const [cityId, setCityId] = useState(CITIES[0]);
@@ -32,7 +33,7 @@ export function OMKraDashboard() {
     seedOMKraTemplateIfMissing(currentUser?.name || "System");
   }, [currentUser?.name]);
 
-  const entries = useMemo(() => accountingEntryService.getAll(), []);
+  const entries = useMemo(() => getRevenueByCity(cityId), [getRevenueByCity, cityId]);
 
   const { results, totalScore, realWeightCovered } = useMemo(
     () => computeOMKraScores(cityId, month, entries as any, subscriptions as any, customers as any),
@@ -46,7 +47,7 @@ export function OMKraDashboard() {
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-blue-600" /> Operations Manager KRA Scorecard
           </CardTitle>
-          <p className="text-xs text-gray-500">Revenue and Retention are real, computed from actual accounting and subscription data</p>
+          <p className="text-xs text-gray-500">Revenue and Retention are real, computed from actual revenue and subscription records</p>
         </CardHeader>
         <CardContent className="flex gap-3">
           <select value={cityId} onChange={(e) => setCityId(e.target.value)} className="border rounded px-3 py-2 text-sm">
