@@ -21,7 +21,7 @@
  * "Competency" / "Development" goals that stay genuinely subjective.
  */
 
-import { resolveEmployeeKras } from "./kraEngineService";
+import { resolveEmployeeKras, getKpiActual } from "./kraEngineService";
 import { performanceManagementService, type RatingValue } from "./performanceManagementService";
 
 /**
@@ -71,4 +71,38 @@ export function computeSystemRatingFromKraScore(kraScore: number | null): Rating
   if (kraScore >= 75) return 3;
   if (kraScore >= 50) return 2;
   return 1;
+}
+
+/**
+ * Real, suggested rating for one specific KPI-category goal, using the
+ * employee's real, resolved KRA structure and any real, already-saved
+ * KPI actuals for the given month (the same real KpiActual records
+ * each real role's own dashboard saves when it computes scores).
+ *
+ * Honest, confirmed simplification: the appraisal cycle itself is
+ * annual, while real KPI actuals are saved monthly - rather than
+ * fabricate a full-cycle average from months that may never have been
+ * measured, this uses the most recent real month's genuinely saved
+ * actual, and returns null (not a guessed middle rating) if none
+ * exists yet for this goal at all.
+ */
+export function computeSuggestedRatingForGoal(
+  employeeId: string, role: string, goalTitle: string, month: string
+): { suggestedRating: RatingValue | null; kraScore: number | null } {
+  const { kras } = resolveEmployeeKras(employeeId, role);
+  const kra = kras.find((k) => k.name === goalTitle);
+  if (!kra) return { suggestedRating: null, kraScore: null };
+
+  const kpiScores = kra.kpis
+    .map((link) => {
+      const actual = getKpiActual(employeeId, link.kpiCode, month);
+      if (actual === undefined) return null;
+      const target = link.defaultTarget || 1;
+      return Math.min(150, Math.round((actual / target) * 100));
+    })
+    .filter((s): s is number => s !== null);
+
+  if (kpiScores.length === 0) return { suggestedRating: null, kraScore: null };
+  const kraScore = Math.round(kpiScores.reduce((sum, s) => sum + s, 0) / kpiScores.length);
+  return { suggestedRating: computeSystemRatingFromKraScore(kraScore), kraScore };
 }

@@ -6,6 +6,7 @@ import {
   RATING_LABELS,
   type RatingValue, type GoalRating,
 } from "../../services/performanceManagementService";
+import { computeSuggestedRatingForGoal } from "../../services/kraGoalsBridge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -59,7 +60,15 @@ export function ManagerReviewView() {
     if (!cycle) return;
     const goals = performanceManagementService.listGoalsForEmployee(cycle.id, employeeId).filter((g) => g.status === "Approved");
     const existing = performanceManagementService.getManagerReview(cycle.id, employeeId);
-    setGoalRatings(existing?.goalRatings || goals.map((g) => ({ goalId: g.id, rating: 3 as RatingValue, comments: "" })));
+    const employee = directReports.find((e: any) => e.id === employeeId);
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    setGoalRatings(existing?.goalRatings || goals.map((g) => {
+      if (g.category === "KPI" && employee?.designation) {
+        const { suggestedRating } = computeSuggestedRatingForGoal(employeeId, employee.designation, g.title, thisMonth);
+        if (suggestedRating !== null) return { goalId: g.id, rating: suggestedRating, comments: "System-suggested from real, measured KRA performance — adjust if needed." };
+      }
+      return { goalId: g.id, rating: 3 as RatingValue, comments: "" };
+    }));
     setOverallRating(existing?.overallRating || 3);
     setOverallComments(existing?.overallComments || "");
     setReviewingEmployeeId(employeeId);
