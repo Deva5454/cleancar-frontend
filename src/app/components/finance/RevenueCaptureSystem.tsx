@@ -377,13 +377,20 @@ export function RevenueCaptureSystem() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Revenue Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Live data from Supabase Â· {revenues.length} records Â· {cityInfo.displayName}
+            {revenues.length} records · {cityInfo.displayName}
           </p>
         </div>
         <Button variant="outline" onClick={handleExport} className="flex items-center gap-2">
           <Download className="w-4 h-4" /> Export CSV
         </Button>
       </div>
+
+      {revenues.length === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          No revenue was recorded for {MONTHS.find(m => m.value === selectedMonth)?.label || selectedMonth} in {cityInfo.displayName}
+          {filterPincode !== "All" || filterType !== "All" ? " with the current filters" : ""} — try a different month above, or check that this city has real Revenue records for this period.
+        </div>
+      )}
 
       {/* FILTER BAR */}
       <Card>
