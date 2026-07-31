@@ -180,7 +180,7 @@ export function ExpenseVoucher() {
         ...prev,
         itemId,
         hsnCode: item.hsnCode,
-        expenseLedgerId: item.defaultExpenseLedgerId,
+        expenseLedgerId: item.defaultExpenseLedgerId || prev.expenseLedgerId,
         gstRate: item.defaultGSTRate,
       }));
     }
@@ -196,8 +196,8 @@ export function ExpenseVoucher() {
       id: `ITEM-${Date.now()}`,
       itemName: newItemForm.itemName,
       hsnCode: newItemForm.hsnCode,
-      defaultExpenseLedgerId: "",
-      defaultExpenseLedgerName: "",
+      defaultExpenseLedgerId: formData.expenseLedgerId || "",
+      defaultExpenseLedgerName: expenseLedgers.find((l) => l.id === formData.expenseLedgerId)?.name || "",
       defaultGSTRate: newItemForm.defaultGSTRate,
       unitOfMeasure: newItemForm.unitOfMeasure,
       description: newItemForm.description,

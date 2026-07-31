@@ -796,16 +796,44 @@ class AccountingEntryService {
   }
 
   getItems(): ItemMaster[] {
-    return DataService.get<ItemMaster>("INVENTORY_ITEMS");
+    this.migrateItemMasterFromSharedKeyIfNeeded();
+    return DataService.get<ItemMaster>("ACCOUNTING_ITEM_MASTER");
+  }
+
+  /**
+   * Real, one-time, safe migration - recovers any accounting items that
+   * were previously, incorrectly saved under the shared "INVENTORY_ITEMS"
+   * key (a real, confirmed bug: this collided with the entire, genuine
+   * physical inventory system, which uses the same key for a completely
+   * different InventoryItem shape). Only moves records that genuinely
+   * match the real ItemMaster shape - identified by having a real
+   * defaultExpenseLedgerId field, which no real InventoryItem record has -
+   * so real physical inventory data is never touched or misread as an
+   * accounting item.
+   */
+  private migrateItemMasterFromSharedKeyIfNeeded(): void {
+    if (localStorage.getItem("cleancar_accounting_item_master_migrated") === "1") return;
+    try {
+      const sharedKeyRecords: any[] = DataService.get<any>("INVENTORY_ITEMS");
+      const strandedAccountingItems = sharedKeyRecords.filter(
+        (r) => typeof r?.defaultExpenseLedgerId === "string" && typeof r?.defaultGSTRate === "number"
+      );
+      if (strandedAccountingItems.length > 0) {
+        const existing = DataService.get<ItemMaster>("ACCOUNTING_ITEM_MASTER");
+        const merged = [...existing.filter((e) => !strandedAccountingItems.some((s) => s.id === e.id)), ...strandedAccountingItems];
+        DataService.setAll("ACCOUNTING_ITEM_MASTER", merged);
+      }
+    } catch { /* ignore - safe to skip migration on any error */ }
+    localStorage.setItem("cleancar_accounting_item_master_migrated", "1");
   }
 
   saveItem(item: ItemMaster): void {
     const all = this.getItems().filter(i => i.id !== item.id);
-    DataService.setAll("INVENTORY_ITEMS", [...all, item]);
+    DataService.setAll("ACCOUNTING_ITEM_MASTER", [...all, item]);
   }
 
   deleteItem(id: string): void {
-    DataService.setAll("INVENTORY_ITEMS", this.getItems().filter(i => i.id !== id));
+    DataService.setAll("ACCOUNTING_ITEM_MASTER", this.getItems().filter(i => i.id !== id));
   }
 
   private getEntries(): AccountingEntry[] {
