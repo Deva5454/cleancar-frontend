@@ -43,6 +43,7 @@ import {
   type VehicleType,
 } from "../../services/travelReimbursementService";
 import { useRole } from "../../contexts/RoleContext";
+import { fieldTrackingService } from "../../services/fieldTrackingService";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useCity } from "../../contexts/CityContext";
 
@@ -914,6 +915,17 @@ export function SMDailyActivity() {
   const { employees }   = useEmployee();
   const { city, cityInfo } = useCity();
 
+  // Real, confirmed integration - Field Day (fieldTrackingService) is the
+  // real, org-wide attendance/GPS check-in system, with real supervisor
+  // and admin visibility already built around it. The field session below
+  // now genuinely requires an active Field Day check-in to exist, rather
+  // than silently allowing trip tracking with no real, verified proof the
+  // SM is actually checked in for the day at all.
+  const [isFieldCheckedIn, setIsFieldCheckedIn] = useState(() => fieldTrackingService.getState().isCheckedIn);
+  useEffect(() => {
+    return fieldTrackingService.subscribe(s => setIsFieldCheckedIn(s.isCheckedIn));
+  }, []);
+
   const gate = salesManagerService.getGateStatus();
 
   // Travel data
@@ -1084,12 +1096,20 @@ export function SMDailyActivity() {
       <div className="space-y-5">
         <SessionHeader icon={<MapPin/>} title="Field Execution"
           time="10:00 AM onwards"
-          status={report.field.locked ? "locked" : report.morning.locked ? "active" : "upcoming"} />
+          status={report.field.locked ? "locked" : (report.morning.locked && isFieldCheckedIn) ? "active" : "upcoming"} />
 
         {!report.morning.locked && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0"/>
             Lock the Morning Plan first before updating field activity
+          </div>
+        )}
+
+        {/* Real, confirmed integration - Field Day check-in required */}
+        {report.morning.locked && !isFieldCheckedIn && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0"/>
+            Check in via <strong className="mx-1">Field Day</strong> first — trip tracking and visit logging require an active check-in.
           </div>
         )}
 
@@ -1103,7 +1123,7 @@ export function SMDailyActivity() {
         )}
 
         {/* Trip Panel */}
-        {report.morning.locked && !report.field.locked && (
+        {report.morning.locked && isFieldCheckedIn && !report.field.locked && (
           <TripPanel
             activeTrip={report.field.activeTrip}
             locked={report.field.locked}
