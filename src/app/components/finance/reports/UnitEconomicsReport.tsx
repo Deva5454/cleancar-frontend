@@ -20,6 +20,8 @@
  */
 
 import { useState, useEffect } from "react";
+import { useJobs, type Job } from "../../../contexts/JobContext";
+import { useFinance, type Revenue } from "../../../contexts/FinanceContext";
 import { formatCurrency } from "../../../lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
@@ -163,6 +165,8 @@ interface UnitEconomicsReportProps {
 }
 
 export function UnitEconomicsReport({ filters }: UnitEconomicsReportProps) {
+  const { allJobs } = useJobs();
+  const { getRevenueByCity } = useFinance();
   const [isLoading, setIsLoading] = useState(false);
   const [unitEconomics, setUnitEconomics] = useState<UnitEconomics[]>(mockUnitEconomics);
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyUnitEconomics[]>(mockMonthlyTrend);
@@ -235,24 +239,35 @@ export function UnitEconomicsReport({ filters }: UnitEconomicsReportProps) {
     }
   }
 
+  const { revenues } = useFinance();
+  const filteredJobs = allJobs.filter((j: Job) => {
+    if (j.status !== "Completed") return false;
+    if (filters.city !== "ALL" && j.cityId !== filters.city) return false;
+    const jobDate = j.completedAt || j.scheduledDate || "";
+    if (filters.startDate && jobDate < filters.startDate) return false;
+    if (filters.endDate && jobDate > filters.endDate) return false;
+    return true;
+  });
+  const filteredRevenues = filters.city === "ALL" ? revenues : getRevenueByCity(filters.city);
+  const realTotalRevenue = filteredRevenues
+    .filter((r: Revenue) => r.status === "Received" && r.receivedDate >= filters.startDate && r.receivedDate <= filters.endDate)
+    .reduce((sum: number, r: Revenue) => sum + r.amount, 0);
+  const realTotalWashes = filteredJobs.length;
+
   const summary: UnitEconomicsSummary = {
-    totalWashes: unitEconomics.reduce((sum, item) => sum + item.totalWashes, 0),
-    avgRevenuePerWash: 0,
-    avgCostPerWash: 0,
-    avgProfitPerWash: 0,
-    overallMargin: 0,
+    totalWashes: realTotalWashes,
+    avgRevenuePerWash: realTotalWashes > 0 ? realTotalRevenue / realTotalWashes : 0,
+    // Honest, confirmed gap - no real cost-per-wash allocation exists
+    // anywhere in this app (no system attributes real expense/journal
+    // entries down to an individual wash). Rather than continue showing
+    // the previous, entirely fabricated ₹300/wash-style figures, these
+    // are null - genuinely unavailable, not zero or estimated.
+    avgCostPerWash: null as unknown as number,
+    avgProfitPerWash: null as unknown as number,
+    overallMargin: null as unknown as number,
   };
 
-  const totalRevenue = unitEconomics.reduce((sum, item) => sum + item.totalRevenue, 0);
-  const totalCost = unitEconomics.reduce((sum, item) => sum + item.totalCost, 0);
-  const totalProfit = totalRevenue - totalCost;
-
-  summary.avgRevenuePerWash = totalRevenue / summary.totalWashes;
-  summary.avgCostPerWash = totalCost / summary.totalWashes;
-  summary.avgProfitPerWash = totalProfit / summary.totalWashes;
-  summary.overallMargin = (totalProfit / totalRevenue) * 100;
-
-  const isProfitablePerWash = summary.avgProfitPerWash > 0;
+  const isProfitablePerWash = false;
 
   if (isLoading) {
     return (
@@ -269,6 +284,11 @@ export function UnitEconomicsReport({ filters }: UnitEconomicsReportProps) {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <span>Total Washes and Revenue/Wash above are real, computed from actual job and revenue records. The monthly trend, service-type breakdown, and cost figures below are still illustrative — no real cost-per-wash allocation exists anywhere in this app yet.</span>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="border-2 border-gray-300 bg-gray-50">
@@ -301,22 +321,22 @@ export function UnitEconomicsReport({ filters }: UnitEconomicsReportProps) {
           <CardContent className="p-4">
             <div>
               <p className="text-sm text-gray-600">Cost / Wash</p>
-              <p className="text-2xl font-bold text-red-700">
-                {formatCurrency(summary.avgCostPerWash)}
+              <p className="text-lg font-semibold text-gray-500">
+                Not yet available
               </p>
-              <p className="text-xs text-gray-500 mt-1">Average per wash</p>
+              <p className="text-xs text-gray-500 mt-1">No real cost-per-wash allocation exists yet</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className={`border-2 ${isProfitablePerWash ? 'border-blue-300 bg-blue-50' : 'border-orange-300 bg-orange-50'}`}>
+        <Card className="border-2 border-gray-300 bg-gray-50">
           <CardContent className="p-4">
             <div>
               <p className="text-sm text-gray-600">Profit / Wash</p>
-              <p className={`text-2xl font-bold ${isProfitablePerWash ? 'text-blue-700' : 'text-orange-700'}`}>
-                {formatCurrency(summary.avgProfitPerWash)}
+              <p className="text-lg font-semibold text-gray-500">
+                Not yet available
               </p>
-              <p className="text-xs text-gray-500 mt-1">Average per wash</p>
+              <p className="text-xs text-gray-500 mt-1">Depends on real cost data, not yet built</p>
             </div>
           </CardContent>
         </Card>
@@ -325,12 +345,10 @@ export function UnitEconomicsReport({ filters }: UnitEconomicsReportProps) {
           <CardContent className="p-4">
             <div>
               <p className="text-sm text-gray-600">Profit Margin</p>
-              <p className="text-2xl font-bold text-purple-700">
-                {summary.overallMargin.toFixed(1)}%
+              <p className="text-lg font-semibold text-gray-500">
+                Not yet available
               </p>
-              <Badge className={`mt-2 ${isProfitablePerWash ? 'bg-green-600' : 'bg-red-600'}`}>
-                {isProfitablePerWash ? 'Healthy' : 'Low'}
-              </Badge>
+              <p className="text-xs text-gray-500 mt-1">Depends on real cost data, not yet built</p>
             </div>
           </CardContent>
         </Card>
