@@ -18,15 +18,13 @@ import {
   ResponsiveContainer, Legend,
 } from "recharts";
 import { useRole }     from "../../contexts/RoleContext";
-import { useFinance }  from "../../contexts/FinanceContext";
+import { useFinance, type Revenue }  from "../../contexts/FinanceContext";
 import { useCity }     from "../../contexts/CityContext";
-import { useJobs }     from "../../contexts/JobContext";
+import { useJobs, type Job }     from "../../contexts/JobContext";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { BackButton } from "../ui/back-button";
 import { toast } from "sonner";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../../services/accountingEntryService";
-import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
@@ -119,7 +117,7 @@ export function RevenueCaptureSystem() {
   useEffect(() => {
     if (!cityId) return;
     const thisMonth = selectedMonth;
-    const monthRevenues = allRevenues.filter(r => r.receivedDate?.startsWith(thisMonth));
+    const monthRevenues = allRevenues.filter((r: Revenue) => r.receivedDate?.startsWith(thisMonth));
     if (monthRevenues.length === 0) return;
     // ✅ FIX: previously checked accountingEntryService.getAll(cityId) for
     // entryType === "Revenue" — a value that never exists on a real
@@ -139,12 +137,12 @@ export function RevenueCaptureSystem() {
     );
     const existingNums = Array.from(postedInvoices) as string[];
 
-    monthRevenues.forEach(r => {
+    monthRevenues.forEach((r: Revenue) => {
       const invoiceRef = r.invoiceNumber || r.revenueId;
       if (postedInvoices.has(invoiceRef)) return; // already posted
       try {
         const taxable = r.amount / 1.18;
-        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "B2C", cityId);
+        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", cityId);
         const invNum = r.invoiceNumber || generateInvoiceNumber(city || "SURAT", existingNums);
         existingNums.push(invNum);
         const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: r.amount });
@@ -157,11 +155,11 @@ export function RevenueCaptureSystem() {
 
   // Current month revenues filtered
   const revenues = useMemo(() =>
-    allRevenues.filter(r => {
+    allRevenues.filter((r: Revenue) => {
       if (!r.receivedDate?.startsWith(selectedMonth)) return false;
       if (filterPincode !== "All") {
         // Match via job pincode
-        const job = (allJobs || []).find(j => j.jobId === r.jobId);
+        const job = (allJobs || []).find((j: Job) => j.jobId === r.jobId);
         if (job?.pinCode !== filterPincode) return false;
       }
       if (filterType !== "All" && r.type !== filterType) return false;
@@ -172,7 +170,7 @@ export function RevenueCaptureSystem() {
 
   // Previous month revenues for comparison
   const prevRevenues = useMemo(() =>
-    allRevenues.filter(r => r.receivedDate?.startsWith(prevMonth)),
+    allRevenues.filter((r: Revenue) => r.receivedDate?.startsWith(prevMonth)),
     [allRevenues, prevMonth]
   );
 
@@ -198,14 +196,14 @@ export function RevenueCaptureSystem() {
 
   // â”€â”€ KPI Metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const metrics = useMemo(() => {
-    const totalRevenue      = (revenues || []).reduce((s,r) => s + r.amount, 0);
-    const prevTotalRevenue  = (prevRevenues || []).reduce((s,r) => s + r.amount, 0);
-    const subRevenue        = (revenues || []).filter(r => r.type === "Subscription").reduce((s,r) => s+r.amount, 0);
-    const prevSubRevenue    = prevRevenues.filter(r => r.type === "Subscription").reduce((s,r) => s+r.amount, 0);
-    const onetimeRevenue    = (revenues || []).filter(r => r.type === "One-Time").reduce((s,r) => s+r.amount, 0);
+    const totalRevenue      = (revenues || []).reduce((s: number, r: Revenue) => s + r.amount, 0);
+    const prevTotalRevenue  = (prevRevenues || []).reduce((s: number, r: Revenue) => s + r.amount, 0);
+    const subRevenue        = (revenues || []).filter((r: Revenue) => r.type === "Subscription").reduce((s: number, r: Revenue) => s+r.amount, 0);
+    const prevSubRevenue    = prevRevenues.filter((r: Revenue) => r.type === "Subscription").reduce((s: number, r: Revenue) => s+r.amount, 0);
+    const onetimeRevenue    = (revenues || []).filter((r: Revenue) => r.type === "One-Time").reduce((s: number, r: Revenue) => s+r.amount, 0);
 
-    const uniqueCusts       = new Set((revenues || []).map(r => r.customerId));
-    const prevUniqueCusts   = new Set(prevRevenues.map(r => r.customerId));
+    const uniqueCusts       = new Set((revenues || []).map((r: Revenue) => r.customerId));
+    const prevUniqueCusts   = new Set(prevRevenues.map((r: Revenue) => r.customerId));
     const retainedCusts     = [...uniqueCusts].filter(id => prevUniqueCusts.has(id));
     const newCusts          = [...uniqueCusts].filter(id => !prevUniqueCusts.has(id)).length;
     const retentionRate     = prevUniqueCusts.size > 0
@@ -234,7 +232,7 @@ export function RevenueCaptureSystem() {
   // â”€â”€ Revenue Trend by day â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const revenueTrendData = useMemo(() => {
     const daily: Record<string,{total:number;subscription:number;onetime:number}> = {};
-    revenues.forEach(r => {
+    revenues.forEach((r: Revenue) => {
       const d = r.receivedDate?.slice(0,10) || "";
       if (!d) return;
       if (!daily[d]) daily[d] = { total:0, subscription:0, onetime:0 };
@@ -254,7 +252,7 @@ export function RevenueCaptureSystem() {
   // â”€â”€ Revenue Split by type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const revenueSplitData = useMemo(() => {
     const typeMap: Record<string,number> = {};
-    revenues.forEach(r => { typeMap[r.type] = (typeMap[r.type]||0) + r.amount; });
+    revenues.forEach((r: Revenue) => { typeMap[r.type] = (typeMap[r.type]||0) + r.amount; });
     return Object.entries(typeMap).map(([name,value],i) => ({
       id:`sp${i}`, name, value, color: COLORS[i % COLORS.length],
     })).filter(x => x.value > 0);
@@ -262,8 +260,8 @@ export function RevenueCaptureSystem() {
 
   // â”€â”€ Monthly comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const monthCompareData = useMemo(() => {
-    const curr = (revenues || []).reduce((s,r) => s+r.amount, 0);
-    const prev = (prevRevenues || []).reduce((s,r) => s+r.amount, 0);
+    const curr = (revenues || []).reduce((s: number, r: Revenue) => s+r.amount, 0);
+    const prev = (prevRevenues || []).reduce((s: number, r: Revenue) => s+r.amount, 0);
     return [
       { id:"mc1", month: MONTHS.find(m=>m.value===prevMonth)?.label||prevMonth, revenue: prev },
       { id:"mc2", month: MONTHS.find(m=>m.value===selectedMonth)?.label||selectedMonth, revenue: curr },
@@ -273,8 +271,8 @@ export function RevenueCaptureSystem() {
   // â”€â”€ Location performance by pincode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const locationData = useMemo(() => {
     const byPin: Record<string,{revenue:number;count:number}> = {};
-    revenues.forEach(r => {
-      const job = (allJobs || []).find(j => j.jobId === r.jobId);
+    revenues.forEach((r: Revenue) => {
+      const job = (allJobs || []).find((j: Job) => j.jobId === r.jobId);
       const pin = job?.pinCode || "Unknown";
       if (!byPin[pin]) byPin[pin] = { revenue:0, count:0 };
       byPin[pin].revenue += r.amount;
@@ -296,13 +294,13 @@ export function RevenueCaptureSystem() {
   const washerData = useMemo(() => {
     const byWasher: Record<string,{name:string;revenue:number;jobs:number}> = {};
     allJobs
-      .filter(j =>
+      .filter((j: Job) =>
         j.cityId === filterCityId &&
         j.status === "Completed" &&
         j.scheduledDate?.startsWith(selectedMonth) &&
         (filterWasherId === "All" || j.washerId === filterWasherId)
       )
-      .forEach(j => {
+      .forEach((j: Job) => {
         const wid = j.washerId || "Unknown";
         if (!byWasher[wid]) {
           const emp = allEmps.find(e => e.id === wid);
@@ -328,12 +326,10 @@ export function RevenueCaptureSystem() {
     if (revenues.length === 0) { toast.error("No data to export"); return; }
     const rows = [
       ["Revenue ID","Date","Customer ID","Type","Taxable Value","CGST (9%)","SGST (9%)","IGST","Total Value","Payment Method","Status","City"],
-      ...(revenues || []).map(r => {
+      ...(revenues || []).map((r: Revenue) => {
         const taxable = r.amount;
-        // Inter-state if cityId is Mumbai (Maharashtra=27) vs company state Gujarat=24
-        const isInter = r.supplyType === "INTER_STATE" ||
-          (r.cityId === "CITY-MUMBAI") ||
-          (r.vendorStateCode && r.vendorStateCode !== "24");
+        // Inter-state if cityId is Mumbai (Maharashtra) vs company state Gujarat
+        const isInter = r.cityId === "CITY-MUMBAI";
         const cgst   = isInter ? 0 : parseFloat((taxable * 0.09).toFixed(2));
         const sgst   = isInter ? 0 : parseFloat((taxable * 0.09).toFixed(2));
         const igst   = isInter ? parseFloat((taxable * 0.18).toFixed(2)) : 0;
@@ -345,7 +341,7 @@ export function RevenueCaptureSystem() {
         ];
       }),
     ];
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const csv = rows.map((r: any[]) => r.map((v: any) => `"${v}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = `revenue_${filterCityId}_${selectedMonth}.csv`;
@@ -397,7 +393,7 @@ export function RevenueCaptureSystem() {
         <CardContent className="p-4">
           <div className="flex flex-wrap gap-3">
             {/* City */}
-            <Select value={filterCityId} onValueChange={v => { setFilterCityId(v); setFilterPincode("All"); }}>
+            <Select value={filterCityId} onValueChange={v => { setFilterCityId(v as typeof city); setFilterPincode("All"); }}>
               <SelectTrigger className="w-40"><SelectValue placeholder="City" /></SelectTrigger>
               <SelectContent>
                 {availableCities.map(c => (
