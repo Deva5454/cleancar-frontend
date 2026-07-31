@@ -365,7 +365,13 @@ export function FinanceTransactions() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="border-green-200 bg-green-50">
+        <Card
+          className={`border-green-200 bg-green-50 cursor-pointer transition-shadow hover:shadow-md ${typeFilter === "REVENUE" ? "ring-2 ring-green-500" : ""}`}
+          onClick={() => {
+            setTypeFilter(typeFilter === "REVENUE" ? "ALL" : "REVENUE");
+            document.getElementById("finance-transactions-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -380,7 +386,13 @@ export function FinanceTransactions() {
           </CardContent>
         </Card>
 
-        <Card className="border-orange-200 bg-orange-50">
+        <Card
+          className={`border-orange-200 bg-orange-50 cursor-pointer transition-shadow hover:shadow-md ${typeFilter === "REFUND" ? "ring-2 ring-orange-500" : ""}`}
+          onClick={() => {
+            setTypeFilter(typeFilter === "REFUND" ? "ALL" : "REFUND");
+            document.getElementById("finance-transactions-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -410,7 +422,13 @@ export function FinanceTransactions() {
           </CardContent>
         </Card>
 
-        <Card className="border-red-200 bg-red-50">
+        <Card
+          className={`border-red-200 bg-red-50 cursor-pointer transition-shadow hover:shadow-md ${typeFilter === "EXPENSE" ? "ring-2 ring-red-500" : ""}`}
+          onClick={() => {
+            setTypeFilter(typeFilter === "EXPENSE" ? "ALL" : "EXPENSE");
+            document.getElementById("finance-transactions-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -540,7 +558,7 @@ export function FinanceTransactions() {
       </Card>
 
       {/* Transactions Table */}
-      <Card>
+      <Card id="finance-transactions-table">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Transaction Ledger ({filteredTransactions.length})</CardTitle>
