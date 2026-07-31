@@ -137,13 +137,13 @@ export function GoodsReceipt() {
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                      <span>{grn.supplier}</span>
+                      <span>{grn.supplier ?? grn.supplierName ?? "Unknown supplier"}</span>
                       <span>•</span>
-                      <span>PO: {grn.poNumber}</span>
+                      <span>PO: {grn.poNumber ?? "—"}</span>
                       <span>•</span>
-                      <span>{grn.items} items</span>
+                      <span>{Array.isArray(grn.items) ? grn.items.length : grn.items} items</span>
                       <span>•</span>
-                      <span>{grn.date}</span>
+                      <span>{grn.date ?? grn.grnDate}</span>
                     </div>
                     {grn.batchesCreated && (
                       <p className="text-xs text-green-600 mt-1">✓ {grn.batchesCreated} batches created</p>
