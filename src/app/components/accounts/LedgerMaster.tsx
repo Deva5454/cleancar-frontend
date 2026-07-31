@@ -10,6 +10,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "../ui/select";
 import {
   Table,
@@ -72,7 +74,13 @@ export function LedgerMaster() {
     let filtered = ledgers;
 
     // Filter by tab
-    if (selectedTab !== "all") {
+    if (selectedTab === "expenses") {
+      // Real, confirmed fix - "Expenses" spans multiple real account heads
+      // (cogs, purchase, direct_expenses, indirect_expenses, depreciation,
+      // salary_expense, statutory_expense), not one single value - filter
+      // by the real, genuine nature field instead of a single accountHead.
+      filtered = filtered.filter(l => l.nature === "expense");
+    } else if (selectedTab !== "all") {
       filtered = filtered.filter(l => l.accountHead === selectedTab);
     }
 
@@ -250,29 +258,38 @@ export function LedgerMaster() {
                   onChange={e => setSelectedTab(e.target.value)}
                 >
                   <option value="all">— ALL LEDGERS —</option>
-                  <optgroup label="LIABILITIES">
-                    <option value="accounts_payable">Accounts Payable (Vendors)</option>
-                    <option value="other_liabilities">Other Liabilities</option>
-                    <option value="creditors">Creditors</option>
-                  </optgroup>
                   <optgroup label="ASSETS">
-                    <option value="debtors">Debtors (Customers)</option>
-                    <option value="bank_accounts">Bank Accounts</option>
                     <option value="fixed_assets">Fixed Assets</option>
+                    <option value="cash_bank">Cash &amp; Bank</option>
                     <option value="current_assets">Current Assets</option>
+                    <option value="accounts_receivable">Accounts Receivable (Debtors)</option>
+                    <option value="gst_input">GST Input (ITC)</option>
+                  </optgroup>
+                  <optgroup label="LIABILITIES">
+                    <option value="equity">Capital &amp; Equity</option>
+                    <option value="duties_taxes">Duties &amp; Taxes</option>
+                    <option value="credit_cards">Credit Cards</option>
+                    <option value="non_current_liab">Non-Current Liabilities</option>
+                    <option value="other_liabilities">Other Liabilities</option>
+                    <option value="accounts_payable">Accounts Payable (Vendors)</option>
+                    <option value="tds_payable">TDS Payable</option>
+                    <option value="salary_payable">Salary Payable</option>
+                    <option value="statutory_payable">Statutory Payable (PF/ESIC/PT)</option>
                   </optgroup>
                   <optgroup label="INCOME">
-                    <option value="sales_subscription">Sales / Subscription Revenue</option>
+                    <option value="sales_subscription">Sales — Subscription</option>
+                    <option value="sales_service">Sales — Service</option>
+                    <option value="sales_renewal">Sales — Renewal</option>
                     <option value="other_income">Other Income</option>
                   </optgroup>
                   <optgroup label="EXPENSES">
-                    <option value="transaction_charges">Transaction Charges</option>
-                    <option value="operating_expenses">Operating Expenses</option>
-                    <option value="administrative_expenses">Administrative Expenses</option>
-                  </optgroup>
-                  <optgroup label="BANK & PAYMENT">
-                    <option value="bank">Bank Ledgers</option>
-                    <option value="sales_subscription">Sales Subscription</option>
+                    <option value="cogs">Cost of Goods Sold</option>
+                    <option value="purchase">Purchases</option>
+                    <option value="direct_expenses">Direct Expenses</option>
+                    <option value="indirect_expenses">Indirect Expenses</option>
+                    <option value="depreciation">Depreciation</option>
+                    <option value="salary_expense">Salaries &amp; Wages</option>
+                    <option value="statutory_expense">Statutory Contributions</option>
                   </optgroup>
                 </select>
               </div>
@@ -313,11 +330,11 @@ export function LedgerMaster() {
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
             <TabsList className="grid grid-cols-6 mb-4">
               <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="debtors">Debtors</TabsTrigger>
+              <TabsTrigger value="accounts_receivable">Debtors</TabsTrigger>
               <TabsTrigger value="accounts_payable">Vendors</TabsTrigger>
-              <TabsTrigger value="bank">Bank</TabsTrigger>
+              <TabsTrigger value="cash_bank">Bank</TabsTrigger>
               <TabsTrigger value="fixed_assets">Fixed Assets</TabsTrigger>
-              <TabsTrigger value="transaction_charges">Expenses</TabsTrigger>
+              <TabsTrigger value="expenses">Expenses</TabsTrigger>
             </TabsList>
 
             {/* Auto-create notice for Debtors tab */}
@@ -497,11 +514,30 @@ export function LedgerMaster() {
                     <SelectValue placeholder="Select account head" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CHART_OF_ACCOUNTS_HEADS.map((head) => (
-                      <SelectItem key={head.value} value={head.value}>
-                        {head.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Assets</SelectLabel>
+                      {CHART_OF_ACCOUNTS_HEADS.filter((h) => h.nature === "asset").map((head) => (
+                        <SelectItem key={head.value} value={head.value}>{head.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Liabilities</SelectLabel>
+                      {CHART_OF_ACCOUNTS_HEADS.filter((h) => h.nature === "liability").map((head) => (
+                        <SelectItem key={head.value} value={head.value}>{head.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Income</SelectLabel>
+                      {CHART_OF_ACCOUNTS_HEADS.filter((h) => h.nature === "income").map((head) => (
+                        <SelectItem key={head.value} value={head.value}>{head.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Expenses</SelectLabel>
+                      {CHART_OF_ACCOUNTS_HEADS.filter((h) => h.nature === "expense").map((head) => (
+                        <SelectItem key={head.value} value={head.value}>{head.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
