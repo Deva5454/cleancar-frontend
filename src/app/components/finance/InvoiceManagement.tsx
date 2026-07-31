@@ -53,8 +53,8 @@ import { useCity } from "../../contexts/CityContext";
 import { calculateGST, generateInvoiceNumber } from "../../services/accountingEntryService";
 import { COMPANY_GST_CONFIG, gstComplianceService } from "../../services/gstComplianceService";
 import { useFinance } from "../../contexts/FinanceContext";
-import { useCustomers } from "../../contexts/AppProvider";
-import { useCustomerSubscriptions } from "../../contexts/AppProvider";
+import { useCustomers, type Customer } from "../../contexts/AppProvider";
+import { useCustomerSubscriptions, type CustomerSubscription } from "../../contexts/AppProvider";
 import { logger } from "../../services/logger";
 import { accountingEntryService } from "../../services/accountingEntryService";
 
@@ -338,7 +338,7 @@ async function recordPayment(
     }
   } catch (err) {
     // Non-blocking: log but don't fail the payment recording
-    logger.log("Accounting ledger post failed for invoice payment:", err);
+    logger.log("Accounting ledger post failed for invoice payment:", { err });
   }
 
   // ── Create the matching GST transaction ───────────────────────────────────
@@ -473,15 +473,15 @@ export default function InvoiceManagement() {
   const { subscriptions } = useCustomerSubscriptions();
 
   const generatedInvoices = subscriptions
-    .filter(s => s.status === "Active")
+    .filter((s: CustomerSubscription) => s.status === "Active")
     .slice(0, 20)
-    .map((sub, i) => {
-      const customer = customers.find(c => c.customerId === sub.customerId);
+    .map((sub: CustomerSubscription, i: number) => {
+      const customer = customers.find((c: Customer) => c.customerId === sub.customerId);
       const invoiceNum = i + 1;
       const baseAmount = sub.pricing?.finalPrice || 0;
       const taxableAmount = baseAmount;
       const custStateCode = COMPANY_GST_CONFIG.stateCode; // assume intrastate; update if customer state known
-      const gst1 = calculateGST(taxableAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, custStateCode, "Unregistered", sub.cityId);
+      const gst1 = calculateGST(taxableAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, custStateCode, "Unregistered", customer?.cityId);
       const { cgst, sgst, igst } = gst1;
       const totalAmount = gst1.totalBillValue;
 
@@ -502,7 +502,7 @@ export default function InvoiceManagement() {
         balanceDue: 0,
         status: "PAID" as const,
         paymentStatus: "COMPLETED" as const,
-        city: sub.cityId || "CITY-SURAT",
+        city: customer?.cityId || "CITY-SURAT",
         createdAt: sub.startDate || new Date().toISOString(),
       };
     });
@@ -543,10 +543,10 @@ export default function InvoiceManagement() {
 
       // Merge with subscription-generated invoices (UNPAID ones for active subs)
       const subInvoices: Invoice[] = subscriptions
-        .filter(s => s.status === "Active")
+        .filter((s: CustomerSubscription) => s.status === "Active")
         .slice(0, 20)
-        .map((sub, i) => {
-          const customer = customers.find(c => c.customerId === sub.customerId);
+        .map((sub: CustomerSubscription, i: number) => {
+          const customer = customers.find((c: Customer) => c.customerId === sub.customerId);
           const invoiceNum = i + 1;
           const baseAmount = sub.pricing?.finalPrice || 0;
           const gst2 = calculateGST(baseAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", cityId);
@@ -563,7 +563,7 @@ export default function InvoiceManagement() {
             customerId: sub.customerId,
             customerName: (() => {
               const n = customer ? `${customer.firstName} ${customer.lastName}`.trim() : "";
-              return (n && !/^Customer (Sur|Mum)/i.test(n)) ? n : (sub.customerName || sub.customerId || "Customer");
+              return (n && !/^Customer (Sur|Mum)/i.test(n)) ? n : (sub.customerId || "Customer");
             })(),
             serviceType: sub.packageName || sub.packageType || "Car Wash Subscription",
             subtotal: baseAmount,
@@ -575,7 +575,7 @@ export default function InvoiceManagement() {
             balanceDue: totalAmount,
             status: isOverdueInv ? "OVERDUE" as const : "UNPAID" as const,
             paymentStatus: "PENDING" as const,
-            city: sub.cityId || "CITY-SURAT",
+            city: customer?.cityId || "CITY-SURAT",
             createdAt: sub.startDate || new Date().toISOString(),
           };
         });
@@ -684,9 +684,10 @@ export default function InvoiceManagement() {
       id: `INV-${Date.now()}`,
       invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4,"0")}`,
       customerId: createForm.customerId,
-      customerName: customers.find(c => c.customerId === createForm.customerId)
-        ? `${customers.find(c => c.customerId === createForm.customerId)!.firstName} ${customers.find(c => c.customerId === createForm.customerId)!.lastName}`
-        : createForm.customerId,
+      customerName: (() => {
+        const matchedCustomer = customers.find((c: Customer) => c.customerId === createForm.customerId);
+        return matchedCustomer ? `${matchedCustomer.firstName} ${matchedCustomer.lastName}` : createForm.customerId;
+      })(),
       serviceType: createForm.serviceType || "Service",
       invoiceDate: new Date().toISOString().split("T")[0],
       dueDate: createForm.dueDate,
@@ -1007,7 +1008,7 @@ export default function InvoiceManagement() {
               <Select value={createForm.customerId} onValueChange={v => setCreateForm({...createForm, customerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                 <SelectContent>
-                  {customers.slice(0,50).map(c => (
+                  {customers.slice(0,50).map((c: Customer) => (
                     <SelectItem key={c.customerId} value={c.customerId}>{c.firstName} {c.lastName}</SelectItem>
                   ))}
                 </SelectContent>

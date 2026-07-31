@@ -283,8 +283,13 @@ class GSTComplianceService {
     const d = localStorage.getItem(key);
     return d ? JSON.parse(d) : [];
   }
-  private saveList<T>(key: string, list: T[]): void {
-    localStorage.setItem(key, JSON.stringify(list));
+  private saveList<T>(key: string, list: T[]): boolean {
+    try {
+      localStorage.setItem(key, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   getVendors(): GSTVendor[]       { return this.getList<GSTVendor>(this.VENDOR_KEY); }
@@ -310,11 +315,11 @@ class GSTComplianceService {
     idx >= 0 ? list.splice(idx, 1, c) : list.push(c);
     this.saveList(this.CUSTOMER_KEY, list);
   }
-  saveTransaction(t: GSTTransaction): void {
+  saveTransaction(t: GSTTransaction): boolean {
     const list = this.getTransactions();
     const idx  = list.findIndex(x => x.id === t.id);
     idx >= 0 ? list.splice(idx, 1, t) : list.push(t);
-    this.saveList(this.TXN_KEY, list);
+    return this.saveList(this.TXN_KEY, list);
   }
   saveReconciliationRecord(r: GSTReconciliationRecord): void {
     const list = this.getReconciliation();
