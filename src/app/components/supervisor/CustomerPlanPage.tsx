@@ -490,7 +490,7 @@ export function CustomerPlanPage() {
   const { addCustomer, customers } = useCustomers();
   const { createSubscription } = useCustomerSubscriptions();
   const { generateJobsFromSubscription } = useJobs();
-  const { city } = useCity();
+  const { city, cityInfo } = useCity();
 
   // Listen for config changes from admin
   useEffect(() => {
@@ -668,8 +668,8 @@ export function CustomerPlanPage() {
         area: cfg.serviceablePincodes.find(p => p.code === pincode)?.label || pincode,
         addressLine1: custAddress,
         pinCode: pincode,
-        city: "Surat",
-        cityId: "CITY-SURAT",
+        city: cityInfo?.displayName || "Surat",
+        cityId: city || "CITY-SURAT",
         amount: total,
         customerName: custName,
         customerPhone: custMobile,

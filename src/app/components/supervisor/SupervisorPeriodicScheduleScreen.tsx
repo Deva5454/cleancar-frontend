@@ -107,6 +107,7 @@ function usageBar(used: number, cap: number): string {
 export function SupervisorPeriodicScheduleScreen() {
   const { currentUser } = useRole();
   const supervisorId = currentUser?.employeeId ?? "SUP-UNKNOWN";
+  const cityId = currentUser?.cityId || "CITY-SURAT";
 
   const [rows, setRows]           = useState<CustomerRow[]>([]);
   const [lookAheadDays, setLookAheadDays] = useState(7);
@@ -138,7 +139,7 @@ export function SupervisorPeriodicScheduleScreen() {
       // ── Build customer name map ───────────────────────────────────────────
       const custMap: Record<string, string> = {};
       try {
-        const rawCusts = localStorage.getItem("cleancar_CITY-SURAT_customers");
+        const rawCusts = localStorage.getItem(`cleancar_${cityId}_customers`);
         if (rawCusts) {
           (JSON.parse(rawCusts) as any[]).forEach((c: any) => {
             custMap[c.customerId] = `${c.firstName || ""} ${c.lastName || ""}`.trim() || c.phone || c.customerId;
@@ -166,7 +167,7 @@ export function SupervisorPeriodicScheduleScreen() {
       // offset (0–14) so occurrences are spread across the next 14 days.
       // This means every 3-day window will have data.
       try {
-        const rawSubs = localStorage.getItem("cleancar_CITY-SURAT_subscriptions");
+        const rawSubs = localStorage.getItem(`cleancar_${cityId}_subscriptions`);
         if (rawSubs) {
           const subs: any[] = JSON.parse(rawSubs).filter(
             (s: any) => s.status === "Active" || s.status === "active"
@@ -240,7 +241,7 @@ export function SupervisorPeriodicScheduleScreen() {
 
         const custNameMap2: Record<string, string> = {};
         try {
-          const rawC2 = localStorage.getItem("cleancar_CITY-SURAT_customers");
+          const rawC2 = localStorage.getItem(`cleancar_${cityId}_customers`);
           if (rawC2) {
             (JSON.parse(rawC2) as any[]).forEach((c: any) => {
               custNameMap2[c.customerId] = (c.firstName || "") + " " + (c.lastName || "");
@@ -253,7 +254,7 @@ export function SupervisorPeriodicScheduleScreen() {
         let bookingJobs: any[] = [];
 
         try {
-          const rawJ2 = localStorage.getItem("cleancar_CITY-SURAT_jobs");
+          const rawJ2 = localStorage.getItem(`cleancar_${cityId}_jobs`);
           if (rawJ2) {
             bookingJobs = (JSON.parse(rawJ2) as any[]).filter((j: any) => {
               const inWindow = j.scheduledDate >= todayStr2 && j.scheduledDate <= horizonStr2;

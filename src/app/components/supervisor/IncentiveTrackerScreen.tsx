@@ -351,7 +351,7 @@ function getSession() {
 }
 
 // ── Seed demo incentive records for supervisor if none exist ──────────────────
-function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string) {
+function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string, cityId: string) {
   const SEED_KEY = "cc360_incentive_v6_seeded_" + supervisorId;
   const existing = incentiveV6.getAll();
   const myRecords = existing.filter(r => r.supervisorId === supervisorId);
@@ -382,7 +382,7 @@ function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string)
       customerName: "Harsh Patel", planType: "SMART_WASH",
       vehicleCategory: "Hatchback / Compact Sedan", monthlyAmount: 1599,
       term: 3 as const, source: "BTL" as const, activationDate: ago(2),
-      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      cityId, supervisorId, supervisorName,
       tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma",
     },
     {
@@ -390,7 +390,7 @@ function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string)
       customerName: "Nilesh Shah", planType: "ELITE_WASH",
       vehicleCategory: "SUV / MUV / Sedan", monthlyAmount: 2499,
       term: 6 as const, source: "BTL" as const, activationDate: ago(1),
-      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      cityId, supervisorId, supervisorName,
       tseId: "EDB-TSE-SUR1", tseName: "Pooja Sharma",
     },
     {
@@ -398,7 +398,7 @@ function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string)
       customerName: "Rekha Mehta", planType: "SMART_WASH",
       vehicleCategory: "Hatchback / Compact Sedan", monthlyAmount: 1599,
       term: 3 as const, source: "BTL" as const, activationDate: ago(0),
-      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      cityId, supervisorId, supervisorName,
       tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi",
     },
     {
@@ -406,7 +406,7 @@ function seedSupervisorDemoIfEmpty(supervisorId: string, supervisorName: string)
       customerName: "Darshan Joshi", planType: "ELITE_WASH",
       vehicleCategory: "Luxury / Large SUV", monthlyAmount: 3499,
       term: 12 as const, source: "BTL" as const, activationDate: ago(1),
-      cityId: "CITY-SURAT", supervisorId, supervisorName,
+      cityId, supervisorId, supervisorName,
       tseId: "EDB-TSE-SUR2", tseName: "Ankit Trivedi",
     },
   ];
@@ -422,14 +422,15 @@ export function IncentiveTrackerScreen({ supervisorId, name }: { supervisorId?: 
   const session = getSession();
   const id = session.employeeId || supervisorId || "EDB-SUP-SUR1";
   const empName = session.employeeName || name || id;
+  const cityId = session.cityId || "CITY-SURAT";
 
   // Seed demo data on first render + process due tranches
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    seedSupervisorDemoIfEmpty(id, empName);
+    seedSupervisorDemoIfEmpty(id, empName, cityId);
     incentiveV6.autoProcessDueTranches(new Date().toISOString().split("T")[0]);
     setReady(true);
-  }, [id, empName]);
+  }, [id, empName, cityId]);
 
   if (!ready) return (
     <div className="flex items-center justify-center py-16 text-gray-400 text-sm">

@@ -35,7 +35,7 @@ export function ShiftCashRegisterPanel() {
   const hour      = new Date().getHours();
   const shiftType = hour < 14 ? "Morning" : "Evening";
   const today     = new Date().toISOString().slice(0, 10);
-  const cityId    = "CITY-SURAT";
+  const cityId    = currentUser?.cityId || "CITY-SURAT";
 
   const [register, setRegister] = useState<ShiftCashRegister | null>(null);
   const [depositRef, setDepositRef] = useState("");

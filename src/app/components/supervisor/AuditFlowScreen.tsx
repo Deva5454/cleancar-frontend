@@ -27,6 +27,7 @@ import {
   ChevronRight, ChevronLeft, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCity } from "../../contexts/CityContext";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +212,7 @@ export function AuditFlowScreen({
   onSubmit,
   onCancel,
 }: AuditFlowScreenProps) {
+  const { city: currentCityId } = useCity();
   const [step, setStep] = useState(0);
 
   // Step 0
@@ -271,7 +273,7 @@ export function AuditFlowScreen({
 
     // Source 1: customers
     try {
-      const raw = localStorage.getItem("cleancar_CITY-SURAT_customers");
+      const raw = localStorage.getItem(`cleancar_${currentCityId}_customers`);
       if (raw) {
         const custs: any[] = JSON.parse(raw);
         const c = custs.find(x => x.phone?.replace(/\D/g,"") === num || x.mobile?.replace(/\D/g,"") === num);
@@ -280,7 +282,7 @@ export function AuditFlowScreen({
           setVehicleReg(c.vehicleReg || c.vehicle?.registration || "");
           // find subscription
           try {
-            const rawS = localStorage.getItem("cleancar_CITY-SURAT_subscriptions");
+            const rawS = localStorage.getItem(`cleancar_${currentCityId}_subscriptions`);
             if (rawS) {
               const subs: any[] = JSON.parse(rawS);
               const s = subs.find(x => x.customerId === c.customerId && x.status === "Active");
@@ -292,7 +294,7 @@ export function AuditFlowScreen({
           } catch (_) {}
           // find today's job
           try {
-            const rawJ = localStorage.getItem("cleancar_CITY-SURAT_jobs");
+            const rawJ = localStorage.getItem(`cleancar_${currentCityId}_jobs`);
             if (rawJ) {
               const today = new Date().toISOString().split("T")[0];
               const jobs: any[] = JSON.parse(rawJ);

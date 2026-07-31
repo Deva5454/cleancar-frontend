@@ -33,8 +33,7 @@ import {
 } from "../../services/jobRoutingService";
 import { shiftRosterService } from "../../services/shiftRosterService";
 import { DataService } from "../../services/DataService";
-
-const CITY_ID = "CITY-SURAT";
+import { useCity } from "../../contexts/CityContext";
 
 function getEmployees() {
   try {
@@ -76,6 +75,7 @@ function WasherCard({ w, onAssign, jobTime }: { w: EligibleWasher; onAssign: () 
 export function SupervisorJobQueue() {
   const { currentUser, currentRole } = useRole();
   const { jobs, assignJobToWasher }  = useJobs();
+  const { city: CITY_ID } = useCity();
 
   const supId   = currentUser?.employeeId ?? currentUser?.id ?? "";
   const today   = new Date().toISOString().slice(0, 10);

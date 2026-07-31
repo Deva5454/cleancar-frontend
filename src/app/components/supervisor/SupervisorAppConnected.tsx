@@ -58,6 +58,11 @@ export function SupervisorAppConnected() {
   const navigate = useNavigate();
   const { scenario, scenarioData } = useScenario();
   const { currentUser } = useRole();
+  // Real, confirmed fix - was hardcoded "CITY-SURAT" in 12 places below,
+  // meaning any supervisor outside Surat had their real attendance and
+  // exit-settlement actions silently misfiled under Surat's data, never
+  // visible to their own city's real HR/reporting.
+  const supervisorCityId = currentUser?.cityId || "CITY-SURAT";
 
   // ── BTL LOCATION ASSIGNMENT NOTIFICATION ────────────────────────────────────
   // Sales Head can now assign a supervisor to a real BTL location, but
@@ -120,7 +125,7 @@ export function SupervisorAppConnected() {
     try {
       const stored = DataService.get<any>("EXIT_SETTLEMENTS");
       const raw = stored.length > 0 ? stored : (() => {
-        const r = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        const r = localStorage.getItem(`cleancar_${supervisorCityId}_exit_settlements`);
         return r ? JSON.parse(r) : [];
       })();
       return raw.map((r: any) => ({
@@ -141,7 +146,7 @@ export function SupervisorAppConnected() {
   const _persistExits = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
     try {
-      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem(`cleancar_${supervisorCityId}_exit_settlements`, JSON.stringify(records));
       localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
     } catch {}
   };
@@ -333,13 +338,13 @@ export function SupervisorAppConnected() {
     ], (data) => {
       if (data.status) {
         try {
-          const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+          const records = JSON.parse(localStorage.getItem(`cleancar_${supervisorCityId}_attendance_records`) || "[]");
           const today = new Date().toISOString().split("T")[0];
           const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
           filtered.push({
             attendanceId: `ATT-${washerId}-${today}-MANUAL`,
             employeeId: washerId,
-            cityId: "CITY-SURAT",
+            cityId: supervisorCityId,
             date: today,
             status: data.status,
             checkInTime: new Date().toTimeString().slice(0, 8),
@@ -348,7 +353,7 @@ export function SupervisorAppConnected() {
             overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
             overrideReason: data.reason || "",
           });
-          localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+          localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
           refreshData();
         } catch (_) {}
         toast.success(`${washer?.name || washerId} marked as ${data.status}${data.reason ? " - " + data.reason : ""}`);
@@ -1150,20 +1155,20 @@ export function SupervisorAppConnected() {
   const handleMarkPresentFromAlert = (washerId: string) => {
     const washer = team.find(w => w.id === washerId);
     try {
-      const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+      const records = JSON.parse(localStorage.getItem(`cleancar_${supervisorCityId}_attendance_records`) || "[]");
       const today = new Date().toISOString().split("T")[0];
       const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
       filtered.push({
         attendanceId: `ATT-${washerId}-${today}-MANUAL`,
         employeeId: washerId,
-        cityId: "CITY-SURAT",
+        cityId: supervisorCityId,
         date: today,
         status: "Present",
         checkInTime: new Date().toTimeString().slice(0, 8),
         manualOverride: true,
         overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
       });
-      localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+      localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
       refreshData();
     } catch (_) {}
     alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
@@ -1178,20 +1183,20 @@ export function SupervisorAppConnected() {
     ], (data) => {
       if (data.reason) {
         try {
-          const records = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_attendance_records") || "[]");
+          const records = JSON.parse(localStorage.getItem(`cleancar_${supervisorCityId}_attendance_records`) || "[]");
           const today = new Date().toISOString().split("T")[0];
           const filtered = records.filter((r: any) => !(r.employeeId === washerId && r.date === today));
           filtered.push({
             attendanceId: `ATT-${washerId}-${today}-MANUAL`,
             employeeId: washerId,
-            cityId: "CITY-SURAT",
+            cityId: supervisorCityId,
             date: today,
             status: "Absent",
             manualOverride: true,
             overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
             overrideReason: data.reason,
           });
-          localStorage.setItem("cleancar_CITY-SURAT_attendance_records", JSON.stringify(filtered));
+          localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
           refreshData();
         } catch (_) {}
         alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
@@ -2029,7 +2034,7 @@ export function SupervisorAppConnected() {
           <CashDepositScreen
             supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"}
             supervisorName={currentUser?.name || "Supervisor"}
-            cityId="CITY-SURAT"
+            cityId={supervisorCityId}
             onBack={() => setShowCashDeposit(false)}
           />
         </div>
