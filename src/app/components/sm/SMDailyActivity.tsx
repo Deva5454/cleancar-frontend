@@ -91,6 +91,7 @@ interface ActiveTrip {
 
 interface DailyReport {
   date: string;
+  employeeId: string;
   morning: {
     locked: boolean;
     priorityForDay: string;
@@ -121,20 +122,30 @@ interface DailyReport {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TODAY        = new Date().toISOString().split("T")[0];
-const STORAGE_KEY  = `SM_DAILY_REPORT_${TODAY}`;
 const LOC_TYPES: LocationType[] = ["Society","Corporate","Petrol Pump","RWA","Shop-in-Shop","Other"];
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
-function loadReport(): DailyReport {
+// Real, confirmed fix - this key was previously scoped only by date
+// (SM_DAILY_REPORT_${TODAY}), with no employee identifier at all. Every
+// Sales Manager using this feature on the same day genuinely shared the
+// same real storage key - no real supervisor could ever tell whose report
+// they were looking at, and two SMs on the same device would silently
+// overwrite each other's data.
+function storageKeyFor(employeeId: string): string {
+  return `SM_DAILY_REPORT_${employeeId}_${TODAY}`;
+}
+
+function loadReport(employeeId: string): DailyReport {
   try {
-    const s = localStorage.getItem(STORAGE_KEY);
+    const s = localStorage.getItem(storageKeyFor(employeeId));
     if (s) {
       const raw = JSON.parse(s);
       // Defensive merge — if stored data is from an older schema version,
       // fill in all missing fields rather than crashing
       if (!raw || typeof raw !== "object") throw new Error("bad data");
       const parsed = raw as any;
+      if (typeof parsed.employeeId !== "string" || !parsed.employeeId) parsed.employeeId = employeeId;
       // Backfill field section
       if (!parsed.field)                         parsed.field = {};
       if (!Array.isArray(parsed.field.completedTrips)) parsed.field.completedTrips = [];
@@ -186,6 +197,7 @@ function loadReport(): DailyReport {
 
   return {
     date: TODAY,
+    employeeId,
     morning: { locked: false, priorityForDay: "", plannedVisits, openAlerts: alerts.length },
     field: { locked: false, activeTrip: null, completedTrips: [], visitsActual: plannedVisits, unplannedVisits: 0, totalLeads: 0, totalConversions: 0, totalKm: 0 },
     evening: { locked: false, dayRating: 3, biggestWin: "", biggestBlock: "", tomorrowTop3: "", escalationsRaised: 0 },
@@ -193,7 +205,7 @@ function loadReport(): DailyReport {
 }
 
 function saveReport(r: DailyReport) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(r)); } catch { /**/ }
+  try { localStorage.setItem(storageKeyFor(r.employeeId), JSON.stringify(r)); } catch { /**/ }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -899,7 +911,8 @@ function DestinationUpdater({ current, onSave }: { current: string; onSave: (v:s
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SMDailyActivity() {
-  const [report, setReport] = useState<DailyReport>(loadReport);
+  const { currentUser } = useRole();
+  const [report, setReport] = useState<DailyReport>(() => loadReport(currentUser?.employeeId || "unknown"));
   const [openSession, setOpenSession] = useState<SessionId>("morning");
 
   // One-time migration: patch in-memory state if loaded from old localStorage schema
@@ -911,7 +924,6 @@ export function SMDailyActivity() {
   const [saving, setSaving] = useState(false);
   const [travelRefresh, setTravelRefresh] = useState(0);
 
-  const { currentUser } = useRole();
   const { employees }   = useEmployee();
   const { city, cityInfo } = useCity();
 
