@@ -11,6 +11,8 @@ import { useEventListener, useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../services/accountingEntryService";
+import { COMPANY_GST_CONFIG } from "../services/gstComplianceService";
 
 // Types
 export interface MRRData {
@@ -734,6 +736,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // CR Revenue (Account 4100)
       { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "4100", accountName: "Service Revenue", entryType: "CREDIT" as const, amount: revenueData.amount },
     ]);
+
+    // Real, confirmed fix - also post immediately to the real journal
+    // system P&L actually reads (accountingEntryService), rather than
+    // relying on RevenueCaptureSystem.tsx's lazy sync, which only ever
+    // covered whatever single month someone happened to be viewing on
+    // that one screen. Every other real month, and every city nobody
+    // had opened that screen for, silently never reached P&L at all.
+    try {
+      const taxable = revenueData.amount / 1.18;
+      const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", revenueData.cityId);
+      const existingJournals = accountingEntryService.getAllJournals(revenueData.cityId);
+      const existingNums = existingJournals.map(j => j.voucherNumber).filter(Boolean);
+      const invNum = revenueData.invoiceNumber || generateInvoiceNumber(revenueData.cityId, existingNums);
+      const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: revenueData.amount });
+      accountingEntryService.createJournal(
+        { date: revenueData.receivedDate, narration: `Revenue — Invoice ${invNum}`, lines, city: revenueData.cityId, cityId: revenueData.cityId, createdBy: "System" },
+        revenueData.cityId
+      );
+    } catch (_e) { /* non-critical — P&L will pick this up on next reconciliation pass */ }
 
     return newRevenue;
   };
