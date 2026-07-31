@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { JourneyPanel } from "./JourneyTimeline";
 import {
   fieldTrackingService,
   type FieldSession,
@@ -33,28 +34,6 @@ function formatDuration(from: string, to?: string | null) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-// ── Trail Preview (reused from FieldCheckIn) ──────────────────────────────────
-
-function TrailPreview({ trail }: { trail: FieldSession["trail"] }) {
-  if (trail.length < 2) return <p className="text-xs text-gray-400 text-center py-4">Trail unavailable</p>;
-  const lats = trail.map(p => p.lat), lngs = trail.map(p => p.lng);
-  const [minLat, maxLat] = [Math.min(...lats), Math.max(...lats)];
-  const [minLng, maxLng] = [Math.min(...lngs), Math.max(...lngs)];
-  const [W, H, PAD] = [300, 160, 20];
-  const tx = (lng: number) => PAD + ((lng - minLng) / (maxLng - minLng || 1)) * (W - 2 * PAD);
-  const ty = (lat: number) => H - PAD - ((lat - minLat) / (maxLat - minLat || 1)) * (H - 2 * PAD);
-  const d = trail.map((p, i) => `${i === 0 ? "M" : "L"}${tx(p.lng).toFixed(1)},${ty(p.lat).toFixed(1)}`).join(" ");
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full border rounded-lg bg-gray-50">
-      <path d={d} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={tx(trail[0].lng)} cy={ty(trail[0].lat)} r="5" fill="#22c55e" />
-      <circle cx={tx(trail[trail.length-1].lng)} cy={ty(trail[trail.length-1].lat)} r="5" fill="#ef4444" />
-      <text x="8" y="14" fontSize="9" fill="#22c55e">Start</text>
-      <text x={W - 28} y="14" fontSize="9" fill="#ef4444">End</text>
-    </svg>
-  );
 }
 
 // ── Session Row ───────────────────────────────────────────────────────────────
@@ -152,8 +131,8 @@ function SessionRow({ session, reviewerName }: { session: FieldSession; reviewer
             ))}
           </div>
 
-          {/* Trail */}
-          <TrailPreview trail={session.trail} />
+          {/* Real, full journey timeline - same component the live dashboard uses */}
+          <JourneyPanel session={session} />
 
           {/* Reinstatement review */}
           {session.reinstateRequest && (
