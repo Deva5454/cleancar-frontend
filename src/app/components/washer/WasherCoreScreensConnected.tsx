@@ -138,15 +138,15 @@ export function WasherCoreScreensConnected() {
           { jobId:`DEMO-${washerId}-003`, customerName:"Vikram Trivedi", packageType:"ELITE_WASH", vehicleDetails:{category:"Mid/Large SUV",color:"Black",brand:"Toyota",registration:"GJ-05-CM-9012"}, location:{addressLine1:"C-101, Prime Apartments, Citylight",area:"Citylight",city:"Surat",pinCode:"395007"}, serviceDetails:{addOns:[],specialInstructions:"Extra attention to wheels"}, subscriptionStartDate:s2, timeSlot:slots[2], parkingInstructions:"Basement parking B2, Slot 42" },
           { jobId:`DEMO-${washerId}-004`, customerName:"Meera Joshi", packageType:"SMART_WASH", isCoverJob:true, vehicleDetails:{category:"Hatchback",color:"Red",brand:"Tata",registration:"GJ-05-DM-3456"}, location:{addressLine1:"D-402, Green Park, Piplod",area:"Piplod",city:"Surat",pinCode:"395009"}, serviceDetails:{addOns:[],specialInstructions:"Cover job - original washer on leave"}, subscriptionStartDate:s1, timeSlot:slots[3], parkingInstructions:"Main gate parking" },
           { jobId:`DEMO-${washerId}-005`, customerName:"Ravi Desai", packageType:"EXPRESS_WASH", vehicleDetails:{category:"Compact Sedan",color:"Blue",brand:"Maruti",registration:"GJ-05-ER-7890"}, location:{addressLine1:"E-105, Shanti Nagar, Althan",area:"Althan",city:"Surat",pinCode:"395010"}, serviceDetails:{addOns:["Interior Cleaning"],specialInstructions:"Sensitive to chemical smells"}, subscriptionStartDate:s3, timeSlot:slots[4], parkingInstructions:"Visitor parking near lobby" },
-        ].map((d: any, i: number) => ({...d, washerId, scheduledDate:today, status: i === 0 ? "In Progress" : "Assigned", jobType:"Regular", packageName:d.packageType, customerId:`CUST-${d.jobId}`, cityId:"CITY-SURAT", city:"Surat", createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()}));
-        const existing = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs")||"[]").filter((j: any) => !(j.washerId===washerId && j.scheduledDate===today && String(j.jobId).startsWith("DEMO-")));
-        localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existing, ...demos]));
+        ].map((d: any, i: number) => ({...d, washerId, scheduledDate:today, status: i === 0 ? "In Progress" : "Assigned", jobType:"Regular", packageName:d.packageType, customerId:`CUST-${d.jobId}`, cityId:currentCityId, city:"Surat", createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()}));
+        const existing = JSON.parse(localStorage.getItem(`cleancar_${currentCityId}_jobs`)||"[]").filter((j: any) => !(j.washerId===washerId && j.scheduledDate===today && String(j.jobId).startsWith("DEMO-")));
+        localStorage.setItem(`cleancar_${currentCityId}_jobs`, JSON.stringify([...existing, ...demos]));
         localStorage.setItem(seedKey, "1");
       } catch(_) {}
     }
     let loaded: CustomerJob[] = [];
     try {
-      const raw = localStorage.getItem("cleancar_CITY-SURAT_jobs");
+      const raw = localStorage.getItem(`cleancar_${currentCityId}_jobs`);
       if (raw) {
         const myJobs = JSON.parse(raw).filter((j: any) => j.washerId===washerId && j.scheduledDate===today && ["Assigned","Acknowledged","In Progress"].includes(j.status));
         loaded = myJobs.map((j: any) => { const periodicFlags = (() => { try { return computePeriodicFlagsB(j.jobId, j.packageType || j.packageName || "EXPRESS_WASH", j.subscriptionStartDate || "2026-01-01"); } catch(_) { return {}; } })(); return { id:j.jobId, timeSlot:j.timeSlot||"06:00 AM", customerFirstName:j.customerName||"Customer", area:j.location?.area||"Surat", pinCode:j.location?.pinCode||"395001", city:j.city||"Surat", addressLine1:j.location?.addressLine1||"", vehicleCategory:j.vehicleDetails?.category||"Sedan", vehicleColor:j.vehicleDetails?.color||"White", vehicleBrand:j.vehicleDetails?.brand||"Maruti", vehicleRegistration:j.vehicleDetails?.registration||"", packageName:j.packageType||j.packageName||"EXPRESS_WASH", packageType:j.packageType||j.packageName||"EXPRESS_WASH", serviceFrequency:"Daily", subscriptionMonth:today.slice(0,7), subscriptionStartDate:j.subscriptionStartDate||"2026-01-01", jobType:j.jobType||"Regular", status:j.status||"Assigned", specialInstructions:j.serviceDetails?.specialInstructions||"", parkingInstructions:j.parkingInstructions||"", isCoverJob:j.isCoverJob||false, serviceDetails:j.serviceDetails||{addOns:[]}, customerId:j.customerId||"", ...periodicFlags }; });
@@ -154,7 +154,7 @@ export function WasherCoreScreensConnected() {
     } catch(_) {}
     if (loaded.length === 0) { mockWasherDataService.clearCache(); loaded = mockWasherDataService.getTodayJobs(washerId); }
     setJobs(loaded);
-  }, [(currentUser as any)?.employeeId]);
+  }, [(currentUser as any)?.employeeId, currentCityId]);
 
   // â"€â"€ DERIVED â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   const activeJob      = jobs.find(j => j.id === activeJobId) ?? null;
@@ -167,7 +167,7 @@ export function WasherCoreScreensConnected() {
     mockWasherDataService.updateJobStatus(jobId, status);
     // Persist status to localStorage so supervisor sees the update
     try {
-      const key = "cleancar_CITY-SURAT_jobs";
+      const key = `cleancar_${currentCityId}_jobs`;
       const allJobs = JSON.parse(localStorage.getItem(key) || "[]");
       const updated = allJobs.map((j: any) =>
         j.jobId === jobId ? { ...j, status, updatedAt: new Date().toISOString() } : j
@@ -221,13 +221,13 @@ export function WasherCoreScreensConnected() {
       if (washerId) {
         const today = checkInNow.toISOString().split("T")[0];
         const timeStr = `${String(checkInNow.getHours()).padStart(2,"0")}:${String(checkInNow.getMinutes()).padStart(2,"0")}:00`;
-        const attKey = "cleancar_CITY-SURAT_attendance_records";
+        const attKey = `cleancar_${currentCityId}_attendance_records`;
         const records = JSON.parse(localStorage.getItem(attKey) || "[]");
         const existingIdx = records.findIndex((r: any) => r.employeeId === washerId && r.date === today);
         const newRecord = {
           attendanceId: `ATT-${washerId}-${today}`,
           employeeId: washerId,
-          cityId: "CITY-SURAT",
+          cityId: currentCityId,
           date: today,
           status: "Present",
           checkInTime: timeStr,
@@ -354,6 +354,26 @@ export function WasherCoreScreensConnected() {
   const handleSubmitCheckOut = () => {
     setCheckedOut(true);
     setShowDaySummary(true);
+
+    // Persist checkout time to the real attendance record - previously
+    // never written anywhere, so a supervisor/HR reviewing real
+    // attendance data would never see this washer's real checkout time.
+    try {
+      const washerId = (currentUser as any)?.employeeId || "";
+      if (washerId) {
+        const now = new Date();
+        const today = now.toISOString().split("T")[0];
+        const timeStr = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:00`;
+        const attKey = `cleancar_${currentCityId}_attendance_records`;
+        const records = JSON.parse(localStorage.getItem(attKey) || "[]");
+        const existingIdx = records.findIndex((r: any) => r.employeeId === washerId && r.date === today);
+        if (existingIdx >= 0) {
+          records[existingIdx] = { ...records[existingIdx], checkOutTime: timeStr };
+          localStorage.setItem(attKey, JSON.stringify(records));
+        }
+      }
+    } catch (_) {}
+
     import("../../services/washerLocationService").then(({ stopTracking }) => {
       stopTracking("CHECKOUT");
     });
