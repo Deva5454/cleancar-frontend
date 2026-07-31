@@ -4,13 +4,17 @@
  *
  * SESSIONS:
  *   Morning (08:00–10:00) — Plan the day: free-form visits, any order
- *   Field   (10:00–EOD)   — Trip tracking, 30-min wait prompt, visit log
+ *   Field   (10:00–EOD)   — Trip tracking, visit log
  *   Evening (mandatory)   — EOD report (auto-populated) before checkout
  *
  * RULES:
  *   • Morning plan: SM adds locations freely (existing or new) in any order
  *   • Trip: FROM = GPS auto-captured, TO = optional at start
- *   • 30-min stop → system prompts visit log (location type + purpose + outcome)
+ *   • Visit log (location type + purpose + outcome) is manually triggered -
+ *     an always-visible "Log This Visit" button while a trip is active, and
+ *     ending a trip forces the log open first if it hasn't been done yet.
+ *     There is no automatic GPS-stop detection - real GPS movement
+ *     monitoring was never implemented, so this is intentionally manual.
  *   • Distance = odometer-based (Google Maps link for verification)
  *   • Cannot start new trip / checkout / do any task with open active trip
  *   • EOD mandatory before checkout — auto-fills from day's punched data
@@ -29,7 +33,7 @@ import {
   Sun, Target, FileText, Zap, Building2,
   Star, Save, RotateCcw, CalendarCheck, Lock, Car, Bike,
   Camera, Receipt, IndianRupee, XCircle, Navigation,
-  Timer, Bell, Unlock,
+  Bell, Unlock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { salesManagerService } from "../../services/salesManagerService";
@@ -75,9 +79,6 @@ interface ActiveTrip {
   startOdometer: number;
   startTime: string;            // HH:MM
   startPhotoData: string;       // base64
-  // 30-min wait tracking
-  stoppedAt?: string;           // ISO - when GPS stopped moving
-  waitPromptShown: boolean;
   // visit log after 30-min wait
   visitLogDone: boolean;
   visitLocationType?: LocationType;
@@ -121,7 +122,6 @@ interface DailyReport {
 const TODAY        = new Date().toISOString().split("T")[0];
 const STORAGE_KEY  = `SM_DAILY_REPORT_${TODAY}`;
 const LOC_TYPES: LocationType[] = ["Society","Corporate","Petrol Pump","RWA","Shop-in-Shop","Other"];
-const WAIT_PROMPT_MINUTES = 30;
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -145,7 +145,6 @@ function loadReport(): DailyReport {
       if (typeof parsed.field.unplannedVisits !== "number")  parsed.field.unplannedVisits  = 0;
       if (parsed.field.activeTrip && typeof parsed.field.activeTrip === "object") {
         if (typeof parsed.field.activeTrip.visitLogDone !== "boolean")    parsed.field.activeTrip.visitLogDone    = false;
-        if (typeof parsed.field.activeTrip.waitPromptShown !== "boolean") parsed.field.activeTrip.waitPromptShown = false;
       }
       // Backfill morning section
       if (!parsed.morning)                              parsed.morning = {};
@@ -483,22 +482,6 @@ function TripPanel({
   const [vlOutcome,    setVlOutcome]      = useState<PlannedVisit["outcome"]|undefined>(undefined);
   const [vlNotes,      setVlNotes]        = useState("");
 
-  // 30-min wait ticker
-  const [waitMins, setWaitMins] = useState(0);
-  useEffect(() => {
-    if (!activeTrip?.stoppedAt || activeTrip.visitLogDone) return;
-    const interval = setInterval(() => {
-      const mins = minsElapsed(activeTrip.stoppedAt!);
-      setWaitMins(mins);
-      if (mins >= WAIT_PROMPT_MINUTES && !activeTrip.waitPromptShown) {
-        onTripUpdate({ waitPromptShown: true });
-        setShowVisitLog(true);
-        toast.warning("⏱ 30 minutes at this location — please log your visit", { duration: 8000 });
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [activeTrip?.stoppedAt, activeTrip?.visitLogDone, activeTrip?.waitPromptShown]);
-
   const rate4W = travelReimbursementService.getEffectiveRate(empId, "4W");
   const rate2W = travelReimbursementService.getEffectiveRate(empId, "2W");
   const rate   = vehicleType === "4W" ? rate4W : rate2W;
@@ -554,7 +537,6 @@ function TripPanel({
       startOdometer: Number(odoStart),
       startTime: new Date().toTimeString().slice(0,5),
       startPhotoData: startPhoto,
-      waitPromptShown: false,
       visitLogDone: false,
     };
     onTripStart(at);
@@ -762,19 +744,6 @@ function TripPanel({
           </button>
         )}
 
-        {/* 30-min wait indicator */}
-        {activeTrip.stoppedAt && !activeTrip.visitLogDone && (
-          <div className={`mt-3 flex items-center gap-2 p-2 rounded-lg text-xs ${
-            waitMins >= WAIT_PROMPT_MINUTES
-              ? "bg-orange-100 border border-orange-300 text-orange-800"
-              : "bg-amber-50 border border-amber-200 text-amber-700"}`}>
-            <Timer className="w-3.5 h-3.5 shrink-0"/>
-            {waitMins >= WAIT_PROMPT_MINUTES
-              ? `⚠️ Stopped ${waitMins} min — visit log required before you can continue`
-              : `Stopped ${waitMins} min at this location`}
-          </div>
-        )}
-
         {/* Visit log done indicator */}
         {activeTrip.visitLogDone && (
           <div className="mt-3 p-2 rounded-lg bg-green-50 border border-green-200 text-xs text-green-700 flex items-center gap-2">
@@ -784,7 +753,7 @@ function TripPanel({
       </Card>
 
       {/* ── 30-min visit log prompt ─────────────────────────────────────── */}
-      {(showVisitLog || (activeTrip.waitPromptShown && !activeTrip.visitLogDone)) && (
+      {showVisitLog && (
         <div ref={visitLogRef}>
         <Card className="p-4 border-2 border-orange-300 bg-orange-50/50 space-y-3">
           <div className="flex items-center gap-2">
