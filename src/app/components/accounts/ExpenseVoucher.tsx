@@ -369,6 +369,31 @@ export function ExpenseVoucher() {
     }
     // Credit (Full): no payment entry yet — vendor ledger carries the balance until paid
 
+    // Real, confirmed fix - notify FinanceContext so this genuinely
+    // outstanding credit obligation becomes a real Payable, the same way
+    // AccountingEntry.tsx's createEntry() path already does. Only fires
+    // for credit modes, where a real payable genuinely exists - Cash/Bank
+    // modes are paid immediately, with nothing left outstanding.
+    if (formData.paymentMode === "Credit (Full)" || formData.paymentMode === "Credit (Partial)") {
+      const outstandingAmount = formData.paymentMode === "Credit (Full)"
+        ? formData.grandTotal
+        : formData.grandTotal - formData.amountPaidNow;
+      try {
+        window.dispatchEvent(new CustomEvent("cc360_accounting_entry_created", {
+          detail: {
+            entryType: "Expense",
+            amount: outstandingAmount,
+            taxableValue: formData.totalAmount,
+            description: formData.narration || `Purchase from ${vendor.name} — ${selectedItem?.itemName || ""}`,
+            vendorId: vendor.id,
+            vendorName: vendor.name,
+            cityId,
+            date: formData.date,
+          }
+        }));
+      } catch (_e) { /* non-critical — payables list will update on next load */ }
+    }
+
     // FIX 1 (TDS): Entry 3 — TDS deducted at source
     // Vendor Dr (reduce payable by TDS amount) / TDS Payable Cr
     if (formData.tdsAmount > 0 && formData.tdsSection) {

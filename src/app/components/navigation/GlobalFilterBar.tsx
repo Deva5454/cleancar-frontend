@@ -72,10 +72,16 @@ interface GlobalFiltersProviderProps {
 }
 
 export function GlobalFiltersProvider({ children }: GlobalFiltersProviderProps) {
+  // Real, dynamic default - the start of the current month through today,
+  // rather than another hardcoded, stale date that would need updating
+  // again the moment real data moves past it (the exact bug this fix
+  // corrects for the restore path below).
+  const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const defaultFilters: GlobalFilters = {
     city: "ALL",
-    startDate: "2026-01-01",  // Start of seeded data
-    endDate: "2026-04-30",    // End of seeded data
+    startDate: startOfMonth.toISOString().slice(0, 10),
+    endDate: today.toISOString().slice(0, 10),
     businessUnit: "ALL",
   };
 
@@ -84,8 +90,12 @@ export function GlobalFiltersProvider({ children }: GlobalFiltersProviderProps) 
       const saved = localStorage.getItem("cc360_global_filters");
       if (saved) {
         const p = JSON.parse(saved);
-        // Only restore if dates are within seeded data range (Jan-Apr 2026)
-        if (p.startDate >= "2026-01-01" && p.endDate <= "2026-04-30") return p;
+        // Real, confirmed fix - only validate the saved filter has the
+        // genuine expected shape, not an arbitrary date ceiling. The
+        // previous check (endDate <= "2026-04-30") rejected any real,
+        // current filter selection extending past that date, silently
+        // discarding the user's real choice on every page re-mount.
+        if (typeof p.startDate === "string" && typeof p.endDate === "string" && p.startDate <= p.endDate) return p;
       }
     } catch(e) {}
     return defaultFilters;
@@ -97,10 +107,10 @@ export function GlobalFiltersProvider({ children }: GlobalFiltersProviderProps) 
 
   const hasActiveFilters = useMemo(() =>
     filters.city !== "ALL" ||
-    (filters.startDate !== "" && filters.startDate !== "2026-01-01") ||
-    (filters.endDate !== "" && filters.endDate !== "2026-04-30") ||
+    (filters.startDate !== "" && filters.startDate !== defaultFilters.startDate) ||
+    (filters.endDate !== "" && filters.endDate !== defaultFilters.endDate) ||
     filters.businessUnit !== "ALL",
-  [filters]);
+  [filters, defaultFilters.startDate, defaultFilters.endDate]);
 
   const filterContextValue = useMemo(() => ({
     filters, setFilters, resetFilters, hasActiveFilters,

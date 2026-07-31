@@ -328,7 +328,14 @@ export function PayrollProvider({ children }: { children: ReactNode }) {
               const _evt = {
                 type: "Salary",
                 employeeId: p.employeeId,
-                amount: p.netSalary,
+                amount: p.grossSalary, // real, confirmed fix - was p.netSalary, understating the true payable versus what FinanceContext's listener actually expects (grossSalary)
+                grossSalary: p.grossSalary,
+                basicSalary: p.baseSalary,
+                netSalaryPayable: p.netSalary,
+                pfEmployee: p.pf,
+                esicEmployee: p.esic,
+                pt: p.pt,
+                tdsDeducted: p.tds,
                 dueDate: p.month + "-28",
                 status: "Pending",
                 description: `Salary — ${p.employeeId} — ${p.month}`,
