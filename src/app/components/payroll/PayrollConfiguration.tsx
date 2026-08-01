@@ -9,6 +9,7 @@
  */
 
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
@@ -36,12 +37,11 @@ import {
   FileText,
   ClipboardCheck,
 } from "lucide-react";
-import { PayrollProcessingFlow } from "./PayrollProcessingFlow";
-import { PayrollProcessingTab } from "./PayrollProcessingTab";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
 
 export function PayrollConfiguration() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const navigate = useNavigate();
   const { employees, payrollRuns } = useEmployeeData();
 
   // System Settings State
@@ -163,7 +163,7 @@ export function PayrollConfiguration() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-2 lg:w-auto">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <LayoutGrid className="w-4 h-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -171,14 +171,6 @@ export function PayrollConfiguration() {
           <TabsTrigger value="system-settings" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">System Settings</span>
-          </TabsTrigger>
-          <TabsTrigger value="processing-flow" className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            <span className="hidden sm:inline">Processing Flow</span>
-          </TabsTrigger>
-          <TabsTrigger value="payroll-processing" className="flex items-center gap-2">
-            <ClipboardCheck className="w-4 h-4" />
-            <span className="hidden sm:inline">Payroll Processing</span>
           </TabsTrigger>
         </TabsList>
 
@@ -266,18 +258,18 @@ export function PayrollConfiguration() {
                 </div>
 
                 <div
-                  onClick={() => setActiveTab("processing-flow")}
+                  onClick={() => navigate("/payroll/run")}
                   className="p-4 border rounded-lg hover:shadow-lg cursor-pointer transition-shadow"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <TrendingUp className="w-8 h-8 text-orange-600" />
                     <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">
-                      Workflow
+                      Run Payroll
                     </Badge>
                   </div>
-                  <h3 className="font-semibold mb-2">Processing Flow</h3>
+                  <h3 className="font-semibold mb-2">Process Payroll</h3>
                   <p className="text-sm text-gray-600">
-                    Calculate → Review → Approve workflow
+                    Generate this month's payroll from real salary, attendance, and leave data
                   </p>
                 </div>
               </div>
@@ -483,16 +475,6 @@ export function PayrollConfiguration() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Processing Flow Tab */}
-        <TabsContent value="processing-flow">
-          <PayrollProcessingFlow />
-        </TabsContent>
-
-        {/* Payroll Processing Tab */}
-        <TabsContent value="payroll-processing">
-          <PayrollProcessingTab />
         </TabsContent>
       </Tabs>
     </div>

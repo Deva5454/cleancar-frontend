@@ -245,6 +245,7 @@ export const NAV_CONFIG: NavItem[] = [
     children: [
       { label: "Configuration", path: "/payroll/configuration", icon: Settings, module: "payroll", match: "prefix" },
       { label: "Salary Structures", path: "/payroll/create-salary-structure", icon: DollarSign, module: "payroll", match: "prefix" },
+      { label: "Salary Assignment", path: "/payroll/salary-assignment", icon: Banknote, module: "payroll", match: "prefix" },
       { label: "Processing", path: "/payroll/run", icon: Play, module: "payroll", match: "prefix" },
       { label: "Review & Approval", path: "/payroll/review-approval", icon: CheckSquare, module: "payroll", match: "prefix" },
       { label: "Salary Payables", path: "/payroll/salary-payables", icon: Wallet, module: "payroll", match: "prefix" },

@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
  * @component
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { formatCurrency } from "../../lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -45,6 +45,7 @@ import {
 import { toast } from "sonner";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { getStateRules, type IndianState } from "../../services/payroll/complianceRules";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -61,7 +62,7 @@ interface SalaryPayable {
   employerContributions: number;
   totalExpense: number;
   dueDate: string;
-  status: "approved" | "partially_paid" | "paid";
+  status: "approved" | "paid";
   payrollMonth: string;
   payrollYear: string;
   expenseId: string;
@@ -81,6 +82,7 @@ interface PayableSummary {
 // HELPER FUNCTIONS
 // ============================================================================
 function formatDate(dateString: string): string {
+  if (!dateString) return "—";
   return new Date(dateString).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -97,19 +99,49 @@ export function SalaryPayableView() {
   const { payrollRuns } = usePayroll();
   const { employees } = useEmployee();
 
-  const payables = payrollRuns.map(run => {
-    const emp = employees.find(e => e.employeeId === run.employeeId);
-    return { employeeId: run.employeeId, employeeName: emp ? emp.firstName+" "+emp.lastName : run.employeeId, role: emp?.role||"Employee", department: emp?.department||"Operations", grossSalary:run.grossSalary, deductions:run.deductions?.total||0, netSalary:run.netSalary, employerContributions:run.employerPF||0, totalExpense:run.totalEmployerCost||run.grossSalary, dueDate:run.period?.endDate||"", status:run.status==="Disbursed"?"approved":"pending", payrollMonth:run.month?.split("-")[1]||"", payrollYear:run.month?.split("-")[0]||"", expenseId:"EXP-"+run.payrollId };
-  });
-  const [summary, setSummary] = useState<PayableSummary>({
-    totalEmployees: 0,
-    totalNetSalary: 0,
-    totalGrossSalary: 0,
-    totalEmployerContributions: 0,
-    totalExpense: 0,
-    dueDate: "",
-    daysUntilDue: 0,
-  });
+  // Only runs that have actually crystallized into a real liability
+  // ("approved" — ready to pay — or "disbursed" — already paid) belong on
+  // an "approved salaries awaiting payment" screen. Previously this
+  // included every run regardless of status (draft/under_review included)
+  // and compared against "Disbursed" (capitalized), which never matched
+  // the real lowercase PayrollStatus values, so every row silently fell
+  // into an invalid "pending" status not even in this screen's own type.
+  const payables: SalaryPayable[] = payrollRuns
+    .filter(run => run.status === "approved" || run.status === "disbursed")
+    .map(run => {
+      const emp = employees.find(e => e.employeeId === run.employeeId);
+      // Employer-side PF/ESIC aren't stored directly on PayrollRun — derive
+      // them the same way statutoryChallanService does, from the real
+      // employee-side pf/esic amounts and each run's own state's rate
+      // ratio, so these numbers stay internally consistent with how
+      // payroll itself was computed (previously read run.employerPF /
+      // run.totalEmployerCost, neither of which exist on PayrollRun, so
+      // both were always 0/gross-only).
+      const rules = getStateRules((run.stateCode as IndianState) || "GJ");
+      const employerPF = rules.pf.employeeRate > 0
+        ? (run.pf || 0) * (rules.pf.employerRate / rules.pf.employeeRate)
+        : 0;
+      const employerESIC = rules.esi.employeeRate > 0
+        ? (run.esic || 0) * (rules.esi.employerRate / rules.esi.employeeRate)
+        : 0;
+      const employerContributions = Math.round(employerPF + employerESIC);
+      return {
+        employeeId: run.employeeId,
+        employeeName: emp ? emp.firstName + " " + emp.lastName : run.employeeId,
+        role: emp?.role || "Employee",
+        department: emp?.department || "Operations",
+        grossSalary: run.grossSalary,
+        deductions: run.totalDeductions || 0,
+        netSalary: run.netSalary,
+        employerContributions,
+        totalExpense: run.grossSalary + employerContributions,
+        dueDate: run.period?.endDate || "",
+        status: (run.status === "disbursed" ? "paid" : "approved") as SalaryPayable["status"],
+        payrollMonth: run.month?.split("-")[1] || "",
+        payrollYear: run.month?.split("-")[0] || "",
+        expenseId: "EXP-" + run.payrollId,
+      };
+    });
   const [isLoading, setIsLoading] = useState(false);
 
   // Filters
@@ -118,46 +150,43 @@ export function SalaryPayableView() {
   const [selectedDepartment, setSelectedDepartment] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    loadPayables();
-  }, [selectedMonth, selectedYear, selectedDepartment]);
-
-  async function loadPayables() {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-
-      // In production:
-      // const data = await payrollEngine.getSalaryPayables({
-      //   month: selectedMonth,
-      //   year: selectedYear,
-      //   department: selectedDepartment,
-      //   status: 'approved'
-      // });
-
-      // Data now loaded from PayrollContext
-    } catch (error) {
-      toast.error("Failed to load salary payables");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   const filteredPayables = payables.filter((payable) =>
-    payable.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    payable.employeeId.toLowerCase().includes(searchQuery.toLowerCase())
+    payable.payrollMonth === selectedMonth &&
+    payable.payrollYear === selectedYear &&
+    (selectedDepartment === "ALL" || payable.department === selectedDepartment) &&
+    (payable.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      payable.employeeId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  // Summary is derived directly from the filtered set — previously this was
+  // a separate useState initialized to all zeros and never updated by
+  // anything (loadPayables() was a setTimeout no-op), so the summary card
+  // and the "Payment Due Soon" banner permanently showed 0/₹0/"Invalid
+  // Date" regardless of the real data rendered in the table below it.
+  const summary: PayableSummary = (() => {
+    const dueDate = filteredPayables[0]?.dueDate || "";
+    const daysUntilDue = dueDate
+      ? Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86400000)
+      : Infinity;
+    return {
+      totalEmployees: filteredPayables.length,
+      totalNetSalary: filteredPayables.reduce((s, p) => s + p.netSalary, 0),
+      totalGrossSalary: filteredPayables.reduce((s, p) => s + p.grossSalary, 0),
+      totalEmployerContributions: filteredPayables.reduce((s, p) => s + p.employerContributions, 0),
+      totalExpense: filteredPayables.reduce((s, p) => s + p.totalExpense, 0),
+      dueDate,
+      daysUntilDue,
+    };
+  })();
 
   const getStatusBadge = (status: SalaryPayable["status"]) => {
     const styles = {
       approved: "bg-green-100 text-green-700 border-green-300",
-      partially_paid: "bg-blue-100 text-blue-700 border-blue-300",
       paid: "bg-purple-100 text-purple-700 border-purple-300",
     };
 
     const labels = {
       approved: "Approved",
-      partially_paid: "Partially Paid",
       paid: "Paid",
     };
 
@@ -171,6 +200,27 @@ export function SalaryPayableView() {
   const handleBulkPayment = () => {
     // Navigate to payment screen
     navigate(`/payroll/salary-payment?month=${selectedMonth}&year=${selectedYear}`);
+  };
+
+  const handleExport = () => {
+    if (filteredPayables.length === 0) {
+      toast.error("No payables to export for this period");
+      return;
+    }
+    const header = ["Employee ID", "Employee Name", "Department", "Gross Salary", "Deductions", "Net Salary", "Employer Contributions", "Total Expense", "Due Date", "Status"];
+    const rows = filteredPayables.map(p => [
+      p.employeeId, p.employeeName, p.department, p.grossSalary, p.deductions,
+      p.netSalary, p.employerContributions, p.totalExpense, p.dueDate, p.status,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `salary-payables-${selectedYear}-${selectedMonth}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Salary payables exported");
   };
 
   return (
@@ -220,14 +270,16 @@ export function SalaryPayableView() {
             <div>
               <div className="text-sm text-gray-600 mb-1">Due Date</div>
               <div className="text-lg font-bold text-gray-900">{formatDate(summary.dueDate)}</div>
-              <div className="text-sm text-gray-600">{summary.daysUntilDue} days remaining</div>
+              <div className="text-sm text-gray-600">
+                {summary.dueDate ? `${summary.daysUntilDue} days remaining` : "No payables for this period"}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Due Date Alert */}
-      {summary.daysUntilDue <= 7 && (
+      {summary.dueDate && summary.daysUntilDue <= 7 && (
         <Card className="border-2 border-orange-300 bg-orange-50">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -318,7 +370,7 @@ export function SalaryPayableView() {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Employee Salary Payables</CardTitle>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>

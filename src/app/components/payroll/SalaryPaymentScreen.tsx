@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { formatCurrency } from "../../lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -92,6 +93,14 @@ export function SalaryPaymentScreen() {
   const { getSalaryPayables, getTravelPayables, markAsPaid } = useFinance();
   const { city } = useCity();
   const { currentUser } = useRole();
+  const [searchParams] = useSearchParams();
+  // Deep-link params from Salary Payables ("Process Payments" passes
+  // month/year, the per-row arrow passes employeeId) — previously read by
+  // nothing here, so clicking either action silently dropped the user on
+  // an unfiltered, nothing-preselected screen.
+  const linkMonth = searchParams.get("month");
+  const linkYear = searchParams.get("year");
+  const linkEmployeeId = searchParams.get("employeeId");
 
   // Real Finance Payables of type "Salary" — created when a payroll run is
   // approved (fires cc360_payroll_approved). Previously this built its list
@@ -100,6 +109,7 @@ export function SalaryPaymentScreen() {
   // approved ones, with no link back to a real Payable record at all.
   const basePayables: SalaryPayable[] = getSalaryPayables(city)
     .filter(p => p.status === "Approved")
+    .filter(p => !linkMonth || !linkYear || p.dueDate?.startsWith(`${linkYear}-${linkMonth}`))
     .map(p => {
       const emp = employees.find(e => e.employeeId === p.employeeId);
       return {
@@ -112,7 +122,7 @@ export function SalaryPaymentScreen() {
         expenseId: p.payableId,
         accountNumber: emp?.bankDetails?.accountNumber || "—",
         ifscCode: emp?.bankDetails?.ifscCode || "—",
-        selected: false,
+        selected: linkEmployeeId ? p.employeeId === linkEmployeeId : false,
       };
   });
   const [payables, setPayables] = useState<SalaryPayable[]>(basePayables);

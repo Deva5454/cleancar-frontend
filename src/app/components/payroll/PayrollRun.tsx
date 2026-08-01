@@ -55,6 +55,7 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 import { CITIES, useCity } from "../../contexts/CityContext";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
 import { matchesEmployeeId } from "../../services/employeeDatabaseService";
+import { useIncentive } from "../../contexts/IncentiveContext";
 import { illustrativeGrossForRole } from "../../utils/attendanceReportCore";
 import { calculateStatutoryDeductions } from "../../services/payroll/complianceEngine";
 import { detectStateFromCity } from "../../services/payroll/complianceRules";
@@ -89,6 +90,7 @@ export function PayrollRun() {
   const { city: currentCityId } = useCity();
   const { computeDaysPresent, attendanceRecords } = useAttendance();
   const { publicHolidays } = useOrg();
+  const { getEmployeeIncentive, markIncentiveAsPaid } = useIncentive();
   const canApprove = hasPermission(currentUser, "payroll", "approve");
   const { employees: allEmployees } = useEmployee();
   // Previously filtered to only Car Washer/Supervisor — every active
@@ -263,6 +265,21 @@ export function PayrollRun() {
         // the real per-day rate (gross ÷ real working days this month).
         // If that same date was also this employee's genuine day off per
         // the real duty roster, they additionally earn one real comp-off.
+        // Real approved incentive for this exact payroll period — previously
+        // hardcoded to 0 regardless of what IncentiveContext tracked, so the
+        // whole incentive-configuration/approval subsystem had zero effect on
+        // actual take-home pay. Only "Approved" incentives for THIS period
+        // are paid out here (never "Active"/still-accruing, and never
+        // "Paid" again — markIncentiveAsPaid below moves it out of
+        // "Approved" once it's actually included in a payroll run, so the
+        // same incentive can't be paid twice across consecutive runs).
+        const empIncentive = getEmployeeIncentive(emp.employeeId);
+        const incentiveAmount = (
+          empIncentive &&
+          empIncentive.status === "Approved" &&
+          empIncentive.currentPeriod?.startDate?.slice(0, 7) === monthStr
+        ) ? empIncentive.calculatedAmount : 0;
+
         const perDayRate = totalWorkingDays > 0 ? components.monthlyGross / totalWorkingDays : 0;
         let holidayPay = 0;
         publicHolidays
@@ -286,7 +303,7 @@ export function PayrollRun() {
           cityId: empCityId,
           stateCode: state,
           baseSalary: components.basic,
-          incentiveAmount: 0, // Not yet wired to a real incentive ledger — see audit note
+          incentiveAmount,
           addOnEarnings: Math.round(holidayPay),
           allowances: components.hra + components.conveyance + components.medical + components.specialAllowance,
           grossSalary: components.monthlyGross,
@@ -299,11 +316,17 @@ export function PayrollRun() {
           totalDeductions,
           daysWorked,
           totalDays: totalWorkingDays,
-          netSalary: adjustedGross + Math.round(holidayPay) - totalDeductions,
+          netSalary: adjustedGross + Math.round(holidayPay) + incentiveAmount - totalDeductions,
           status: "draft",
           createdBy: currentUser?.name || "Payroll Run",
         });
         generated++;
+        // Move the incentive out of "Approved" now that it's been paid out
+        // in this run, so the same amount can't be picked up again by next
+        // month's payroll generation.
+        if (incentiveAmount > 0) {
+          markIncentiveAsPaid(emp.employeeId);
+        }
       }
 
       if (skippedNoSalary > 0) {
