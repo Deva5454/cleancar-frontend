@@ -16,6 +16,8 @@ import {
   type EmployeeStatus
 } from "../config/leavePolicyConfiguration";
 import { compOffService } from "./compOffService";
+import { generateEmployeeId } from "../utils/employeeUtils";
+import type { Role } from "../lib/roleConfig";
 
 export interface EmployeeLeaveBalance {
   employeeId: string;
@@ -167,6 +169,18 @@ class LeaveBalanceService {
    */
   getAllBalances(): EmployeeLeaveBalance[] {
     return Array.from(this.balances.values());
+  }
+
+  /**
+   * Look up a balance by the employee's name + role instead of their
+   * already-known leave-balance ID. Leave balances are keyed by
+   * generateEmployeeId(name, role) — a hash disconnected from the real
+   * EmployeeDatabaseRecord id/tempId — so callers that only have an
+   * employee's name and designation (e.g. HR approving a confirmation
+   * letter) can use this to find/update the matching balance record.
+   */
+  getEmployeeBalanceByName(name: string, role: Role): EmployeeLeaveBalance | null {
+    return this.getEmployeeBalance(generateEmployeeId(name, role));
   }
 
   /**

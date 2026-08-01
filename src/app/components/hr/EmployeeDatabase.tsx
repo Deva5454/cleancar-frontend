@@ -348,7 +348,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 3: Not Converted (Performance Issues)
   {
-    id: "NOT-CONVERTED",
+    id: "TEMP-003", // was a shared "NOT-CONVERTED" placeholder — collided with every other not-converted record
     tempId: "TEMP-003",
     tempIdAssignedDate: "2026-03-05",
     conversionDueDate: "2026-03-12",
@@ -385,7 +385,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 4: Not Converted (Did Not Join)
   {
-    id: "NOT-CONVERTED",
+    id: "TEMP-004", // was a shared "NOT-CONVERTED" placeholder — same collision as Scenario 3
     tempId: "TEMP-004",
     tempIdAssignedDate: "2026-03-10",
     conversionDueDate: "2026-03-17",
@@ -422,7 +422,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 5: Multi-Pincode Supervisor (Pending, 4 days in)
   {
-    id: "PENDING",
+    id: "TEMP-005", // was a shared "PENDING" placeholder — collided with every other unconverted record
     tempId: "TEMP-005",
     tempIdAssignedDate: "2026-03-14",
     conversionDueDate: "2026-03-21",
@@ -458,7 +458,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 6: TSE Single Pincode (Pending, 6 days - Due Tomorrow)
   {
-    id: "PENDING",
+    id: "TEMP-006", // was a shared "PENDING" placeholder — collided with every other unconverted record
     tempId: "TEMP-006",
     tempIdAssignedDate: "2026-03-12",
     conversionDueDate: "2026-03-19",
@@ -494,7 +494,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 7: Overdue Car Washer (9 days, Overdue by 2 days)
   {
-    id: "PENDING",
+    id: "TEMP-007", // was a shared "PENDING" placeholder — collided with every other unconverted record
     tempId: "TEMP-007",
     tempIdAssignedDate: "2026-03-09",
     conversionDueDate: "2026-03-16",
@@ -530,7 +530,7 @@ const mockEmployees: Employee[] = [
   
   // Scenario 8: Operations Manager (Fresh, 2 days in)
   {
-    id: "PENDING",
+    id: "TEMP-008", // was a shared "PENDING" placeholder — collided with every other unconverted record
     tempId: "TEMP-008",
     tempIdAssignedDate: "2026-03-16",
     conversionDueDate: "2026-03-23",
@@ -638,7 +638,7 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
   // Generate temp ID when form opens
   useEffect(() => {
     if (showAddModal) {
-      const allTempIds = employees.map(e => parseInt(e.tempId.replace('TEMP-', ''))).filter(n => !isNaN(n));
+      const allTempIds = employees.map(e => e.tempId ? parseInt(e.tempId.replace('TEMP-', '')) : NaN).filter(n => !isNaN(n));
       const nextTempNum = allTempIds.length > 0 ? Math.max(...allTempIds) + 1 : 1;
       const tempId = `TEMP-${String(nextTempNum).padStart(3, "0")}`;
       const today = new Date().toISOString().split('T')[0];
@@ -676,7 +676,13 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
     return contextEmployees.filter(e =>
       managerRoles.includes(e.designation) &&
       e.status === "Active" &&
-      (e.workLocation === formData.workLocation || e.cityId === city)
+      // Employee (from useEmployee()) exposes the work-location as `.city`
+      // (mapped from EmployeeDatabaseRecord.workLocation) — that field is
+      // populated inconsistently across seed sources: some records store a
+      // zone string there (e.g. "Surat - Zone A", matches formData.workLocation
+      // directly), others store a cityId (e.g. "CITY-SURAT", matches the
+      // selected city). Check both, plus the dedicated cityId field.
+      (e.city === formData.workLocation || e.city === city || e.cityId === city)
     );
   }, [formData.designation, formData.workLocation, contextEmployees, city]);
 
@@ -840,7 +846,10 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
     }
 
     const newEmployee: Employee = {
-      id: "PENDING",
+      // id defaults to the tempId itself (unique) instead of a shared "PENDING"
+      // placeholder — every unconverted employee used to collide on lookups
+      // keyed by id (employeeDatabaseService.getById/update match on id OR tempId)
+      id: formData.tempId as string,
       ...formData as Employee,
       pinCodes: selectedPinCodes,
     };
@@ -855,9 +864,9 @@ export function EmployeeDatabase({ openAddModal }: { openAddModal?: boolean } = 
   const handleConvertToPermanent = () => {
     if (!selectedEmployee) return;
 
-    // Validate onboarding checklist completion
-    const employeeId = selectedEmployee.id === "PENDING" ? selectedEmployee.tempId : selectedEmployee.id;
-    const onboardingTasks = onboardingChecklistService.getByEmployeeId(employeeId);
+    // Validate onboarding checklist completion — tempId is always the stable,
+    // unique key for an employee's onboarding checklist, before and after conversion
+    const onboardingTasks = onboardingChecklistService.getByEmployeeId(selectedEmployee.tempId);
 
     // Check if all tasks are completed and verified
     const pendingTasks = onboardingTasks.filter(

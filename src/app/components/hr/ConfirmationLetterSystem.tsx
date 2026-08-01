@@ -42,6 +42,9 @@ import { employeeDatabaseService } from "../../services/employeeDatabaseService"
 import type { EmployeeDatabaseRecord } from "../../services/employeeDatabaseService";
 import { useNavigate } from "react-router-dom";
 import { getLetterheadImage } from "../../services/letterTemplateService";
+import { leaveBalanceService } from "../../services/leaveBalanceService";
+import { generateEmployeeId } from "../../utils/employeeUtils";
+import type { Role } from "../../lib/roleConfig";
 
 type ConfirmationStatus =
   | "Pending Initiation"
@@ -349,6 +352,15 @@ export function ConfirmationLetterSystem({ onSwitchToTemplates }: { onSwitchToTe
         journeyStage: 9,
         journeyStageName: "Confirmed",
       });
+
+      // Flip the employee's leave-balance status from Probation to Confirmed —
+      // this was never wired up before, so confirmed employees kept accruing
+      // leave at probation quotas indefinitely. Leave balances are keyed by
+      // generateEmployeeId(name, role), not the employee's real id/tempId.
+      const leaveId = generateEmployeeId(employee.fullName, employee.designation as Role);
+      if (leaveBalanceService.getEmployeeBalance(leaveId)) {
+        leaveBalanceService.updateEmployeeStatus(leaveId, "Confirmed");
+      }
     }
 
     // Show post-issue card and auto-dismiss after 15 seconds

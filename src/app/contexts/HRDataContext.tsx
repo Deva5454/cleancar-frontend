@@ -347,7 +347,10 @@ export function HRDataProvider({ children }: { children: ReactNode }) {
     // key that no other part of the HR module ever read, so anything added
     // here was invisible everywhere else in the app.
     const record: EmployeeDatabaseRecord = {
-      id: "PENDING",
+      // id defaults to tempId itself (unique) instead of a shared "PENDING"
+      // placeholder — every unconverted employee used to collide on lookups
+      // keyed by id (employeeDatabaseService.getById/update match on id OR tempId)
+      id: tempId,
       tempId,
       tempIdAssignedDate: now,
       conversionDueDate: now,
