@@ -65,6 +65,19 @@ interface MonthlyPayslipData {
   netPayable: number;
   grossSalary: number;
   notGenerated?: boolean; // true when no real PayrollRun exists for this month yet
+  // Real workflow status of the underlying PayrollRun ("draft"/"under_review"/
+  // "approved"/"disbursed") — previously this screen showed identical numbers
+  // for a run HR hadn't even sent for review yet and one that was genuinely
+  // paid, with no way for the employee to tell the difference.
+  payrollStatus?: string;
+  disbursedAt?: string;
+  paymentReference?: string;
+  // Statutory deductions — computed and stored on every real PayrollRun,
+  // but never previously surfaced on the employee's own payslip.
+  pf: number;
+  esic: number;
+  pt: number;
+  tds: number;
   attendanceSummary: {
     totalDays: number;
     presentDays: number;
@@ -143,6 +156,13 @@ const buildHistoricalPayslipData = (
         perDayRate: totalDays > 0 ? Math.round((realRun.grossSalary || 0) / totalDays) : 0,
         netPayable: realRun.netSalary || 0,
         grossSalary: realRun.grossSalary || 0,
+        payrollStatus: realRun.status,
+        disbursedAt: realRun.disbursedAt,
+        paymentReference: realRun.paymentReference,
+        pf: realRun.pf || 0,
+        esic: realRun.esic || 0,
+        pt: realRun.pt || 0,
+        tds: realRun.tds || 0,
         attendanceSummary: {
           totalDays,
           presentDays,
@@ -167,6 +187,10 @@ const buildHistoricalPayslipData = (
         perDayRate: 0,
         netPayable: 0,
         grossSalary: 0,
+        pf: 0,
+        esic: 0,
+        pt: 0,
+        tds: 0,
         attendanceSummary: { totalDays, presentDays: 0, absentDays: 0, paidLeaveDays: 0, weeklyOffs: 0 },
         notGenerated: true,
       } as MonthlyPayslipData & { notGenerated: boolean });
@@ -247,6 +271,10 @@ export function EmployeeSelfService() {
     perDayRate: 0,
     netPayable: 0,
     grossSalary: 0,
+    pf: 0,
+    esic: 0,
+    pt: 0,
+    tds: 0,
     notGenerated: true,
     attendanceSummary: {
       totalDays: new Date(new Date(`${selectedMonth}-01`).getFullYear(), new Date(`${selectedMonth}-01`).getMonth() + 1, 0).getDate(),
@@ -497,12 +525,31 @@ export function EmployeeSelfService() {
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <Calendar className="w-8 h-8 text-blue-600" />
                 <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {new Date(selectedMonth + "-01").toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-gray-900">
+                      {new Date(selectedMonth + "-01").toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                    </h3>
+                    {!selectedMonthData.notGenerated && (
+                      selectedMonthData.payrollStatus === "disbursed" ? (
+                        <Badge className="bg-green-100 text-green-800 border-green-300">✅ Paid</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-orange-300 text-orange-700">
+                          Preliminary — {selectedMonthData.payrollStatus === "under_review" ? "Under Review"
+                            : selectedMonthData.payrollStatus === "approved" ? "Approved, awaiting payment"
+                            : "Not yet reviewed"}
+                        </Badge>
+                      )
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600">
                     Viewing: {isHR ? selectedEmployee : currentEmployee.name}
                   </p>
+                  {selectedMonthData.payrollStatus === "disbursed" && selectedMonthData.disbursedAt && (
+                    <p className="text-xs text-green-700 mt-1">
+                      Paid on {new Date(selectedMonthData.disbursedAt).toLocaleDateString('en-IN')}
+                      {selectedMonthData.paymentReference && ` · Ref: ${selectedMonthData.paymentReference}`}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-6">
@@ -533,6 +580,35 @@ export function EmployeeSelfService() {
             <Card className="border-amber-300 bg-amber-50">
               <CardContent className="p-4 text-sm text-amber-800">
                 Payroll hasn't been generated for this month yet — the figures below will show once HR/Payroll runs it.
+              </CardContent>
+            </Card>
+          )}
+          {/* Statutory Deductions — computed on every real payroll run but
+              previously never shown to the employee at all. */}
+          {!mockPayslip.notGenerated && (mockPayslip.pf > 0 || mockPayslip.esic > 0 || mockPayslip.pt > 0 || mockPayslip.tds > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Statutory Deductions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-600">Provident Fund (PF)</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{mockPayslip.pf.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">ESIC</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{mockPayslip.esic.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Professional Tax</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{mockPayslip.pt.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">TDS</p>
+                    <p className="text-lg font-semibold text-gray-900">₹{mockPayslip.tds.toLocaleString()}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
