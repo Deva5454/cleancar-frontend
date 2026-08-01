@@ -10,6 +10,7 @@
  */
 
 import type { SalaryComponents } from "./salaryStructureService";
+import { matchesEmployeeId } from "./employeeDatabaseService";
 
 export interface EmployeeSalaryRecord {
   employeeId: string;
@@ -81,17 +82,19 @@ class EmployeeSalaryStore {
     return [...this.salaryRecords];
   }
 
-  // Get active salary for an employee
+  // Get active salary for an employee. Matches on tempId too — a salary
+  // assigned while the employee was still on their temp id would otherwise
+  // become invisible the moment they're converted to a permanent id.
   getActiveEmployeeSalary(employeeId: string): EmployeeSalaryRecord | undefined {
     return this.salaryRecords.find(
-      (record) => record.employeeId === employeeId && record.isActive
+      (record) => matchesEmployeeId(record.employeeId, employeeId) && record.isActive
     );
   }
 
   // Get salary history for an employee
   getSalaryHistory(employeeId: string): EmployeeSalaryRecord[] {
     return this.salaryRecords
-      .filter((record) => record.employeeId === employeeId)
+      .filter((record) => matchesEmployeeId(record.employeeId, employeeId))
       .sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
   }
 
@@ -118,7 +121,7 @@ class EmployeeSalaryStore {
   createOrUpdateEmployeeSalary(record: Omit<EmployeeSalaryRecord, "createdDate" | "lastUpdated">): EmployeeSalaryRecord {
     // Deactivate any existing active salary for this employee
     this.salaryRecords.forEach((existing) => {
-      if (existing.employeeId === record.employeeId && existing.isActive) {
+      if (matchesEmployeeId(existing.employeeId, record.employeeId) && existing.isActive) {
         existing.isActive = false;
         existing.effectiveTo = new Date().toISOString().split("T")[0];
       }
@@ -182,7 +185,7 @@ class EmployeeSalaryStore {
   // Check if employee has salary record (has joined)
   hasEmployeeSalary(employeeId: string): boolean {
     return this.salaryRecords.some(
-      (record) => record.employeeId === employeeId && record.isActive
+      (record) => matchesEmployeeId(record.employeeId, employeeId) && record.isActive
     );
   }
 

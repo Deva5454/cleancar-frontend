@@ -301,7 +301,6 @@ export function EmployeeSelfService() {
     try {
       // ✅ MC-23: Strict identity filtering - employees can ONLY see their own data
       const employeeToLoad = isHR ? selectedEmployee : currentEmployee.name;
-      const employeeId = generateEmployeeId(employeeToLoad, currentRole);
 
       // 🔐 SECURITY: Log access for audit trail
       if (!isHR && employeeToLoad !== currentEmployee.name) {
@@ -313,22 +312,39 @@ export function EmployeeSelfService() {
         return; // Block access
       }
 
+      // Resolve the real employee ID before looking anything up. For the
+      // logged-in employee viewing their own data (the common case),
+      // currentEmployee.id is already their real ID. For HR looking up
+      // someone else by typed name, try to resolve a real employee record
+      // so their real payroll/leave/grace-period/salary-hold data shows too.
+      // Only falls back to the fake name+role hash when no real employee
+      // record exists at all (e.g. demo/mock users) — grace-period stats,
+      // salary-hold records, and leave balance used to be looked up with
+      // that fake hash unconditionally, even when a real ID was available,
+      // which meant real hold/leave records keyed by the real ID could
+      // never be found on this screen.
+      const realLookupEmployee = isHR && employeeToLoad !== currentEmployee.name
+        ? employees.find((e: Employee) => `${e.firstName} ${e.lastName}` === employeeToLoad)
+        : undefined;
+      const fallbackId = generateEmployeeId(employeeToLoad, currentRole);
+      const realLookupId = realLookupEmployee?.employeeId || (employeeToLoad === currentEmployee.name ? currentEmployee.id : fallbackId);
+
       // Load grace period statistics
-      const stats = gracePeriodService.getGraceStatistics(employeeId);
+      const stats = gracePeriodService.getGraceStatistics(realLookupId);
       setGraceStats(stats);
 
       // Check for salary hold
-      const holdRecord = salaryHoldService.getHoldRecord(employeeId);
+      const holdRecord = salaryHoldService.getHoldRecord(realLookupId);
       setSalaryHoldRecord(holdRecord || null);
 
       // Load leave balance
-      let balance = leaveBalanceService.getEmployeeBalance(employeeId);
+      let balance = leaveBalanceService.getEmployeeBalance(realLookupId);
 
       // Initialize if not exists
       if (!balance) {
         const employeeStatus = getEmployeeStatusFromRole(currentRole);
         balance = leaveBalanceService.initializeEmployeeBalance(
-          employeeId,
+          realLookupId,
           employeeToLoad,
           employeeStatus,
           "2024-01-01"
@@ -336,23 +352,14 @@ export function EmployeeSelfService() {
       }
       setEmployeeBalance(balance);
 
-      // Load historical payslip data from real PayrollRun records. For the
-      // logged-in employee viewing their own payslip (the common case),
-      // employeeId is already their real ID (see currentEmployee.id above).
-      // For HR looking up someone else by typed name, try to resolve a
-      // real employee record so their real payroll shows too, rather than
-      // falling back to the fake derived ID.
-      const realLookupEmployee = isHR && employeeToLoad !== currentEmployee.name
-        ? employees.find((e: Employee) => `${e.firstName} ${e.lastName}` === employeeToLoad)
-        : undefined;
-      const realLookupId = realLookupEmployee?.employeeId || (employeeToLoad === currentEmployee.name ? currentEmployee.id : employeeId);
+      // Load historical payslip data from real PayrollRun records.
       const employeePayrollRuns = getPayrollByEmployee(realLookupId);
       const history = buildHistoricalPayslipData(realLookupId, employeeToLoad, currentRole, currentEmployee.joiningDate, employeePayrollRuns, getAttendanceByEmployeeId);
       setHistoricalData(history);
 
       // Subscribe to updates
       const unsubscribe = salaryHoldService.subscribe((records) => {
-        const record = records.find((r) => r.employeeId === employeeId);
+        const record = records.find((r) => r.employeeId === realLookupId);
         setSalaryHoldRecord(record || null);
       });
 

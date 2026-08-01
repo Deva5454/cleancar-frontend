@@ -38,7 +38,11 @@ interface PayrollEntry {
   manualDeductions: number;
   netSalary: number;
   notes: string;
-  status: "pending" | "reviewed" | "approved";
+  // Real PayrollStatus values ("draft"/"under_review"/"approved"/etc) — this
+  // used to be "pending"/"reviewed"/"approved", which never matched the
+  // actual status on a PayrollRun, so the review button/badges below never
+  // reflected real workflow state.
+  status: string;
   // Leave related fields
   leaveDays?: {
     CL: number;
@@ -61,7 +65,7 @@ export function PayrollReviewScreen() {
     currentRole === "HR Coordinator";
 
   // PHASE 2: Migrated to useEmployeeData
-  const { applyHROverride, approvePayrollByHR, getEmployeeById } = useEmployeeData();
+  const { applyHROverride, sendToReview, getEmployeeById } = useEmployeeData();
 
   const entries = payrollRuns.slice(0,20).map(run => {
     const emp = employees.find(e => e.employeeId === run.employeeId);
@@ -119,12 +123,16 @@ export function PayrollReviewScreen() {
   };
 
   const markAsReviewed = (id: string) => {
-    approvePayrollByHR(id, currentUser.name);
-    toast.success("Marked as reviewed and approved by HR");
+    const ok = sendToReview(id, currentUser.name);
+    if (ok) {
+      toast.success("Sent for approval — moved to Under Review");
+    } else {
+      toast.error("Could not send for review — check role permissions or payroll status");
+    }
   };
 
   const sendForApproval = () => {
-    const reviewedCount = entries.filter((e) => e.status === "reviewed").length;
+    const reviewedCount = entries.filter((e) => e.status === "under_review").length;
     if (reviewedCount === 0) {
       toast.error("Please review at least one entry before sending for approval");
       return;
@@ -133,8 +141,8 @@ export function PayrollReviewScreen() {
   };
 
   const totalNetPayable = entries.reduce((sum, e) => sum + e.netSalary, 0);
-  const reviewedCount = entries.filter((e) => e.status === "reviewed").length;
-  const pendingCount = entries.filter((e) => e.status === "pending").length;
+  const reviewedCount = entries.filter((e) => e.status === "under_review").length;
+  const pendingCount = entries.filter((e) => e.status === "draft").length;
 
   return (
     <div className="space-y-6">
@@ -318,7 +326,7 @@ export function PayrollReviewScreen() {
                       <span className="font-bold text-blue-600">₹{(entry?.netSalary ?? 0).toLocaleString()}</span>
                     </td>
                     <td className="p-3 text-center">
-                      {entry.status === "reviewed" ? (
+                      {entry.status === "under_review" || entry.status === "approved" || entry.status === "disbursed" ? (
                         <Badge className="bg-green-100 text-green-700 border-green-200">
                           <CheckCircle className="w-3 h-3 mr-1" />
                           Reviewed
@@ -348,7 +356,7 @@ export function PayrollReviewScreen() {
                         >
                           <Minus className="w-3 h-3" />
                         </Button>
-                        {entry.status === "pending" && (
+                        {entry.status === "draft" && (
                           <Button
                             size="sm"
                             variant="outline"

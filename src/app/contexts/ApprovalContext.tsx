@@ -73,12 +73,21 @@ interface ApprovalContextType {
 
 const ApprovalContext = createContext<ApprovalContextType | undefined>(undefined);
 
+// Stable empty-array reference — payables below used to be a fresh `[]`
+// literal recreated on every render, which never equals its previous
+// value in the effect's dependency array, so the effect re-ran on every
+// render, called setApprovals every time, forced another render, and
+// looped forever ("Maximum update depth exceeded"), consuming CPU across
+// the whole app (ApprovalProvider wraps most routes) and starving other
+// debounced localStorage writes of the idle time they need to fire.
+const EMPTY_PAYABLES: any[] = [];
+
 export function ApprovalProvider({ children }: { children: ReactNode }) {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const { emit } = useEvents();
   // PHASE 3: Using useEmployeeData (single source of truth)
   const { payrollRuns } = useEmployeeData();
-  const payables: any[] = []; // useFinance removed — payables not needed here
+  const payables = EMPTY_PAYABLES; // useFinance removed — payables not needed here
 
   // Generate approvals from various modules on mount
   useEffect(() => {

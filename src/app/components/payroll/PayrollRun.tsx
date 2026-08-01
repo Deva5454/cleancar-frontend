@@ -39,7 +39,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
-import { useOrg } from "./OrgContext";
+// Real, mounted OrgContext — was importing "./OrgContext", a stray
+// unmounted duplicate local to this directory with its own separate
+// createContext/OrgProvider, so useOrg() here always threw "must be used
+// within OrgProvider" and crashed this entire screen for every user.
+import { useOrg } from "../../contexts/OrgContext";
 import { getRealWorkingDaysInMonth, checkHolidayWork, grantCompOff } from "../../services/holidayPayService";
 import { DataService } from "../../services/DataService";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
@@ -50,6 +54,7 @@ import { useAttendance } from "../../contexts/AttendanceContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { CITIES, useCity } from "../../contexts/CityContext";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
+import { matchesEmployeeId } from "../../services/employeeDatabaseService";
 import { illustrativeGrossForRole } from "../../utils/attendanceReportCore";
 import { calculateStatutoryDeductions } from "../../services/payroll/complianceEngine";
 import { detectStateFromCity } from "../../services/payroll/complianceRules";
@@ -234,7 +239,7 @@ export function PayrollRun() {
           employeeId: string; leaveType: string; status: string; fromDate: string; toDate: string;
         }>("LEAVE_REQUESTS");
         const unpaidLeaveDays = leaveRequests
-          .filter(l => l.employeeId === emp.employeeId && l.status === "Approved" &&
+          .filter(l => matchesEmployeeId(l.employeeId, emp.employeeId) && l.status === "Approved" &&
             (l.leaveType === "UL" || l.leaveType === "LWP") && l.fromDate?.startsWith(monthStr))
           .reduce((total, l) => {
             const from = new Date(l.fromDate);
@@ -330,7 +335,7 @@ export function PayrollRun() {
           ).padStart(2,"0")}`;
           const unpaidLeaveDays = leaveRequests
             .filter(l =>
-              l.employeeId === run.employeeId &&
+              matchesEmployeeId(l.employeeId, run.employeeId) &&
               l.status === "Approved" &&
               (l.leaveType === "UL" || l.leaveType === "LWP") &&
               l.fromDate?.startsWith(monthStr)

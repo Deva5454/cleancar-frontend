@@ -107,35 +107,40 @@ export function AccountsPayrollProcessing() {
   const navigate = useNavigate();
   const { city, cityInfo } = useCity();
   const { currentUser } = useRole();
-  const { payrollRuns, updatePayrollStatus } = usePayroll();
+  const { payrollRuns, disbursePayroll } = usePayroll();
   const { employees } = useEmployee();
 
-  // Get the latest approved payroll run for this city
-  const latestRun = [...payrollRuns]
-    .filter(r => r.cityId === city && r.status === "Approved")
-    .sort((a, b) => b.processedAt.localeCompare(a.processedAt))[0];
+  // Real PayrollRun records are one-per-employee, keyed by cityId/status/month
+  // (there's no single "run" object with a nested .employees array — that
+  // shape never existed on the real type, so this screen used to always
+  // render its "no approved payroll runs" empty state regardless of what
+  // was actually approved). Group every "approved" run for this city in
+  // the most recent approved month into one snapshot for display.
+  const approvedRuns = payrollRuns.filter(r => r.cityId === city && r.status === "approved");
+  const latestMonth = [...approvedRuns].sort((a, b) => b.month.localeCompare(a.month))[0]?.month;
+  const monthRuns = latestMonth ? approvedRuns.filter(r => r.month === latestMonth) : [];
 
-  const snapshot = latestRun ? {
-    id: latestRun.id,
-    month: latestRun.month,
-    year: String(latestRun.year),
+  const snapshot = monthRuns.length > 0 ? {
+    id: `SNAP-${latestMonth}-${city}`,
+    month: latestMonth,
+    year: latestMonth.split("-")[0],
     city: cityInfo.displayName,
-    status: latestRun.status.toLowerCase() as "approved" | "paid",
-    employees: (latestRun.employees || []).map((emp: any) => {
-      const empDetails = employees.find(e => e.employeeId === emp.employeeId);
+    status: "approved" as const,
+    employees: monthRuns.map((run) => {
+      const empDetails = employees.find(e => e.employeeId === run.employeeId);
       return {
-        snapshotId: `SNAP-${latestRun.id}-${emp.employeeId}`,
-        employeeId: emp.employeeId,
-        employeeName: empDetails ? `${empDetails.firstName} ${empDetails.lastName}` : emp.employeeId,
+        snapshotId: `SNAP-${run.payrollId}`,
+        employeeId: run.employeeId,
+        employeeName: empDetails ? `${empDetails.firstName} ${empDetails.lastName}` : run.employeeId,
         role: empDetails?.designation || "Employee",
         bankName: empDetails?.bankDetails?.bankName || "",
         accountNumber: empDetails?.bankDetails?.accountNumber || "",
         ifscCode: empDetails?.bankDetails?.ifscCode || "",
-        basePay: emp.grossSalary || 0,
-        incentive: emp.incentiveAmount || 0,
-        deductions: (emp.deductions?.pf_employee || 0) + (emp.deductions?.esic || 0) + (emp.deductions?.pt || 0),
-        totalPay: emp.netSalary || 0,
-        generatedAt: latestRun.processedAt,
+        basePay: run.baseSalary || 0,
+        incentive: run.incentiveAmount || 0,
+        deductions: run.totalDeductions || 0,
+        totalPay: run.netSalary || 0,
+        generatedAt: run.approvedAt || run.createdAt,
         generatedBy: "Payroll Engine",
         units: 0,
         validUnits: 0,
@@ -143,9 +148,9 @@ export function AccountsPayrollProcessing() {
         complianceAdjustment: 0,
       };
     }),
-    totalEmployees: (latestRun.employees || []).length,
-    totalPayout: (latestRun.employees || []).reduce((sum: number, e: any) => sum + (e.netSalary || 0), 0),
-    generatedAt: latestRun.processedAt,
+    totalEmployees: monthRuns.length,
+    totalPayout: monthRuns.reduce((sum, run) => sum + (run.netSalary || 0), 0),
+    generatedAt: monthRuns[0]?.approvedAt || monthRuns[0]?.createdAt,
     generatedBy: "Payroll Processing Engine",
   } : null;
 
@@ -281,19 +286,27 @@ export function AccountsPayrollProcessing() {
       }));
     });
 
-    // ── Fix 13: Update PayrollContext status to "disbursed" ─────────────────
-    // This propagates the payment status back to the canonical payroll record
-    // so PayrollProcessingTab, PayrollReviewScreen, and payslips all reflect paid status
-    if (latestRun?.id && updatePayrollStatus) {
-      updatePayrollStatus(latestRun.id, "disbursed");
-    }
+    // Disburse every run in this snapshot through the typed workflow engine
+    // (approved -> disbursed) — this is the same engine PayrollReviewScreen/
+    // SuperAdminPayrollApproval use, so status stays consistent and the run
+    // becomes immutable per payrollWorkflow's VALID_TRANSITIONS. The old
+    // updatePayrollStatus(latestRun.id, ...) call referenced a payrollId
+    // that never existed on the real type (latestRun.id), so it silently
+    // updated nothing.
+    const paymentReference = `PAY-${payDate}-${Date.now().toString(36)}`;
+    let failed = 0;
+    monthRuns.forEach((run) => {
+      if (!disbursePayroll(run.payrollId, currentUser?.name || "Accounts", paymentReference)) failed++;
+    });
 
     // Note: `snapshot` is a derived value recomputed from `payrollRuns` each
-    // render (see its definition above), not React state — there was a
-    // setSnapshot(...) call here that could never have worked (no such
-    // setter exists). The real status update already happened via
-    // updatePayrollStatus() above, which flows back through usePayroll()
-    // and causes `snapshot` to recompute with the new status on next render.
+    // render (see its definition above), not React state — it will
+    // recompute with the new "disbursed" status on next render since
+    // disbursePayroll() above updates PayrollContext's real state.
+    if (failed > 0) {
+      toast.error(`${failed} of ${monthRuns.length} payroll(s) could not be disbursed — check role permissions`);
+      return;
+    }
 
     toast.success(
       `Payroll of ₹${totalNet.toLocaleString()} posted to ledger and marked as paid. ` +

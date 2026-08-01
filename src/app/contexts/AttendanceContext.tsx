@@ -13,6 +13,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo, useRef} from "react";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
+import { matchesEmployeeId as matchesEmployee } from "../services/employeeDatabaseService";
 
 // ========== TYPES ==========
 
@@ -145,7 +146,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   // ========== QUERIES ==========
 
   const getAttendanceByEmployee = useCallback((employeeId: string): AttendanceRecord[] => {
-    return attendanceRecords.filter((record) => record.employeeId === employeeId);
+    return attendanceRecords.filter((record) => matchesEmployee(record.employeeId, employeeId));
   }, [attendanceRecords]);
 
   const getAttendanceForDate = useCallback((date: string): AttendanceRecord[] => {
@@ -154,7 +155,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
 
   const getAttendanceForMonth = useCallback((employeeId: string, month: string): AttendanceRecord[] => {
     return attendanceRecords.filter(
-      (record) => record.employeeId === employeeId && record.date.startsWith(month)
+      (record) => matchesEmployee(record.employeeId, employeeId) && record.date.startsWith(month)
     );
   }, [attendanceRecords]);
 
@@ -165,7 +166,7 @@ export function AttendanceProvider({ children }: { children: ReactNode }) {
   ): AttendanceRecord[] => {
     return attendanceRecords.filter(
       (record) =>
-        record.employeeId === employeeId &&
+        matchesEmployee(record.employeeId, employeeId) &&
         record.date >= startDate &&
         record.date <= endDate
     );

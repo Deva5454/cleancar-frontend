@@ -181,13 +181,14 @@ export function validateTransition(
  */
 export function getStatusDisplay(status: PayrollStatus): {
   label: string;
-  color: "gray" | "yellow" | "green" | "blue";
+  color: "gray" | "yellow" | "green" | "blue" | "red";
 } {
   const displays = {
     draft: { label: "Draft", color: "gray" as const },
     under_review: { label: "Under Review", color: "yellow" as const },
     approved: { label: "Approved", color: "green" as const },
     disbursed: { label: "Disbursed", color: "blue" as const },
+    rejected: { label: "Rejected", color: "red" as const },
   };
 
   return displays[status];

@@ -319,6 +319,16 @@ export function useEmployeeData() {
     getPayrollForMonth: payrollCtx.getPayrollForMonth,
     processPayroll: payrollCtx.processPayroll,
     applyHROverride: payrollCtx.applyHROverride,
+    // Typed workflow actions — the single source of truth for payroll
+    // status. approvePayrollByHR/approvePayrollByFinance below write a
+    // separate, untyped status vocabulary ("HR Approved"/"Finance Approved")
+    // that this workflow engine doesn't recognize, so a run that goes
+    // through them can never transition again through canTransition/
+    // getAvailableActions, and never fires the Finance payable event.
+    sendToReview: payrollCtx.sendToReview,
+    approvePayroll: payrollCtx.approvePayroll,
+    disbursePayroll: payrollCtx.disbursePayroll,
+    // Legacy — deprecated, kept only for any remaining unmigrated callers
     approvePayrollByHR: payrollCtx.approvePayrollByHR,
     approvePayrollByFinance: payrollCtx.approvePayrollByFinance,
     markPayrollAsPaid: payrollCtx.markPayrollAsPaid,

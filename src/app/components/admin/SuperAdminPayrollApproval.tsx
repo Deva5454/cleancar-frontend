@@ -94,16 +94,19 @@ const getMockSnapshot = (cityName: string): PayrollSnapshot => ({
 
 export function SuperAdminPayrollApproval() {
   // PHASE 2: Migrated to useEmployeeData
-  const { payrollRuns, getEmployeeById, approvePayrollByFinance } = useEmployeeData();
+  const { payrollRuns, getEmployeeById, approvePayroll } = useEmployeeData();
   const { currentUser } = useRole();
   const { city, cityInfo } = useCity();
 
-  // Transform HR Approved payroll runs into snapshot format
+  // Transform HR-reviewed payroll runs into snapshot format. "under_review"
+  // is the typed workflow's real status for "HR has sent this to Admin" —
+  // the legacy "HR Approved" string this used to filter on is a dead-end
+  // status the typed engine (canTransition/getAvailableActions) never
+  // produces or recognizes once PayrollReviewScreen moved to sendToReview().
   const snapshot = useMemo((): PayrollSnapshot => {
-    // Get all HR Approved payrolls for current month
     const currentMonth = new Date().toISOString().slice(0, 7); // "2026-04"
     const hrApprovedPayrolls = payrollRuns.filter(
-      (pr) => pr.month === currentMonth && pr.status === "HR Approved"
+      (pr) => pr.month === currentMonth && pr.status === "under_review"
     );
 
     if (hrApprovedPayrolls.length === 0) {
@@ -154,19 +157,27 @@ export function SuperAdminPayrollApproval() {
       totalPayout: employees.reduce((sum, e) => sum + e.totalPay, 0),
       generatedAt: new Date().toLocaleString(),
       generatedBy: "Payroll Processing Engine",
-      sentToAdminAt: hrApprovedPayrolls[0]?.hrApprovedAt,
-      sentToAdminBy: hrApprovedPayrolls[0]?.hrApprovedBy,
+      sentToAdminAt: hrApprovedPayrolls[0]?.reviewedAt,
+      sentToAdminBy: hrApprovedPayrolls[0]?.reviewedBy,
     };
   }, [payrollRuns, getEmployeeById]);
 
   const handleApprove = () => {
-    // Approve all payroll runs in this snapshot
+    // Approve all payroll runs in this snapshot via the typed workflow —
+    // this also fires cc360_payroll_approved, which is what creates the
+    // real Finance payable. The old approvePayrollByFinance path wrote an
+    // untyped "Finance Approved" status that never fired that event.
+    let failed = 0;
     snapshot.employees.forEach((emp) => {
       const payrollId = emp.snapshotId.replace("-SNAP", "");
-      approvePayrollByFinance(payrollId, currentUser.name);
+      if (!approvePayroll(payrollId, currentUser.name)) failed++;
     });
 
-    toast.success("Payroll snapshot approved and sent to Accounts");
+    if (failed > 0) {
+      toast.error(`${failed} of ${snapshot.employees.length} payroll(s) could not be approved`);
+    } else {
+      toast.success("Payroll snapshot approved and sent to Accounts");
+    }
   };
 
   const handleReject = (reason: string) => {

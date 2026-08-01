@@ -44,15 +44,24 @@ import { toast } from "sonner";
 import { Checkbox } from "../ui/checkbox";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
-import { useFinance } from "../../contexts/FinanceContext";
+import { useFinance, type Payable } from "../../contexts/FinanceContext";
 import { useCity } from "../../contexts/CityContext";
+import { useRole } from "../../contexts/RoleContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+
+const PAYMENT_METHOD_MAP: Record<string, NonNullable<Payable["paymentMethod"]>> = {
+  BANK_TRANSFER: "Bank Transfer",
+  CASH: "Cash",
+  CHEQUE: "Cheque",
+};
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
 interface SalaryPayable {
+  payableId: string;
+  payrollId?: string;
   employeeId: string;
   employeeName: string;
   role: string;
@@ -78,23 +87,33 @@ interface PaymentForm {
 // ============================================================================
 
 export function SalaryPaymentScreen() {
-  const { payrollRuns } = usePayroll();
+  const { disbursePayroll } = usePayroll();
   const { employees } = useEmployee();
   const { getSalaryPayables, getTravelPayables, markAsPaid } = useFinance();
   const { city } = useCity();
+  const { currentUser } = useRole();
 
-  const basePayables = payrollRuns.map(run => {
-    const emp = employees.find(e => e.employeeId === run.employeeId);
-    return {
-      employeeId: run.employeeId,
-      employeeName: emp ? emp.firstName + " " + emp.lastName : run.employeeId,
-      role: emp?.role || "Employee",
-      netSalary: run.netSalary,
-      expenseId: "EXP-" + run.payrollId,
-      accountNumber: emp?.bankDetails?.accountNumber || "—",
-      ifscCode: emp?.bankDetails?.ifscCode || "—",
-      selected: false,
-    };
+  // Real Finance Payables of type "Salary" — created when a payroll run is
+  // approved (fires cc360_payroll_approved). Previously this built its list
+  // straight from ALL payrollRuns regardless of status, so drafts and
+  // already-disbursed runs showed up as "payable" alongside genuinely
+  // approved ones, with no link back to a real Payable record at all.
+  const basePayables: SalaryPayable[] = getSalaryPayables(city)
+    .filter(p => p.status === "Approved")
+    .map(p => {
+      const emp = employees.find(e => e.employeeId === p.employeeId);
+      return {
+        payableId: p.payableId,
+        payrollId: p.payrollId,
+        employeeId: p.employeeId || "",
+        employeeName: p.employeeName || (emp ? `${emp.firstName} ${emp.lastName}` : p.employeeId) || "",
+        role: emp?.role || "Employee",
+        netSalary: p.netSalaryPayable ?? p.amount,
+        expenseId: p.payableId,
+        accountNumber: emp?.bankDetails?.accountNumber || "—",
+        ifscCode: emp?.bankDetails?.ifscCode || "—",
+        selected: false,
+      };
   });
   const [payables, setPayables] = useState<SalaryPayable[]>(basePayables);
   const [isLoading, setIsLoading] = useState(false);
@@ -191,25 +210,45 @@ export function SalaryPaymentScreen() {
       return;
     }
 
+    // Bank details are required for actual disbursement — this used to
+    // let any selection through with a "—" placeholder shown, no blocking
+    // whatsoever, meaning payment could be "recorded" for an employee with
+    // nowhere for the money to actually go.
+    const missingBank = selectedPayables.filter(
+      (p) => !p.accountNumber || p.accountNumber === "—" || !p.ifscCode || p.ifscCode === "—"
+    );
+    if (missingBank.length > 0) {
+      toast.error(
+        `${missingBank.length} selected employee(s) are missing bank details — cannot disburse: ` +
+        missingBank.map((p) => p.employeeName).join(", ")
+      );
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Settle each selected Payable through FinanceContext (creates the
+      // ledger settlement entry — same real mechanism already used for
+      // Travel payables above) and disburse the linked PayrollRun through
+      // the typed workflow engine so payslips/other screens reflect it.
+      // Previously this whole handler was a setTimeout mock that never
+      // called either of these — it always reported success without
+      // persisting anything.
+      const paymentMethod = PAYMENT_METHOD_MAP[paymentForm.paymentMode] || "Bank Transfer";
+      let disburseFailed = 0;
+      for (const p of selectedPayables) {
+        markAsPaid(p.payableId, paymentForm.paymentReference, paymentMethod);
+        if (p.payrollId && !disbursePayroll(p.payrollId, currentUser?.name || "Accounts", paymentForm.paymentReference)) {
+          disburseFailed++;
+        }
+      }
 
-      // In production:
-      // await paymentEngine.recordBulkSalaryPayment({
-      //   expenseIds: selectedPayables.map(p => p.expenseId),
-      //   paymentMode: paymentForm.paymentMode,
-      //   paymentDate: paymentForm.paymentDate,
-      //   paymentReference: paymentForm.paymentReference,
-      //   notes: paymentForm.notes
-      // });
-
-      // This will create ledger entries for each employee:
-      // Dr: 2100 - Salary Payable
-      // Cr: 1100 - Bank Account
-
-      toast.success(`Payment recorded for ${selectedPayables.length} employees`);
+      if (disburseFailed > 0) {
+        toast.error(`${disburseFailed} of ${selectedPayables.length} payroll run(s) could not be marked disbursed — check role permissions`);
+      } else {
+        toast.success(`Payment recorded for ${selectedPayables.length} employees`);
+      }
 
       // Clear selections
       setPayables(payables.map(p => ({ ...p, selected: false })));
@@ -389,7 +428,7 @@ export function SalaryPaymentScreen() {
                   <TableHead>Account Number</TableHead>
                   <TableHead>IFSC Code</TableHead>
                   <TableHead className="text-right">Net Salary</TableHead>
-                  <TableHead>Expense ID</TableHead>
+                  <TableHead>Payable ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

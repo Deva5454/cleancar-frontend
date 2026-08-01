@@ -523,7 +523,11 @@ export function PayrollProvider({ children }: { children: ReactNode }) {
   }, [payrollRuns, currentCityId]);
 
   const getPendingPayrolls = useCallback((): PayrollRun[] => {
-    return payrollRuns.filter((payroll) => payroll.status !== "Paid");
+    // "disbursed" is the typed workflow's real terminal state. The legacy
+    // "Paid" string this used to compare against is written only by the
+    // deprecated markPayrollAsPaid path, so this used to treat every
+    // genuinely disbursed run as still "pending".
+    return payrollRuns.filter((payroll) => payroll.status !== "disbursed");
   }, [payrollRuns]);
 
   const getPayrollById = useCallback((payrollId: string): PayrollRun | undefined => {

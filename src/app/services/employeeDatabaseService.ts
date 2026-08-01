@@ -197,3 +197,17 @@ class EmployeeDatabaseService {
 }
 
 export const employeeDatabaseService = new EmployeeDatabaseService();
+
+/**
+ * An employee's id changes at temp-to-permanent conversion (their tempId
+ * never does), but plenty of other stores (attendance, leave requests,
+ * salary assignments) tag records with whatever id was current when the
+ * record was created. Use this wherever such a record is looked up by an
+ * employee's CURRENT id, so records created back when they were still on
+ * their tempId are still found.
+ */
+export function matchesEmployeeId(recordEmployeeId: string, employeeId: string): boolean {
+  if (recordEmployeeId === employeeId) return true;
+  const tempId = employeeDatabaseService.getById(employeeId)?.tempId;
+  return !!tempId && recordEmployeeId === tempId;
+}
