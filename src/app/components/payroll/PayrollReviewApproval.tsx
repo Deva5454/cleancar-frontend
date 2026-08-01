@@ -39,6 +39,9 @@ import {
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import { ConfirmationModal } from "../shared/ConfirmationModal";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
@@ -195,7 +198,7 @@ export function PayrollReviewApproval() {
   // real, calculated salary structure per employee from
   // employeeSalaryService, with an honest flag (hasRealSalaryStructure)
   // for anyone who genuinely doesn't have one assigned yet.
-  const { payrollRuns, getPayrollForMonth, getPayrollByEmployee, sendToReview, approvePayroll } = usePayroll();
+  const { payrollRuns, getPayrollForMonth, getPayrollByEmployee, sendToReview, approvePayroll, applyHROverride } = usePayroll();
   const currentMonthKeyForData = "2026-04";
   const [employees, setEmployees] = useState<EmployeePayroll[]>(dbEmps.slice(0,25).map(emp => {
     const employeeId = emp.employeeId || emp.id || emp.tempId;
@@ -238,6 +241,14 @@ export function PayrollReviewApproval() {
   }));
   const [viewingEmployee, setViewingEmployee] = useState<EmployeePayroll | null>(null);
   const [openViewInEditMode, setOpenViewInEditMode] = useState(false);
+  // Manual payroll adjustment (add/deduct with a reason) — real persisted
+  // change via PayrollContext.applyHROverride, applied to the actual
+  // PayrollRun record for this employee/month (not just this screen's
+  // local display state, unlike the reject/correct flow above).
+  const [adjustingEmployee, setAdjustingEmployee] = useState<EmployeePayroll | null>(null);
+  const [adjustmentType, setAdjustmentType] = useState<"addition" | "deduction">("addition");
+  const [adjustmentAmount, setAdjustmentAmount] = useState(0);
+  const [adjustmentReason, setAdjustmentReason] = useState("");
   // Summary used to be a separate useState that was initialized once and
   // never updated — every card permanently showed ₹0.00 / 0 employees
   // regardless of the real employee rows in the table below. Now derived
@@ -407,6 +418,39 @@ export function PayrollReviewApproval() {
         }],
       };
     }));
+  };
+
+  const openAdjustment = (employee: EmployeePayroll, type: "addition" | "deduction") => {
+    setAdjustingEmployee(employee);
+    setAdjustmentType(type);
+    setAdjustmentAmount(0);
+    setAdjustmentReason("");
+  };
+
+  const saveAdjustment = () => {
+    if (!canReview) { toast.error("Only HR or Super Admin can adjust payroll"); return; }
+    if (!adjustingEmployee || adjustmentAmount <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!adjustmentReason.trim()) { toast.error("Please provide a reason for this adjustment"); return; }
+
+    const run = getPayrollByEmployee(adjustingEmployee.employeeId).find((r: any) => r.month === currentMonthKey);
+    if (!run) {
+      toast.error("No real payroll run exists yet for this employee this month — run payroll first via Payroll → Processing.");
+      return;
+    }
+
+    const newNetPay = adjustmentType === "addition"
+      ? adjustingEmployee.netPay + adjustmentAmount
+      : adjustingEmployee.netPay - adjustmentAmount;
+
+    applyHROverride(run.payrollId, newNetPay, adjustmentReason, currentUser?.name || "HR");
+
+    // Reflect the change in this screen's own display state immediately —
+    // applyHROverride only updates the real PayrollRun record, it doesn't
+    // touch this component's separately-held `employees` array.
+    setEmployees(prev => prev.map(e => e.employeeId === adjustingEmployee.employeeId ? { ...e, netPay: newNetPay } : e));
+
+    setAdjustingEmployee(null);
+    toast.success(`${adjustmentType === "addition" ? "Addition" : "Deduction"} of ₹${adjustmentAmount.toLocaleString()} applied to ${adjustingEmployee.employeeName}'s net pay`);
   };
 
   const confirmHRApproval = async () => {
@@ -729,6 +773,17 @@ export function PayrollReviewApproval() {
                           <XCircle className="w-3.5 h-3.5" />
                         </Button>
                       )}
+                      {canReview && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          onClick={() => openAdjustment(employee, "addition")}
+                          title="Manual adjustment (add/deduct with reason)"
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -963,6 +1018,115 @@ export function PayrollReviewApproval() {
           onReject={handleRejectLine}
           startInEditMode={openViewInEditMode}
         />
+      )}
+
+      {/* Manual Adjustment Modal */}
+      {adjustingEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b px-6 py-4 flex justify-between items-center">
+              <h3 className="text-lg font-bold">Manual Payroll Adjustment</h3>
+              <Button variant="ghost" size="sm" onClick={() => setAdjustingEmployee(null)}>
+                <XCircle className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm font-medium">{adjustingEmployee.employeeName}</p>
+                <p className="text-xs text-gray-600">{adjustingEmployee.employeeId} • {adjustingEmployee.role}</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Current Net Pay: ₹{adjustingEmployee.netPay.toLocaleString()}
+                </p>
+              </div>
+
+              <div>
+                <Label>Adjustment Type *</Label>
+                <div className="flex gap-2 mt-1">
+                  <Button
+                    type="button"
+                    variant={adjustmentType === "addition" ? "default" : "outline"}
+                    className={adjustmentType === "addition" ? "bg-green-600 hover:bg-green-700 flex-1" : "flex-1"}
+                    onClick={() => setAdjustmentType("addition")}
+                  >
+                    Addition
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={adjustmentType === "deduction" ? "default" : "outline"}
+                    className={adjustmentType === "deduction" ? "bg-red-600 hover:bg-red-700 flex-1" : "flex-1"}
+                    onClick={() => setAdjustmentType("deduction")}
+                  >
+                    Deduction
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label>Amount (₹) *</Label>
+                <Input
+                  type="number"
+                  value={adjustmentAmount || ""}
+                  onChange={(e) => setAdjustmentAmount(Number(e.target.value))}
+                  placeholder="Enter amount"
+                />
+              </div>
+
+              <div>
+                <Label>Reason / Notes *</Label>
+                <Textarea
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                  placeholder={
+                    adjustmentType === "addition"
+                      ? "e.g., Special bonus, advance recovery reversal"
+                      : "e.g., Damage recovery, advance given, penalty"
+                  }
+                  rows={3}
+                />
+              </div>
+
+              <Card className={adjustmentType === "addition" ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}>
+                <CardContent className="p-4">
+                  <p className="text-sm font-medium mb-2">Preview</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Current Net Pay:</span>
+                      <span>₹{adjustingEmployee.netPay.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span>{adjustmentType === "addition" ? "Addition:" : "Deduction:"}</span>
+                      <span className={adjustmentType === "addition" ? "text-green-600" : "text-red-600"}>
+                        {adjustmentType === "addition" ? "+" : "-"}₹{adjustmentAmount.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t font-bold">
+                      <span>New Net Pay:</span>
+                      <span className="text-blue-600">
+                        ₹{(adjustmentType === "addition"
+                          ? adjustingEmployee.netPay + adjustmentAmount
+                          : adjustingEmployee.netPay - adjustmentAmount
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="border-t px-6 py-4 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setAdjustingEmployee(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={saveAdjustment}
+                className={adjustmentType === "addition" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+              >
+                Save Adjustment
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
