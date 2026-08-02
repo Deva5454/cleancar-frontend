@@ -1,7 +1,8 @@
 import { BackButton } from "../ui/back-button";
 import { useState, useMemo } from "react";
 import { FileOutput, Download, CheckCircle, XCircle, AlertTriangle, Copy, Check } from "lucide-react";
-import { gstComplianceService, type GSTTransaction } from "../../services/gstComplianceService";
+import { type GSTTransaction } from "../../services/gstComplianceService";
+import { getGSTTransactionsFromEntries, accountingEntryService } from "../../services/accountingEntryService";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { toast } from "sonner";
 import { useCity } from "../../contexts/CityContext";
@@ -16,7 +17,11 @@ export function GSTR1Module() {
   const [showJSONPreview, setShowJSONPreview] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
 
-  const transactions = gstComplianceService.getTransactions(city);
+  // Real GST-bearing transactions post through accountingEntryService
+  // (AccountingEntry, Expense Voucher, Invoice Management, Revenue Capture)
+  // — gstComplianceService's own store is fed only by manual entry on
+  // /gst/transactions and real sales/purchases never reach it.
+  const transactions = getGSTTransactionsFromEntries(city);
 
   const monthTransactions = useMemo(() =>
     transactions.filter(t =>
@@ -116,22 +121,15 @@ export function GSTR1Module() {
   const handleGenerate = () => {
     if (!validationChecks.allPassed) return;
 
-    // Mark all approved transactions as included in this GSTR-1 generation
+    // Mark all approved transactions as included in this GSTR-1 generation —
+    // these are real AccountingEntry records now, so the mark goes back onto
+    // the actual entry, not a mirrored record in a disconnected store.
     const generatedAt = new Date().toISOString();
     let failedCount = 0;
     monthTransactions
       .filter(t => t.status === "Approved")
       .forEach(t => {
-        const saved = gstComplianceService.saveTransaction({
-          ...t,
-          gstr1GeneratedAt: generatedAt,
-          changeHistory: [...(t.changeHistory || []), {
-            timestamp: generatedAt,
-            changedBy: "Accounts",
-            action: "GSTR-1 Generated",
-            note: `GSTR-1 generated for ${selectedMonth} ${selectedYear}`,
-          }],
-        });
+        const saved = accountingEntryService.updateEntry(t.id, { gstr1GeneratedAt: generatedAt }, "Accounts");
         if (!saved) failedCount++;
       });
 

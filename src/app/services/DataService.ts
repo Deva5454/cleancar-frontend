@@ -157,6 +157,18 @@ const STORAGE_KEYS = {
   DILUTION_RECIPES:         "dilution_recipes",         // Real concentrate-to-bottled-product recipes, real yield/cost
   BOTTLE_RETURN_TRANSACTIONS: "bottle_return_transactions", // Real empty-bottle reverse-logistics transactions
   ACCOUNTING_ITEM_MASTER:  "accounting_item_master", // Real accounting expense items - previously, incorrectly shared the INVENTORY_ITEMS key with the physical inventory system
+  // ── Fix: these 3 were referenced via DataService.get("ACCOUNTING_ENTRIES"/
+  // "JOURNAL_ENTRIES"/"LEDGER_MASTERS") throughout accountingEntryService.ts
+  // but were never registered here. Since EntityType is a plain string key
+  // lookup with no runtime validation, every read/write silently resolved
+  // to the literal key "cleancar_{cityId}_undefined" instead of erroring —
+  // colliding with anything else that made the same mistake (confirmed:
+  // real Payroll payslip records were also landing at that exact key) and
+  // never reaching the real accounting data sitting under its own,
+  // correctly-named legacy key.
+  ACCOUNTING_ENTRIES:      "accounting_entries",
+  JOURNAL_ENTRIES:         "journal_entries",
+  LEDGER_MASTERS:          "ledger_masters",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

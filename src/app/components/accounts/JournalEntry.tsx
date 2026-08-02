@@ -38,7 +38,7 @@ export function JournalEntry() {
     const cityName = cityInfo.displayName.toUpperCase();
     const prefix = `JV/${cityName}/${fyStr}`;
     const maxSeq = allJournals
-      .filter(j => j.voucherNumber.startsWith(prefix))
+      .filter(j => j.voucherNumber?.startsWith(prefix))
       .map(j => parseInt(j.voucherNumber.split("/").pop() || "0", 10))
       .reduce((max, n) => Math.max(max, n), 0);
     setVoucherPreview(`${prefix}/${String(maxSeq + 1).padStart(4, "0")}`);

@@ -1373,6 +1373,26 @@ function ChartOfAccounts() {
             Complete account hierarchy following Indian accounting standards
           </p>
         </div>
+      </div>
+
+      {/* This account tree (and the Run System Audit balance check below it)
+          is an illustrative reference — its account codes and balances are
+          local to this screen and don't match what FinanceContext and
+          accountingEntryService actually post to (e.g. this screen's own
+          "1100" is Bank Accounts; the real ledger's "1100" is Accounts
+          Receivable). The 5 summary cards further down (Assets/Liabilities/
+          Equity/Income/Expenses) ARE real, computed directly from actual
+          ledger entries — only the tree/table and the audit snapshot below
+          are not. */}
+      <div className="flex items-start gap-2 p-3 bg-amber-50 border-l-4 border-amber-500 text-sm">
+        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+        <p className="text-amber-800">
+          <strong>Reference only:</strong> the account tree and "Run System Audit" below use illustrative codes and balances local to this screen — they are not wired to the real ledger postings in Finance/Accounts (which use their own account codes). The summary totals above the tree are real.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div />
         <div className="flex gap-2">
           {canRunAudit && (
             <>

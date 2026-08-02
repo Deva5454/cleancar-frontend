@@ -55,6 +55,25 @@ import {
 } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { logger } from "../../services/logger";
+import { gstComplianceService } from "../../services/gstComplianceService";
+
+// Real inter-state detection instead of the previous hardcoded assumption
+// that every customer is in-state (Gujarat) — this business also operates
+// in Mumbai (Maharashtra), so a customer whose known location is Mumbai is
+// genuinely inter-state and must be charged IGST, not CGST+SGST. Any
+// location this can't recognize defaults to the company's own state
+// (Gujarat) rather than guessing — consistent with the same known-city set
+// used elsewhere in this codebase (accountingEntryService's CITY_STATE_CODES).
+function computeInvoiceGST(taxableValue: number, customerLocationText?: string) {
+  const isInterState = /mumbai/i.test(customerLocationText || "");
+  const { cgst, sgst, igst, invoiceTotal } = gstComplianceService.calculateGST(taxableValue, 18, isInterState ? "INTER_STATE" : "INTRA_STATE");
+  return {
+    cgst, sgst, igst, invoiceTotal, isInterState,
+    cgstRate: isInterState ? 0 : 9,
+    sgstRate: isInterState ? 0 : 9,
+    igstRate: isInterState ? 18 : 0,
+  };
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -207,8 +226,10 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
     (w: any) => w.invoiceNumber === invoiceId || w.subscriptionId === invoiceId
   );
   if (webInv) {
-    const cgst = webInv.cgst || +(webInv.subtotal * 0.09).toFixed(2);
-    const sgst = webInv.sgst || +(webInv.subtotal * 0.09).toFixed(2);
+    const webGST = computeInvoiceGST(webInv.subtotal, webInv.cityId || webInv.address);
+    const cgst = webInv.cgst ?? webGST.cgst;
+    const sgst = webInv.sgst ?? webGST.sgst;
+    const igst = webInv.igst ?? webGST.igst;
     const planName = webInv.items?.[0]?.name || "Car Wash Subscription";
     const lineItems: InvoiceLineItem[] = webInv.items?.map((item: any, idx: number) => ({
       id: `li-${idx+1}`, lineNumber: idx+1,
@@ -228,11 +249,11 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
       dueDate: webInv.invoiceDate || webInv.createdAt?.split("T")[0] || "",
       subtotal: webInv.subtotal,
       taxableValue: webInv.subtotal,
-      taxAmount: cgst + sgst,
-      cgstRate: 9, cgstAmount: cgst,
-      sgstRate: 9, sgstAmount: sgst,
-      igstRate: 0, igstAmount: 0,
-      isInterState: false,
+      taxAmount: cgst + sgst + igst,
+      cgstRate: webGST.cgstRate, cgstAmount: cgst,
+      sgstRate: webGST.sgstRate, sgstAmount: sgst,
+      igstRate: webGST.igstRate, igstAmount: igst,
+      isInterState: webGST.isInterState,
       discountAmount: 0,
       totalAmount: webInv.grandTotal || webInv.subtotal,
       paidAmount: webInv.grandTotal || webInv.subtotal,
@@ -268,9 +289,11 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
     const planName = sub?.packageName || (rev.type === "One-Time" ? "One-Time Wash" : "Car Wash Subscription");
     const vehicleCat = sub?.serviceDetails?.vehicleType || customer?.vehicleDetails?.category || "";
     const taxableVal = rev.amount;
-    const cgst = +(taxableVal * 0.09).toFixed(2);
-    const sgst = +(taxableVal * 0.09).toFixed(2);
-    const grandTotal = +(taxableVal * 1.18).toFixed(2);
+    const revGST = computeInvoiceGST(taxableVal, customer?.address?.city || rev.cityId);
+    const cgst = revGST.cgst;
+    const sgst = revGST.sgst;
+    const igst = revGST.igst;
+    const grandTotal = revGST.invoiceTotal;
     const customerName = customer ? `${customer.firstName} ${customer.lastName}`.trim() : (rev.customerName || "Customer");
     const address = customer?.address ? `${customer.address.line1 || ""}, ${customer.address.area || ""}, ${customer.address.city || ""} - ${customer.address.pinCode || ""}` : "";
     const lineItems = lineItemsFromPlan(planName, taxableVal, vehicleCat);
@@ -288,11 +311,11 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
       dueDate: rev.receivedDate || rev.createdAt?.split("T")[0] || "",
       subtotal: taxableVal,
       taxableValue: taxableVal,
-      taxAmount: cgst + sgst,
-      cgstRate: 9, cgstAmount: cgst,
-      sgstRate: 9, sgstAmount: sgst,
-      igstRate: 0, igstAmount: 0,
-      isInterState: false,
+      taxAmount: cgst + sgst + igst,
+      cgstRate: revGST.cgstRate, cgstAmount: cgst,
+      sgstRate: revGST.sgstRate, sgstAmount: sgst,
+      igstRate: revGST.igstRate, igstAmount: igst,
+      isInterState: revGST.isInterState,
       discountAmount: 0,
       totalAmount: grandTotal,
       paidAmount: paid ? grandTotal : 0,
@@ -324,9 +347,17 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
   );
   if (entry) {
     const taxableVal = entry.taxableValue || entry.totalBillValue || 0;
-    const cgst = entry.cgst || +(taxableVal * 0.09).toFixed(2);
-    const sgst = entry.sgst || +(taxableVal * 0.09).toFixed(2);
-    const grandTotal = entry.totalBillValue || +(taxableVal * 1.18).toFixed(2);
+    // entry.cgst/sgst/igst are already real, correctly-computed fields
+    // (accountingEntryService.calculateGST used entry.vendorStateCode at
+    // creation time) — only fall back to recomputing if genuinely absent.
+    const hasRealGST = !!(entry.cgst || entry.sgst || entry.igst);
+    const isInterStateFallback = !!entry.vendorStateCode && entry.vendorStateCode !== "24"; // company is Gujarat (24)
+    const fallbackGST = gstComplianceService.calculateGST(taxableVal, 18, isInterStateFallback ? "INTER_STATE" : "INTRA_STATE");
+    const cgst = hasRealGST ? (entry.cgst || 0) : fallbackGST.cgst;
+    const sgst = hasRealGST ? (entry.sgst || 0) : fallbackGST.sgst;
+    const igst = hasRealGST ? (entry.igst || 0) : fallbackGST.igst;
+    const isInterState = hasRealGST ? (!entry.cgst && !entry.sgst && !!entry.igst) : isInterStateFallback;
+    const grandTotal = entry.totalBillValue || +(taxableVal + cgst + sgst + igst).toFixed(2);
     const planName = entry.narration?.includes("renewal") ? "Subscription Renewal"
       : entry.narration?.includes("One-time") ? "One-Time Wash"
       : entry.narration?.includes("ubscription") ? "Car Wash Subscription"
@@ -352,13 +383,13 @@ async function fetchInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
       dueDate: entry.date,
       subtotal: taxableVal,
       taxableValue: taxableVal,
-      taxAmount: cgst + sgst,
-      cgstRate: entry.gstRate ? entry.gstRate / 2 : 9,
+      taxAmount: cgst + sgst + igst,
+      cgstRate: isInterState ? 0 : (entry.gstRate ? entry.gstRate / 2 : 9),
       cgstAmount: cgst,
-      sgstRate: entry.gstRate ? entry.gstRate / 2 : 9,
+      sgstRate: isInterState ? 0 : (entry.gstRate ? entry.gstRate / 2 : 9),
       sgstAmount: sgst,
-      igstRate: 0, igstAmount: 0,
-      isInterState: false,
+      igstRate: isInterState ? (entry.gstRate || 18) : 0, igstAmount: igst,
+      isInterState,
       discountAmount: 0,
       totalAmount: grandTotal,
       paidAmount: entry.status === "Posted" ? grandTotal : 0,

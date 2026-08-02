@@ -182,7 +182,7 @@ export function AccountingEntry() {
     const typeCode = activeTab === "Expense" ? "EXP" : activeTab === "Purchase" ? "PUR" : activeTab === "PurchaseReturn" ? "PRN" : activeTab === "Sales" ? "SAL" : activeTab === "SalesReturn" ? "SRN" : "AST";
     const prefix = `${typeCode}/${cityName}/${fyStr}`;
     const maxSeq = allEntries
-      .filter(e => e.voucherNumber.startsWith(prefix))
+      .filter(e => e.voucherNumber?.startsWith(prefix))
       .map(e => parseInt(e.voucherNumber.split("/").pop() || "0", 10))
       .reduce((max, n) => Math.max(max, n), 0);
     setVoucherPreview(`${prefix}/${String(maxSeq + 1).padStart(4, "0")}`);

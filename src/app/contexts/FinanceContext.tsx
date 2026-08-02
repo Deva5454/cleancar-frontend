@@ -659,10 +659,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         cityId: payable.cityId,
         createdAt: new Date().toISOString(),
       };
-      const settlementAccountCode = payable.type === "Travel" ? "2150" : "2000";
-      const settlementAccountName = payable.type === "Travel"
-        ? "Travel Reimbursement Payable"
-        : (payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable");
+      // Must match the accrual-side credit account exactly (createPayable(),
+      // above) or the liability never clears — was collapsing Salary (2100)
+      // and Statutory (2200) into the generic Vendor account (2000), so
+      // those two payable types never actually zeroed out their real
+      // liability account on the Balance Sheet even after being paid.
+      const settlementAccountCode =
+        payable.type === "Travel" ? "2150" :
+        payable.type === "Salary" ? "2100" :
+        payable.type === "Statutory" ? "2200" :
+        "2000";
+      const settlementAccountName =
+        payable.type === "Travel" ? "Travel Reimbursement Payable" :
+        payable.type === "Salary" ? "Salary Payable" :
+        payable.type === "Statutory" ? "Statutory Payable" :
+        (payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable");
       setLedgerEntries(prev => [...prev,
         { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payable.amount },
         { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "1000", accountName: "Bank Account", entryType: "CREDIT" as const, amount: payable.amount },
@@ -720,41 +731,49 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
     setRevenues((prev) => [...prev, newRevenue]);
 
-    // Auto-post double-entry ledger entries
-    const entryBase = {
-      entryDate: revenueData.receivedDate,
-      description: `Revenue — ${revenueData.type} (${revenueData.invoiceNumber || newRevenue.revenueId})`,
-      referenceType: "Invoice" as const,
-      referenceId: newRevenue.revenueId,
-      cityId: revenueData.cityId,
-      serviceType: revenueData.type,
-      createdAt: new Date().toISOString(),
-    };
-    setLedgerEntries(prev => [...prev,
-      // DR Bank/Receivable (Account 1100)
-      { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: "1100", accountName: "Accounts Receivable", entryType: "DEBIT" as const, amount: revenueData.amount },
-      // CR Revenue (Account 4100)
-      { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "4100", accountName: "Service Revenue", entryType: "CREDIT" as const, amount: revenueData.amount },
-    ]);
+    // A "Failed" revenue is a payment attempt that never actually
+    // completed — under standard accrual accounting this was never earned
+    // or realized, so it must not hit the ledger at all. Posting it (as
+    // this used to do unconditionally) created a phantom receivable that
+    // could never be collected, with no reversal/write-off path anywhere
+    // in the app to clear it back out.
+    if (revenueData.status !== "Failed") {
+      // Auto-post double-entry ledger entries
+      const entryBase = {
+        entryDate: revenueData.receivedDate,
+        description: `Revenue — ${revenueData.type} (${revenueData.invoiceNumber || newRevenue.revenueId})`,
+        referenceType: "Invoice" as const,
+        referenceId: newRevenue.revenueId,
+        cityId: revenueData.cityId,
+        serviceType: revenueData.type,
+        createdAt: new Date().toISOString(),
+      };
+      setLedgerEntries(prev => [...prev,
+        // DR Bank/Receivable (Account 1100)
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: "1100", accountName: "Accounts Receivable", entryType: "DEBIT" as const, amount: revenueData.amount },
+        // CR Revenue (Account 4100)
+        { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "4100", accountName: "Service Revenue", entryType: "CREDIT" as const, amount: revenueData.amount },
+      ]);
 
-    // Real, confirmed fix - also post immediately to the real journal
-    // system P&L actually reads (accountingEntryService), rather than
-    // relying on RevenueCaptureSystem.tsx's lazy sync, which only ever
-    // covered whatever single month someone happened to be viewing on
-    // that one screen. Every other real month, and every city nobody
-    // had opened that screen for, silently never reached P&L at all.
-    try {
-      const taxable = revenueData.amount / 1.18;
-      const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", revenueData.cityId);
-      const existingJournals = accountingEntryService.getAllJournals(revenueData.cityId);
-      const existingNums = existingJournals.map(j => j.voucherNumber).filter(Boolean);
-      const invNum = revenueData.invoiceNumber || generateInvoiceNumber(revenueData.cityId, existingNums);
-      const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: revenueData.amount });
-      accountingEntryService.createJournal(
-        { date: revenueData.receivedDate, narration: `Revenue — Invoice ${invNum}`, lines, city: revenueData.cityId, cityId: revenueData.cityId, createdBy: "System" },
-        revenueData.cityId
-      );
-    } catch (_e) { /* non-critical — P&L will pick this up on next reconciliation pass */ }
+      // Real, confirmed fix - also post immediately to the real journal
+      // system P&L actually reads (accountingEntryService), rather than
+      // relying on RevenueCaptureSystem.tsx's lazy sync, which only ever
+      // covered whatever single month someone happened to be viewing on
+      // that one screen. Every other real month, and every city nobody
+      // had opened that screen for, silently never reached P&L at all.
+      try {
+        const taxable = revenueData.amount / 1.18;
+        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", revenueData.cityId);
+        const existingJournals = accountingEntryService.getAllJournals(revenueData.cityId);
+        const existingNums = existingJournals.map(j => j.voucherNumber).filter(Boolean);
+        const invNum = revenueData.invoiceNumber || generateInvoiceNumber(revenueData.cityId, existingNums);
+        const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: revenueData.amount });
+        accountingEntryService.createJournal(
+          { date: revenueData.receivedDate, narration: `Revenue — Invoice ${invNum}`, lines, city: revenueData.cityId, cityId: revenueData.cityId, createdBy: "System" },
+          revenueData.cityId
+        );
+      } catch (_e) { /* non-critical — P&L will pick this up on next reconciliation pass */ }
+    }
 
     return newRevenue;
   };

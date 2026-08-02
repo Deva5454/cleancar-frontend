@@ -1,4 +1,5 @@
 import { DataService } from "./DataService";
+import type { GSTTransaction } from "./gstComplianceService";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const GST_STATES: Record<string, string> = {
@@ -146,6 +147,8 @@ export interface AccountingEntry {
   status: "Draft" | "Posted" | "Cancelled" | "Superseded";
   supersedes?: string;     // set on the correction — points to the original entry's id
   supersededBy?: string;   // set on the original — points to the correction entry's id
+  gstr1GeneratedAt?: string;  // set once this entry is included in a generated GSTR-1
+  gstr3bGeneratedAt?: string; // set once this entry is included in a generated GSTR-3B
 }
 
 export interface ChangeLog {
@@ -441,9 +444,13 @@ function generateVoucherNumber(
 ): string {
   const fy = getFinancialYear();
   const prefix = `${ENTRY_TYPE_CODES[entryType]}/${cityName.toUpperCase()}/${fy}`;
-  // Use max existing sequence number + 1, not count (safe against deletions and concurrent writes)
+  // Use max existing sequence number + 1, not count (safe against deletions and concurrent writes).
+  // voucherNumber is guarded here (?.) because entries migrated in from the
+  // pre-voucherNumber legacy storage schema (see getEntries()'s raw-key
+  // migration) can lack the field entirely — without the guard, one such
+  // record crashes every subsequent voucher-number generation.
   const maxSeq = existingEntries
-    .filter(e => e.voucherNumber.startsWith(prefix))
+    .filter(e => e.voucherNumber?.startsWith(prefix))
     .map(e => parseInt(e.voucherNumber.split("/").pop() || "0", 10))
     .reduce((max, n) => Math.max(max, n), 0);
   return `${prefix}/${String(maxSeq + 1).padStart(4, "0")}`;
@@ -453,7 +460,7 @@ function generateJournalVoucherNumber(cityName: string, existing: JournalEntry[]
   const fy = getFinancialYear();
   const prefix = `JV/${cityName.toUpperCase()}/${fy}`;
   const maxSeq = existing
-    .filter(e => e.voucherNumber.startsWith(prefix))
+    .filter(e => e.voucherNumber?.startsWith(prefix))
     .map(e => parseInt(e.voucherNumber.split("/").pop() || "0", 10))
     .reduce((max, n) => Math.max(max, n), 0);
   return `${prefix}/${String(maxSeq + 1).padStart(4, "0")}`;
@@ -519,6 +526,83 @@ export function validateGSTIN(gstin: string): { valid: boolean; stateCode: strin
     return { valid: false, stateCode: "", error: "Invalid GSTIN format" };
   const stateCode = gstin.substring(0, 2);
   return { valid: true, stateCode };
+}
+
+const STATE_CODE_NAMES: Record<string, string> = {
+  "24": "Gujarat",
+  "27": "Maharashtra",
+};
+
+/**
+ * Adapts real AccountingEntry records into the GSTTransaction shape GSTR-1/
+ * GSTR-3B are built against — this is the actual, real transaction data
+ * (AccountingEntry, ExpenseVoucher, InvoiceManagement, RevenueCaptureSystem
+ * all post here); gstComplianceService's own store is fed only by manual
+ * entry on /gst/transactions and real sales/purchases never reach it.
+ *
+ * Fields with no AccountingEntry equivalent are given honest, neutral
+ * defaults (riskLevel "Clean"/riskScore 0 — no real risk scoring exists for
+ * these entries; quantity 1/unit "Service" — line-item quantity isn't
+ * tracked) rather than invented values. Cancelled/Superseded entries are
+ * excluded entirely — they were never real, filed transactions.
+ */
+export function getGSTTransactionsFromEntries(cityId?: string): GSTTransaction[] {
+  const entries = accountingEntryService.getAllEntries(cityId);
+  return entries
+    .filter(e => e.status === "Posted" || e.status === "Draft")
+    .map((e): GSTTransaction => {
+      const transactionType: GSTTransaction["transactionType"] =
+        e.entryType === "Sales" ? "Sale" :
+        e.entryType === "SalesReturn" ? "Credit Note" :
+        e.entryType === "Purchase" || e.entryType === "AssetPurchase" ? "Purchase" :
+        e.entryType === "PurchaseReturn" ? "Debit Note" :
+        "Expense";
+      const gstType: GSTTransaction["gstType"] = e.gstEntryType === "B2B" ? "B2B" : "B2C";
+      const stateCode = e.vendorStateCode || "";
+      const isPurchaseSide = transactionType === "Purchase" || transactionType === "Expense";
+      const date = new Date(e.date);
+      return {
+        id: e.id,
+        invoiceNumber: e.invoiceNumber,
+        invoiceDate: e.date,
+        transactionType,
+        gstType,
+        partyId: e.vendorId || "",
+        partyName: e.vendorName || "",
+        partyGstin: e.vendorGstin || "",
+        partyState: STATE_CODE_NAMES[stateCode] || stateCode,
+        placeOfSupply: STATE_CODE_NAMES[stateCode] || stateCode,
+        placeOfSupplyCode: stateCode,
+        hsnSacCode: e.hsnSacCode || "",
+        description: e.narration || e.invoiceNumber,
+        quantity: 1,
+        unit: "Service",
+        unitPrice: e.taxableValue,
+        taxableValue: e.taxableValue,
+        gstRate: e.gstRate,
+        cgst: e.cgst,
+        sgst: e.sgst,
+        igst: e.igst,
+        cess: 0,
+        totalTax: e.cgst + e.sgst + e.igst,
+        invoiceTotal: e.totalBillValue,
+        itcEligible: isPurchaseSide && !e.isRCM,
+        itcAmount: isPurchaseSide && !e.isRCM ? e.cgst + e.sgst + e.igst : 0,
+        reverseCharge: e.isRCM,
+        status: e.status === "Posted" ? "Approved" : "Draft",
+        validationErrors: [],
+        riskScore: 0,
+        riskLevel: "Clean",
+        createdBy: e.createdBy,
+        createdAt: e.createdAt,
+        month: date.getMonth() + 1,
+        year: date.getFullYear(),
+        cityId: e.cityId,
+        city: e.city,
+        supplyNature: e.gstEntryType === "NonGST" ? "NonGST" : "Taxable",
+        changeHistory: [],
+      };
+    });
 }
 
 export function autoPostLedger(entry: AccountingEntry): JournalLine[] {

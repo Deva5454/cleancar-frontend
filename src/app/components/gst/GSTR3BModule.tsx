@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { ReceiptText, Download, AlertTriangle, Lock } from "lucide-react";
 import { gstComplianceService } from "../../services/gstComplianceService";
+import { getGSTTransactionsFromEntries } from "../../services/accountingEntryService";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { useCity } from "../../contexts/CityContext";
 
@@ -12,7 +13,10 @@ export function GSTR3BModule() {
   const [status, setStatus] = useState<"Not Generated" | "Generated" | "Approved" | "Ready to File">("Not Generated");
   const [isApproved, setIsApproved] = useState(false);
 
-  const transactions = gstComplianceService.getTransactions(city);
+  // Real GST-bearing transactions post through accountingEntryService —
+  // gstComplianceService's own store is fed only by manual entry on
+  // /gst/transactions and real sales/purchases never reach it.
+  const transactions = getGSTTransactionsFromEntries(city);
   const reconciliation = gstComplianceService.getReconciliation();
 
   const monthTransactions = useMemo(() =>
