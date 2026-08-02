@@ -431,18 +431,22 @@ class AdvanceManagementService {
     totalDaysInMonth: number,
     employeeRole: string
   ): { salaryTillDate: number; maxEligible: number; limitPercentage: number } {
-    // Import the role-based limit calculation
-    const calculateMaxAdvanceAmount = (t: string) => t === "LONG_TERM" ? 50000 : 10000;
-
     const salaryPerDay = monthlySalary / totalDaysInMonth;
     const salaryTillDate = salaryPerDay * daysWorked;
 
-    // Calculate max advance based on MONTHLY gross salary and role
-    const { maxAmount, limitPercentage } = calculateMaxAdvanceAmount(monthlySalary, employeeRole);
+    // Real fix: this used to call a helper that compared a number against
+    // the string "LONG_TERM" (always false) and then destructured
+    // {maxAmount, limitPercentage} off a plain returned number — both were
+    // always undefined, so this always showed ₹NaN / NaN% and the
+    // over-limit check (`requestedAmount > maxEligible`) silently never
+    // fired since any number compared to NaN is false. Rule matches the
+    // UI copy: Car Washer/Supervisor get 50% of monthly gross, others 20%.
+    const limitPercentage = (employeeRole === "Car Washer" || employeeRole === "Supervisor") ? 50 : 20;
+    const maxEligible = monthlySalary * (limitPercentage / 100);
 
     return {
       salaryTillDate: Math.round(salaryTillDate),
-      maxEligible: Math.round(maxAmount),
+      maxEligible: Math.round(maxEligible),
       limitPercentage,
     };
   }
@@ -645,6 +649,15 @@ class AdvanceManagementService {
       ...shortTerm.filter((a) => a.status === "APPROVED" || a.status === "DISBURSED"),
     ];
 
+    // Real fix: AdvanceDetailView.tsx did `[...summary.activeAdvances, ...summary.history]`
+    // but this summary never had a `history` field at all — spreading undefined
+    // threw "summary.history is not iterable", crashing that screen on every visit.
+    const activeIds = new Set(activeAdvances.map((a) => a.id));
+    const history: any[] = [
+      ...longTerm.filter((a) => !activeIds.has(a.id)),
+      ...shortTerm.filter((a) => !activeIds.has(a.id)),
+    ];
+
     const nextActiveLongTerm = activeAdvances.find((a) => "emiSchedule" in a);
 
     return {
@@ -652,6 +665,7 @@ class AdvanceManagementService {
       employeeName: longTerm[0]?.employeeName || shortTerm[0]?.employeeName || "Unknown",
       employeeRole: longTerm[0]?.employeeRole || shortTerm[0]?.employeeRole || "Unknown",
       activeAdvances,
+      history,
       totalOutstanding:
         longTerm.reduce((sum, a) => sum + (a.status === "ACTIVE" ? a.remainingAmount : 0), 0) +
         shortTerm.reduce((sum, a) => sum + (!a.isRecovered ? a.requestedAmount : 0), 0),

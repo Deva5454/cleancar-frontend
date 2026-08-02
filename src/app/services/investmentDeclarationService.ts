@@ -67,6 +67,14 @@ export interface InvestmentDeclaration {
   rejectedAt?: string;
   rejectionReason?: string;
 
+  // Record-keeping: Accounts physically receiving the verified proofs for
+  // filing. Kept separate from `status` (which Payroll's
+  // getVerifiedDeductionTotal gates on "Verified") so this is purely an
+  // additional record-keeping stamp, not a workflow-blocking status.
+  receivedByAccounts?: boolean;
+  receivedByAccountsBy?: string;
+  receivedByAccountsAt?: string;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -164,6 +172,16 @@ class InvestmentDeclarationService {
     return this.read().filter((d) => d.status === "Submitted");
   }
 
+  /** Verified declarations Accounts has not yet acknowledged receiving for filing. */
+  getPendingAccountsReceipt(): InvestmentDeclaration[] {
+    return this.read().filter((d) => d.status === "Verified" && !d.receivedByAccounts);
+  }
+
+  /** Verified declarations Accounts has already logged as received, for record-keeping. */
+  getReceivedByAccountsHistory(): InvestmentDeclaration[] {
+    return this.read().filter((d) => d.receivedByAccounts);
+  }
+
   saveDraft(
     input: Omit<InvestmentDeclaration, "id" | "status" | "createdAt" | "updatedAt">
   ): InvestmentDeclaration {
@@ -213,6 +231,18 @@ class InvestmentDeclarationService {
     record.verifiedBy = verifiedBy;
     record.verifiedAt = new Date().toISOString();
     record.updatedAt = record.verifiedAt;
+    this.write(records);
+    return record;
+  }
+
+  markReceivedByAccounts(declarationId: string, receivedBy: string): InvestmentDeclaration | null {
+    const records = this.read();
+    const record = records.find((d) => d.id === declarationId);
+    if (!record || record.status !== "Verified" || record.receivedByAccounts) return null;
+    record.receivedByAccounts = true;
+    record.receivedByAccountsBy = receivedBy;
+    record.receivedByAccountsAt = new Date().toISOString();
+    record.updatedAt = record.receivedByAccountsAt;
     this.write(records);
     return record;
   }

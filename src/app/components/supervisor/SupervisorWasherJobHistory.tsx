@@ -1,25 +1,22 @@
 /**
- * WasherJobHistory.tsx — real, previously-missing screen: a washer's
- * own job history, using getJobsByWasherId() — a real function that
- * already existed in JobContext, but was only ever called from City
- * Manager and Operations Manager screens, never from anything a
- * washer could actually see themselves.
- *
- * Shows every real completed (or otherwise finished) job for the
- * currently logged-in washer: date, vehicle, package, and outcome —
- * most recent first.
+ * SupervisorWasherJobHistory.tsx — real, previously-missing screen: lets a
+ * supervisor pick any washer on their real team (the same pincode-matched
+ * team SupervisorContext already computes) and browse that washer's real,
+ * complete job history — no 60-day cap, since a supervisor legitimately
+ * needs to look further back than their washer's own self-view does.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useJobs } from "../../contexts/JobContext";
-import { useRole } from "../../contexts/RoleContext";
+import { useSupervisor } from "../../contexts/SupervisorContext";
 import { BackButton } from "../ui/back-button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
 import { Briefcase, Car } from "lucide-react";
 import { DateRangeFilterBar, computeDateRange, isWithinDateRange, type DateRangePreset } from "../shared/DateRangeFilterBar";
-
-const HISTORY_WINDOW_DAYS = 60;
 
 const STATUS_BADGE: Record<string, string> = {
   Completed: "bg-blue-100 text-blue-700",
@@ -28,60 +25,71 @@ const STATUS_BADGE: Record<string, string> = {
   Cancelled: "bg-gray-100 text-gray-600",
 };
 
-// Real, finished-work statuses - this screen is about work done, not
-// what's still upcoming or in progress.
 const FINISHED_STATUSES = ["Completed", "Verified", "Failed", "Cancelled"];
 
-export function WasherJobHistory() {
+export function SupervisorWasherJobHistory() {
   const { getJobsByWasherId } = useJobs();
-  const { currentUser } = useRole();
-  const washerId = currentUser?.employeeId || "";
+  const { team } = useSupervisor();
 
+  const [selectedWasherId, setSelectedWasherId] = useState(team[0]?.id || "");
   const [preset, setPreset] = useState<DateRangePreset>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
-  // Real fix: previously showed every job record ever, with no date
-  // filtering of any kind. Washers should only see the last 60 days of
-  // their own history; the filter bar further narrows within that window.
-  const windowStart = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - HISTORY_WINDOW_DAYS);
-    return d.toISOString().split("T")[0];
-  }, []);
+  // Real fix: SupervisorContext's team loads asynchronously after mount, so
+  // team[0]?.id was always empty at the moment useState's initial value was
+  // captured. Pick a default once the real team actually arrives.
+  useEffect(() => {
+    if (!selectedWasherId && team.length > 0) setSelectedWasherId(team[0].id);
+  }, [team, selectedWasherId]);
 
   const dateRange = useMemo(() => computeDateRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
   const history = useMemo(() => {
-    if (!washerId) return [];
-    return getJobsByWasherId(washerId)
+    if (!selectedWasherId) return [];
+    return getJobsByWasherId(selectedWasherId)
       .filter((j: any) => FINISHED_STATUSES.includes(j.status))
-      .filter((j: any) => (j.completedAt || j.scheduledDate || "").slice(0, 10) >= windowStart)
       .filter((j: any) => isWithinDateRange(j.completedAt || j.scheduledDate, dateRange))
       .sort((a: any, b: any) => (b.completedAt || b.scheduledDate).localeCompare(a.completedAt || a.scheduledDate));
-  }, [washerId, getJobsByWasherId, windowStart, dateRange]);
+  }, [selectedWasherId, getJobsByWasherId, dateRange]);
 
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto">
       <BackButton />
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Job History</h1>
-        <p className="text-sm text-gray-500">Jobs you've completed in the last {HISTORY_WINDOW_DAYS} days — most recent first</p>
+        <h1 className="text-2xl font-bold text-gray-900">Washer Job History</h1>
+        <p className="text-sm text-gray-500">Complete real job history for any washer on your team</p>
       </div>
 
-      <DateRangeFilterBar
-        preset={preset} onPresetChange={setPreset}
-        customFrom={customFrom} customTo={customTo}
-        onCustomFromChange={setCustomFrom} onCustomToChange={setCustomTo}
-      />
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-center gap-3">
+          <Select value={selectedWasherId} onValueChange={setSelectedWasherId}>
+            <SelectTrigger className="w-64"><SelectValue placeholder="Select washer" /></SelectTrigger>
+            <SelectContent>
+              {team.map((w: any) => <SelectItem key={w.id} value={w.id}>{w.name} ({w.id})</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <DateRangeFilterBar
+            preset={preset} onPresetChange={setPreset}
+            customFrom={customFrom} customTo={customTo}
+            onCustomFromChange={setCustomFrom} onCustomToChange={setCustomTo}
+          />
+        </CardContent>
+      </Card>
 
-      {history.length === 0 ? (
+      {team.length === 0 && (
+        <Card><CardContent className="p-8 text-center text-sm text-gray-500">No washers found on your team yet.</CardContent></Card>
+      )}
+
+      {team.length > 0 && history.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-sm text-gray-500">
-            No completed jobs found yet in your real history.
+            No completed jobs found for this washer in the selected range.
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {history.length > 0 && (
         <div className="space-y-3">
           {history.map((job: any) => (
             <Card key={job.jobId}>
@@ -108,12 +116,8 @@ export function WasherJobHistory() {
           ))}
         </div>
       )}
-
-      <p className="text-xs text-gray-400 text-center pt-2">
-        Showing real job records from the last {HISTORY_WINDOW_DAYS} days for your account.
-      </p>
     </div>
   );
 }
 
-export default WasherJobHistory;
+export default SupervisorWasherJobHistory;

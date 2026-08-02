@@ -29,7 +29,7 @@ export interface MRRData {
 
 export interface Payable {
   payableId: string;
-  type: "Salary" | "Vendor" | "Statutory" | "Travel";
+  type: "Salary" | "Vendor" | "Statutory" | "Travel" | "Claim";
   // For Salary Payables
   employeeId?: string; // GLOBAL IDENTITY - links to HRDataContext
   payrollId?: string; // Links to PayrollRun in HRDataContext
@@ -57,6 +57,8 @@ export interface Payable {
   taxAmount?: number;
   tdsAmount?: number;
   isAdhoc?: boolean; // true = HR requested immediate payment instead of next payroll cycle
+  // For Expense Claim Payables (type: "Claim", cross-referenced to an ExpenseClaim)
+  claimId?: string;
   // Common fields
   amount: number;
   dueDate: string;
@@ -610,6 +612,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         { ...entryBase, ledgerEntryId: `LED-${Date.now()}-TRV-CR`, accountCode: "2150", accountName: "Travel Reimbursement Payable", entryType: "CREDIT" as const, amount: payableData.amount, description: payableData.description },
       ]);
 
+    } else if (payableData.type === "Claim") {
+      // ── EXPENSE CLAIM JOURNAL ENTRY ────────────────────────────────────────
+      // Same shape as Travel above: a business expense, not wages, kept out of
+      // Salary Expense/Payable so labour-cost figures on Analytics/Unit
+      // Economics dashboards (which filter by type "Salary") stay accurate.
+      setLedgerEntries(prev => [...prev,
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-CLM-DR`, accountCode: "5160", accountName: "Employee Claims Reimbursement Expense", entryType: "DEBIT" as const, amount: payableData.amount, description: payableData.description },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-CLM-CR`, accountCode: "2160", accountName: "Employee Claims Payable", entryType: "CREDIT" as const, amount: payableData.amount, description: payableData.description },
+      ]);
+
     } else {
       // ── VENDOR / AP JOURNAL ENTRY ─────────────────────────────────────────
       // Dr  Expense Account (5300 — vendor expense)
@@ -668,11 +680,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         payable.type === "Travel" ? "2150" :
         payable.type === "Salary" ? "2100" :
         payable.type === "Statutory" ? "2200" :
+        payable.type === "Claim" ? "2160" :
         "2000";
       const settlementAccountName =
         payable.type === "Travel" ? "Travel Reimbursement Payable" :
         payable.type === "Salary" ? "Salary Payable" :
         payable.type === "Statutory" ? "Statutory Payable" :
+        payable.type === "Claim" ? "Employee Claims Payable" :
         (payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable");
       setLedgerEntries(prev => [...prev,
         { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payable.amount },

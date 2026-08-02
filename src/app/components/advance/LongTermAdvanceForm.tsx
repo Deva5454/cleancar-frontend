@@ -44,6 +44,16 @@ export function LongTermAdvanceForm() {
 
   const targetEmployee = employees.find(e => e.id === targetEmployeeId);
 
+  // Real fix: previously always submitted using currentUser.name as the
+  // employeeId (a display name, not the real employee ID PayrollRun's
+  // matchesEmployeeId compares against), and ignored the HR "Processing
+  // advance for" picker above entirely on submit.
+  const effectiveEmployeeId = isHRView && targetEmployeeId ? targetEmployeeId : (currentUser.employeeId || "");
+  const effectiveEmployeeName = isHRView && targetEmployee
+    ? (targetEmployee.fullName || targetEmployee.designation || targetEmployeeId)
+    : currentUser.name;
+  const effectiveRole = isHRView && targetEmployee ? targetEmployee.role : currentUser.role;
+
   // Form state
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [tenureMonths, setTenureMonths] = useState<number>(0);
@@ -189,9 +199,9 @@ export function LongTermAdvanceForm() {
       };
 
       const advance = advanceManagementService.createLongTermAdvance(
-        currentUser.name,
-        currentUser.name,
-        currentUser.role,
+        effectiveEmployeeId,
+        effectiveEmployeeName,
+        effectiveRole,
         {
           advanceAmount,
           tenureMonths,
@@ -259,7 +269,7 @@ export function LongTermAdvanceForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {employees
-                      .filter(e => e.status === "Active" && (e.workLocation === city || e.cityId === city))
+                      .filter(e => e.status === "Active" && (e.city === city || e.cityId === city))
                       .map(e => (
                         <SelectItem key={e.id} value={e.id}>
                           {e.fullName} — {e.designation} ({e.mobile})
@@ -289,12 +299,12 @@ export function LongTermAdvanceForm() {
             {/* Employee Info (Read-only) */}
             <div className="grid md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
               <div>
-                <label className="text-sm font-medium text-gray-700">Employee ID</label>
-                <p className="text-sm text-gray-900 font-mono mt-1">{currentUser.name}</p>
+                <label className="text-sm font-medium text-gray-700">Employee</label>
+                <p className="text-sm text-gray-900 font-mono mt-1">{effectiveEmployeeName} ({effectiveEmployeeId})</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Role</label>
-                <p className="text-sm text-gray-900 mt-1">{currentUser.role}</p>
+                <p className="text-sm text-gray-900 mt-1">{effectiveRole}</p>
               </div>
             </div>
 

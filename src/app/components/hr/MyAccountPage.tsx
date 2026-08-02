@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -46,10 +47,18 @@ const roleBadgeColor: Record<string, string> = {
   "Marketing Agency":       "bg-slate-100 text-slate-800",
 };
 
+const ACCOUNT_TABS = ["profile", "leave", "payslip", "travel", "claims", "tax", "mobile"] as const;
+
 export function MyAccountPage() {
   const { currentUser, currentRole } = useRole();
   const { addApproval, approvals } = useApprovals();
-  const [activeTab, setActiveTab] = useState("profile");
+  const [searchParams] = useSearchParams();
+  // Real fix: a ?tab=tax (or any other tab) link always landed on Profile —
+  // this component never read the query param at all.
+  const [activeTab, setActiveTab] = useState(() => {
+    const requested = searchParams.get("tab");
+    return requested && (ACCOUNT_TABS as readonly string[]).includes(requested) ? requested : "profile";
+  });
 
   const employees = employeeDatabaseService.getAll();
   const emp = employees.find(

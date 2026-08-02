@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { useWasher, useWasherJobs } from "../../contexts/WasherContext";
 import { useEvents } from "../../contexts/EventSystem";
+import { useIncentive } from "../../contexts/IncentiveContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { washerGpsViolationService, type WasherGpsViolation } from "../../services/washerGpsViolationService";
@@ -37,6 +38,21 @@ export function WasherCoreScreensConnected() {
   const { city: currentCityId } = useCity();
   const washerId = (currentUser as any)?.employeeId || "";
   const today = new Date().toISOString().split("T")[0];
+
+  // Real fix: this screen used to show three different, mutually
+  // contradictory incentive numbers (a flat ₹150/job with no real basis, a
+  // unit threshold that was 20 in one spot and 25 in another within this
+  // same file, and static monthly figures like ₹12,500 that never changed).
+  // Now sourced from IncentiveContext — the same real plan config and real
+  // EmployeeIncentive record PayrollRun.tsx actually pays out from.
+  const { getConfigForRole, getEmployeeIncentive } = useIncentive();
+  const incentiveConfig = getConfigForRole(currentRole);
+  const employeeIncentive = getEmployeeIncentive(washerId);
+  // Fallback only when no real plan/record exists yet — matches
+  // IncentiveConfiguration.tsx's own real approved default for Part-Time
+  // Car Washer (baseUnits 25, ₹25/unit), not an arbitrary number.
+  const realBaseUnitsTarget = incentiveConfig?.quota ?? employeeIncentive?.target ?? 25;
+  const realPerUnitRate = incentiveConfig?.perUnitRate ?? 25;
   const [gpsViolation, setGpsViolation] = useState<WasherGpsViolation | null>(() =>
     washerId ? washerGpsViolationService.getActiveViolationForToday(washerId, currentCityId, today) : null
   );
@@ -414,11 +430,15 @@ export function WasherCoreScreensConnected() {
         summaryData={{
           date: new Date().toISOString(),
           totalUnits: completedLocal.length,
-          baseUnits: completedLocal.length,
-          incentiveUnits: Math.max(0, completedLocal.length - 25),
+          baseUnits: Math.min(completedLocal.length, realBaseUnitsTarget),
+          baseTarget: realBaseUnitsTarget,
+          incentiveUnits: Math.max(0, completedLocal.length - realBaseUnitsTarget),
           addOnServices: 0,
-          todayEarnings: completedLocal.length * 150,
-          incentiveEarnings: Math.max(0, completedLocal.length - 25) * 25,
+          // "Today's Earnings" now reflects only the real incentive-eligible
+          // portion — there is no real per-job wage rate configured anywhere
+          // in this app, so showing one would be fabricated.
+          todayEarnings: Math.max(0, completedLocal.length - realBaseUnitsTarget) * realPerUnitRate,
+          incentiveEarnings: Math.max(0, completedLocal.length - realBaseUnitsTarget) * realPerUnitRate,
           addOnEarnings: 0,
           totalWorkingTime: checkInTime
             ? `${Math.floor((Date.now() - checkInTime.getTime()) / 3600000)}h ${Math.floor(((Date.now() - checkInTime.getTime()) % 3600000) / 60000)}m`
@@ -426,7 +446,7 @@ export function WasherCoreScreensConnected() {
           checkInTime: checkInTime?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || "N/A",
           checkOutTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           attendanceStatus: "Present",
-          performanceRating: completedLocal.length >= 25 ? "Excellent" : completedLocal.length >= 3 ? "Good" : "Average",
+          performanceRating: completedLocal.length >= realBaseUnitsTarget ? "Excellent" : completedLocal.length >= 3 ? "Good" : "Average",
         }}
         onClose={() => { setShowDaySummary(false); setScreen("dashboard"); }}
       />
@@ -560,14 +580,14 @@ export function WasherCoreScreensConnected() {
         return (
           <WasherIncentiveTracker
             data={{
-              baseUnits: 20,
+              baseUnits: realBaseUnitsTarget,
               completedUnits: completedLocal.length,
-              incentiveUnits: Math.max(0, completedLocal.length - 20),
-              todayIncentiveEarnings: Math.max(0, completedLocal.length - 20) * 25,
-              monthlyIncentiveUnits: 0,
-              monthlyIncentiveEarnings: 0,
+              incentiveUnits: Math.max(0, completedLocal.length - realBaseUnitsTarget),
+              todayIncentiveEarnings: Math.max(0, completedLocal.length - realBaseUnitsTarget) * realPerUnitRate,
+              monthlyIncentiveUnits: employeeIncentive?.achieved ?? 0,
+              monthlyIncentiveEarnings: employeeIncentive?.calculatedAmount ?? 0,
               timeBandStatus: "ACTIVE",
-              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+              timeBandExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
               eligibilityStatus: "ELIGIBLE",
               eligibilityReason: "Meeting all criteria",
               hasAttendanceImpact: false,
@@ -577,7 +597,7 @@ export function WasherCoreScreensConnected() {
               addOnCount: 0,
               addOnEarnings: 0,
             }}
-            currentDate={new Date().toISOString()}
+            currentDate={new Date()}
             monthName={new Date().toLocaleString("en-IN", { month: "long" })}
           />
         );
@@ -629,10 +649,10 @@ export function WasherCoreScreensConnected() {
             isWeekOff={false}
             isLate={false}
             unitsCompleted={completedLocal.length}
-            unitsTarget={20}
-            incentiveUnits={Math.max(0, completedLocal.length - 20)}
-            todayEarnings={completedLocal.length * 150}
-            monthlyEarnings={12500}
+            unitsTarget={realBaseUnitsTarget}
+            incentiveUnits={Math.max(0, completedLocal.length - realBaseUnitsTarget)}
+            todayEarnings={Math.max(0, completedLocal.length - realBaseUnitsTarget) * realPerUnitRate}
+            monthlyEarnings={employeeIncentive?.calculatedAmount ?? 0}
             onCheckIn={() => setScreen("checkin")}
             onViewSchedule={() => setScreen("schedule")}
             onViewEarnings={() => setScreen("incentive")}

@@ -24,6 +24,7 @@ export interface DaySummaryData {
   date: string;
   totalUnits: number;
   baseUnits: number;
+  baseTarget?: number; // real quota threshold — defaults to 25 for backward compat
   incentiveUnits: number;
   addOnServices: number;
   todayEarnings: number;
@@ -77,7 +78,8 @@ export function DaySummaryScreen({ summaryData, onClose }: DaySummaryScreenProps
     }
   };
 
-  const baseCompleted = (summaryData.baseUnits ?? 0) >= 25;
+  const baseTarget = summaryData.baseTarget ?? 25;
+  const baseCompleted = (summaryData.baseUnits ?? 0) >= baseTarget;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
@@ -126,7 +128,7 @@ export function DaySummaryScreen({ summaryData, onClose }: DaySummaryScreenProps
               <p className="text-xs text-gray-600 mb-1">Base</p>
               <p className="text-2xl font-bold text-blue-600">{summaryData.baseUnits ?? 0}</p>
               {!baseCompleted && (
-                <p className="text-xs text-red-600 mt-1">⚠️ Below 25</p>
+                <p className="text-xs text-red-600 mt-1">⚠️ Below {baseTarget}</p>
               )}
             </div>
 

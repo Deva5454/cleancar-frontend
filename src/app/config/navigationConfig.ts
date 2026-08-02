@@ -23,7 +23,7 @@ import {
   PlusCircle, MinusCircle, FileBarChart, Brain, ShieldCheck, LayoutDashboard,
   Building2, CheckCircle2, ClipboardCheck, GitCompare, FileOutput, ReceiptText,
   Upload, BookOpen, List, Scale, Zap, Car, Percent, User, Tag,
-  Inbox, RefreshCw
+  Inbox, RefreshCw, Archive
 } from "lucide-react";
 
 export interface NavItem {
@@ -224,6 +224,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Washer KRA Scorecard", path: "/incentives/washer-kra", icon: Target, module: "hr", match: "prefix" },
       { label: "OM KRA Scorecard", path: "/incentives/om-kra", icon: TrendingUp, module: "hr", match: "prefix" },
       { label: "City Manager KRA Scorecard", path: "/incentives/city-kra", icon: Building2, module: "hr", match: "prefix" },
+      { label: "Supervisor KRA Scorecard", path: "/incentives/supervisor-kra", icon: Target, module: "hr", match: "prefix" },
       { label: "Field Tracker",        path: "/field-tracker", icon: Navigation,  module: "hr", match: "prefix" },
       { label: "Other Earnings", path: "/advance/other-earnings", icon: PlusCircle, module: "hr", match: "prefix" },
       { label: "Other Deductions", path: "/advance/other-deductions", icon: MinusCircle, module: "hr", match: "prefix" },
@@ -308,6 +309,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Payroll Processing", path: "/accounts/payroll-processing",icon: Calculator,     module: "accounts", match: "prefix" },
       { label: "Payables",           path: "/accounts/payables",         icon: CreditCard,      module: "accounts", match: "prefix" },
       { label: "TDS Payable",        path: "/accounts/tds-payable",      icon: Percent,         module: "accounts", match: "prefix" },
+      { label: "Tax Document Receipts", path: "/accounts/tax-document-receipts", icon: Archive,  module: "accounts", match: "prefix" },
       { label: "Advance Tax",        path: "/accounts/advance-tax",      icon: Calendar,        module: "accounts", match: "prefix" },
     ]
   },
@@ -398,6 +400,8 @@ export const QUICK_ACTIONS: NavItem[] = [
   { label: "Cloth Exchange", path: "/cloth-tracking/exchange", icon: Scan, module: "cloth-tracking", match: "prefix" },
   { label: "My Stock", path: "/inventory/my-stock", icon: Package, module: "car-washer", match: "prefix" },
   { label: "My Job History", path: "/washer/my-job-history", icon: Briefcase, module: "car-washer", match: "prefix" },
+  { label: "Washer Job History", path: "/supervisor/washer-job-history", icon: Briefcase, module: "supervisor", match: "prefix" },
+  { label: "All Washers Job History", path: "/city-app/job-history", icon: Briefcase, module: "operations", match: "prefix" },
   { label: "Approvals", path: "/approvals", icon: CheckSquare, module: "approvals", match: "prefix" },
   { label: "Performance", path: "/performance", icon: TrendingUp, module: "performance", match: "prefix" },
 

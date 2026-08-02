@@ -25,6 +25,7 @@ const AttendanceRegularizationModule = lazy(() => import("./components/hr/Attend
 const WasherKraDashboard = lazy(() => import("./components/incentives/WasherKraDashboard"));
 const OMKraDashboard = lazy(() => import("./components/incentives/OMKraDashboard"));
 const CityKraDashboard = lazy(() => import("./components/incentives/CityKraDashboard"));
+const SupervisorKraDashboard = lazy(() => import("./components/incentives/SupervisorKraDashboard"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const PerformanceManagementModule = lazy(() => import("./components/hr/PerformanceManagementModule"));
@@ -130,6 +131,7 @@ const RazorpayFlow = lazy(() => import("./components/accounts/RazorpayFlow"));
 const ExpenseVoucher = lazy(() => import("./components/accounts/ExpenseVoucher"));
 const ItemMaster = lazy(() => import("./components/accounts/ItemMaster"));
 const TDSPayableModule = lazy(() => import("./components/accounts/TDSPayableModule"));
+const TaxDocumentReceipts = lazy(() => import("./components/accounts/TaxDocumentReceipts"));
 const AdvanceTaxCalculator = lazy(() => import("./components/accounts/AdvanceTaxCalculator"));
 const PayablesDashboard = lazy(() => import("./components/accounts/PayablesDashboard"));
 const CreditorsReport = lazy(() => import("./components/accounts/CreditorsReport"));
@@ -207,6 +209,7 @@ import { ClothChainMovement } from "./components/cloth-tracking/ClothChainMoveme
 import { ClothReturnJourney } from "./components/cloth-tracking/ClothReturnJourney";
 import { KimFleetDashboard } from "./components/cloth-tracking/KimFleetDashboard";
 import { UniformEntitlement } from "./components/supervisor/UniformEntitlement";
+import { SupervisorWasherJobHistory } from "./components/supervisor/SupervisorWasherJobHistory";
 import { ClothAdminDashboard } from "./components/cloth-tracking/ClothAdminDashboard";
 import { AdvanceTypeSelection } from "./components/advance/AdvanceTypeSelection";
 const LongTermAdvanceForm = lazy(() => import("./components/advance/LongTermAdvanceForm"));
@@ -227,6 +230,7 @@ import { SupervisorAppConnected } from "./components/supervisor/SupervisorAppCon
 import { SupervisorLayout } from "./components/supervisor/SupervisorLayout";
 const ClusterManagerApp = lazy(() => import("./components/cm/ClusterManagerApp"));
 const CityManagerApp = lazy(() => import("./components/city/CityManagerApp"));
+const CityManagerJobHistory = lazy(() => import("./components/city/CityManagerJobHistory"));
 const TeleSalesManagerApp = lazy(() => import("./components/tsm/TeleSalesManagerApp"));
 const TSMCancellationQueue = lazy(() => import("./components/tsm/TSMCancellationQueue"));
 const SalesHeadApp = lazy(() => import("./components/sh/SalesHeadApp"));
@@ -467,6 +471,7 @@ export const router = createBrowserRouter([
       { path: "accounts/refund-requests", element: <ErrorBoundary><RefundRequests /></ErrorBoundary> },
       { path: "accounts/gift-subscriptions", element: <ErrorBoundary><GiftSubscriptions /></ErrorBoundary> },
       { path: "accounts/tds-payable", element: <ErrorBoundary><TDSPayableModule /></ErrorBoundary> },
+      { path: "accounts/tax-document-receipts", element: <ErrorBoundary><TaxDocumentReceipts /></ErrorBoundary> },
       { path: "accounts/advance-tax", element: <ErrorBoundary><AdvanceTaxCalculator /></ErrorBoundary> },
       { path: "accounts/journal-entry", element: <JournalEntry /> },
       { path: "accounts/dashboard", element: <AccountsDashboard /> },
@@ -594,6 +599,7 @@ export const router = createBrowserRouter([
       { path: "cloth-tracking/return-journey", element: <ClothReturnJourney /> },
       { path: "cloth-tracking/fleet", element: <KimFleetDashboard /> },
       { path: "supervisor/uniform-entitlement", element: <UniformEntitlement /> },
+      { path: "supervisor/washer-job-history", element: <SupervisorWasherJobHistory /> },
       { path: "cloth-tracking/admin", element: <ClothAdminDashboard /> },
       // Advance Management System
       { path: "advance", element: <AdvanceTypeSelection /> },
@@ -612,6 +618,7 @@ export const router = createBrowserRouter([
       { path: "incentives/washer-kra", element: <WasherKraDashboard /> },
       { path: "incentives/om-kra", element: <OMKraDashboard /> },
       { path: "incentives/city-kra", element: <CityKraDashboard /> },
+      { path: "incentives/supervisor-kra", element: <SupervisorKraDashboard /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
       { path: "performance-management", element: <PerformanceManagementModule /> },
@@ -677,6 +684,7 @@ export const router = createBrowserRouter([
 
       // City Manager App (Production) - Control tower interface
       { path: "city-app", element: <CityManagerApp /> },
+      { path: "city-app/job-history", element: <CityManagerJobHistory /> },
 
       // Organization Hierarchy Dashboard - City â†’ Cluster â†’ Pincode
       { path: "hierarchy-dashboard", element: <HierarchyDashboard /> },

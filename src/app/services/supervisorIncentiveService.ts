@@ -225,13 +225,19 @@ function getRealConversionData(supervisorId?: string): {
 }
 
 /** Get real retention rate from subscriptions */
-function getRealRetentionRate(supervisorId?: string): number {
+export function getRealRetentionRate(supervisorId?: string): number {
   const subs = readSubscriptions();
   const mine = supervisorId ? subs.filter(s => s.supervisorId === supervisorId) : subs;
   const relevant = mine.length > 0 ? mine : subs;
   if (relevant.length === 0) return 0.87; // fallback
   const active = relevant.filter(s => s.status === "Active").length;
   return active / relevant.length;
+}
+
+/** Get real BTL conversion rate (0-1) from subscriptions, same basis as getIncentiveDashboard uses. */
+export function getRealConversionRate(supervisorId?: string): number {
+  const { conversions, totalLeads } = getRealConversionData(supervisorId);
+  return totalLeads > 0 ? conversions / totalLeads : 0.33;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────

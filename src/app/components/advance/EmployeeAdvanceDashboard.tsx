@@ -34,11 +34,13 @@ export function EmployeeAdvanceDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch employee advance summary
-    const employeeSummary = advanceManagementService.getEmployeeSummary(currentUser.name);
+    // Real fix: was keyed by currentUser.name (a display name), but every
+    // advance is stored/matched by real employeeId — this always looked up
+    // the wrong (empty) record for a genuine self-submitted advance.
+    const employeeSummary = advanceManagementService.getEmployeeSummary(currentUser.employeeId || "");
     setSummary(employeeSummary);
     setLoading(false);
-  }, [currentUser.name]);
+  }, [currentUser.employeeId]);
 
   if (loading) {
     return (

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { expenseClaimService, type ExpenseClaim } from "../../services/expenseClaimService";
+import { useClaimPayableBridge } from "../../hooks/useClaimPayableBridge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -19,6 +20,7 @@ const STATUS_COLOR: Record<string, string> = {
 export function ClaimHRView() {
   const { currentUser } = useRole();
   const { cityInfo } = useCity();
+  const { finalizeClaimApproval } = useClaimPayableBridge();
   const [refresh, setRefresh] = useState(0);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -51,9 +53,8 @@ export function ClaimHRView() {
   };
 
   const handleMarkPaid = (claim: ExpenseClaim) => {
-    const month = new Date().toISOString().slice(0, 7);
-    expenseClaimService.markAddedToPayroll(claim.id, month, `MANUAL_${Date.now()}`);
-    toast.success(`Marked as added to ${month} payroll`);
+    finalizeClaimApproval(claim);
+    toast.success(`Added to next payroll run — a real Finance Payable has been created.`);
     setRefresh((r) => r + 1);
   };
 

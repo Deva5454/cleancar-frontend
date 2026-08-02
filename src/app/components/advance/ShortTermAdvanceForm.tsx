@@ -43,6 +43,18 @@ export function ShortTermAdvanceForm() {
 
   const targetEmployee = employees.find(e => e.id === targetEmployeeId);
 
+  // Real fix: previously always used currentUser regardless of who HR
+  // selected in the "Processing advance for" picker above, and separately
+  // submitted using currentUser.name as the employeeId (a display name, not
+  // the real employee ID that PayrollRun's matchesEmployeeId compares
+  // against) — so self-submitted advances could never actually be deducted,
+  // and HR's picker selection was silently discarded on submit.
+  const effectiveEmployeeId = isHRView && targetEmployeeId ? targetEmployeeId : (currentUser.employeeId || "");
+  const effectiveEmployeeName = isHRView && targetEmployee
+    ? (targetEmployee.fullName || targetEmployee.designation || targetEmployeeId)
+    : currentUser.name;
+  const effectiveRole = isHRView && targetEmployee ? targetEmployee.role : currentUser.role;
+
   // Mock employee data (in production, fetch from attendance system)
   const [daysWorked, setDaysWorked] = useState(20);
   const [totalDaysInMonth] = useState(30);
@@ -64,17 +76,17 @@ export function ShortTermAdvanceForm() {
   // Auto-calculate eligibility
   useEffect(() => {
     const eligibility = advanceManagementService.calculateShortTermEligibility(
-      currentUser.name,
+      effectiveEmployeeId,
       monthlySalary,
       daysWorked,
       totalDaysInMonth,
-      currentUser.role
+      effectiveRole
     );
 
     setSalaryTillDate(eligibility.salaryTillDate);
     setMaxEligible(eligibility.maxEligible);
     setLimitPercentage(eligibility.limitPercentage);
-  }, [daysWorked, totalDaysInMonth, monthlySalary, currentUser.name, currentUser.role]);
+  }, [daysWorked, totalDaysInMonth, monthlySalary, effectiveEmployeeId, effectiveRole]);
 
   // Validate requested amount
   useEffect(() => {
@@ -111,9 +123,9 @@ export function ShortTermAdvanceForm() {
 
     try {
       const advance = advanceManagementService.createShortTermAdvance(
-        currentUser.name,
-        currentUser.name,
-        currentUser.role,
+        effectiveEmployeeId,
+        effectiveEmployeeName,
+        effectiveRole,
         requestedAmount,
         {
           daysWorked,
@@ -167,7 +179,7 @@ export function ShortTermAdvanceForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {employees
-                      .filter(e => e.status === "Active" && (e.workLocation === city || e.cityId === city))
+                      .filter(e => e.status === "Active" && (e.city === city || e.cityId === city))
                       .map(e => (
                         <SelectItem key={e.id} value={e.id}>
                           {e.fullName} — {e.designation} ({e.mobile})
@@ -247,12 +259,12 @@ export function ShortTermAdvanceForm() {
             {/* Role-Based Limit Info */}
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-900">
-                <strong>Your Role:</strong> {currentUser.role}
+                <strong>{isHRView && targetEmployee ? "Employee Role:" : "Your Role:"}</strong> {effectiveRole}
               </p>
               <p className="text-xs text-blue-700 mt-1">
-                {currentUser.role === "Car Washer" || currentUser.role === "Supervisor"
-                  ? "As a Car Washer or Supervisor, you can request up to 50% of your monthly gross salary."
-                  : "Your role allows you to request up to 20% of your monthly gross salary."}
+                {effectiveRole === "Car Washer" || effectiveRole === "Supervisor"
+                  ? "As a Car Washer or Supervisor, up to 50% of monthly gross salary can be requested."
+                  : "This role allows requesting up to 20% of monthly gross salary."}
               </p>
             </div>
           </CardContent>

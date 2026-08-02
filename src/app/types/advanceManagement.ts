@@ -236,6 +236,7 @@ export interface EmployeeAdvanceSummary {
   nextEmiAmount?: number;
 
   // History
+  history: Advance[];
   completedAdvances: number;
   totalRepaid: number;
   missedEmis: number;
