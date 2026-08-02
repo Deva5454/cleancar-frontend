@@ -3,7 +3,7 @@
  * Rebuild: Cache cleared
  */
 import React, { useState, useEffect, Suspense } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -191,6 +191,12 @@ function HRModule() {
   const { city: currentCityId } = useCity();
   const { currentRole, roleConfig } = useRole();
   const navigate = useNavigate();
+  // Lets a direct link (e.g. /hr?tab=attendance) land straight on a specific
+  // tab instead of always defaulting to Employees — this is the only real
+  // route into the attendance-marking screen, since HRModule's parent nav
+  // item has children and is never itself a clickable link.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "employees";
   const [searchTerm, setSearchTerm] = useState("");
   // Reactive employee list — updates when employeeDatabaseService changes
   const [liveEmployeeList, setLiveEmployeeList] = useState(() => {
@@ -562,7 +568,7 @@ function HRModule() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="employees" className="space-y-4">
+      <Tabs defaultValue={initialTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="employees">Employees</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>

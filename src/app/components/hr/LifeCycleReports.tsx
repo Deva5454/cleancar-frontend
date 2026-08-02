@@ -1,5 +1,5 @@
 // Employee Life Cycle Management - Filtered Reports with Selective Download
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MASTER_EMPLOYEES } from "../../data/employeeData";
+import { employeeSalaryService } from "../../services/employeeSalaryService";
 
 type ReportType =
   | ""
@@ -54,16 +55,6 @@ interface JoiningRecord {
   status: string;
 }
 
-interface PromotionRecord {
-  empId: string;
-  name: string;
-  fromDesignation: string;
-  toDesignation: string;
-  promotionDate: string;
-  department: string;
-  salaryIncrease: string;
-}
-
 interface SalaryRevisionRecord {
   empId: string;
   name: string;
@@ -76,14 +67,86 @@ interface SalaryRevisionRecord {
   revisionType: string;
 }
 
-// ✅ FIXED: mockJoiningRecords — use live data from context
-const mockJoiningRecords = [] as any[]; // TODO: wire to EmployeeLifecycleContext = [
+interface ConfirmationRecord {
+  empId: string;
+  name: string;
+  designation: string;
+  department: string;
+  joiningDate: string;
+  confirmationDate: string;
+  status: string;
+}
 
-// ✅ FIXED: mockPromotionRecords — use live data from context
-const mockPromotionRecords = [] as any[]; // TODO: wire to EmployeeLifecycleContext = [
+// Reports with no real underlying data source anywhere in the system yet
+// (no promotion/transfer/exit history is persisted anywhere — only the
+// employee's current designation/status is known, never how it changed).
+// Rather than show a silently-empty table that looks like a filter bug,
+// these are called out explicitly as not-yet-tracked.
+const UNTRACKED_REPORTS: Record<string, string> = {
+  promotion: "Promotion history isn't tracked yet — only an employee's current designation is recorded, not how or when it changed.",
+  transfer: "Transfer history isn't tracked yet — only an employee's current work location is recorded, not past locations.",
+  resignation: "Resignation dates and reasons aren't tracked yet — only whether an employee is currently marked Exited.",
+  exit: "Exit/F&F details aren't tracked yet — only whether an employee is currently marked Exited.",
+};
 
-// ✅ FIXED: mockSalaryRevisionRecords — use live data from context
-const mockSalaryRevisionRecords = [] as any[]; // TODO: wire to EmployeeLifecycleContext = [
+function buildJoiningRecords(): JoiningRecord[] {
+  return MASTER_EMPLOYEES.map((emp) => ({
+    empId: emp.empCode,
+    name: emp.name,
+    designation: emp.role,
+    department: emp.department,
+    location: emp.city,
+    joiningDate: emp.joiningDate,
+    reportingTo: emp.reportingTo,
+    status: emp.status,
+  }));
+}
+
+function buildConfirmationRecords(): ConfirmationRecord[] {
+  return MASTER_EMPLOYEES
+    .filter((emp) => !!emp.confirmationDate)
+    .map((emp) => ({
+      empId: emp.empCode,
+      name: emp.name,
+      designation: emp.role,
+      department: emp.department,
+      joiningDate: emp.joiningDate,
+      confirmationDate: emp.confirmationDate as string,
+      status: emp.status,
+    }));
+}
+
+function buildSalaryRevisionRecords(): SalaryRevisionRecord[] {
+  const byEmployee = new Map<string, ReturnType<typeof employeeSalaryService.getAll>>();
+  employeeSalaryService.getAll().forEach((r) => {
+    const list = byEmployee.get(r.employeeId) || [];
+    list.push(r);
+    byEmployee.set(r.employeeId, list);
+  });
+
+  const records: SalaryRevisionRecord[] = [];
+  byEmployee.forEach((recs) => {
+    const sorted = [...recs].sort((a, b) => new Date(a.effectiveFrom).getTime() - new Date(b.effectiveFrom).getTime());
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      const oldSalary = prev.salaryComponents.monthlyGross;
+      const newSalary = curr.salaryComponents.monthlyGross;
+      records.push({
+        empId: curr.employeeCode,
+        name: curr.employeeName,
+        designation: curr.designation,
+        department: curr.department,
+        revisionDate: curr.effectiveFrom,
+        oldSalary,
+        newSalary,
+        increasePercent: oldSalary > 0 ? ((newSalary - oldSalary) / oldSalary) * 100 : 0,
+        revisionType: newSalary >= oldSalary ? "Increment" : "Decrement",
+      });
+    }
+  });
+  return records;
+}
 
 export function LifeCycleReports() {
   const [selectedReport, setSelectedReport] = useState<ReportType>("");
@@ -99,6 +162,22 @@ export function LifeCycleReports() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
+
+  const joiningRecords = useMemo(() => buildJoiningRecords(), []);
+  const confirmationRecords = useMemo(() => buildConfirmationRecords(), []);
+  const salaryRevisionRecords = useMemo(() => buildSalaryRevisionRecords(), []);
+  const attritionSummary = useMemo(() => {
+    const total = MASTER_EMPLOYEES.length;
+    const exited = MASTER_EMPLOYEES.filter((e) => e.status === "Resigned" || e.status === "Terminated").length;
+    return {
+      total,
+      exited,
+      active: total - exited,
+      attritionRate: total > 0 ? (exited / total) * 100 : 0,
+    };
+  }, []);
+
+  const isUntrackedReport = !!selectedReport && selectedReport in UNTRACKED_REPORTS;
 
   const handleEmployeeClick = (empId: string) => {
     const employee = MASTER_EMPLOYEES.find((emp) => emp.empCode === empId);
@@ -159,11 +238,11 @@ export function LifeCycleReports() {
     let data: any[] = [];
 
     if (selectedReport === "joining") {
-      data = mockJoiningRecords;
-    } else if (selectedReport === "promotion") {
-      data = mockPromotionRecords;
+      data = joiningRecords;
+    } else if (selectedReport === "confirmation") {
+      data = confirmationRecords;
     } else if (selectedReport === "salary_revision") {
-      data = mockSalaryRevisionRecords;
+      data = salaryRevisionRecords;
     }
 
     // Apply filters
@@ -226,8 +305,52 @@ export function LifeCycleReports() {
         </CardContent>
       </Card>
 
+      {/* Reports with no real underlying data source yet — say so plainly
+          instead of showing a table that always looks empty/broken. */}
+      {isUntrackedReport && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-2 p-3 bg-yellow-50 border-l-4 border-yellow-500 text-sm">
+              <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
+              <p className="text-yellow-800">{UNTRACKED_REPORTS[selectedReport]}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Attrition Report — a real aggregate from current employee status,
+          not a per-employee list (no exit date is tracked to build one). */}
+      {selectedReport === "attrition" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Attrition Report</CardTitle>
+            <p className="text-sm text-gray-600 mt-1">Based on current employee status — no historical exit dates are tracked yet</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg text-center">
+                <p className="text-2xl font-bold">{attritionSummary.total}</p>
+                <p className="text-xs text-gray-600 mt-1">Total Employees</p>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg text-center">
+                <p className="text-2xl font-bold text-green-600">{attritionSummary.active}</p>
+                <p className="text-xs text-gray-600 mt-1">Active</p>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg text-center">
+                <p className="text-2xl font-bold text-red-600">{attritionSummary.exited}</p>
+                <p className="text-xs text-gray-600 mt-1">Resigned / Terminated</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg text-center">
+                <p className="text-2xl font-bold">{attritionSummary.attritionRate.toFixed(1)}%</p>
+                <p className="text-xs text-gray-600 mt-1">Attrition Rate</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filter Panel - Only shows after report is selected */}
-      {selectedReport && (
+      {selectedReport && !isUntrackedReport && selectedReport !== "attrition" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -362,14 +485,14 @@ export function LifeCycleReports() {
       )}
 
       {/* Report Table - Shows filtered data */}
-      {selectedReport && (
+      {selectedReport && !isUntrackedReport && selectedReport !== "attrition" && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>
                   {selectedReport === "joining" && "Joining Report"}
-                  {selectedReport === "promotion" && "Promotion History"}
+                  {selectedReport === "confirmation" && "Confirmation Report"}
                   {selectedReport === "salary_revision" &&
                     "Salary Revision History"}
                 </CardTitle>
@@ -377,10 +500,10 @@ export function LifeCycleReports() {
                   Showing {filteredData.length} of{" "}
                   {
                     (selectedReport === "joining"
-                      ? mockJoiningRecords
-                      : selectedReport === "promotion"
-                      ? mockPromotionRecords
-                      : mockSalaryRevisionRecords
+                      ? joiningRecords
+                      : selectedReport === "confirmation"
+                      ? confirmationRecords
+                      : salaryRevisionRecords
                     ).length
                   }{" "}
                   records (filtered)
@@ -457,22 +580,22 @@ export function LifeCycleReports() {
               </Table>
             )}
 
-            {selectedReport === "promotion" && (
+            {selectedReport === "confirmation" && (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Emp ID</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>From Designation</TableHead>
-                    <TableHead>To Designation</TableHead>
+                    <TableHead>Designation</TableHead>
                     <TableHead>Department</TableHead>
-                    <TableHead>Promotion Date</TableHead>
-                    <TableHead>Salary Increase</TableHead>
+                    <TableHead>Joining Date</TableHead>
+                    <TableHead>Confirmation Date</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.map((record: PromotionRecord, idx) => (
-                    <TableRow key={idx}>
+                  {filteredData.map((record: ConfirmationRecord) => (
+                    <TableRow key={record.empId}>
                       <TableCell className="font-mono text-sm">
                         {record.empId}
                       </TableCell>
@@ -482,18 +605,18 @@ export function LifeCycleReports() {
                       >
                         {record.name}
                       </TableCell>
-                      <TableCell>{record.fromDesignation}</TableCell>
-                      <TableCell className="font-semibold text-green-600">
-                        {record.toDesignation}
-                      </TableCell>
+                      <TableCell>{record.designation}</TableCell>
                       <TableCell>{record.department}</TableCell>
                       <TableCell>
-                        {new Date(record.promotionDate).toLocaleDateString(
-                          "en-IN"
-                        )}
+                        {new Date(record.joiningDate).toLocaleDateString("en-IN")}
+                      </TableCell>
+                      <TableCell className="font-semibold text-green-600">
+                        {new Date(record.confirmationDate).toLocaleDateString("en-IN")}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default">{record.salaryIncrease}</Badge>
+                        <Badge variant={record.status === "Active" ? "default" : "secondary"}>
+                          {record.status}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -582,7 +705,7 @@ export function LifeCycleReports() {
                 </h1>
                 <p className="text-lg font-semibold mt-2">
                   {selectedReport === "joining" && "Joining Report"}
-                  {selectedReport === "promotion" && "Promotion History Report"}
+                  {selectedReport === "confirmation" && "Confirmation Report"}
                   {selectedReport === "salary_revision" &&
                     "Salary Revision Report"}
                 </p>
@@ -632,6 +755,41 @@ export function LifeCycleReports() {
                             {new Date(record.joiningDate).toLocaleDateString(
                               "en-IN"
                             )}
+                          </td>
+                          <td className="border p-2">{record.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {selectedReport === "confirmation" && (
+                  <table className="w-full border-collapse border">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="border p-2 text-left">Emp ID</th>
+                        <th className="border p-2 text-left">Name</th>
+                        <th className="border p-2 text-left">Designation</th>
+                        <th className="border p-2 text-left">Department</th>
+                        <th className="border p-2 text-left">Joining Date</th>
+                        <th className="border p-2 text-left">Confirmation Date</th>
+                        <th className="border p-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredData.map((record: ConfirmationRecord) => (
+                        <tr key={record.empId}>
+                          <td className="border p-2 font-mono text-xs">
+                            {record.empId}
+                          </td>
+                          <td className="border p-2">{record.name}</td>
+                          <td className="border p-2">{record.designation}</td>
+                          <td className="border p-2">{record.department}</td>
+                          <td className="border p-2">
+                            {new Date(record.joiningDate).toLocaleDateString("en-IN")}
+                          </td>
+                          <td className="border p-2">
+                            {new Date(record.confirmationDate).toLocaleDateString("en-IN")}
                           </td>
                           <td className="border p-2">{record.status}</td>
                         </tr>

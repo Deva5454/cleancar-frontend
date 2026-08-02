@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { leaveBalanceService } from "../../services/leaveBalanceService";
+import { matchesEmployeeId } from "../../services/employeeDatabaseService";
 import { MASTER_EMPLOYEES } from "../../data/employeeData";
 import {
   LEAVE_GLOBAL_SETTINGS,
@@ -188,7 +189,17 @@ function ProfessionalLeaveManagement() {
 
   const { currentRole, currentUser } = useRole();
   const [activeScreen, setActiveScreen] = useState<"dashboard" | "probation" | "allocation" | "exit" | "history" | "settings">("dashboard");
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("EMP-001");
+  const canReviewLeave = ["HR", "Super Admin", "Operations Manager", "Supervisor", "Sales Head", "City Manager"].includes(currentRole);
+  // Non-reviewer roles ("My Leaves" self-service) must never be able to act
+  // as another employee — resolve their own real record (falling back to
+  // tempId/id matching, since currentUser.employeeId may predate a
+  // temp-to-permanent conversion) and lock the selector to it.
+  const ownEmployeeId = currentUser?.employeeId
+    ? (employeeScenarios.find(emp => matchesEmployeeId(emp.id, currentUser.employeeId!))?.id || currentUser.employeeId)
+    : undefined;
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
+    () => (!canReviewLeave && ownEmployeeId) ? ownEmployeeId : (ownEmployeeId || "EMP-001")
+  );
   const [showScenariosGuide, setShowScenariosGuide] = useState(false);
 
   // Global Settings State
@@ -267,10 +278,19 @@ function ProfessionalLeaveManagement() {
       return acc;
     }, { CL: 0, PL: 0, SL: 0, UL: 0 } as { CL: number; PL: number; SL: number; UL: number });
 
-  // Update leaves when employee changes
+  // Non-reviewers can never switch who they're acting as — the dropdown is
+  // hidden for them (see sidebar JSX), but guard the setter too in case the
+  // role changes underneath an already-mounted screen.
   const handleEmployeeChange = (empId: string) => {
+    if (!canReviewLeave) return;
     setSelectedEmployeeId(empId);
   };
+
+  useEffect(() => {
+    if (!canReviewLeave && ownEmployeeId && selectedEmployeeId !== ownEmployeeId) {
+      setSelectedEmployeeId(ownEmployeeId);
+    }
+  }, [canReviewLeave, ownEmployeeId, selectedEmployeeId]);
 
   // Maps this screen's local 4-type taxonomy (CL/PL/SL/UL) to leaveBalanceService's
   // canonical types (CSL/PL/LWP/UPL) — see leavePolicyConfiguration.ts's note
@@ -282,8 +302,6 @@ function ProfessionalLeaveManagement() {
     if (t === "LWP") return "LWP";
     return null;
   };
-
-  const canReviewLeave = ["HR", "Super Admin", "Operations Manager", "Supervisor", "Sales Head", "City Manager"].includes(currentRole);
 
   const handleApproveLeave = (leave: LeaveApplication) => {
     if (!canReviewLeave) { toast.error("Only Supervisors, HR, Operations Managers, Sales Head, City Manager, and Super Admin can approve leave"); return; }
@@ -712,20 +730,31 @@ function ProfessionalLeaveManagement() {
             })}
         </nav>
 
-        {/* Employee Selector */}
+        {/* Employee Selector — reviewers can act on any employee; everyone
+            else is locked to their own record (see canReviewLeave/ownEmployeeId
+            above) so this can never be used to submit or view leave as
+            someone else. */}
         <div className="mt-8 p-4 bg-slate-800 rounded-lg">
-          <Label className="text-xs text-slate-400 mb-2">Select Employee</Label>
-          <select
-            value={selectedEmployeeId}
-            onChange={(e) => handleEmployeeChange(e.target.value)}
-            className="w-full mt-2 px-3 py-2 bg-slate-700 text-white border border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#F5A623]"
-          >
-            {employeeScenarios.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name} ({emp.empCode})
-              </option>
-            ))}
-          </select>
+          <Label className="text-xs text-slate-400 mb-2">
+            {canReviewLeave ? "Select Employee" : "Employee"}
+          </Label>
+          {canReviewLeave ? (
+            <select
+              value={selectedEmployeeId}
+              onChange={(e) => handleEmployeeChange(e.target.value)}
+              className="w-full mt-2 px-3 py-2 bg-slate-700 text-white border border-slate-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#F5A623]"
+            >
+              {employeeScenarios.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name} ({emp.empCode})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="w-full mt-2 px-3 py-2 bg-slate-700 text-white border border-slate-600 rounded-md text-sm">
+              {employee.name} ({employee.empCode})
+            </p>
+          )}
           <div className="mt-3 pt-3 border-t border-slate-700">
             <p className="text-xs text-slate-400 mb-1">Department</p>
             <p className="font-semibold text-sm text-white">{employee.department}</p>

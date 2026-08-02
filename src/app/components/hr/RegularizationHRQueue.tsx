@@ -17,6 +17,7 @@
 import { useState } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { useAttendance } from "../../contexts/AttendanceContext";
+import { matchesEmployeeId } from "../../services/employeeDatabaseService";
 import {
   getPendingHRApprovals, markRegularizationHRApplied, getRegularizationPolicy, setRegularizationPolicy,
 } from "../../services/attendanceRegularizationService";
@@ -38,7 +39,7 @@ export function RegularizationHRQueue() {
     // Real, genuine application to the actual attendance record - find
     // the real record for this employee and date, update it if it
     // exists, or create a real one if it genuinely doesn't.
-    const dayRecords = getAttendanceForDate(req.date).filter((a) => a.employeeId === req.employeeId);
+    const dayRecords = getAttendanceForDate(req.date).filter((a) => matchesEmployeeId(a.employeeId, req.employeeId));
     const updates: any = { status: "Present" };
     if (req.requestedCheckInTime) updates.checkInTime = `${req.requestedCheckInTime}:00`;
     if (req.requestedCheckOutTime) updates.checkOutTime = `${req.requestedCheckOutTime}:00`;

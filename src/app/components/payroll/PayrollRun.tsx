@@ -56,6 +56,8 @@ import { CITIES, useCity } from "../../contexts/CityContext";
 import { employeeSalaryService } from "../../services/employeeSalaryService";
 import { matchesEmployeeId } from "../../services/employeeDatabaseService";
 import { useIncentive } from "../../contexts/IncentiveContext";
+import { advanceManagementService } from "../../services/advanceManagementService";
+import { otherAdjustmentsService } from "../../services/otherAdjustmentsService";
 import { illustrativeGrossForRole } from "../../utils/attendanceReportCore";
 import { calculateStatutoryDeductions } from "../../services/payroll/complianceEngine";
 import { detectStateFromCity } from "../../services/payroll/complianceRules";
@@ -296,7 +298,37 @@ export function PayrollRun() {
             }
           });
 
-        processPayroll({
+        // Real approved advances due this exact period — previously
+        // hardcoded to 0 regardless of what Advance Management tracked, so
+        // an approved/disbursed advance never actually reduced take-home
+        // pay. Long-term EMIs whose schedule falls in this period, plus
+        // short-term advances flagged for recovery this month, both count.
+        const dueEmis: { advanceId: string; emiNumber: number }[] = [];
+        let emiDeduction = 0;
+        advanceManagementService.getAllLongTermAdvances()
+          .filter(a => matchesEmployeeId(a.employeeId, emp.employeeId) && a.status === "ACTIVE")
+          .forEach(a => {
+            const emi = a.emiSchedule.find(e => e.status === "PENDING" && e.dueDate >= periodStart && e.dueDate <= periodEnd);
+            if (emi) {
+              emiDeduction += emi.emiAmount;
+              dueEmis.push({ advanceId: a.id, emiNumber: emi.emiNumber });
+            }
+          });
+        const dueShortTermAdvances = advanceManagementService.getAllShortTermAdvances()
+          .filter(a => matchesEmployeeId(a.employeeId, emp.employeeId) && a.status === "APPROVED" &&
+            !a.isRecovered && a.recoveryMonth === monthStr);
+        const shortTermDeduction = dueShortTermAdvances.reduce((sum, a) => sum + a.requestedAmount, 0);
+        const advanceDeduction = emiDeduction + shortTermDeduction;
+
+        // Real approved Other Earnings/Other Deductions for this exact
+        // payroll month — previously entered and approved via the HR
+        // screen but never once read back into an actual payroll run.
+        const empAdjustments = otherAdjustmentsService.getApprovedForPayrollMonth(selectedMonth, Number(selectedYear))
+          .filter(r => matchesEmployeeId(r.employeeId, emp.employeeId));
+        const otherEarnings = empAdjustments.filter(r => r.type === "OtherEarning").reduce((s, r) => s + r.amount, 0);
+        const otherDeductions = empAdjustments.filter(r => r.type === "OtherDeduction").reduce((s, r) => s + r.amount, 0);
+
+        const createdRun = processPayroll({
           employeeId: emp.employeeId,
           month: monthStr,
           period: { startDate: periodStart, endDate: periodEnd },
@@ -304,19 +336,20 @@ export function PayrollRun() {
           stateCode: state,
           baseSalary: components.basic,
           incentiveAmount,
-          addOnEarnings: Math.round(holidayPay),
+          addOnEarnings: Math.round(holidayPay) + otherEarnings,
           allowances: components.hra + components.conveyance + components.medical + components.specialAllowance,
           grossSalary: components.monthlyGross,
           pf: compliance.deductions.pf.employee,
           esic: compliance.deductions.esi.employee,
           pt: compliance.deductions.pt.amount,
           tds: compliance.deductions.tds.monthly,
-          advances: 0,
-          penalties: 0,
+          advances: advanceDeduction,
+          penalties: otherDeductions,
           totalDeductions,
           daysWorked,
           totalDays: totalWorkingDays,
-          netSalary: adjustedGross + Math.round(holidayPay) + incentiveAmount - totalDeductions,
+          netSalary: adjustedGross + Math.round(holidayPay) + incentiveAmount + otherEarnings
+            - totalDeductions - advanceDeduction - otherDeductions,
           status: "draft",
           createdBy: currentUser?.name || "Payroll Run",
         });
@@ -327,6 +360,12 @@ export function PayrollRun() {
         if (incentiveAmount > 0) {
           markIncentiveAsPaid(emp.employeeId);
         }
+        // Same principle for advances/other adjustments: mark them consumed
+        // so this exact EMI/recovery/adjustment can't be picked up again by
+        // a future payroll run.
+        dueEmis.forEach(({ advanceId, emiNumber }) => advanceManagementService.deductEMI(advanceId, emiNumber, monthStr));
+        dueShortTermAdvances.forEach(a => advanceManagementService.recoverShortTermAdvance(a.id, monthStr));
+        empAdjustments.forEach(r => otherAdjustmentsService.markApplied(r.id, createdRun.payrollId));
       }
 
       if (skippedNoSalary > 0) {

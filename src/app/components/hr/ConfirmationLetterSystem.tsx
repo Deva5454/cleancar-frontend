@@ -45,6 +45,7 @@ import { getLetterheadImage } from "../../services/letterTemplateService";
 import { leaveBalanceService } from "../../services/leaveBalanceService";
 import { generateEmployeeId } from "../../utils/employeeUtils";
 import type { Role } from "../../lib/roleConfig";
+import { useRole } from "../../contexts/RoleContext";
 
 type ConfirmationStatus =
   | "Pending Initiation"
@@ -156,6 +157,8 @@ const generateConfirmationRecords = (): ConfirmationRecord[] => {
 
 export function ConfirmationLetterSystem({ onSwitchToTemplates }: { onSwitchToTemplates?: () => void } = {}) {
   const navigate = useNavigate();
+  const { currentUser, currentRole } = useRole();
+  const reviewerName = currentUser?.name ? `${currentUser.name} (${currentRole})` : currentRole;
   const [records, setRecords] = useState<ConfirmationRecord[]>(generateConfirmationRecords());
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -315,7 +318,7 @@ export function ConfirmationLetterSystem({ onSwitchToTemplates }: { onSwitchToTe
         ? {
             ...r,
             status: "Pending Admin Approval" as ConfirmationStatus,
-            hrReviewBy: "Neeta Sharma (HR)",
+            hrReviewBy: reviewerName,
             hrReviewOn: today,
             hrComments: "All documents verified. Recommended for confirmation.",
           }
@@ -332,7 +335,7 @@ export function ConfirmationLetterSystem({ onSwitchToTemplates }: { onSwitchToTe
         ? {
             ...r,
             status: "Confirmed" as ConfirmationStatus,
-            adminApprovalBy: "Rajesh Patel (Admin)",
+            adminApprovalBy: reviewerName,
             adminApprovalOn: today,
             confirmationLetterIssued: true,
             confirmationLetterDate: today,

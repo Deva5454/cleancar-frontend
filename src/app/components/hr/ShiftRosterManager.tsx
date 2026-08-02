@@ -23,7 +23,7 @@ import {
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
-import { DataService } from "../../services/DataService";
+import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import {
   shiftRosterService, SHIFT_TEMPLATES, SHIFT_RULES,
   type WeeklyRoster, type ShiftSlot, type ShiftSwap, type ShiftAbsence,
@@ -40,16 +40,17 @@ function getWeekMonday(offset = 0): string {
 
 function loadFieldEmployees(cityId: string) {
   try {
-    const employees = DataService.get<any>("EMPLOYEES");
-    return employees.filter((e: any) =>
-      ["Car Washer", "Car Washer Full Time", "Car Washer Part Time", "Supervisor"].includes(e.role) &&
+    const employees = employeeDatabaseService.getAll();
+    return employees.filter((e) =>
+      e.status === "Active" &&
+      ["Car Washer", "Car Washer Full Time", "Car Washer Part Time", "Supervisor"].includes(e.designation) &&
       (e.cityId === cityId || e.workLocation === cityId || e.workLocation?.includes("Surat"))
-    ).map((e: any) => ({
-      id: e.id || e.employeeId,
-      name: e.fullName || (e.firstName + " " + e.lastName),
-      role: (e.role === "Car Washer Full Time" || e.role === "Car Washer Part Time" ? "Car Washer" : e.role) as "Car Washer" | "Supervisor",
+    ).map((e) => ({
+      id: (e.id && e.id !== "PENDING" && e.id !== "NOT-CONVERTED") ? e.id : e.tempId,
+      name: e.fullName,
+      role: (e.designation === "Car Washer Full Time" || e.designation === "Car Washer Part Time" ? "Car Washer" : e.designation) as "Car Washer" | "Supervisor",
       supervisorId: e.reportingManagerId ?? "",
-      zone: e.zone ?? e.area ?? "",
+      zone: "",
     }));
   } catch { return []; }
 }

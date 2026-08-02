@@ -213,7 +213,7 @@ export const NAV_CONFIG: NavItem[] = [
     description: "Human resources and people management",
     children: [
       { label: "Employees", path: "/hr/employee-ledger", icon: BookUser, module: "hr", match: "prefix" },
-      { label: "Attendance", path: "/hr/attendance-data-manager", icon: Clock, module: "hr", match: "prefix" },
+      { label: "Attendance", path: "/hr?tab=attendance", icon: Clock, module: "hr", match: "prefix" },
       { label: "Onboarding", path: "/hr/onboarding-automation", icon: UserCheck, module: "hr", match: "prefix" },
       { label: "Leave Management", path: "/hr/professional-leave", icon: Calendar, module: "leave", match: "prefix" },
       { label: "Documents", path: "/hr/letters-documents", icon: FileText, module: "hr", match: "prefix" },

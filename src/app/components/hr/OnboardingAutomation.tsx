@@ -238,8 +238,9 @@ export function OnboardingAutomation() {
       return;
     }
 
-    const randomId = Math.random().toString(36).substring(2, 14);
-    const generatedUrl = `https://cleancar360.com/onboard/${randomId}`;
+    // The portal (OnboardingPortal.tsx, via /onboard/:empId) looks the
+    // employee up by real id/tempId — embed that, not an unrelated token.
+    const generatedUrl = `https://cleancar360.com/onboard/${selectedEmployee.id || selectedEmployee.tempId}`;
 
     const expiryDate = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
