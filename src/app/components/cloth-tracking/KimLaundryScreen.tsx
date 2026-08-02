@@ -7,6 +7,7 @@
 
 import { useState, useMemo } from "react";
 import { clothTrackingService } from "../../services/clothTrackingService";
+import { useCity } from "../../contexts/CityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -15,10 +16,17 @@ import { Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 export function KimLaundryScreen() {
+  const { city } = useCity();
+  // Set synchronously at render time — RootLayoutWrapper's effect fires
+  // post-commit, one render behind a city switch, so a memo keyed on
+  // `city` in the same commit would still read the previous city's data.
+  clothTrackingService.setCityId(city);
   const [refreshTick, setRefreshTick] = useState(0);
+  // city is included so this recomputes if the active city changes — the
+  // city selector is global/header-level and doesn't remount this screen.
   const inLaundry = useMemo(
     () => clothTrackingService.getClothsByStatus("IN_LAUNDRY_PROCESS").filter((c) => c.currentLocation === "Kim"),
-    [refreshTick]
+    [refreshTick, city]
   );
 
   const handleMarkComplete = (clothId: string) => {

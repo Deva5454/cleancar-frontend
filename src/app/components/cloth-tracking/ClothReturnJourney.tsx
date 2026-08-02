@@ -22,6 +22,10 @@ import { toast } from "sonner";
 
 export function ClothReturnJourney() {
   const { city } = useCity();
+  // Set synchronously at render time — RootLayoutWrapper's effect fires
+  // post-commit, one render behind a city switch, so a memo keyed on
+  // `city` in the same commit would still read the previous city's data.
+  clothTrackingService.setCityId(city);
   const { getEmployeesByRole } = useEmployee();
   const branches = getBranchesForCity(city);
   const supervisors = getEmployeesByRole("Supervisor");
@@ -34,16 +38,18 @@ export function ClothReturnJourney() {
 
   // Real, dirty cloths genuinely sitting with a specific supervisor,
   // awaiting their journey back toward Kim.
+  // city is included so this recomputes if the active city changes — the
+  // city selector is global/header-level and doesn't remount this screen.
   const dirtyAtSupervisor = useMemo(
     () => selectedSupervisorId
       ? clothTrackingService.getClothsByStatus("IN_LAUNDRY_PROCESS").filter((c) => c.currentLocation === "Supervisor" && c.currentLocationId === selectedSupervisorId)
       : [],
-    [refreshTick, selectedSupervisorId]
+    [refreshTick, selectedSupervisorId, city]
   );
   // Real, dirty cloths already at the branch, awaiting the final leg to Kim.
   const dirtyAtBranch = useMemo(
     () => clothTrackingService.getClothsByStatus("IN_LAUNDRY_PROCESS").filter((c) => c.currentLocation === "Branch" && c.currentLocationId === selectedBranchId),
-    [refreshTick, selectedBranchId]
+    [refreshTick, selectedBranchId, city]
   );
 
   const toggleSupervisor = (id: string) => {

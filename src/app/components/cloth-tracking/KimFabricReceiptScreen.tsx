@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { clothTrackingService } from "../../services/clothTrackingService";
+import { useCity } from "../../contexts/CityContext";
 import type { ClothColor } from "../../types/clothTracking";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -20,6 +21,11 @@ const COLOR_SWATCH: Record<ClothColor, string> = {
 };
 
 export function KimFabricReceiptScreen() {
+  const { city } = useCity();
+  // Set synchronously at render time — RootLayoutWrapper's effect fires
+  // post-commit, one render behind a city switch, which would otherwise
+  // leave a fresh receipt landing under the previous city's stock.
+  clothTrackingService.setCityId(city);
   const [qtyByColor, setQtyByColor] = useState<Record<string, string>>({});
   const [supplierName, setSupplierName] = useState("");
 

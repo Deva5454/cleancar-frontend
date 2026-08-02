@@ -9,6 +9,7 @@ import {
 import { Search, Package, AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { DataService } from "../../services/DataService";
+import { useCity } from "../../contexts/CityContext";
 
 interface InventoryItem {
   id: string; name: string; category: string;
@@ -18,9 +19,12 @@ interface InventoryItem {
   lastRestocked: string;
 }
 
-function buildLiveInventory(): InventoryItem[] {
+function buildLiveInventory(cityId: string): InventoryItem[] {
   try {
-    const items = DataService.get<any>("INVENTORY_ITEMS");
+    // Real fix: previously called without cityId, silently defaulting to
+    // CITY-SURAT — a store manager in any other city saw/monitored
+    // Surat's stock instead of their own.
+    const items = DataService.get<any>("INVENTORY_ITEMS", cityId);
     if (items.length === 0) throw new Error("empty");
     return items.map((i: any) => ({
       id:               i.itemId,
@@ -40,16 +44,19 @@ function buildLiveInventory(): InventoryItem[] {
 }
 
 export function InventoryMonitoring() {
+  const { city } = useCity();
   const [searchTerm, setSearchTerm] = useState("");
   // ✅ H5 FIX: Load live inventory from DataService
-  const [inventory, setInventory] = useState<InventoryItem[]>(buildLiveInventory);
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => buildLiveInventory(city));
 
   useEffect(() => {
-    // Refresh on focus to pick up changes made in other tabs
-    const refresh = () => setInventory(buildLiveInventory());
+    // Refresh on focus to pick up changes made in other tabs, and whenever
+    // the active city changes.
+    const refresh = () => setInventory(buildLiveInventory(city));
+    refresh();
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, []);
+  }, [city]);
 
   const filteredInventory = inventory.filter(
     (item) =>

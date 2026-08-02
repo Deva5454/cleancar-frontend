@@ -26,37 +26,53 @@ import type {
 class ClothTrackingService {
   private scanTimestamps: Map<string, number> = new Map(); // session-only scan timing
 
+  // Session-only anomaly counters, same lifetime/semantics as scanTimestamps
+  // above (reset on reload). Previously the admin dashboard showed these as
+  // permanently hardcoded numbers (3/1/2) with no real backing data at all.
+  private anomalyCounts = { invalidScans: 0, stageViolations: 0, lockConflicts: 0 };
+
   // Real, confirmed business rule - a cloth is retired after 90 real
   // wash cycles, regardless of its physical condition.
   private readonly WASH_RETIREMENT_LIMIT = 90;
+
+  // Same class of bug as gstComplianceService had (see RootLayoutWrapper.tsx):
+  // every read/write below used to omit cityId entirely, so the whole cloth
+  // pool — every laundry/exchange/fleet screen — was silently shared across
+  // every city regardless of which one was actually selected. Tracks its own
+  // city internally the same way, synced once from RootLayoutWrapper.
+  private cityId: string = "CITY-SURAT";
+
+  setCityId(cityId: string): void {
+    this.cityId = cityId;
+  }
 
   // ── Persistence helpers ────────────────────────────────────────────────────
 
   /** Load all cloths from DataService as an id-keyed Map */
   private loadClothMap(): Map<string, ClothItem> {
-    const stored = DataService.get<ClothItem>("CLOTH_ITEMS");
+    const stored = DataService.get<ClothItem>("CLOTH_ITEMS", this.cityId);
     return new Map(stored.map(c => [c.id, c])); // FIX 1A: was c.barcode
   }
 
   /** Persist cloth Map back to DataService */
   private saveClothMap(map: Map<string, ClothItem>): void {
-    DataService.setAll("CLOTH_ITEMS", Array.from(map.values()));
+    DataService.setAll("CLOTH_ITEMS", Array.from(map.values()), this.cityId);
   }
 
   /** Load all exchanges from DataService */
   private loadExchanges(): ClothExchange[] {
-    return DataService.get<ClothExchange>("CLOTH_EXCHANGES");
+    return DataService.get<ClothExchange>("CLOTH_EXCHANGES", this.cityId);
   }
 
   /** Persist exchange list back to DataService */
   private saveExchanges(exchanges: ClothExchange[]): void {
-    DataService.setAll("CLOTH_EXCHANGES", exchanges);
+    DataService.setAll("CLOTH_EXCHANGES", exchanges, this.cityId);
   }
 
   // ── Constructor ────────────────────────────────────────────────────────────
 
   constructor() {
-    const existing = DataService.get<ClothItem>("CLOTH_ITEMS");
+    const existing = DataService.get<ClothItem>("CLOTH_ITEMS", this.cityId);
     if (existing.length === 0) {
       this.seedMockData(); // FIX 1B: seedMockData now writes via DataService.setAll
     }
@@ -75,11 +91,13 @@ class ClothTrackingService {
     const cloth = clothMap.get(barcode);
 
     if (!cloth) {
+      this.anomalyCounts.invalidScans++;
       return { success: false, error: { type: "NOT_FOUND", message: "Barcode not recognized", clothId: barcode } };
     }
 
     // FIX 2: locking uses isLocked boolean only ("LOCKED" removed from ClothStatus)
     if (cloth.isLocked) {
+      this.anomalyCounts.lockConflicts++;
       return { success: false, error: { type: "LOCKED", message: `Cloth locked by ${cloth.lockedBy || "another process"}`, clothId: barcode } };
     }
 
@@ -90,9 +108,11 @@ class ClothTrackingService {
     // FIX 6: getClothCategory now returns the actual status in the error message
     const scanCategory = this.getClothScanCategory(cloth);
     if (!scanCategory) {
+      this.anomalyCounts.stageViolations++;
       return { success: false, error: { type: "INVALID_STAGE", message: `Cloth not available for exchange (current status: ${cloth.status})`, clothId: barcode } };
     }
     if (scanCategory !== expectedCategory) {
+      this.anomalyCounts.stageViolations++;
       return { success: false, error: { type: "INVALID_STAGE", message: `Cloth is ${scanCategory} — scan on the ${scanCategory} panel`, clothId: barcode } };
     }
 
@@ -397,6 +417,10 @@ class ClothTrackingService {
     return this.scanTimestamps.size;
   }
 
+  getAnomalyCounts(): { invalidScans: number; stageViolations: number; lockConflicts: number } {
+    return { ...this.anomalyCounts };
+  }
+
   // ── Queries ────────────────────────────────────────────────────────────────
 
   getClothsByStatus(status: ClothStatus): ClothItem[] {
@@ -434,7 +458,7 @@ class ClothTrackingService {
       } as ClothItem);
     }
 
-    DataService.setAll("CLOTH_ITEMS", cloths); // FIX 1B: write to DataService directly
+    DataService.setAll("CLOTH_ITEMS", cloths, this.cityId); // FIX 1B: write to DataService directly
   }
 }
 

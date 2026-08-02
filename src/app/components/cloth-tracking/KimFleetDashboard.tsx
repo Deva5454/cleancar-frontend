@@ -7,6 +7,7 @@
 
 import { useState, useMemo } from "react";
 import { clothTrackingService } from "../../services/clothTrackingService";
+import { useCity } from "../../contexts/CityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Progress } from "../ui/progress";
@@ -17,9 +18,17 @@ const COLOR_SWATCH: Record<string, string> = {
 };
 
 export function KimFleetDashboard() {
+  const { city } = useCity();
+  // Set synchronously at render time rather than relying solely on
+  // RootLayoutWrapper's effect — that effect fires post-commit, one render
+  // behind a city switch, so a useMemo keyed on `city` in the same commit
+  // would still read the previous city's data. Calling this directly here
+  // guarantees the service's internal cityId is correct before the memo
+  // below (or any handler in this component) ever reads from it.
+  clothTrackingService.setCityId(city);
   const [filter, setFilter] = useState<"all" | "critical" | "warning">("all");
 
-  const fleet = useMemo(() => clothTrackingService.getFleetByWashesRemaining(), []);
+  const fleet = useMemo(() => clothTrackingService.getFleetByWashesRemaining(), [city]);
 
   const critical = fleet.filter((c) => c.washesRemaining <= 5);
   const warning = fleet.filter((c) => c.washesRemaining > 5 && c.washesRemaining <= 15);

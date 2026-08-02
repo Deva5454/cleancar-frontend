@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { useCity } from "../../contexts/CityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Badge } from "../ui/badge";
@@ -22,9 +23,11 @@ import { DataService } from "../../services/DataService";
 import { toast } from "sonner";
 
 // ── Data helpers ──────────────────────────────────────────────────────────────
-function getLiveInventory() {
+function getLiveInventory(cityId: string) {
   try {
-    const items = DataService.get<any>("INVENTORY_ITEMS");
+    // Real fix: previously called without cityId, silently defaulting to
+    // CITY-SURAT regardless of which city is actually active.
+    const items = DataService.get<any>("INVENTORY_ITEMS", cityId);
     if (items.length > 0) return items;
   } catch {}
   return [
@@ -39,32 +42,38 @@ function getLiveInventory() {
   ];
 }
 
-// Historic MOQ seed — in sync with inventory items
-const MOQ_SEED = [
-  { id:"INV-SUR-001", name:"Car Shampoo 5L",         category:"Cleaning Supplies", unit:"L",   currentStock:45,  moq:50,  status:"below-moq" as const, lastUpdated:"2026-06-01", supplier:"Hindustan Unilever" },
-  { id:"INV-SUR-002", name:"Microfiber Cloth Large", category:"Equipment",         unit:"Pcs", currentStock:120, moq:100, status:"normal"    as const, lastUpdated:"2026-06-01", supplier:"3M India" },
-  { id:"INV-SUR-003", name:"Tyre Shine 500ml",       category:"Cleaning Supplies", unit:"L",   currentStock:30,  moq:40,  status:"below-moq" as const, lastUpdated:"2026-05-15", supplier:"Pidilite Industries" },
-  { id:"INV-SUR-004", name:"Dashboard Polish",       category:"Cleaning Supplies", unit:"L",   currentStock:8,   moq:25,  status:"critical"  as const, lastUpdated:"2026-05-15", supplier:"Pidilite Industries" },
-  { id:"INV-SUR-005", name:"Pressure Washer Nozzle", category:"Equipment",         unit:"Pcs", currentStock:6,   moq:10,  status:"below-moq" as const, lastUpdated:"2026-06-01", supplier:"Bosch India" },
-  { id:"INV-SUR-006", name:"Washer Uniform Set",     category:"Consumables",       unit:"Pcs", currentStock:25,  moq:20,  status:"normal"    as const, lastUpdated:"2026-06-10", supplier:"Local Vendor" },
-  { id:"INV-SUR-007", name:"Wheel Cleaner 1L",       category:"Cleaning Supplies", unit:"L",   currentStock:18,  moq:20,  status:"below-moq" as const, lastUpdated:"2026-05-20", supplier:"Pidilite Industries" },
-  { id:"INV-SUR-008", name:"Glass Cleaner 500ml",    category:"Cleaning Supplies", unit:"L",   currentStock:0,   moq:15,  status:"critical"  as const, lastUpdated:"2026-04-30", supplier:"Hindustan Unilever" },
-];
-
-function loadMOQ() {
-  try { const r = localStorage.getItem("cleancar_moq_settings"); return r ? JSON.parse(r) : MOQ_SEED; }
-  catch { return MOQ_SEED; }
+// MOQManagement.tsx (the dedicated /store-manager/moq screen) persists real
+// MOQ overrides to this same key as an id->moq map ({ itemId: number }).
+// This function used to trust whatever it read from that key directly and
+// treat it as a full array of product objects — so after any real edit made
+// on the dedicated MOQ screen, this dashboard's "moq" tab received an
+// object, not an array, and every .filter()/.map() call on it below crashed
+// the whole module. Always normalize to an id->moq override map here, and
+// derive the full product list fresh from the real inventory items, the
+// same way MOQManagement.tsx does.
+function loadMOQOverrides(): Record<string, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem("cleancar_moq_settings") || "{}");
+    if (Array.isArray(raw)) {
+      return raw.reduce((acc: Record<string, number>, r: any) => { acc[r.id] = r.moq; return acc; }, {});
+    }
+    return raw && typeof raw === "object" ? raw : {};
+  } catch { return {}; }
 }
 
-// 6-month historic consumption data aligned with issuance records
-const CONSUMPTION_HISTORY = [
-  { month:"Jan 2026", issued:112, received:150, stock:280, id:"jan" },
-  { month:"Feb 2026", issued:128, received:120, stock:272, id:"feb" },
-  { month:"Mar 2026", issued:145, received:200, stock:327, id:"mar" },
-  { month:"Apr 2026", issued:138, received:100, stock:289, id:"apr" },
-  { month:"May 2026", issued:162, received:270, stock:397, id:"may" },
-  { month:"Jun 2026", issued:119, received:60,  stock:338, id:"jun" },
-];
+function buildMoqProducts(inventoryItems: any[]) {
+  const overrides = loadMOQOverrides();
+  return inventoryItems.map((i: any) => {
+    const moq = overrides[i.itemId] ?? i.reorderLevel ?? 0;
+    const status = i.centralStock === 0 ? "critical" : i.centralStock <= moq ? "below-moq" : "normal";
+    return {
+      id: i.itemId, name: i.itemName, category: i.category, unit: i.unit,
+      currentStock: i.centralStock, moq, status,
+      lastUpdated: i.updatedAt ? i.updatedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+      supplier: i.supplier ?? "—",
+    };
+  });
+}
 
 const WEEKLY_CONSUMPTION = [
   { week:"Week 1", consumption:38, id:"w1" },
@@ -73,25 +82,92 @@ const WEEKLY_CONSUMPTION = [
   { week:"Week 4", consumption:48, id:"w4" },
 ];
 
-const CATEGORY_BREAKDOWN = [
-  { name:"Cleaning Supplies", value:58, color:"#3b82f6" },
-  { name:"Equipment",         value:22, color:"#10b981" },
-  { name:"Consumables",       value:20, color:"#f59e0b" },
-];
+const CATEGORY_COLORS: Record<string, string> = {
+  "Cleaning Supplies": "#3b82f6", "Equipment": "#10b981", "Consumables": "#f59e0b",
+  "Tools": "#8b5cf6", "Pressure Washer Parts": "#ef4444",
+};
 
-const SUPERVISOR_CONSUMPTION = [
-  { supervisor:"Harish Solanki", zone:"395001", issued:89, id:"sup1" },
-  { supervisor:"Bhavesh Modi",   zone:"395007", issued:74, id:"sup2" },
-];
+// 6-month issued/received history — real fix: this was previously a
+// permanent hardcoded constant that never reflected real activity.
+// Derived from the same real cleancar_issuance_records / cleancar_grn_records
+// sources liveWeekly already reads below. No real historical stock-level
+// snapshots exist, so (unlike the old fake data) this doesn't invent a
+// "stock" figure — only real issued/received counts per month.
+function buildConsumptionHistory(): Array<{ month: string; issued: number; received: number; id: string }> {
+  try {
+    const iss  = JSON.parse(localStorage.getItem("cleancar_issuance_records") || "[]");
+    const grns = JSON.parse(localStorage.getItem("cleancar_grn_records")      || "[]");
+    const now = new Date();
+    const months: Array<{ key: string; label: string }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        label: d.toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+      });
+    }
+    return months.map(({ key, label }) => ({
+      month: label,
+      issued: iss.filter((r: any) => String(r.issuanceDate ?? r.createdAt ?? "").startsWith(key))
+        .reduce((s: number, r: any) => s + (r.totalQty ?? 0), 0),
+      received: grns.filter((g: any) => String(g.grnDate ?? g.createdAt ?? "").startsWith(key))
+        .reduce((s: number, g: any) => s + (g.totalAccepted ?? 0), 0),
+      id: key,
+    }));
+  } catch { return []; }
+}
+
+// Real category breakdown — % of total issued quantity by item category,
+// across every real issuance record on file, cross-referenced against the
+// real inventory item list for each item's category.
+function buildCategoryBreakdown(inventoryItems: any[]): Array<{ name: string; value: number; color: string }> {
+  try {
+    const iss = JSON.parse(localStorage.getItem("cleancar_issuance_records") || "[]");
+    const categoryByItemId: Record<string, string> = {};
+    inventoryItems.forEach((i: any) => { categoryByItemId[i.itemId] = i.category ?? "Other"; });
+    const totals: Record<string, number> = {};
+    iss.forEach((r: any) => {
+      (r.items || []).forEach((line: any) => {
+        const cat = categoryByItemId[line.itemId] || "Other";
+        totals[cat] = (totals[cat] || 0) + (line.quantity ?? 0);
+      });
+    });
+    const grandTotal = Object.values(totals).reduce((s, v) => s + v, 0);
+    if (grandTotal === 0) return [];
+    return Object.entries(totals).map(([name, qty]) => ({
+      name, value: Math.round((qty / grandTotal) * 100),
+      color: CATEGORY_COLORS[name] || "#94a3b8",
+    }));
+  } catch { return []; }
+}
+
+// Real per-supervisor issued quantity, from every real issuance record's
+// own issuedBy field — replaces two permanently hardcoded named supervisors
+// that never reflected who actually issued anything.
+function buildSupervisorConsumption(): Array<{ supervisor: string; issued: number; id: string }> {
+  try {
+    const iss = JSON.parse(localStorage.getItem("cleancar_issuance_records") || "[]");
+    const totals: Record<string, number> = {};
+    iss.forEach((r: any) => {
+      const by = r.issuedBy || "Unknown";
+      totals[by] = (totals[by] || 0) + (r.totalQty ?? 0);
+    });
+    return Object.entries(totals).map(([supervisor, issued]) => ({ supervisor, issued, id: supervisor }));
+  } catch { return []; }
+}
 
 export function StoreManagerModule() {
+  const { city } = useCity();
   // ── Live data ──────────────────────────────────────────────────────────────
-  const [inventory, setInventory] = useState(getLiveInventory);
-  const [moqProducts, setMoqProducts] = useState(loadMOQ);
+  const [inventory, setInventory] = useState(() => getLiveInventory(city));
+  const [moqProducts, setMoqProducts] = useState(() => buildMoqProducts(inventory));
   const [moqSearch, setMoqSearch] = useState("");
   const [invSearch, setInvSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState(0);
+  const consumptionHistory = buildConsumptionHistory();
+  const categoryBreakdown = buildCategoryBreakdown(inventory);
+  const supervisorConsumption = buildSupervisorConsumption();
 
   // Real access gate: the main store hub is for the main store manager
   // only (no assignedBranchId) - a branch-assigned manager is redirected
@@ -137,7 +213,12 @@ export function StoreManagerModule() {
     } : p);
     setMoqProducts(updated);
     setEditingId(null);
-    try { localStorage.setItem("cleancar_moq_settings", JSON.stringify(updated)); } catch {}
+    // Persist as the same id->moq override map MOQManagement.tsx reads/writes
+    // — writing the full array back here is exactly what broke that screen.
+    try {
+      const overrides = loadMOQOverrides();
+      localStorage.setItem("cleancar_moq_settings", JSON.stringify({ ...overrides, [id]: editValue }));
+    } catch {}
     toast.success("MOQ updated successfully");
   };
 
@@ -243,8 +324,13 @@ export function StoreManagerModule() {
             <Card>
               <CardHeader><CardTitle className="text-base">Supervisor Consumption</CardTitle></CardHeader>
               <CardContent>
+                {supervisorConsumption.length === 0 ? (
+                  <div className="h-[260px] flex items-center justify-center text-sm text-gray-400">
+                    No real issuance records yet
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={SUPERVISOR_CONSUMPTION}>
+                  <BarChart data={supervisorConsumption}>
                     <CartesianGrid strokeDasharray="3 3"/>
                     <XAxis dataKey="supervisor" tick={{fontSize:10}}/>
                     <YAxis tick={{fontSize:11}}/>
@@ -252,6 +338,7 @@ export function StoreManagerModule() {
                     <Bar dataKey="issued" fill="#10b981" name="Units Issued"/>
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -459,7 +546,7 @@ export function StoreManagerModule() {
             <CardHeader><CardTitle className="text-base">6-Month Stock Movement — Issued vs Received</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={CONSUMPTION_HISTORY}>
+                <BarChart data={consumptionHistory}>
                   <CartesianGrid strokeDasharray="3 3"/>
                   <XAxis dataKey="month" tick={{fontSize:10}}/>
                   <YAxis tick={{fontSize:11}}/>
@@ -472,46 +559,39 @@ export function StoreManagerModule() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Stock level trend */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Stock Level Trend</CardTitle></CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={CONSUMPTION_HISTORY}>
-                    <CartesianGrid strokeDasharray="3 3"/>
-                    <XAxis dataKey="month" tick={{fontSize:10}}/>
-                    <YAxis tick={{fontSize:11}}/>
-                    <Tooltip/>
-                    <Line type="monotone" dataKey="stock" stroke="#8b5cf6" strokeWidth={2} dot={{r:4}} name="Stock Units"/>
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Category breakdown pie */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Consumption by Category</CardTitle></CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={240}>
-                  <PieChart>
-                    <Pie data={CATEGORY_BREAKDOWN} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name, value}) => `${name} ${value}%`} labelLine={false}>
-                      {CATEGORY_BREAKDOWN.map((entry) => <Cell key={entry.name} fill={entry.color}/>)}
-                    </Pie>
-                    <Tooltip formatter={(value) => `${value}%`}/>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-2">
-                  {CATEGORY_BREAKDOWN.map(c => (
-                    <div key={c.name} className="flex items-center gap-1.5 text-xs text-gray-600">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{background:c.color}}/>
-                      {c.name} ({c.value}%)
-                    </div>
-                  ))}
+          {/* Category breakdown pie — no real historical stock-level
+              snapshots exist (unlike issued/received above), so there's no
+              honest "Stock Level Trend" chart to show; only this real
+              category breakdown remains. */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Consumption by Category</CardTitle></CardHeader>
+            <CardContent>
+              {categoryBreakdown.length === 0 ? (
+                <div className="h-[240px] flex items-center justify-center text-sm text-gray-400">
+                  No real issuance records yet
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <PieChart>
+                      <Pie data={categoryBreakdown} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name, value}) => `${name} ${value}%`} labelLine={false}>
+                        {categoryBreakdown.map((entry) => <Cell key={entry.name} fill={entry.color}/>)}
+                      </Pie>
+                      <Tooltip formatter={(value) => `${value}%`}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-center gap-4 mt-2 flex-wrap">
+                    {categoryBreakdown.map(c => (
+                      <div key={c.name} className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{background:c.color}}/>
+                        {c.name} ({c.value}%)
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Reorder analysis */}
           <Card>
@@ -549,8 +629,8 @@ export function StoreManagerModule() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label:"Avg Weekly Issue",   value: Math.round(liveWeekly.reduce((s,w)=>s+w.consumption,0)/4),  unit:"units/week", color:"text-blue-700" },
-              { label:"Total Issued (6mo)", value: CONSUMPTION_HISTORY.reduce((s,m)=>s+m.issued,0),            unit:"units",       color:"text-purple-700" },
-              { label:"Total Received",     value: CONSUMPTION_HISTORY.reduce((s,m)=>s+m.received,0),          unit:"units",       color:"text-green-700" },
+              { label:"Total Issued (6mo)", value: consumptionHistory.reduce((s,m)=>s+m.issued,0),              unit:"units",       color:"text-purple-700" },
+              { label:"Total Received",     value: consumptionHistory.reduce((s,m)=>s+m.received,0),            unit:"units",       color:"text-green-700" },
               { label:"Items Out of Stock", value: outOfStock.length,                                           unit:"items",       color:"text-red-600" },
             ].map(m => (
               <div key={m.label} className="bg-white border rounded-lg p-4 text-center">

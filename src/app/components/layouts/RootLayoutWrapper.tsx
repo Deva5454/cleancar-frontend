@@ -6,6 +6,7 @@ import { EventMonitor } from "../crm/EventMonitor";
 import { RootLayout } from "./RootLayout";
 import { useCity } from "../../contexts/CityContext";
 import { gstComplianceService } from "../../services/gstComplianceService";
+import { clothTrackingService } from "../../services/clothTrackingService";
 
 /**
  * AppShell — renders inside AppProvider so all hooks have access to contexts.
@@ -31,6 +32,10 @@ function AppShell() {
   const { city } = useCity();
   useEffect(() => {
     gstComplianceService.setCityId(city);
+    // Same real fix, same class of bug: clothTrackingService had no city
+    // isolation at all — every cloth-tracking screen shared one global pool
+    // regardless of the active city.
+    clothTrackingService.setCityId(city);
   }, [city]);
 
   return (

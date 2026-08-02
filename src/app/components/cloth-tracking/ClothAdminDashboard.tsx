@@ -13,7 +13,6 @@ import {
   XCircle,
   Clock,
   TrendingUp,
-  TrendingDown,
   Activity,
   Package,
 } from "lucide-react";
@@ -46,11 +45,13 @@ export function ClothAdminDashboard() {
   const expiredCount =
     clothTrackingService?.getClothsByStatus?.("EXPIRED")?.length || 0;
 
-  // Mock anomaly data (in production, track these in service)
+  const anomalyCounts = clothTrackingService?.getAnomalyCounts?.() || {
+    invalidScans: 0,
+    stageViolations: 0,
+    lockConflicts: 0,
+  };
   const anomalies = {
-    invalidScans: 3,
-    stageViolations: 1,
-    lockConflicts: 2,
+    ...anomalyCounts,
     expiredCloths: expiredCount,
   };
 
@@ -133,6 +134,7 @@ export function ClothAdminDashboard() {
               <AlertTriangle className="w-5 h-5" />
               Anomaly Tracker
             </CardTitle>
+            <p className="text-xs text-gray-500">Scan anomalies this session (resets on reload)</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -203,26 +205,19 @@ export function ClothAdminDashboard() {
                   {avgScanTime}
                   <span className="text-lg text-gray-500 ml-1">ms</span>
                 </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <TrendingDown className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-700">Excellent</span>
-                </div>
+                <p className="text-xs text-gray-400 mt-2">This session ({totalScans} scans)</p>
               </div>
 
               <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">Total Scans Today</p>
+                <p className="text-sm text-gray-600 mb-2">Total Scans This Session</p>
                 <p className="text-4xl font-bold text-blue-600">{totalScans}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <TrendingUp className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-blue-700">+12% vs yesterday</span>
-                </div>
+                <p className="text-xs text-gray-400 mt-2">Resets on reload — no historical scan log yet</p>
               </div>
 
               <div className="p-6 bg-purple-50 border border-purple-200 rounded-lg">
-                <p className="text-sm text-gray-600 mb-2">Fastest Operator</p>
-                <p className="text-2xl font-bold text-purple-600">Rajesh K.</p>
-                <p className="text-sm text-purple-700 mt-1">85ms avg</p>
-                <Badge className="mt-2 bg-purple-600">⭐ Top Performer</Badge>
+                <p className="text-sm text-gray-600 mb-2">Per-Operator Speed</p>
+                <p className="text-2xl font-bold text-gray-400">Not tracked</p>
+                <p className="text-sm text-gray-500 mt-1">No per-operator scan data recorded</p>
               </div>
             </div>
           </CardContent>

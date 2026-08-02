@@ -57,111 +57,15 @@ import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useRole } from "../../contexts/RoleContext";
 
-// Mock data for washers with stock in hand
-const washersData = [
-  { 
-    id: 1, 
-    name: "Ramesh Kumar", 
-    pinCode: "395005", 
-    zone: "Adajan",
-    stockInHand: {
-      shampoo: 220,
-      wax: 180,
-      tyreDressing: 150,
-      microfiber: 8
-    }
-  },
-  { 
-    id: 2, 
-    name: "Sunil Yadav", 
-    pinCode: "395006", 
-    zone: "Vesu",
-    stockInHand: {
-      shampoo: 450,
-      wax: 200,
-      tyreDressing: 180,
-      microfiber: 12
-    }
-  },
-  { 
-    id: 3, 
-    name: "Dinesh Patel", 
-    pinCode: "395009", 
-    zone: "Jahangirpura",
-    stockInHand: {
-      shampoo: 80,
-      wax: 50,
-      tyreDressing: 60,
-      microfiber: 4
-    }
-  },
-];
-
-// Materials master data
-const materialsData = [
-  { id: 1, name: "Car Shampoo", unit: "ml", costPerUnit: 0.8, reorderLevel: 5000 },
-  { id: 2, name: "Wax Polish", unit: "ml", costPerUnit: 1.2, reorderLevel: 3000 },
-  { id: 3, name: "Tyre Dressing", unit: "ml", costPerUnit: 0.9, reorderLevel: 2000 },
-  { id: 4, name: "Microfiber Cloth", unit: "pieces", costPerUnit: 45, reorderLevel: 50 },
-  { id: 5, name: "Dashboard Polish", unit: "ml", costPerUnit: 1.0, reorderLevel: 1500 },
-  { id: 6, name: "Glass Cleaner", unit: "ml", costPerUnit: 0.7, reorderLevel: 2000 },
-];
-
-// Issuance records
-const issuanceRecords = [
-  {
-    id: 1,
-    date: "2026-03-15",
-    washer: "Ramesh Kumar",
-    pinCode: "395005",
-    zone: "Adajan",
-    material: "Car Shampoo",
-    quantity: 500,
-    unit: "ml",
-    issuedBy: "Rajesh Sharma (Supervisor)",
-    reason: "Scheduled Monthly Issue",
-    batch: "SHMP-2026-03-A"
-  },
-  {
-    id: 2,
-    date: "2026-03-15",
-    washer: "Sunil Yadav",
-    pinCode: "395006",
-    zone: "Vesu",
-    material: "Car Shampoo",
-    quantity: 500,
-    unit: "ml",
-    issuedBy: "Rajesh Sharma (Supervisor)",
-    reason: "Scheduled Monthly Issue",
-    batch: "SHMP-2026-03-A"
-  },
-  {
-    id: 3,
-    date: "2026-03-10",
-    washer: "Dinesh Patel",
-    pinCode: "395009",
-    zone: "Jahangirpura",
-    material: "Wax Polish",
-    quantity: 250,
-    unit: "ml",
-    issuedBy: "Vijay Singh (Supervisor)",
-    reason: "Replacement for Consumed",
-    batch: "WAX-2026-03-B"
-  },
-  {
-    id: 4,
-    date: "2026-03-01",
-    washer: "Ramesh Kumar",
-    pinCode: "395005",
-    zone: "Adajan",
-    material: "Microfiber Cloth",
-    quantity: 10,
-    unit: "pieces",
-    issuedBy: "Store Manager",
-    reason: "Scheduled Monthly Issue",
-    batch: "MFC-2026-03"
-  },
-];
+// Human-readable labels for the Reason select's stored keys — used both in
+// the form and to write a real, readable reason onto the stock transaction.
+const REASON_LABELS: Record<string, string> = {
+  scheduled: "Scheduled Monthly Issue",
+  replacement: "Replacement for Consumed",
+  damaged: "Replacement for Damaged or Lost",
+  starter: "New Washer Starter Kit",
+  emergency: "Emergency Replenishment",
+};
 
 export function WasherIssuances() {
   const { getCentralStock, getSupervisorStock, getWasherStock,
@@ -173,7 +77,11 @@ export function WasherIssuances() {
   // Get washers from EmployeeContext for this city
   const washers = employees.filter((e: any) =>
     e.designation === "Car Washer" && e.status === "Active" &&
-    (e.workLocation === city || e.cityId === city)
+    // Real fix: the adapted Employee type has no `workLocation` field at
+    // all (EmployeeContext's adaptRecord() maps the real source field to
+    // `.city`) — this always evaluated to undefined === city, silently
+    // filtering out every real washer regardless of active city.
+    (e.city === city || e.cityId === city)
   ).map((e: any) => ({
     id: e.id,
     name: e.fullName,
@@ -193,11 +101,18 @@ export function WasherIssuances() {
 
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [showBulkIssueDialog, setShowBulkIssueDialog] = useState(false);
-  const [selectedWasher, setSelectedWasher] = useState<typeof washersData[0] | null>(null);
   const [issueWasherId, setIssueWasherId] = useState("");
   const [issueItemId, setIssueItemId] = useState("");
   const [issueQuantity, setIssueQuantity] = useState("");
   const [issueReason, setIssueReason] = useState("");
+
+  // Real filter state — these previously rendered as inert <Select>/<Input>
+  // controls with no value/onChange, so choosing anything filtered nothing.
+  const [filterWasherId, setFilterWasherId] = useState("all");
+  const [filterItemId, setFilterItemId] = useState("all");
+  const [filterZone, setFilterZone] = useState("all");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
 
   const handleSingleIssue = () => {
     if (!issueWasherId || !issueItemId || !issueQuantity) {
@@ -211,8 +126,10 @@ export function WasherIssuances() {
     }
     // Real issue - previously this button never actually called
     // issueInventory() at all, only showed a success message. Now it
-    // genuinely moves real stock from Central to this washer.
-    issueInventory(issueItemId, qty, "Washer", issueWasherId, currentUser?.name || "Supervisor", city);
+    // genuinely moves real stock from Central to this washer, and the
+    // selected reason is now genuinely recorded on the transaction
+    // instead of being silently discarded.
+    issueInventory(issueItemId, qty, "Washer", issueWasherId, currentUser?.name || "Supervisor", city, REASON_LABELS[issueReason] || issueReason || undefined);
     toast.success("Material issued successfully to washer");
     setShowIssueDialog(false);
     setIssueWasherId(""); setIssueItemId(""); setIssueQuantity(""); setIssueReason("");
@@ -237,6 +154,44 @@ export function WasherIssuances() {
     setShowBulkIssueDialog(false);
     setBulkQuantities({});
   };
+
+  const cityItems = inventory.filter((i: any) => i.cityId === city && !isRawConcentrateItem(i));
+
+  // Real issuance audit trail — derived from the same real stockTransactions
+  // this file already reads correctly in the Loss & Wastage tab below.
+  // Previously this table showed a hardcoded fake 4-row array, permanently
+  // disconnected from every real "Issue Materials"/"Bulk Issue" action.
+  const issuanceRows = stockTransactions
+    .filter((t: any) => t.type === "Issue" && t.cityId === city)
+    .map((t: any) => {
+      const washer = displayWashers.find((w: any) => w.id.toString() === t.toId);
+      const item = inventory.find((i: any) => i.itemId === t.itemId && i.cityId === city);
+      return {
+        transactionId: t.transactionId,
+        date: t.createdAt?.split("T")[0] || "",
+        washerId: t.toId,
+        washerName: washer?.name || t.toId,
+        zone: washer?.zone || "—",
+        itemId: t.itemId,
+        material: item?.itemName || t.itemId,
+        quantity: t.quantity,
+        unit: item?.unit || "",
+        issuedBy: t.requestedBy || "—",
+        reason: t.reason || "—",
+      };
+    })
+    .sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+  const filteredIssuanceRows = issuanceRows.filter((r: any) => {
+    if (filterWasherId !== "all" && r.washerId !== filterWasherId) return false;
+    if (filterItemId !== "all" && r.itemId !== filterItemId) return false;
+    if (filterZone !== "all" && r.zone !== filterZone) return false;
+    if (filterFrom && r.date < filterFrom) return false;
+    if (filterTo && r.date > filterTo) return false;
+    return true;
+  });
+
+  const zones: string[] = Array.from(new Set(displayWashers.map((w: any) => w.zone).filter(Boolean)));
 
   return (
     <div className="space-y-6">
@@ -283,7 +238,7 @@ export function WasherIssuances() {
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <Label>Washer</Label>
-                  <Select>
+                  <Select value={filterWasherId} onValueChange={setFilterWasherId}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Washers" />
                     </SelectTrigger>
@@ -297,39 +252,39 @@ export function WasherIssuances() {
                 </div>
                 <div className="space-y-2">
                   <Label>Material</Label>
-                  <Select>
+                  <Select value={filterItemId} onValueChange={setFilterItemId}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Materials" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Materials</SelectItem>
-                      {materialsData.map(m => (
-                        <SelectItem key={m.id} value={m.id.toString()}>{m.name}</SelectItem>
+                      {cityItems.map((i: any) => (
+                        <SelectItem key={i.itemId} value={i.itemId}>{i.itemName}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>PIN Code Zone</Label>
-                  <Select>
+                  <Select value={filterZone} onValueChange={setFilterZone}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Zones" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Zones</SelectItem>
-                      <SelectItem value="395005">395005 — Adajan</SelectItem>
-                      <SelectItem value="395006">395006 — Vesu</SelectItem>
-                      <SelectItem value="395009">395009 — Jahangirpura</SelectItem>
+                      {zones.map((z) => (
+                        <SelectItem key={z} value={z}>{z}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>From Date</Label>
-                  <Input type="date" />
+                  <Input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>To Date</Label>
-                  <Input type="date" defaultValue="2026-03-17" />
+                  <Input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} />
                 </div>
               </div>
             </CardContent>
@@ -359,20 +314,17 @@ export function WasherIssuances() {
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Issued By</TableHead>
                         <TableHead>Reason</TableHead>
-                        <TableHead>Batch Ref</TableHead>
-                        <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
                 <TableBody>
-                  {issuanceRecords.map((record) => (
-                    <TableRow key={record.id}>
+                  {filteredIssuanceRows.map((record: any) => (
+                    <TableRow key={record.transactionId}>
                       <TableCell>{record.date}</TableCell>
-                      <TableCell className="font-medium">{record.washer}</TableCell>
+                      <TableCell className="font-medium">{record.washerName}</TableCell>
                       <TableCell>
                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {record.pinCode}
+                          {record.zone}
                         </code>
-                        <span className="text-xs text-gray-500 ml-2">{record.zone}</span>
                       </TableCell>
                       <TableCell>{record.material}</TableCell>
                       <TableCell className="text-right">
@@ -384,21 +336,15 @@ export function WasherIssuances() {
                           {record.reason}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-gray-500">{record.batch}</TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => {
-                            const washer = displayWashers.find((w: any) => w.name === record.washer);
-                            if (washer) setSelectedWasher(washer);
-                          }}
-                        >
-                          View Ledger
-                        </Button>
-                      </TableCell>
                     </TableRow>
                   ))}
+                  {filteredIssuanceRows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        No real issuances recorded yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
                 </div>

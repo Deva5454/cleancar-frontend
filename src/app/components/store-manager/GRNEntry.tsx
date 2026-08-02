@@ -36,44 +36,49 @@ import {
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 
+// A saved PO only ever records a total item COUNT and rupee amount, never
+// per-line quantities (see PurchaseOrderCreation.tsx) — so "ordered" here
+// falls back to that rupee amount only until a real GRN has actually been
+// recorded against this PO (at which point orderedQty/receivedQty, set by
+// handleSubmitGRN below, become the real per-unit figures).
+function buildPendingDeliveries(posList: any[]) {
+  return posList
+    .filter((po: any) => po.status !== "GRN Complete")
+    .map((po: any, i: number) => ({
+      id: i + 1,
+      po: po.po,
+      vendor: po.vendor,
+      items: po.items || 0,
+      ordered: po.orderedQty ?? po.amount ?? 0,
+      received: po.receivedQty || 0,
+      status: po.status === "Partial Delivery" ? "Partial" : "Pending",
+      date: po.date,
+    }));
+}
+
 export function GRNEntry() {
   const { city } = useCity();
+  const { inventory, procureInventory } = useInventory();
   const savedVendors = gstComplianceService.getVendors();
-  const savedPOs = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
+  const [savedPOs, setSavedPOs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]"); }
+    catch { return []; }
+  });
   const [grnDialogOpen, setGrnDialogOpen] = useState(false);
   const [documentUploaded, setDocumentUploaded] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedPO, setSelectedPO] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState("");
 
-  // Derive vendors from SupplierMaster (or stockTransactions for now)
-  const vendors = [
-    { id: "V001", name: "Shreeji Chemicals" },
-    { id: "V002", name: "Rajkot Equipment Traders" },
-    { id: "V003", name: "Mumbai Wash Supplies" },
-  ]; // → Replace with supplierMasterService.getSuppliers(city) when available
+  const cityItems = (inventory || []).filter((i: any) => i.cityId === city);
+  const selectedVendorName = savedVendors.find(v => v.id === selectedVendor)?.name || "";
 
-  const openPOs = [
-    { id: "PO-2026-001", vendor: "V001", description: "Chemicals supply — March" },
-    { id: "PO-2026-002", vendor: "V001", description: "Equipment parts" },
-  ].filter(po => !selectedVendor || po.vendor === selectedVendor);
+  const openPOs = savedPOs.filter((po: any) =>
+    po.status !== "GRN Complete" && (!selectedVendorName || po.vendor === selectedVendorName)
+  );
 
-  const [pendingDeliveries, setPendingDeliveries] = useState(() => {
-    return savedPOs.length > 0
-      ? savedPOs.filter((po: any) => po.status !== "GRN Complete").map((po: any, i: number) => ({
-          id: i + 1,
-          po: po.po,
-          vendor: po.vendor,
-          items: po.items || 0,
-          ordered: po.amount || 0,
-          received: 0,
-          status: "Pending",
-          date: po.date,
-        }))
-      : [
-          { id: 1, po: "PO-2026-001", vendor: "ABC Supplies", items: 15, ordered: 150, received: 0, status: "Pending", date: "2026-03-01" },
-          { id: 2, po: "PO-2026-002", vendor: "XYZ Services", items: 8, ordered: 80, received: 50, status: "Partial", date: "2026-03-05" },
-        ];
-  });
+  const [pendingDeliveries, setPendingDeliveries] = useState(() => buildPendingDeliveries(savedPOs));
+  const completedCount = savedPOs.filter((po: any) => po.status === "GRN Complete").length;
 
   const [documentFileName, setDocumentFileName] = useState<string | null>(null);
   const [documentFileType, setDocumentFileType] = useState<string | null>(null);
@@ -110,9 +115,15 @@ export function GRNEntry() {
     const formData = new FormData(e.currentTarget);
     const quantityReceived = parseInt(formData.get('quantity-received') as string) || 0;
     const quantityOrdered  = parseInt(formData.get('quantity-ordered')  as string) || 0;
-    const itemName         = String(formData.get('item-name') || "Unknown Item");
     const challanNo        = String(formData.get('challan-number') || "");
-    const supplierName     = String(formData.get('supplier-name') || "Walk-in");
+
+    if (!selectedVendor) { toast.error("Please select a vendor."); return; }
+    if (!selectedItemId) { toast.error("Please select which item was received."); return; }
+    if (!challanNo.trim()) { toast.error("Please enter the challan number."); return; }
+
+    const invItem = cityItems.find((i: any) => i.itemId === selectedItemId);
+    const itemName = invItem?.itemName || "Unknown Item";
+    const supplierName = selectedVendorName || "Walk-in";
 
     // ✅ C3 FIX: Save GRN record to localStorage
     const grnNumber = `GRN-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
@@ -132,21 +143,34 @@ export function GRNEntry() {
       localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
     } catch {}
 
-    // ✅ C3 FIX: Update live inventory
-    try {
-      const { DataService } = require("../../services/DataService");
-      const liveItems = DataService.get("INVENTORY_ITEMS");
-      if (liveItems.length > 0) {
-        const key = itemName.trim().toLowerCase();
-        const updated = liveItems.map((inv: any) => {
-          if ((inv.itemName ?? "").trim().toLowerCase() === key) {
-            return { ...inv, centralStock: (inv.centralStock ?? 0) + quantityReceived, updatedAt: new Date().toISOString() };
-          }
-          return inv;
-        });
-        DataService.setAll("INVENTORY_ITEMS", updated);
-      }
-    } catch {}
+    // Real inventory update — city-filtered, matches by real itemId (not
+    // fragile lowercased-name matching), and creates a real FIFO batch +
+    // weighted-average cost update via the same path every other real
+    // procurement in this app goes through.
+    if (quantityReceived > 0) {
+      procureInventory(selectedItemId, quantityReceived, selectedVendor, city);
+    }
+
+    // Reflect this GRN on the real PO it was recorded against (if any),
+    // so the status cards/alert below stop showing permanently-fake
+    // numbers and instead track real per-PO receipt state.
+    let updatedPOs = savedPOs;
+    if (selectedPO && selectedPO !== "manual") {
+      updatedPOs = savedPOs.map((po: any) => {
+        if (po.po !== selectedPO) return po;
+        const newReceived = (po.receivedQty || 0) + quantityReceived;
+        const targetQty = po.orderedQty ?? quantityOrdered ?? newReceived;
+        return {
+          ...po,
+          orderedQty: targetQty,
+          receivedQty: newReceived,
+          status: newReceived >= targetQty ? "GRN Complete" : "Partial Delivery",
+        };
+      });
+      try { localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updatedPOs)); } catch {}
+      setSavedPOs(updatedPOs);
+      setPendingDeliveries(buildPendingDeliveries(updatedPOs));
+    }
 
     if (quantityReceived < quantityOrdered) {
       toast.warning(`Partial GRN ${grnNumber} recorded — ${quantityReceived}/${quantityOrdered} received. Accounts, Admin and Super Admin alerted.`);
@@ -159,7 +183,13 @@ export function GRNEntry() {
     setDocumentFileName(null);
     setDocumentFileType(null);
     setDocumentFileBase64(null);
+    setSelectedVendor("");
+    setSelectedPO("");
+    setSelectedItemId("");
   };
+
+  const partialDeliveries = pendingDeliveries.filter(d => d.status === "Partial");
+  const pendingCount = pendingDeliveries.filter(d => d.status === "Pending").length;
 
   return (
     <div className="space-y-6">
@@ -191,10 +221,14 @@ export function GRNEntry() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="vendor">Vendor Name *</Label>
-                      <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                      <Select value={selectedVendor} onValueChange={v => { setSelectedVendor(v); setSelectedPO(""); }}>
                         <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
                         <SelectContent>
-                          {vendors.map(v => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                          {savedVendors.length > 0 ? savedVendors.map(v => (
+                            <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                          )) : (
+                            <SelectItem value="none" disabled>No vendors. Add in GST → Vendor Master.</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -205,10 +239,27 @@ export function GRNEntry() {
                           <SelectValue placeholder={selectedVendor ? "Select PO" : "Select vendor first"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {openPOs.map(po => <SelectItem key={po.id} value={po.id}>{po.id} — {po.description}</SelectItem>)}
+                          {openPOs.map((po: any) => <SelectItem key={po.po} value={po.po}>{po.po} — ₹{(po.amount ?? 0).toLocaleString()}</SelectItem>)}
                           <SelectItem value="manual">Enter manually (no PO)</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="item">Item Received *</Label>
+                      <Select value={selectedItemId} onValueChange={setSelectedItemId}>
+                        <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                        <SelectContent>
+                          {cityItems.length > 0 ? cityItems.map((i: any) => (
+                            <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.unit})</SelectItem>
+                          )) : (
+                            <SelectItem value="none" disabled>No inventory items found for this city.</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="challan-number">Challan Number *</Label>
+                      <Input id="challan-number" name="challan-number" placeholder="e.g. CH-2026-0451" required />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quantity-ordered">Quantity Ordered *</Label>
@@ -270,26 +321,27 @@ export function GRNEntry() {
         </div>
       </div>
 
-      {/* Partial GRN Alert */}
-      <Card className="bg-red-50 border-red-300">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-6 h-6 text-red-600 mt-0.5" />
-            <div>
-              <p className="font-bold text-red-900 text-lg">⚠ PARTIAL DELIVERY ALERT</p>
-              <p className="text-sm text-red-700 mt-1">
-                1 purchase order has partial delivery. Only 50 out of 80 items received.
-              </p>
-              <p className="text-sm text-red-700 mt-1 font-medium">
-                Notifications sent to: Accounts, Admin, Super Admin
-              </p>
-              <p className="text-xs text-red-600 mt-2">
-                This alert will appear during vendor payment approval to prevent overpayment.
-              </p>
+      {/* Partial GRN Alert — only shown when a real PO has partial receipt */}
+      {partialDeliveries.length > 0 && (
+        <Card className="bg-red-50 border-red-300">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-red-600 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-900 text-lg">⚠ PARTIAL DELIVERY ALERT</p>
+                <p className="text-sm text-red-700 mt-1">
+                  {partialDeliveries.length === 1
+                    ? `Purchase order ${partialDeliveries[0].po} has partial delivery. Only ${partialDeliveries[0].received} out of ${partialDeliveries[0].ordered} items received.`
+                    : `${partialDeliveries.length} purchase orders have partial delivery.`}
+                </p>
+                <p className="text-xs text-red-600 mt-2">
+                  This will show during vendor payment approval to prevent overpayment.
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* GRN Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -298,7 +350,7 @@ export function GRNEntry() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Pending GRN</p>
-                <p className="text-2xl font-bold mt-1">1</p>
+                <p className="text-2xl font-bold mt-1">{pendingCount}</p>
               </div>
               <div className="bg-orange-100 p-3 rounded-lg">
                 <Package className="w-5 h-5 text-orange-600" />
@@ -311,7 +363,7 @@ export function GRNEntry() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Partial Deliveries</p>
-                <p className="text-2xl font-bold mt-1">1</p>
+                <p className="text-2xl font-bold mt-1">{partialDeliveries.length}</p>
               </div>
               <div className="bg-red-100 p-3 rounded-lg">
                 <AlertCircle className="w-5 h-5 text-red-600" />
@@ -324,7 +376,7 @@ export function GRNEntry() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Completed</p>
-                <p className="text-2xl font-bold mt-1">1</p>
+                <p className="text-2xl font-bold mt-1">{completedCount}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -368,35 +420,34 @@ export function GRNEntry() {
                           <Badge variant="destructive">Partial</Badge>
                           <AlertCircle className="w-4 h-4 text-red-600" />
                         </div>
-                      ) : delivery.status === "Complete" ? (
-                        <Badge variant="secondary">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Complete
-                        </Badge>
                       ) : (
                         <Badge variant="outline">Pending</Badge>
                       )}
                     </TableCell>
                     <TableCell>{delivery.date}</TableCell>
                     <TableCell>
-                      {delivery.status === "Pending" && (
-                        <Button size="sm" onClick={() => setGrnDialogOpen(true)}>
-                          Record GRN
-                        </Button>
-                      )}
-                      {delivery.status === "Partial" && (
-                        <Button size="sm" variant="outline">
-                          Update GRN
-                        </Button>
-                      )}
-                      {delivery.status === "Complete" && (
-                        <Button size="sm" variant="ghost">
-                          View Details
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant={delivery.status === "Partial" ? "outline" : "default"}
+                        onClick={() => {
+                          const vendorId = savedVendors.find(v => v.name === delivery.vendor)?.id || "";
+                          setSelectedVendor(vendorId);
+                          setSelectedPO(delivery.po);
+                          setGrnDialogOpen(true);
+                        }}
+                      >
+                        {delivery.status === "Partial" ? "Update GRN" : "Record GRN"}
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
+                {pendingDeliveries.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      No pending deliveries. Create a Purchase Order to see it here.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

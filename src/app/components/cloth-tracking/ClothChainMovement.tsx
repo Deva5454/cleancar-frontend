@@ -21,6 +21,10 @@ import { toast } from "sonner";
 
 export function ClothChainMovement() {
   const { city } = useCity();
+  // Set synchronously at render time — RootLayoutWrapper's effect fires
+  // post-commit, one render behind a city switch, so a memo keyed on
+  // `city` in the same commit would still read the previous city's data.
+  clothTrackingService.setCityId(city);
   const { getEmployeesByRole } = useEmployee();
   const branches = getBranchesForCity(city);
   const supervisors = getEmployeesByRole("Supervisor");
@@ -32,13 +36,15 @@ export function ClothChainMovement() {
   const [checkedAtBranch, setCheckedAtBranch] = useState<Set<string>>(new Set());
 
   // Real public queries - filtering the two real statuses/locations that matter here
+  // city is included so this recomputes if the active city changes — the
+  // city selector is global/header-level and doesn't remount this screen.
   const kimClean = useMemo(
     () => clothTrackingService.getClothsByStatus("CLEAN_PACKED").filter((c) => c.currentLocation === "Kim"),
-    [refreshTick]
+    [refreshTick, city]
   );
   const branchClean = useMemo(
     () => clothTrackingService.getClothsByStatus("CLEAN_PACKED").filter((c) => c.currentLocation === "Branch" && c.currentLocationId === selectedBranchId),
-    [refreshTick, selectedBranchId]
+    [refreshTick, selectedBranchId, city]
   );
 
   const toggleKim = (id: string) => {

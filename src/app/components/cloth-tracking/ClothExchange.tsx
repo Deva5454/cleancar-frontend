@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { clothTrackingService } from "../../services/clothTrackingService";
 import { BarcodeScanner, ScanFeedbackToast } from "./BarcodeScanner";
 import { Button } from "../ui/button";
@@ -40,6 +41,11 @@ const COLOR_BADGE_CLASSES: Record<ClothColor, string> = {
 
 export function ClothExchange() {
   const { currentUser, currentRole } = useRole();
+  const { city } = useCity();
+  // Set synchronously at render time — RootLayoutWrapper's effect fires
+  // post-commit, one render behind a city switch, which would otherwise
+  // leave every scan/exchange call below reading the previous city's data.
+  clothTrackingService.setCityId(city);
 
   // Scanned cloths
   const [dirtyClothIds, setDirtyClothIds] = useState<string[]>([]);

@@ -30,98 +30,100 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useEffect } from "react";
 
-// Mock verification data
-const verificationWorksheet = [
-  {
-    itemId: "ITEM-SHAMPOO",
-    itemName: "Car Shampoo",
-    material: "Car Shampoo",
-    unit: "ml",
-    openingBalance: 50,
-    totalIssued: 1000,
-    estimatedConsumption: 800,
-    systemEstimatedClosing: 250,
-    physicalCount: 0,
-    variance: 0,
-    varianceReason: "",
-    verifiedConsumption: 0
-  },
-  {
-    itemId: "ITEM-WAX",
-    itemName: "Wax Polish",
-    material: "Wax Polish",
-    unit: "ml",
-    openingBalance: 100,
-    totalIssued: 500,
-    estimatedConsumption: 420,
-    systemEstimatedClosing: 180,
-    physicalCount: 0,
-    variance: 0,
-    varianceReason: "",
-    verifiedConsumption: 0
-  },
-  {
-    itemId: "ITEM-TYRE",
-    itemName: "Tyre Dressing",
-    material: "Tyre Dressing",
-    unit: "ml",
-    openingBalance: 75,
-    totalIssued: 250,
-    estimatedConsumption: 175,
-    systemEstimatedClosing: 150,
-    physicalCount: 0,
-    variance: 0,
-    varianceReason: "",
-    verifiedConsumption: 0
-  },
-  {
-    itemId: "ITEM-MICROFIBER",
-    itemName: "Microfiber Cloth",
-    material: "Microfiber Cloth",
-    unit: "pieces",
-    openingBalance: 2,
-    totalIssued: 10,
-    estimatedConsumption: 4,
-    systemEstimatedClosing: 8,
-    physicalCount: 0,
-    variance: 0,
-    varianceReason: "",
-    verifiedConsumption: 0
-  },
-];
+const MONTH_NAMES = ["January","February","March","April","May","June",
+  "July","August","September","October","November","December"];
+
+interface WorksheetRow {
+  itemId: string;
+  itemName: string;
+  material: string;
+  unit: string;
+  openingBalance: number;
+  totalIssued: number;
+  estimatedConsumption: number;
+  systemEstimatedClosing: number;
+  physicalCount: number;
+  variance: number;
+  varianceReason: string;
+  verifiedConsumption: number;
+}
 
 export function MonthEndVerification() {
   const { city } = useCity();
-  const { adjustStock, getWasherStock, inventory } = useInventory();
+  const { adjustStock, getWasherStock, inventory, stockTransactions } = useInventory();
   const { employees } = useEmployee();
   const [selectedWasherId, setSelectedWasherId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
-  const [worksheetData, setWorksheetData] = useState<typeof verificationWorksheet>([]);
+  const [worksheetData, setWorksheetData] = useState<WorksheetRow[]>([]);
   const [showWorksheet, setShowWorksheet] = useState(false);
 
   const washers = employees.filter(e =>
     e.designation === "Car Washer" && e.status === "Active" &&
-    (e.workLocation === city || e.cityId === city)
+    // Real fix: the adapted Employee type has no `workLocation` field at
+    // all (EmployeeContext's adaptRecord() maps the real source field to
+    // `.city`) — this always evaluated to undefined === city, silently
+    // filtering out every real washer regardless of active city.
+    (e.city === city || e.cityId === city)
   );
 
-  // Load worksheet when washer + month selected
+  // Load worksheet when washer + month selected. Real fix: openingBalance
+  // and totalIssued were previously always hardcoded to 0, which made
+  // estimatedConsumption always 0 too — and since handleSubmitVerification's
+  // "needs a reason" gate divides by totalIssued, that made the reason
+  // requirement permanently unsatisfiable: it would demand a reason for
+  // any nonzero variance, but the Variance Reason input (gated on the same
+  // always-zero totalIssued) never rendered for anyone to give one.
   useEffect(() => {
-    if (!selectedWasherId) return;
+    if (!selectedWasherId || !selectedMonth) return;
     const washerItems = getWasherStock(selectedWasherId, city);
-    if (washerItems.length > 0) {
-      setWorksheetData(washerItems.map(item => ({
-        itemId: item.itemId, itemName: item.itemName, unit: item.unit,
-        openingBalance: 0,
-        totalIssued: 0,
-        estimatedConsumption: 0,
-        systemEstimatedClosing: item.washerStock[selectedWasherId] || 0,
-        physicalCount: item.washerStock[selectedWasherId] || 0, variance: 0,
+    if (washerItems.length === 0) return;
+
+    const year = 2026; // matches the fixed year already shown in the Month select's own labels
+    const monthNum = parseInt(selectedMonth, 10);
+    const monthKey = `${year}-${String(monthNum).padStart(2, "0")}`;
+
+    // Real per-item quantity issued to this washer this month, from the
+    // same real stockTransactions the Issuance Records / Loss & Wastage
+    // tabs already read correctly.
+    const issuedByItem: Record<string, number> = {};
+    stockTransactions
+      .filter((t: any) => t.type === "Issue" && t.toId === selectedWasherId && t.cityId === city && String(t.createdAt || "").startsWith(monthKey))
+      .forEach((t: any) => { issuedByItem[t.itemId] = (issuedByItem[t.itemId] || 0) + t.quantity; });
+
+    // Real opening balance — the physical count this washer's own PREVIOUS
+    // month's verification actually recorded for this item. No prior
+    // verification means there's no real number to carry forward yet, so
+    // this stays honestly 0 rather than a guess.
+    const priorMonthNum = monthNum === 1 ? 12 : monthNum - 1;
+    let priorVerifications: any[] = [];
+    try { priorVerifications = JSON.parse(localStorage.getItem("cleancar_month_end_verifications") || "[]"); } catch {}
+    const priorRecord = priorVerifications.find((v: any) => v.washerId === selectedWasherId && v.city === city && v.month === String(priorMonthNum));
+    const openingByItem: Record<string, number> = {};
+    (priorRecord?.items || []).forEach((row: any) => {
+      const invItem = inventory.find((i: any) => i.itemName === row.itemName && i.cityId === city);
+      if (invItem) openingByItem[invItem.itemId] = row.physicalCount || 0;
+    });
+
+    setWorksheetData(washerItems.map(item => {
+      const openingBalance = openingByItem[item.itemId] || 0;
+      const totalIssued = issuedByItem[item.itemId] || 0;
+      const systemEstimatedClosing = item.washerStock[selectedWasherId] || 0;
+      return {
+        itemId: item.itemId, itemName: item.itemName, material: item.itemName, unit: item.unit,
+        openingBalance,
+        totalIssued,
+        // Derived so the four figures stay internally consistent (opening +
+        // issued − consumed = closing) rather than an independent guess.
+        estimatedConsumption: Math.max(0, openingBalance + totalIssued - systemEstimatedClosing),
+        systemEstimatedClosing,
+        physicalCount: systemEstimatedClosing,
+        variance: 0,
         varianceReason: "",
         verifiedConsumption: 0,
-      })));
-      setShowWorksheet(true);
-    }
-  }, [selectedWasherId, city, getWasherStock]);
+      };
+    }));
+    setShowWorksheet(true);
+  }, [selectedWasherId, selectedMonth, city, getWasherStock, inventory, stockTransactions]);
 
   const handlePhysicalCountChange = (index: number, value: string) => {
     const physicalCount = parseFloat(value) || 0;
@@ -159,14 +161,6 @@ export function MonthEndVerification() {
     };
     reader.onerror = () => toast.error("Could not read this photo — please try again.");
     reader.readAsDataURL(file);
-  };
-
-  const handleLoadWorksheet = () => {
-    if (!selectedWasherId || !selectedMonth) {
-      toast.error("Please select washer and month");
-      return;
-    }
-    toast.success("Verification worksheet loaded");
   };
 
   const handleSubmitVerification = () => {
@@ -308,7 +302,9 @@ export function MonthEndVerification() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Step 2 — Verification Worksheet</CardTitle>
-                <Badge variant="secondary">March 2026 — Ramesh Kumar (395005)</Badge>
+                <Badge variant="secondary">
+                  {MONTH_NAMES[parseInt(selectedMonth, 10) - 1]} 2026 — {washers.find((w: any) => w.id === selectedWasherId)?.fullName || selectedWasherId} ({washers.find((w: any) => w.id === selectedWasherId)?.pinCodes?.[0] || "—"})
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>

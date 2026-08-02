@@ -162,7 +162,8 @@ interface InventoryContextType {
     toLocation: "Supervisor" | "Washer",
     toId: string,
     requestedBy: string,
-    cityId: string
+    cityId: string,
+    reason?: string
   ) => void;
   transferInventory: (
     itemId: string,
@@ -688,7 +689,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     toLocation: "Supervisor" | "Washer",
     toId: string,
     requestedBy: string,
-    cityId: string
+    cityId: string,
+    reason?: string
   ) => {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
@@ -718,6 +720,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       toLocation,
       toId,
       requestedBy,
+      reason,
       status: "Pending",
       cityId,
     });

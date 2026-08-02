@@ -41,10 +41,15 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { DataService } from "../../services/DataService";
 import { toast } from "sonner";
 
 // ── Live KPI computation ───────────────────────────────────────────────────────
+// Real fix: previously every KPI used `realCount || fallbackNumber` — since
+// 0 is falsy in JS, a genuinely healthy state (e.g. zero overdue payments)
+// was silently replaced with a fake hardcoded number, so a true zero could
+// never actually be shown. Now reports the real count as-is, including 0.
 function computeKPIs() {
   try {
     const mrs      = JSON.parse(localStorage.getItem("cleancar_material_requisitions") || "[]");
@@ -52,24 +57,29 @@ function computeKPIs() {
     const grns     = JSON.parse(localStorage.getItem("cleancar_grn_records")           || "[]");
     const payments = JSON.parse(localStorage.getItem("cleancar_supplier_payments")     || "[]");
     return {
-      openRequisitions:        mrs.filter((r: any) => ["Pending Approval","Draft"].includes(r.status)).length || 8,
-      posAwaitingApproval:     pos.filter((p: any) => p.status === "Pending Approval").length || 2,
-      posAwaitingAck:          pos.filter((p: any) => ["Approved","In Transit"].includes(p.status)).length || 5,
-      deliveriesThisWeek:      grns.filter((g: any) => { try { return new Date(g.createdAt) > new Date(Date.now() - 7*24*60*60*1000); } catch { return false; } }).length || 12,
-      grnsQualityCheck:        grns.filter((g: any) => g.status === "Pending QC").length || 3,
-      invoicesPending:         7, // from InvoiceMatching — static (invoices not in localStorage)
-      invoicesAwaitingPayment: payments.filter((p: any) => p.status === "Pending Approval").length || 4,
-      overduePayments:         payments.filter((p: any) => p.status === "Overdue").length || 1,
+      openRequisitions:        mrs.filter((r: any) => ["Pending Approval","Draft"].includes(r.status)).length,
+      posAwaitingApproval:     pos.filter((p: any) => p.status === "Pending Approval").length,
+      posAwaitingAck:          pos.filter((p: any) => ["Approved","In Transit"].includes(p.status)).length,
+      deliveriesThisWeek:      grns.filter((g: any) => { try { return new Date(g.createdAt) > new Date(Date.now() - 7*24*60*60*1000); } catch { return false; } }).length,
+      grnsQualityCheck:        grns.filter((g: any) => g.status === "Pending QC").length,
+      // Invoices aren't tracked anywhere in localStorage yet (no real
+      // InvoiceMatching data source exists) — 0 here is honest; it was
+      // previously a permanent fake "7" regardless of real state.
+      invoicesPending:         0,
+      invoicesAwaitingPayment: payments.filter((p: any) => p.status === "Pending Approval").length,
+      overduePayments:         payments.filter((p: any) => p.status === "Overdue").length,
     };
   } catch {
-    return { openRequisitions:8, posAwaitingApproval:2, posAwaitingAck:5, deliveriesThisWeek:12, grnsQualityCheck:3, invoicesPending:7, invoicesAwaitingPayment:4, overduePayments:1 };
+    return { openRequisitions:0, posAwaitingApproval:0, posAwaitingAck:0, deliveriesThisWeek:0, grnsQualityCheck:0, invoicesPending:0, invoicesAwaitingPayment:0, overduePayments:0 };
   }
 }
 
 // ── Live reorder alerts from inventory ───────────────────────────────────────
-function computeReorderAlerts() {
+function computeReorderAlerts(cityId: string) {
   try {
-    const items = DataService.get<any>("INVENTORY_ITEMS");
+    // Real fix: previously called without cityId, silently defaulting to
+    // CITY-SURAT regardless of which city is actually active.
+    const items = DataService.get<any>("INVENTORY_ITEMS", cityId);
     if (items.length > 0) {
       return items
         .filter((i: any) => (i.centralStock ?? 0) <= (i.reorderLevel ?? 0))
@@ -158,9 +168,10 @@ const budgetData = {
 
 export function ProcurementOverview() {
   const { currentRole } = useRole();
+  const { city } = useCity();
   // ✅ Live KPIs and reorder alerts from real data
   const kpiData = computeKPIs();
-  const reorderAlerts = computeReorderAlerts();
+  const reorderAlerts = computeReorderAlerts(city);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showPODialog, setShowPODialog] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState("");

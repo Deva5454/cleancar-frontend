@@ -24,98 +24,20 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 
-// Mock ledger data for a washer
-const ledgerTransactions = [
-  {
-    id: 1,
-    date: "2026-03-01",
-    type: "Opening Balance",
-    quantityIn: 50,
-    quantityOut: 0,
-    runningBalance: 50,
-    reference: "Feb 2026 Carry-Forward"
-  },
-  {
-    id: 2,
-    date: "2026-03-01",
-    type: "Issued",
-    quantityIn: 500,
-    quantityOut: 0,
-    runningBalance: 550,
-    reference: "ISS-2026-03-001"
-  },
-  {
-    id: 3,
-    date: "2026-03-01",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 120,
-    runningBalance: 430,
-    reference: "8 jobs completed"
-  },
-  {
-    id: 4,
-    date: "2026-03-02",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 135,
-    runningBalance: 295,
-    reference: "9 jobs completed"
-  },
-  {
-    id: 5,
-    date: "2026-03-03",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 105,
-    runningBalance: 190,
-    reference: "7 jobs completed"
-  },
-  {
-    id: 6,
-    date: "2026-03-15",
-    type: "Issued",
-    quantityIn: 500,
-    quantityOut: 0,
-    runningBalance: 690,
-    reference: "ISS-2026-03-015"
-  },
-  {
-    id: 7,
-    date: "2026-03-15",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 150,
-    runningBalance: 540,
-    reference: "10 jobs completed"
-  },
-  {
-    id: 8,
-    date: "2026-03-16",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 120,
-    runningBalance: 420,
-    reference: "8 jobs completed"
-  },
-  {
-    id: 9,
-    date: "2026-03-17",
-    type: "Consumed — Estimated",
-    quantityIn: 0,
-    quantityOut: 135,
-    runningBalance: 285,
-    reference: "9 jobs completed (today)"
-  },
-];
-
 export function WasherStockLedger() {
   const { stockTransactions, getWasherStock, inventory } = useInventory();
   const { getEmployeeById } = useEmployee();
   const { city } = useCity();
   const [searchParams] = useSearchParams();
   const selectedWasherId = searchParams.get("washerId") || "";
-  const [selectedMaterial, setSelectedMaterial] = useState("shampoo");
+
+  // Real fix: previously a fake hardcoded list ("shampoo"/"wax"/"tyre"/
+  // "microfiber") that was never actually used to filter anything below —
+  // selecting a material here changed nothing. Now built from real
+  // inventory items and genuinely filters the ledger.
+  const cityItems = inventory.filter((i: any) => i.cityId === city);
+  const [selectedMaterial, setSelectedMaterial] = useState("all");
+  const selectedItem = selectedMaterial !== "all" ? cityItems.find((i: any) => i.itemId === selectedMaterial) : undefined;
 
   // Previously this header always showed a hardcoded "Ramesh Kumar" no
   // matter which washer was actually selected — the ledger transactions
@@ -132,12 +54,13 @@ export function WasherStockLedger() {
 
   // Build ledger from real stock transactions
   const washerTxns = stockTransactions
-    .filter(t => (t.toId === selectedWasherId || t.fromId === selectedWasherId) && t.status === "Completed")
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    .filter((t: any) => (t.toId === selectedWasherId || t.fromId === selectedWasherId) && t.status === "Completed")
+    .filter((t: any) => selectedMaterial === "all" || t.itemId === selectedMaterial)
+    .sort((a: any, b: any) => a.createdAt.localeCompare(b.createdAt));
 
   let runningBalance = 0;
-  const liveLedger = washerTxns.map((t, i) => {
-    const item = inventory.find(x => x.itemId === t.itemId && x.cityId === city);
+  const liveLedger = washerTxns.map((t: any, i: number) => {
+    const item = inventory.find((x: any) => x.itemId === t.itemId && x.cityId === city);
     const isIn = t.toId === selectedWasherId;
     runningBalance += isIn ? t.quantity : -t.quantity;
     return {
@@ -149,6 +72,7 @@ export function WasherStockLedger() {
       runningBalance,
       reference: t.transactionId,
       itemName: item?.itemName || t.itemId,
+      unit: item?.unit || "",
     };
   });
 
@@ -158,15 +82,19 @@ export function WasherStockLedger() {
 
   // Calculate summary
   const totalIssued = displayLedger
-    .filter(t => t.type === "Issue" || t.type === "Issued")
-    .reduce((sum, t) => sum + t.quantityIn, 0);
+    .filter((t: any) => t.type === "Issue")
+    .reduce((sum: number, t: any) => sum + t.quantityIn, 0);
 
+  // Real transaction types are Procurement/Issue/Transfer/Adjustment/Return/Loss —
+  // there is no "Consumed" transaction type in this system, so this now tracks
+  // real Loss/Adjustment outflows instead of a type that could never match.
   const totalConsumed = displayLedger
-    .filter(t => t.type.includes("Consumed"))
-    .reduce((sum, t) => sum + t.quantityOut, 0);
+    .filter((t: any) => t.type === "Loss" || t.type === "Adjustment")
+    .reduce((sum: number, t: any) => sum + t.quantityOut, 0);
 
   const currentBalance = displayLedger[displayLedger.length - 1]?.runningBalance || 0;
   const openingBalance = displayLedger[0]?.quantityIn || 0;
+  const unitLabel = selectedItem ? selectedItem.unit : "mixed units";
 
   return (
     <div className="space-y-6">
@@ -203,11 +131,10 @@ export function WasherStockLedger() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="shampoo">Car Shampoo (ml)</SelectItem>
-                <SelectItem value="wax">Wax Polish (ml)</SelectItem>
-                <SelectItem value="tyre">Tyre Dressing (ml)</SelectItem>
-                <SelectItem value="microfiber">Microfiber Cloth (pieces)</SelectItem>
                 <SelectItem value="all">All Materials — Grouped View</SelectItem>
+                {cityItems.map((i: any) => (
+                  <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.unit})</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -222,7 +149,7 @@ export function WasherStockLedger() {
               <div>
                 <p className="text-sm text-gray-500">Opening Balance</p>
                 <p className="text-2xl font-bold text-gray-900">{openingBalance}</p>
-                <p className="text-xs text-gray-500 mt-1">ml</p>
+                <p className="text-xs text-gray-500 mt-1">{unitLabel}</p>
               </div>
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -237,7 +164,7 @@ export function WasherStockLedger() {
               <div>
                 <p className="text-sm text-gray-500">Total Issued (MTD)</p>
                 <p className="text-2xl font-bold text-green-600">{totalIssued}</p>
-                <p className="text-xs text-gray-500 mt-1">ml</p>
+                <p className="text-xs text-gray-500 mt-1">{unitLabel}</p>
               </div>
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-green-600" />
@@ -250,9 +177,9 @@ export function WasherStockLedger() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Consumed (Estimated)</p>
+                <p className="text-sm text-gray-500">Adjustments / Loss</p>
                 <p className="text-2xl font-bold text-red-600">{totalConsumed}</p>
-                <p className="text-xs text-gray-500 mt-1">ml</p>
+                <p className="text-xs text-gray-500 mt-1">{unitLabel}</p>
               </div>
               <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
                 <TrendingDown className="w-5 h-5 text-red-600" />
@@ -267,7 +194,7 @@ export function WasherStockLedger() {
               <div>
                 <p className="text-sm text-gray-500">Current Balance</p>
                 <p className="text-2xl font-bold text-gray-900">{currentBalance}</p>
-                <p className="text-xs text-gray-500 mt-1">ml (Estimated)</p>
+                <p className="text-xs text-gray-500 mt-1">{unitLabel} (Estimated)</p>
               </div>
               <div className={`w-10 h-10 ${currentBalance < 100 ? 'bg-amber-100' : 'bg-gray-100'} rounded-lg flex items-center justify-center`}>
                 {currentBalance < 100 ? (
@@ -290,8 +217,7 @@ export function WasherStockLedger() {
               <div>
                 <p className="font-medium text-amber-900">Low Stock Alert</p>
                 <p className="text-sm text-amber-700">
-                  Running balance is below 100ml. Estimated 2 days remaining at current usage rate.
-                  Supervisor has been notified for replenishment.
+                  Running balance is below 100 {unitLabel}.
                 </p>
               </div>
             </div>
@@ -302,7 +228,7 @@ export function WasherStockLedger() {
       {/* Ledger Transactions */}
       <Card>
         <CardHeader>
-          <CardTitle>Stock Movement Ledger — Car Shampoo</CardTitle>
+          <CardTitle>Stock Movement Ledger — {selectedItem ? selectedItem.itemName : "All Materials"}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto -mx-3 sm:mx-0">
@@ -319,31 +245,30 @@ export function WasherStockLedger() {
                   </TableRow>
                 </TableHeader>
             <TableBody>
-              {displayLedger.map((txn) => (
+              {displayLedger.map((txn: any) => (
                 <TableRow key={txn.id}>
                   <TableCell className="text-sm">{txn.date}</TableCell>
                   <TableCell>
-                    <Badge 
+                    <Badge
                       variant={
-                        txn.type === "Issued" ? "default" :
-                        txn.type === "Opening Balance" ? "secondary" :
-                        txn.type.includes("Consumed") ? "outline" : "default"
+                        txn.type === "Issue" ? "default" :
+                        txn.type === "Loss" || txn.type === "Adjustment" ? "outline" : "secondary"
                       }
                       className={
-                        txn.type.includes("Estimated") ? "border-amber-300 text-amber-700" : ""
+                        txn.type === "Loss" ? "border-amber-300 text-amber-700" : ""
                       }
                     >
                       {txn.type}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right text-green-600 font-medium">
-                    {txn.quantityIn > 0 ? `+${txn.quantityIn} ml` : "—"}
+                    {txn.quantityIn > 0 ? `+${txn.quantityIn} ${txn.unit}` : "—"}
                   </TableCell>
                   <TableCell className="text-right text-red-600 font-medium">
-                    {txn.quantityOut > 0 ? `−${txn.quantityOut} ml` : "—"}
+                    {txn.quantityOut > 0 ? `−${txn.quantityOut} ${txn.unit}` : "—"}
                   </TableCell>
                   <TableCell className="text-right font-semibold">
-                    {txn.runningBalance} ml
+                    {txn.runningBalance} {selectedItem ? selectedItem.unit : txn.unit}
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">{txn.reference}</TableCell>
                 </TableRow>
@@ -360,11 +285,11 @@ export function WasherStockLedger() {
         <CardContent className="p-4">
           <p className="text-sm font-medium text-blue-900 mb-2">Transaction Types Explained:</p>
           <ul className="text-sm text-blue-800 space-y-1">
-            <li><strong>Opening Balance:</strong> Starting stock at period beginning (carry-forward from previous month)</li>
-            <li><strong>Issued:</strong> Material issued from inventory to washer</li>
-            <li><strong>Consumed — Estimated:</strong> Auto-calculated daily consumption based on jobs completed (standard usage rates)</li>
-            <li><strong>Consumed — Verified:</strong> Actual consumption verified during month-end physical count</li>
-            <li><strong>Closing Balance:</strong> End-of-period stock (becomes next period's opening balance)</li>
+            <li><strong>Issue:</strong> Material issued from central inventory to this washer</li>
+            <li><strong>Transfer:</strong> Stock moved between locations (e.g. washer to washer)</li>
+            <li><strong>Return:</strong> Material returned by the washer to inventory</li>
+            <li><strong>Adjustment:</strong> Manual stock correction</li>
+            <li><strong>Loss:</strong> Stock written off as lost or damaged</li>
           </ul>
         </CardContent>
       </Card>

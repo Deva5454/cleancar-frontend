@@ -23,6 +23,7 @@ import {
 } from "../ui/select";
 import { Users, Send, Clock, CheckCircle, XCircle, Package } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useRole } from "../../contexts/RoleContext";
 
 interface VendorRequest {
   id: string;
@@ -33,9 +34,23 @@ interface VendorRequest {
   status: "pending" | "approved" | "rejected" | "completed";
   requestDate: string;
   requestedBy: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
 }
 
 export function VendorRequest() {
+  const { currentUser, currentRole } = useRole();
+  // Real fix: this screen used to fall back to 4 hardcoded historical
+  // requests (VR001-004) whenever storage was empty, so it always looked
+  // "active" even for a brand new city/deployment with zero real requests.
+  const [requests, setRequests] = useState<VendorRequest[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
   const [formData, setFormData] = useState({
     productCategory: "",
     description: "",
@@ -43,54 +58,24 @@ export function VendorRequest() {
     urgency: "medium" as "high" | "medium" | "low"
   });
 
-  const [requests, setRequests] = useState<VendorRequest[]>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
-      if (stored.length > 0) return stored;
-    } catch {}
-    return [
-    {
-      id: "VR001",
-      productCategory: "Cleaning Chemicals",
-      description: "High-pressure foam cleaning solution for car washing",
-      quantity: "100 Liters",
-      urgency: "high",
-      status: "pending",
-      requestDate: "2026-03-09",
-      requestedBy: "Store Manager"
-    },
-    {
-      id: "VR002",
-      productCategory: "Equipment Parts",
-      description: "Replacement foam gun nozzles - multiple sizes",
-      quantity: "20 Pieces",
-      urgency: "medium",
-      status: "approved",
-      requestDate: "2026-03-08",
-      requestedBy: "Store Manager"
-    },
-    {
-      id: "VR003",
-      productCategory: "Consumables",
-      description: "Industrial-grade microfiber cloths",
-      quantity: "500 Pieces",
-      urgency: "low",
-      status: "completed",
-      requestDate: "2026-03-05",
-      requestedBy: "Store Manager"
-    },
-    {
-      id: "VR004",
-      productCategory: "Polishing Products",
-      description: "Premium ceramic coating wax",
-      quantity: "50 Bottles",
-      urgency: "medium",
-      status: "rejected",
-      requestDate: "2026-03-03",
-      requestedBy: "Store Manager"
-    }
-    ];
-  });
+  // Only reviewer-type roles (not the Store Manager who submits requests)
+  // can approve/reject — otherwise a request could approve itself.
+  const canReview = currentRole !== "Store Manager";
+
+  const persistRequests = (updated: VendorRequest[]) => {
+    localStorage.setItem("cleancar_vendor_requests", JSON.stringify(updated));
+    setRequests(updated);
+  };
+
+  const handleReview = (id: string, status: "approved" | "rejected" | "completed") => {
+    const updated = requests.map(r =>
+      r.id === id
+        ? { ...r, status, reviewedBy: currentUser.name, reviewedAt: new Date().toISOString() }
+        : r
+    );
+    persistRequests(updated);
+    toast.success(`Request ${id} marked ${status}.`);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,23 +85,17 @@ export function VendorRequest() {
     }
     // ✅ C5 FIX: Save vendor request to localStorage
     const requestId = `VR-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,"0")}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
-    const record = {
+    const record: VendorRequest = {
       id: requestId,
       productCategory: formData.productCategory,
       description: formData.description,
       quantity: formData.quantity,
       urgency: formData.urgency,
       status: "pending",
-      requestedBy: "Store Manager",
+      requestedBy: currentUser.name,
       requestDate: new Date().toISOString().split("T")[0],
-      submittedAt: new Date().toISOString(),
     };
-    try {
-      const existing = JSON.parse(localStorage.getItem("cleancar_vendor_requests") || "[]");
-      const updated = [record, ...existing];
-      localStorage.setItem("cleancar_vendor_requests", JSON.stringify(updated));
-      setRequests(updated as any);
-    } catch {}
+    persistRequests([record, ...requests]);
     toast.success(`Vendor request ${requestId} submitted — Admin will review and onboard vendor.`);
     setFormData({ productCategory: "", description: "", quantity: "", urgency: "medium" });
   };
@@ -312,9 +291,17 @@ export function VendorRequest() {
                   <TableHead>Urgency</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
+                  {canReview && <TableHead>Action</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {requests.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={canReview ? 8 : 7} className="text-center text-sm text-gray-500 py-6">
+                      No vendor requests yet.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {requests.map((request) => (
                   <TableRow key={request.id}>
                     <TableCell className="font-medium">{request.id}</TableCell>
@@ -322,8 +309,32 @@ export function VendorRequest() {
                     <TableCell className="max-w-xs truncate">{request.description}</TableCell>
                     <TableCell>{request.quantity}</TableCell>
                     <TableCell>{getUrgencyBadge(request.urgency)}</TableCell>
-                    <TableCell>{getStatusBadge(request.status)}</TableCell>
+                    <TableCell>
+                      {getStatusBadge(request.status)}
+                      {request.reviewedBy && (
+                        <p className="text-xs text-gray-400 mt-1">by {request.reviewedBy}</p>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm text-gray-500">{request.requestDate}</TableCell>
+                    {canReview && (
+                      <TableCell>
+                        {request.status === "pending" && (
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" className="border-green-500 text-green-700" onClick={() => handleReview(request.id, "approved")}>
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="outline" className="border-red-500 text-red-700" onClick={() => handleReview(request.id, "rejected")}>
+                              Reject
+                            </Button>
+                          </div>
+                        )}
+                        {request.status === "approved" && (
+                          <Button size="sm" variant="outline" onClick={() => handleReview(request.id, "completed")}>
+                            Mark Completed
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

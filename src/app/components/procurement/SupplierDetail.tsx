@@ -56,36 +56,50 @@ import {
   Radar,
 } from "recharts";
 import { gstComplianceService } from "../../services/gstComplianceService";
+import { useRole } from "../../contexts/RoleContext";
 
 export function SupplierDetail() {
   const navigate = useNavigate();
   const { supplierId } = useParams();
+  const { currentUser } = useRole();
+  // Bumped after any real save (blacklist/reactivate/note) so vendors/
+  // vendorData/supplier below recompute with the persisted change —
+  // gstComplianceService.getVendors() isn't reactive on its own.
+  const [refreshTick, setRefreshTick] = useState(0);
   const vendors = gstComplianceService.getVendors();
   const vendorData = vendors.find(v => v.id === supplierId) || vendors[0];
 
   const supplier = vendorData ? {
     id: vendorData.id || "",
-    companyName: (vendorData as any).name ?? (vendorData as any).legalName ?? "",
-    tradeName: (vendorData as any).tradeName ?? (vendorData as any).name ?? "",
+    companyName: vendorData.name ?? "",
     supplierType: "Vendor",
     contactPerson: vendorData.contactPerson || "",
-    phone: (vendorData as any).contactPhone ?? (vendorData as any).phone ?? "",
-    email: (vendorData as any).contactEmail ?? (vendorData as any).email ?? "",
-    city: (vendorData as any).city ?? vendorData.state ?? "",
+    phone: vendorData.contactPhone ?? "",
+    email: vendorData.contactEmail ?? "",
+    address: vendorData.address || "",
+    city: vendorData.state ?? "",
     state: vendorData.state || "",
-    pinCode: (vendorData as any).pinCode || "",
     gst: vendorData.gstin || "",
     pan: vendorData.pan || "",
     status: vendorData.status ?? "Active",
+    // No real vendor rating exists anywhere in this app yet — 4.0 is a
+    // neutral placeholder, same as before, kept out of this fix's scope.
     rating: (vendorData as any).rating ?? 4.0,
-    outstanding: (vendorData as any).outstanding ?? 0,
-    creditLimit: (vendorData as any).creditLimit ?? 0,
+    // Real fix: neither field exists on GSTVendor (no vendor credit-limit
+    // or outstanding-balance tracking anywhere in this app) — these were
+    // silently defaulting to 0, which then divided 0/0 into NaN% below.
+    // hasCreditData stays false so the UI can say "Not tracked" honestly
+    // instead of showing a fabricated ₹0K / NaN%.
+    outstanding: 0,
+    creditLimit: 0,
+    hasCreditData: false,
     paymentTerms: vendorData.paymentTerms || "Net 30",
-    categories: Array.isArray((vendorData as any).categories)
-      ? (vendorData as any).categories
-      : [(vendorData as any).vendorType ?? "General"],
-    documents: [],
-    notes: [],
+    categories: [vendorData.vendorType ?? "General"],
+    bankAccountNumber: vendorData.bankAccountNumber || "",
+    ifscCode: vendorData.ifscCode || "",
+    gstCertificate: vendorData.gstCertificate,
+    panCertificate: vendorData.panCertificate,
+    notes: vendorData.notes || "",
   } : null;
 
   const purchaseHistory = (() => {
@@ -103,6 +117,19 @@ export function SupplierDetail() {
     } catch { return []; }
   })();
   const invoiceHistory: any[] = [];
+  // Real compliance documents already uploaded via GST → Vendor Master
+  // (gstCertificate/panCertificate) — replaces a permanently-empty fake list.
+  const realDocuments = [supplier?.gstCertificate, supplier?.panCertificate].filter(Boolean) as Array<{
+    type: string; fileName: string; uploadedAt: string; status: string;
+  }>;
+  // Real note history, parsed back out of the single notes string field
+  // each entry was appended to (see appendVendorNote above).
+  const noteEntries = supplier?.notes
+    ? supplier.notes.split("\n").filter(Boolean).map((line) => {
+        const m = line.match(/^\[(.+?)\]\s*(.+?):\s*(.*)$/);
+        return m ? { date: m[1], author: m[2], note: m[3] } : { date: "", author: "", note: line };
+      })
+    : [];
   const mockPerformanceData = {
     onTimeDelivery: supplier?.rating ? Math.round(supplier.rating * 20) : 80,
     qualityScore: supplier?.rating ? Math.round(supplier.rating * 19) : 75,
@@ -140,14 +167,35 @@ export function SupplierDetail() {
     return "text-red-600";
   };
 
+  // Real note history lives on the vendor's own single notes string field
+  // (GSTVendor has no structured per-note list) — each entry is appended
+  // as a timestamped, authored line, parsed back into rows for display.
+  // Accepts extra field changes so a status change and its note land in
+  // one save, rather than two saves racing on a stale closure.
+  const appendVendorNote = (text: string, extraChanges: Partial<typeof vendorData> = {}) => {
+    if (!vendorData) return;
+    const entry = `[${new Date().toLocaleString("en-IN")}] ${currentUser?.name || "User"}: ${text}`;
+    const updatedNotes = vendorData.notes ? `${vendorData.notes}\n${entry}` : entry;
+    gstComplianceService.saveVendor({ ...vendorData, ...extraChanges, notes: updatedNotes });
+    setRefreshTick(t => t + 1);
+  };
+
   const handleBlacklist = () => {
     if (!blacklistReason.trim()) {
       toast.error("Please enter a reason for blacklisting");
       return;
     }
+    if (!vendorData) return;
+    appendVendorNote(`Blacklisted — ${blacklistReason.trim()}`, { status: "Blacklisted" });
     toast.success("Supplier blacklisted successfully");
     setShowBlacklistDialog(false);
     setBlacklistReason("");
+  };
+
+  const handleReactivate = () => {
+    if (!vendorData) return;
+    appendVendorNote("Reactivated", { status: "Active" });
+    toast.success("Supplier reactivated");
   };
 
   const handleAddNote = () => {
@@ -155,6 +203,7 @@ export function SupplierDetail() {
       toast.error("Please enter a note");
       return;
     }
+    appendVendorNote(newNote.trim());
     toast.success("Note added successfully");
     setShowNoteDialog(false);
     setNewNote("");
@@ -206,7 +255,7 @@ export function SupplierDetail() {
             <Edit className="w-4 h-4 mr-2" />
             Edit Supplier
           </Button>
-          {supplier.status === "Active" && (
+          {supplier.status === "Active" ? (
             <Button
               variant="destructive"
               size="sm"
@@ -214,6 +263,11 @@ export function SupplierDetail() {
             >
               <Ban className="w-4 h-4 mr-2" />
               Blacklist
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={handleReactivate}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Reactivate
             </Button>
           )}
         </div>
@@ -226,7 +280,7 @@ export function SupplierDetail() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Credit Limit</p>
-                <p className="text-2xl font-bold text-gray-900">₹{(supplier.creditLimit / 1000).toFixed(0)}K</p>
+                <p className="text-2xl font-bold text-gray-400">Not tracked</p>
               </div>
               <IndianRupee className="w-8 h-8 text-teal-600 opacity-20" />
             </div>
@@ -237,9 +291,9 @@ export function SupplierDetail() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Outstanding</p>
-                <p className="text-2xl font-bold text-amber-600">₹{(supplier.outstanding / 1000).toFixed(0)}K</p>
+                <p className="text-2xl font-bold text-gray-400">Not tracked</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {((supplier.outstanding / supplier.creditLimit) * 100).toFixed(0)}% of limit
+                  No real vendor credit/outstanding tracking yet
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-amber-600 opacity-20" />
@@ -300,34 +354,21 @@ export function SupplierDetail() {
                   <p className="font-medium">{supplier.companyName}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Trade Name</p>
-                  <p className="font-medium">{supplier.tradeName}</p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500">Supplier Type</p>
                   <p className="font-medium">{supplier.supplierType}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Contact Person</p>
-                  <p className="font-medium">{supplier.contactPerson} ({supplier.designation})</p>
+                  <p className="font-medium">{supplier.contactPerson || "—"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Phone</p>
-                  <p className="font-medium">{supplier.phone}</p>
-                  {supplier.alternatePhone && (
-                    <p className="text-sm text-gray-400">{supplier.alternatePhone}</p>
-                  )}
+                  <p className="font-medium">{supplier.phone || "—"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{supplier.email}</p>
+                  <p className="font-medium">{supplier.email || "—"}</p>
                 </div>
-                {supplier.website && (
-                  <div>
-                    <p className="text-sm text-gray-500">Website</p>
-                    <p className="font-medium text-teal-600">{supplier.website}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -337,12 +378,8 @@ export function SupplierDetail() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="font-medium">{supplier.addressLine1}</p>
-                  {supplier.addressLine2 && <p className="text-sm text-gray-600">{supplier.addressLine2}</p>}
-                  <p className="text-sm text-gray-600 mt-1">
-                    {supplier.city}, {supplier.state} - {supplier.pinCode}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">Region: {supplier.region}</p>
+                  <p className="font-medium">{supplier.address || "—"}</p>
+                  <p className="text-sm text-gray-600 mt-1">{supplier.state}</p>
                 </div>
               </CardContent>
             </Card>
@@ -354,19 +391,11 @@ export function SupplierDetail() {
               <CardContent className="space-y-3">
                 <div>
                   <p className="text-sm text-gray-500">GST Number</p>
-                  <p className="font-medium font-mono text-sm">{supplier.gst}</p>
+                  <p className="font-medium font-mono text-sm">{supplier.gst || "—"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">PAN Number</p>
-                  <p className="font-medium font-mono text-sm">{supplier.pan}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">MSME Registration</p>
-                  <p className="font-medium text-sm">{supplier.msme}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Year Established</p>
-                  <p className="font-medium">{supplier.yearEstablished}</p>
+                  <p className="font-medium font-mono text-sm">{supplier.pan || "—"}</p>
                 </div>
               </CardContent>
             </Card>
@@ -378,8 +407,7 @@ export function SupplierDetail() {
               <CardContent className="space-y-3">
                 {supplier.categories.map((cat, idx) => (
                   <div key={idx}>
-                    <Badge variant="secondary" className="mb-2">{cat.name}</Badge>
-                    <p className="text-sm text-gray-600">{cat.products}</p>
+                    <Badge variant="secondary" className="mb-2">{cat}</Badge>
                   </div>
                 ))}
               </CardContent>
@@ -395,24 +423,12 @@ export function SupplierDetail() {
                   <Badge variant="secondary">{supplier.paymentTerms}</Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Credit Limit</p>
-                  <p className="font-medium">₹{supplier.creditLimit.toLocaleString()}</p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500">Bank Account</p>
-                  <p className="font-medium font-mono text-sm">{supplier.bankAccount}</p>
+                  <p className="font-medium font-mono text-sm">{supplier.bankAccountNumber || "—"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">IFSC Code</p>
-                  <p className="font-medium font-mono text-sm">{supplier.ifsc}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Bank Name</p>
-                  <p className="font-medium text-sm">{supplier.bankName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Account Type</p>
-                  <p className="font-medium">{supplier.accountType}</p>
+                  <p className="font-medium font-mono text-sm">{supplier.ifscCode || "—"}</p>
                 </div>
               </CardContent>
             </Card>
@@ -661,7 +677,13 @@ export function SupplierDetail() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Uploaded Documents</CardTitle>
-                <Button size="sm">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    toast.info("Compliance documents are uploaded from GST → Vendor Master → Edit Vendor.");
+                    navigate("/gst/vendors");
+                  }}
+                >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Document
                 </Button>
@@ -674,32 +696,30 @@ export function SupplierDetail() {
                     <TableHead>Document Type</TableHead>
                     <TableHead>Filename</TableHead>
                     <TableHead>Uploaded Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {supplier.documents.map((doc, idx) => (
+                  {realDocuments.map((doc, idx) => (
                     <TableRow key={idx}>
                       <TableCell className="font-medium">{doc.type}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm">{doc.filename}</span>
+                          <span className="text-sm">{doc.fileName}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{doc.uploadedDate}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Download className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Upload className="w-4 h-4 mr-1" />
-                          Replace
-                        </Button>
-                      </TableCell>
+                      <TableCell>{doc.uploadedAt?.split("T")[0]}</TableCell>
+                      <TableCell><Badge variant="outline">{doc.status}</Badge></TableCell>
                     </TableRow>
                   ))}
+                  {realDocuments.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                        No documents uploaded yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -720,19 +740,24 @@ export function SupplierDetail() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {supplier.notes.map((note, idx) => (
+                {noteEntries.slice().reverse().map((note, idx) => (
                   <div key={idx} className="border-l-2 border-teal-600 pl-4 py-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-medium text-gray-900">{note.author}</p>
-                      <span className="text-xs text-gray-400">•</span>
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {note.date}
-                      </p>
+                      {note.author && <p className="text-sm font-medium text-gray-900">{note.author}</p>}
+                      {note.author && note.date && <span className="text-xs text-gray-400">•</span>}
+                      {note.date && (
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {note.date}
+                        </p>
+                      )}
                     </div>
                     <p className="text-sm text-gray-700">{note.note}</p>
                   </div>
                 ))}
+                {noteEntries.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-8">No notes yet.</p>
+                )}
               </div>
             </CardContent>
           </Card>
