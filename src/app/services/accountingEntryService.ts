@@ -738,6 +738,76 @@ export function autoPostLedger(entry: AccountingEntry): JournalLine[] {
 }
 
 /**
+ * Posts a real Sale-type AccountingEntry for a captured revenue record.
+ *
+ * Previously, real customer revenue only ever produced a generic
+ * JournalEntry (via autoPostSalesEntry/createJournal) — never an actual
+ * AccountingEntry with entryType:"Sales". Every screen that reads Sales
+ * entries specifically (Sales Summary Report, the GSTR-1/3B adapter above)
+ * never saw real revenue at all, only whatever someone manually keyed into
+ * the Accounting Entry form. This posts the same revenue as a real Sales
+ * entry too, alongside (not instead of) the existing journal posting.
+ *
+ * Returns null (does not throw) if the required system ledgers aren't
+ * present yet, or if an entry for this exact invoice number already
+ * exists — callers should treat null as "skip, nothing to do" rather than
+ * an error.
+ */
+export function postSalesEntryForRevenue(params: {
+  invoiceNumber: string;
+  date: string;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalAmount: number;
+  gstRate: number;
+  revenueType: "Subscription" | "One-Time" | string;
+  customerId?: string;
+  customerName?: string;
+  city: string;
+  cityId: string;
+}): AccountingEntry | null {
+  const already = accountingEntryService.getAllEntries(params.cityId)
+    .some(e => e.entryType === "Sales" && e.invoiceNumber === params.invoiceNumber);
+  if (already) return null;
+
+  const ledgers = accountingEntryService.getLedgers(params.cityId);
+  const receivable = ledgers.find(l => l.accountHead === "accounts_receivable");
+  const revenueLedger = params.revenueType === "Subscription"
+    ? ledgers.find(l => l.accountHead === "sales_subscription")
+    : ledgers.find(l => l.accountHead === "sales_service");
+  if (!receivable || !revenueLedger) return null;
+
+  try {
+    return accountingEntryService.createEntry({
+      entryType: "Sales",
+      date: params.date,
+      vendorId: params.customerId,
+      vendorName: params.customerName,
+      invoiceNumber: params.invoiceNumber,
+      taxableValue: params.taxableValue,
+      gstRate: params.gstRate,
+      gstEntryType: "Unregistered",
+      cgst: params.cgst,
+      sgst: params.sgst,
+      igst: params.igst,
+      totalBillValue: params.totalAmount,
+      paymentMode: "Bank",
+      isRCM: false,
+      debitAccount: receivable.id,
+      creditAccount: revenueLedger.id,
+      narration: `Revenue — Invoice ${params.invoiceNumber}`,
+      city: params.city,
+      cityId: params.cityId,
+      createdBy: "System",
+    }, params.city);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * ✅ NEW: the real, previously-missing second half of the RCM lifecycle —
  * implementing the general 4-step pattern as the best available default,
  * per instruction, since the CA's specific 2-step-vs-4-step discrepancy

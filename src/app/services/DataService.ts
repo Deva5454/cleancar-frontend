@@ -169,6 +169,11 @@ const STORAGE_KEYS = {
   ACCOUNTING_ENTRIES:      "accounting_entries",
   JOURNAL_ENTRIES:         "journal_entries",
   LEDGER_MASTERS:          "ledger_masters",
+  // ── Same class of bug, found later: payrollMaster.ts and VendorPayment.tsx
+  // also called DataService.get()/setAll() with entity-type strings never
+  // registered here, colliding at the same broken "undefined" key above.
+  PAYROLL_MASTER:          "payroll_master",
+  VENDOR_PAYMENT_STATUS:   "vendor_payment_status",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;

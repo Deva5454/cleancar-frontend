@@ -54,7 +54,6 @@ export function GSTVendorMaster() {
   const { currentRole, currentUser } = useRole();
   const isManager = MANAGER_ROLES.includes(currentRole || "");
   const [vendors, setVendors] = useState<GSTVendor[]>(gstComplianceService.getVendors());
-  const [pendingApprovals, setPendingApprovals] = useState<GSTVendor[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -301,7 +300,9 @@ function VendorForm({ vendor, onSave, onClose }: {
     filingStatus: "Unknown",
     createdBy: currentUser?.name || "User",
     createdAt: new Date().toISOString(),
-    status: "Active",
+    // Matches the approval-workflow notice shown below the form: a
+    // non-manager submission stays Inactive until a manager reviews it.
+    status: isManagerForm ? "Active" : "Inactive",
     notes: "",
     // New fields
     legalEntityType: undefined,
@@ -424,6 +425,23 @@ function VendorForm({ vendor, onSave, onClose }: {
     setShowTDSOverrideForm(false);
     setOverrideForm({ overrideRate:0, tdsSection:"", reason:"", certificateNumber:"", validFrom:"", validTill:"", supportingDocumentBase64:"", supportingDocumentName:"" });
     toast.success(isManagerForm ? "TDS override added and approved." : "TDS override added — pending approval.");
+  };
+
+  // A TDS override added by a non-manager sits at "Pending Approval" with
+  // no screen anywhere to review it. Only reachable when editing an
+  // existing vendor (a manager's own newly-added override is auto-approved
+  // above), so review it right here and persist immediately rather than
+  // waiting on the rest of the form's Save button.
+  const handleReviewOverride = (overrideId: string, decision: "Approved" | "Rejected") => {
+    const updatedOverrides = (formData.tdsOverrides || []).map(o =>
+      o.id === overrideId
+        ? { ...o, status: decision, approvedBy: currentUser?.name || "Manager", approvedAt: new Date().toISOString() }
+        : o
+    );
+    const nextFormData = { ...formData, tdsOverrides: updatedOverrides };
+    setFormData(nextFormData);
+    onSave(nextFormData as GSTVendor);
+    toast.success(`TDS override ${decision.toLowerCase()}.`);
   };
 
   // Get the active TDS rate for today considering overrides
@@ -745,6 +763,18 @@ function VendorForm({ vendor, onSave, onClose }: {
                               )}
                             </div>
                           </div>
+                          {isManagerForm && ov.status === "Pending Approval" && (
+                            <div className="flex gap-2 mt-2">
+                              <button type="button" onClick={() => handleReviewOverride(ov.id, "Approved")}
+                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
+                                Approve
+                              </button>
+                              <button type="button" onClick={() => handleReviewOverride(ov.id, "Rejected")}
+                                className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">
+                                Reject
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

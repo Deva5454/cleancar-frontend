@@ -13,22 +13,22 @@ export function RCMReport() {
   const [settleAmount, setSettleAmount] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ✅ FIX: `e.date` doesn't exist on a real AccountingEntry — the real
-  // field is `entryDate`. This silently made the filter (and therefore
-  // this entire report) return nothing, ever, regardless of what RCM
-  // activity actually happened.
+  // `entryDate` doesn't exist on AccountingEntry — the real field is
+  // `date` (accountingEntryService.ts). Using entryDate silently made
+  // this filter (and therefore this entire report) return nothing, ever,
+  // regardless of what RCM activity actually happened.
   const rcmEntries = useMemo(() => {
     const from = dateFrom || "1900-01-01";
     const to = dateTo || "2099-12-31";
     const allEntries = accountingEntryService.getAllEntries(city);
-    return allEntries.filter((e) => e.isRCM && e.entryDate >= from && e.entryDate <= to);
+    return allEntries.filter((e) => e.isRCM && e.date >= from && e.date <= to);
   }, [city, dateFrom, dateTo, refreshKey]);
 
   const thisMonthRCM = useMemo(() => {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-    return rcmEntries.filter((e) => e.entryDate >= monthStart && e.entryDate <= monthEnd);
+    return rcmEntries.filter((e) => e.date >= monthStart && e.date <= monthEnd);
   }, [rcmEntries]);
 
   // ✅ FIX: rcmCgst/rcmSgst/rcmIgst are declared on the type but never
@@ -79,7 +79,7 @@ export function RCMReport() {
 
   const handleExport = (e: React.MouseEvent) => {
     const data = rcmEntries.map((entry) => ({
-      Date: entry.entryDate,
+      Date: entry.date,
       "Voucher No": entry.voucherNumber,
       Vendor: entry.vendorName || "-",
       GSTIN: entry.vendorGstin || "-",
@@ -228,7 +228,7 @@ export function RCMReport() {
               const totalRCM = (entry.cgst || 0) + (entry.sgst || 0) + (entry.igst || 0);
               return (
                 <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm">{entry.entryDate}</td>
+                  <td className="px-4 py-3 text-sm">{entry.date}</td>
                   <td className="px-4 py-3 text-sm font-mono">{entry.voucherNumber}</td>
                   <td className="px-4 py-3 text-sm">{entry.vendorName || "-"}</td>
                   <td className="px-4 py-3 text-sm font-mono">{entry.vendorGstin || "-"}</td>

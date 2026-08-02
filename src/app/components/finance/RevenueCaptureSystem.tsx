@@ -25,7 +25,7 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { BackButton } from "../ui/back-button";
 import { toast } from "sonner";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../../services/accountingEntryService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue } from "../../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 
@@ -138,6 +138,9 @@ export function RevenueCaptureSystem() {
     const existingNums = Array.from(postedInvoices) as string[];
 
     monthRevenues.forEach((r: Revenue) => {
+      // A "Failed" revenue never actually happened — same reasoning as the
+      // FinanceContext.recordRevenue() guard: don't post it as real revenue.
+      if (r.status === "Failed") return;
       const invoiceRef = r.invoiceNumber || r.revenueId;
       if (postedInvoices.has(invoiceRef)) return; // already posted
       try {
@@ -145,10 +148,27 @@ export function RevenueCaptureSystem() {
         const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", cityId);
         const invNum = r.invoiceNumber || generateInvoiceNumber(city || "SURAT", existingNums);
         existingNums.push(invNum);
+        const entryDate = r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0];
         const lines = autoPostSalesEntry({ invoiceNumber: invNum, taxableValue: taxable, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, totalAmount: r.amount });
         if (lines.length > 0 && accountingEntryService.createJournal) {
-          accountingEntryService.createJournal({ date: r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0], narration: `Revenue â€” Invoice ${invNum}`, lines, city: city || "Surat", cityId, createdBy: "System" }, city || "Surat");
+          accountingEntryService.createJournal({ date: entryDate, narration: `Revenue â€” Invoice ${invNum}`, lines, city: city || "Surat", cityId, createdBy: "System" }, city || "Surat");
         }
+        // Also backfill a real Sales-type AccountingEntry — see
+        // postSalesEntryForRevenue's own comment for why this matters
+        // (Sales Summary Report / GSTR-1 adapter read real Sales entries).
+        postSalesEntryForRevenue({
+          invoiceNumber: invNum,
+          date: entryDate,
+          taxableValue: taxable,
+          cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst,
+          totalAmount: r.amount,
+          gstRate: COMPANY_GST_CONFIG.defaultServiceGstRate,
+          revenueType: r.type,
+          customerId: r.customerId,
+          customerName: r.customerName,
+          city: city || "Surat",
+          cityId,
+        });
       } catch(e) { console.warn("[RevCapture] GST post error", e); }
     });
   }, [selectedMonth, cityId]);

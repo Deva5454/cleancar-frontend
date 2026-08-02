@@ -1,13 +1,25 @@
 import { useState, useMemo } from "react";
 import { useCity } from "../../contexts/CityContext";
 import { accountingEntryService, type LedgerMaster } from "../../services/accountingEntryService";
+import { useFinance } from "../../contexts/FinanceContext";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { Download } from "lucide-react";
 
 type TabType = "Sales" | "Sales Returns / Credit Notes";
 
+// Maps the filter chip labels shown in the UI to the real packageCode
+// values stored on the system ledgers (accountingEntryService.ts) — the
+// chip labels use "+" for readability, the real codes use "_WASH_..._".
+const PACKAGE_CODE_MAP: Record<string, string> = {
+  "2W": "2W",
+  "4W": "4W",
+  "2W+W+S": "2W_WASH_SANITIZE",
+  "2W+W+W+S": "2W_WASH_WASH_SANITIZE",
+};
+
 export function SalesSummaryReport() {
   const { city } = useCity();
+  const { revenues } = useFinance();
   const [activeTab, setActiveTab] = useState<TabType>("Sales");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -42,11 +54,19 @@ export function SalesSummaryReport() {
       salesEntries = salesEntries.filter(e => e.vendorId === selectedParty.id || e.vendorName === selectedParty.name);
     }
 
-    // Filter by selected packages
+    // Filter by selected packages — a Sales entry's package is only known
+    // via its credit (revenue) ledger's packageCode, never via
+    // expenseAccount (an expense-side field that Sales entries never set).
     if (selectedPackages.length > 0) {
+      const ledgers = accountingEntryService.getLedgers(city);
       salesEntries = salesEntries.filter(e => {
-        const pkgCode = e.expenseAccount || "";
-        return selectedPackages.some(p => pkgCode.includes(p));
+        const ledger = ledgers.find(l => l.id === e.creditAccount);
+        if (!ledger) return false;
+        return selectedPackages.some(p => {
+          if (p === "Renewal") return ledger.accountHead === "sales_renewal";
+          const code = PACKAGE_CODE_MAP[p];
+          return !!code && ledger.packageCode === code;
+        });
       });
     }
 
@@ -98,8 +118,15 @@ export function SalesSummaryReport() {
     }));
   }, [selectedParty, filteredEntries]);
 
+  // Cross-references the real Revenue record behind each Sales entry (by
+  // invoice number) to check its actual "Received"/"Pending" status —
+  // previously hardcoded to always-fully-received, so Outstanding always
+  // showed ₹0 regardless of real payment status.
   const partyTotal = partyEntries.reduce((sum, e) => sum + e.amount, 0);
-  const partyReceived = partyTotal; // Simplified - in production, check payment records
+  const partyReceived = partyEntries.reduce((sum, e) => {
+    const rev = revenues.find((r: any) => (r.invoiceNumber || r.revenueId) === e.invoiceNumber);
+    return sum + (rev && rev.status === "Received" ? e.amount : 0);
+  }, 0);
   const partyOutstanding = partyTotal - partyReceived;
 
   const handleExport = (e: React.MouseEvent) => {

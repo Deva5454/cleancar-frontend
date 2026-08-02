@@ -17,7 +17,6 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { DollarSign, CheckCircle2, ArrowRight, PlusCircle, MinusCircle } from "lucide-react";
-import type { PayrollSnapshot } from "../payroll/PayrollSnapshot";
 import { toast } from "sonner";
 import { otherAdjustmentsService } from "../../services/otherAdjustmentsService";
 import { useCity } from "../../contexts/CityContext";
@@ -26,82 +25,6 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 import { accountingEntryService } from "../../services/accountingEntryService";
 import { useRole } from "../../contexts/RoleContext";
 
-// Mock snapshot data (same data, but status = approved)
-const getMockSnapshot = (cityName: string): PayrollSnapshot => ({
-  id: "SNAP-2026-04-001",
-  month: "April",
-  year: "2026",
-  city: cityName,
-  cluster: "Adajan",
-  status: "approved",
-  employees: [
-    {
-      snapshotId: "SNAP-2026-04-001-001",
-      employeeId: "CW-395001-001",
-      employeeName: "Rajesh Kumar",
-      role: "Car Washer",
-      bankName: "HDFC Bank",
-      accountNumber: "50100123456789",
-      ifscCode: "HDFC0001234",
-      units: 48,
-      validUnits: 44,
-      complianceScore: 92,
-      basePay: 18000,
-      incentive: 2400,
-      complianceAdjustment: -200,
-      deductions: 2340,
-      totalPay: 17860,
-      generatedAt: "2026-04-20 14:32:15",
-      generatedBy: "Payroll Engine",
-    },
-    {
-      snapshotId: "SNAP-2026-04-001-002",
-      employeeId: "CW-395001-002",
-      employeeName: "Amit Patel",
-      role: "Car Washer",
-      bankName: "ICICI Bank",
-      accountNumber: "60200987654321",
-      ifscCode: "ICIC0005678",
-      units: 42,
-      validUnits: 39,
-      complianceScore: 88,
-      basePay: 18000,
-      incentive: 2100,
-      complianceAdjustment: -150,
-      deductions: 2280,
-      totalPay: 17670,
-      generatedAt: "2026-04-20 14:32:16",
-      generatedBy: "Payroll Engine",
-    },
-    {
-      snapshotId: "SNAP-2026-04-001-003",
-      employeeId: "SUP-395001-001",
-      employeeName: "Suresh Yadav",
-      role: "Supervisor",
-      bankName: "SBI",
-      accountNumber: "30200123456789",
-      ifscCode: "SBIN0001234",
-      units: 0,
-      validUnits: 0,
-      complianceScore: 95,
-      basePay: 28000,
-      incentive: 3200,
-      complianceAdjustment: 0,
-      deductions: 3640,
-      totalPay: 27560,
-      generatedAt: "2026-04-20 14:32:17",
-      generatedBy: "Payroll Engine",
-    },
-  ],
-  totalEmployees: 3,
-  totalPayout: 63090,
-  generatedAt: "2026-04-20 14:32:10",
-  generatedBy: "Payroll Processing Engine",
-  sentToAdminAt: "2026-04-20 15:45:30",
-  sentToAdminBy: "HR Manager",
-  approvedAt: "2026-04-20 16:15:45",
-  approvedBy: "Super Admin",
-});
 
 export function AccountsPayrollProcessing() {
   const navigate = useNavigate();
@@ -164,8 +87,12 @@ export function AccountsPayrollProcessing() {
   // Calculate adjustments for this month
   useEffect(() => {
     if (!snapshot) return;
-    // In production, fetch actual advances data from advanceManagementService
-    const advances = 0; // Placeholder
+    // Real advances already deducted in these payroll runs — PayrollRun.tsx
+    // wires the real EMI/short-term-advance amount into run.advances at
+    // generation time, so summing it here reflects what was actually
+    // deducted, rather than re-querying advanceManagementService fresh
+    // (which risks double-counting or diverging from what the run used).
+    const advances = monthRuns.reduce((sum, run) => sum + (run.advances || 0), 0);
 
     // Get current month adjustments
     const allEarnings = otherAdjustmentsService.getAllEarnings();
@@ -205,6 +132,9 @@ export function AccountsPayrollProcessing() {
     const tdsLedger = allLedgers.find(
       l => l.name === "TDS Payable"
     );
+    const pfLedger = allLedgers.find(l => l.name === "PF Payable (Employee + Employer)");
+    const esicLedger = allLedgers.find(l => l.name === "ESIC Payable (Employee + Employer)");
+    const ptLedger = allLedgers.find(l => l.name === "PT Payable");
 
     if (!salaryLedger || !bankLedger) {
       toast.error(
@@ -229,6 +159,16 @@ export function AccountsPayrollProcessing() {
     );
     const totalNet = snapshot.totalPayout;
 
+    // Real per-employee PF/ESIC/PT/TDS split — these already exist as
+    // separate fields on every real PayrollRun record. Previously the
+    // entire combined `deductions` total was credited to the generic TDS
+    // Payable ledger as a "proxy" for all four, so PF/ESIC/PT liability
+    // never landed on its own real ledger.
+    const totalPF  = monthRuns.reduce((sum, run) => sum + (run.pf  || 0), 0);
+    const totalESIC = monthRuns.reduce((sum, run) => sum + (run.esic || 0), 0);
+    const totalPT  = monthRuns.reduce((sum, run) => sum + (run.pt  || 0), 0);
+    const totalTDS = monthRuns.reduce((sum, run) => sum + (run.tds || 0), 0);
+
     const accrualLines: Array<{ accountHead: string; accountLabel: string; debit: number; credit: number }> = [
       {
         accountHead: salaryLedger.id,
@@ -238,15 +178,28 @@ export function AccountsPayrollProcessing() {
       },
     ];
 
-    // Credit TDS payable only if deductions include statutory amounts
-    // (deductions here are PF/ESI/TDS — we credit them to TDS Payable as a proxy)
-    if (totalDeductions > 0 && tdsLedger) {
-      accrualLines.push({
-        accountHead: tdsLedger.id,
-        accountLabel: tdsLedger.name,
-        debit: 0,
-        credit: totalDeductions,
-      });
+    // Credit each real statutory deduction to its own real ledger, not a
+    // single generic proxy.
+    if (totalPF > 0 && pfLedger) {
+      accrualLines.push({ accountHead: pfLedger.id, accountLabel: pfLedger.name, debit: 0, credit: totalPF });
+    }
+    if (totalESIC > 0 && esicLedger) {
+      accrualLines.push({ accountHead: esicLedger.id, accountLabel: esicLedger.name, debit: 0, credit: totalESIC });
+    }
+    if (totalPT > 0 && ptLedger) {
+      accrualLines.push({ accountHead: ptLedger.id, accountLabel: ptLedger.name, debit: 0, credit: totalPT });
+    }
+    if (totalTDS > 0 && tdsLedger) {
+      accrualLines.push({ accountHead: tdsLedger.id, accountLabel: tdsLedger.name, debit: 0, credit: totalTDS });
+    }
+    // Any deduction amount not covered by the four real statutory fields
+    // above (e.g. advances/penalties baked into `deductions`) still needs
+    // a home so the entry balances — falls back to TDS Payable as the
+    // closest existing generic liability bucket, same as before, but only
+    // for the genuine remainder instead of the whole amount.
+    const unaccountedDeductions = totalDeductions - totalPF - totalESIC - totalPT - totalTDS;
+    if (unaccountedDeductions > 0.01 && tdsLedger) {
+      accrualLines.push({ accountHead: tdsLedger.id, accountLabel: tdsLedger.name, debit: 0, credit: unaccountedDeductions });
     }
 
     // Credit net pay to bank
@@ -257,10 +210,17 @@ export function AccountsPayrollProcessing() {
       credit: totalNet,
     });
 
+    // TDS Payable module detects which section (194C/194J/192 etc.) a TDS
+    // credit belongs to by scanning this narration for the section code —
+    // salary TDS is real income-tax TDS too, just under section 192 rather
+    // than a vendor-invoice section, so it needs the same real tag or it
+    // falls into an unlabelled "Other" bucket there.
+    const tdsSectionTag = (totalTDS > 0 || unaccountedDeductions > 0.01) && tdsLedger ? " | TDS u/s 192" : "";
+
     accountingEntryService.createJournal(
       {
         date: payDate,
-        narration: `Payroll disbursement — ${monthYear} | ${snapshot.city} | ${snapshot.totalEmployees} employees | Gross ₹${totalGross.toLocaleString()} | Net ₹${totalNet.toLocaleString()}`,
+        narration: `Payroll disbursement — ${monthYear} | ${snapshot.city} | ${snapshot.totalEmployees} employees | Gross ₹${totalGross.toLocaleString()} | Net ₹${totalNet.toLocaleString()}${tdsSectionTag}`,
         lines: accrualLines,
         city: cityInfo.displayName,
         cityId: city,
@@ -514,24 +474,6 @@ export function AccountsPayrollProcessing() {
               <span className="text-gray-600">Generated:</span>
               <span className="font-medium">{snapshot.generatedAt} by {snapshot.generatedBy}</span>
             </div>
-            {snapshot.sentToAdminAt && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Sent to Admin:</span>
-                <span className="font-medium">{snapshot.sentToAdminAt} by {snapshot.sentToAdminBy}</span>
-              </div>
-            )}
-            {snapshot.approvedAt && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Approved:</span>
-                <span className="font-medium text-green-700">{snapshot.approvedAt} by {snapshot.approvedBy}</span>
-              </div>
-            )}
-            {snapshot.paidAt && (
-              <div className="flex justify-between">
-                <span className="text-gray-600">Paid:</span>
-                <span className="font-medium text-green-700">{snapshot.paidAt} by {snapshot.paidBy}</span>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

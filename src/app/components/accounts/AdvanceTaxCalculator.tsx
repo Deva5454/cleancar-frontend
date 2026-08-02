@@ -25,6 +25,13 @@ const AT_STORAGE_KEY = "ADVANCE_MANAGEMENT" as const;
 
 interface AdvanceTaxRecord {
   id: string;
+  // TDSPayableModule.tsx persists its paid TDS records under this exact
+  // same DataService key (and its legacy fallback is the literal key
+  // advanceManagementService.ts uses directly for real employee
+  // salary-advance records) — without a type discriminator, reads here
+  // would silently pick up records that happen to share field names
+  // (cityId, amount, paidDate) but mean something else entirely.
+  __type: "ADVANCE_TAX";
   cityId: string;
   fy: string;                // "2026-27"
   instalmentNo: number;      // 1-4
@@ -83,7 +90,7 @@ export default function AdvanceTaxCalculator() {
 
   // ✅ FIX 3: payment records loaded from DataService
   const [paidRecords, setPaidRecords] = useState<AdvanceTaxRecord[]>(() =>
-    DataService.get<AdvanceTaxRecord>(AT_STORAGE_KEY).filter(r => r.cityId === city)
+    DataService.get<AdvanceTaxRecord>(AT_STORAGE_KEY).filter(r => r.cityId === city && r.__type === "ADVANCE_TAX")
   );
 
   const [paymentModal, setPaymentModal] = useState<{
@@ -103,7 +110,7 @@ export default function AdvanceTaxCalculator() {
   // Reload paid records when city changes
   useEffect(() => {
     setPaidRecords(
-      DataService.get<AdvanceTaxRecord>(AT_STORAGE_KEY).filter(r => r.cityId === city)
+      DataService.get<AdvanceTaxRecord>(AT_STORAGE_KEY).filter(r => r.cityId === city && r.__type === "ADVANCE_TAX")
     );
   }, [city]);
 
@@ -221,6 +228,7 @@ export default function AdvanceTaxCalculator() {
       // ✅ FIX 3: persist payment record to DataService
       const record: AdvanceTaxRecord = {
         id: `AT-${city}-${fyStr}-${paymentModal.instalmentNo}-${Date.now()}`,
+        __type: "ADVANCE_TAX",
         cityId: city,
         fy: fyStr,
         instalmentNo: paymentModal.instalmentNo,

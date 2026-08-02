@@ -11,7 +11,7 @@ import { useEventListener, useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber } from "../services/accountingEntryService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue } from "../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../services/gstComplianceService";
 
 // Types
@@ -772,6 +772,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           { date: revenueData.receivedDate, narration: `Revenue — Invoice ${invNum}`, lines, city: revenueData.cityId, cityId: revenueData.cityId, createdBy: "System" },
           revenueData.cityId
         );
+        // Also post a real Sales-type AccountingEntry (not just the journal
+        // above) — Sales Summary Report and the GSTR-1/3B adapter both read
+        // real Sales entries specifically, and previously only ever saw
+        // whatever was manually keyed into the Accounting Entry form.
+        postSalesEntryForRevenue({
+          invoiceNumber: invNum,
+          date: revenueData.receivedDate,
+          taxableValue: taxable,
+          cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst,
+          totalAmount: revenueData.amount,
+          gstRate: COMPANY_GST_CONFIG.defaultServiceGstRate,
+          revenueType: revenueData.type,
+          customerId: revenueData.customerId,
+          customerName: revenueData.customerName,
+          city: revenueData.cityId,
+          cityId: revenueData.cityId,
+        });
       } catch (_e) { /* non-critical — P&L will pick this up on next reconciliation pass */ }
     }
 

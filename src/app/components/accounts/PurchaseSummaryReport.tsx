@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useCity } from "../../contexts/CityContext";
+import { useFinance, type Payable } from "../../contexts/FinanceContext";
 import { accountingEntryService, type LedgerMaster } from "../../services/accountingEntryService";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { Download } from "lucide-react";
@@ -8,6 +9,7 @@ type TabType = "All Purchases" | "GST Purchases" | "Non-GST" | "RCM" | "Asset Pu
 
 export function PurchaseSummaryReport() {
   const { city } = useCity();
+  const { payables } = useFinance();
   const [activeTab, setActiveTab] = useState<TabType>("All Purchases");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -68,15 +70,27 @@ export function PurchaseSummaryReport() {
   // Party-wise summary
   const partyEntries = useMemo(() => {
     if (!selectedParty) return [];
-    return filteredPurchases.map(e => ({
-      id: e.id,
-      date: e.date,
-      invoiceNumber: e.invoiceNumber,
-      dueDate: e.date, // Simplified - in production, calculate from payment terms
-      amount: e.totalBillValue,
-      paymentStatus: e.status === "Posted" ? "Paid" : "Pending",
-    }));
-  }, [selectedParty, filteredPurchases]);
+    const vendorPayables = payables.filter((p: Payable) => p.type === "Vendor" && p.cityId === city);
+    return filteredPurchases.map(e => {
+      // e.status is the journal's own posting lifecycle ("Posted"/"Superseded"),
+      // not whether the vendor was actually paid — every entry is "Posted"
+      // immediately regardless of payment. The real payment fact lives on the
+      // matching Vendor Payable (created for credit purchases via Expense
+      // Voucher); no matching payable means this was paid immediately at
+      // entry time (Accounting Entry only allows Bank/Cash/PettyCash, no
+      // credit option), so it's genuinely Paid either way.
+      const payable = vendorPayables.find((p: Payable) => p.invoiceNumber === e.invoiceNumber);
+      const paymentStatus = payable ? (payable.status === "Paid" ? "Paid" : "Pending") : "Paid";
+      return {
+        id: e.id,
+        date: e.date,
+        invoiceNumber: e.invoiceNumber,
+        dueDate: payable?.dueDate || e.date,
+        amount: e.totalBillValue,
+        paymentStatus,
+      };
+    });
+  }, [selectedParty, filteredPurchases, payables, city]);
 
   const partyTotal = partyEntries.reduce((sum, e) => sum + e.amount, 0);
   const partyPaid = partyEntries.filter(e => e.paymentStatus === "Paid").reduce((sum, e) => sum + e.amount, 0);

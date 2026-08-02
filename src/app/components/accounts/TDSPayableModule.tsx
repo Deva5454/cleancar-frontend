@@ -74,6 +74,24 @@ function isDue(dateStr: string): boolean {
   return today > due;
 }
 
+// ── Section detection ────────────────────────────────────────────────────────
+// The TDS Payable ledger is a single generic ledger ("TDS Payable") shared by
+// every section — its own name never carries the section. The real section
+// only survives in the posting journal's narration (e.g. "TDS u/s 194C..."),
+// so detect it there first, checking longer codes (e.g. "194I(a)") before
+// their shorter prefixes (e.g. "194I") to avoid a wrong partial match.
+const KNOWN_TDS_SECTIONS = [...TDS_RATE_CHART.map(r => r.section)].sort((a, b) => b.length - a.length);
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function detectTdsSection(description: string, ledgerName: string): string {
+  for (const section of KNOWN_TDS_SECTIONS) {
+    if (new RegExp(escapeRegExp(section)).test(description)) return section;
+  }
+  const ledgerMatch = ledgerName.match(/194[A-Z]?/);
+  return ledgerMatch ? ledgerMatch[0] : "Other";
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 export default function TDSPayableModule() {
   const { city, cityInfo } = useCity();
@@ -134,7 +152,7 @@ export default function TDSPayableModule() {
   const tdsBySection = useMemo(() => {
     type SectionData = {
       section: string; nature: string;
-      entries: Array<{ date: string; deducteeName: string; invoiceRef: string; taxableAmount: number; tdsAmount: number; }>;
+      entries: Array<{ date: string; deducteeName: string; invoiceRef: string; taxableAmount: number | null; tdsAmount: number; }>;
       totalTDS: number; paidMonths: Set<string>;
     };
     const grouped: Record<string, SectionData> = {};
@@ -142,11 +160,13 @@ export default function TDSPayableModule() {
     tdsEntries.forEach(movement => {
       // T6 FIX: resolve name via ledger map
       const creditName = ledgerMap[movement.creditLedgerId] || "";
-      const sectionMatch = creditName.match(/194[A-Z]?/);
-      const section = sectionMatch ? sectionMatch[0] : "Other";
+      // Section detection: the ledger itself is generic ("TDS Payable"),
+      // so read the real section from the posting's narration instead —
+      // see detectTdsSection above.
+      const section = detectTdsSection(movement.description || "", creditName);
+      const rateInfo = TDS_RATE_CHART.find(r => r.section === section);
 
       if (!grouped[section]) {
-        const rateInfo = TDS_RATE_CHART.find(r => r.section === section);
         grouped[section] = {
           section, nature: rateInfo?.nature || "Unknown",
           entries: [], totalTDS: 0, paidMonths: new Set(),
@@ -156,11 +176,21 @@ export default function TDSPayableModule() {
       // T7 FIX: resolve deductee name via ledger map
       const deducteeName = ledgerMap[movement.debitLedgerId] || movement.description || "Unknown";
 
+      // Back-derive the taxable value from the section's real rate (rateCompany
+      // — nearly every vendor here is a registered business) instead of
+      // assuming a flat 10%, which was wrong for every section except 194A/194I
+      // (e.g. 194C is 1-2%, 194Q is 0.1% — a flat-10% assumption understated
+      // the real taxable value by 5-100x for those). Sections with no usable
+      // rate (192/Salary is progressive, not a flat %) can't be back-derived
+      // honestly, so taxableAmount is left null rather than guessed.
+      const rate = rateInfo?.rateCompany || rateInfo?.rateIndividual || 0;
+      const taxableAmount = rate > 0 ? Math.round((movement.amount / (rate / 100)) * 100) / 100 : null;
+
       grouped[section].entries.push({
         date: movement.date,
         deducteeName,
         invoiceRef: movement.description || movement.voucherNumber || "-",
-        taxableAmount: movement.amount * 10,
+        taxableAmount,
         tdsAmount: movement.amount,
       });
       grouped[section].totalTDS += movement.amount;
@@ -196,11 +226,18 @@ export default function TDSPayableModule() {
       const monthEntries = data.entries.filter(e => entryMonthKey(e.date) === currentMonthKey);
       const isPaid = data.paidMonths.has(currentMonthKey);
       const paidRec = paidRecords.find(p => p.section === section && p.month === currentMonthKey);
+      // Only sum entries whose taxable value could be honestly back-derived
+      // (see tdsBySection above) — null when none of this month's entries
+      // have a usable section rate, rather than showing a fabricated 0.
+      const knownTaxable = monthEntries.filter(e => e.taxableAmount !== null);
+      const taxableAmount = knownTaxable.length > 0
+        ? knownTaxable.reduce((s, e) => s + (e.taxableAmount as number), 0)
+        : (monthEntries.length > 0 ? null : 0);
       return {
         section, nature: data.nature,
         deducteeCount: new Set(monthEntries.map(e => e.deducteeName)).size,
-        taxableAmount: monthEntries.reduce((s, e) => s + e.taxableAmount, 0),
-        tdsAmount:     monthEntries.reduce((s, e) => s + e.tdsAmount,     0),
+        taxableAmount,
+        tdsAmount: monthEntries.reduce((s, e) => s + e.tdsAmount, 0),
         status: isPaid ? "Paid" : "Pending",
         challanNumber: paidRec?.challanNumber || "-",
       };
@@ -382,7 +419,9 @@ export default function TDSPayableModule() {
                       <span>{entry.deducteeName}</span>
                       <span className="text-gray-500">{entry.invoiceRef}</span>
                       <span>
-                        ₹{entry.taxableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        {entry.taxableAmount !== null
+                          ? `₹${entry.taxableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                          : "Taxable value not computable for this section"}
                         {" "}(TDS: ₹{entry.tdsAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
                       </span>
                     </div>
@@ -449,7 +488,9 @@ export default function TDSPayableModule() {
                     <td className="px-4 py-3 text-sm">{report.nature}</td>
                     <td className="px-4 py-3 text-sm text-right">{report.deducteeCount}</td>
                     <td className="px-4 py-3 text-sm text-right">
-                      ₹{report.taxableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {report.taxableAmount !== null
+                        ? `₹${report.taxableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-medium">
                       ₹{report.tdsAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}

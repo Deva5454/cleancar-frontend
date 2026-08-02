@@ -406,8 +406,10 @@ export function ExpenseVoucher() {
             lines: [
               // Dr Vendor Payable (we owe them less — TDS deducted from their payment)
               { accountHead: vendor.id, accountLabel: vendor.name, debit: formData.tdsAmount, credit: 0 },
-              // Cr TDS Payable (our liability to deposit with IT dept)
-              { accountHead: tdsLedger.id, accountLabel: "TDS Payable", debit: 0, credit: formData.tdsAmount },
+              // Cr TDS Payable (our liability to deposit with IT dept) —
+              // section tagged in the label so the TDS Payable module can
+              // bucket it under the real section instead of "Other"
+              { accountHead: tdsLedger.id, accountLabel: `TDS Payable u/s ${formData.tdsSection}`, debit: 0, credit: formData.tdsAmount },
             ],
             city,
             cityId,
