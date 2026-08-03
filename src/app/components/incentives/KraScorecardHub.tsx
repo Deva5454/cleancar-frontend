@@ -10,17 +10,23 @@
  * Washer/Supervisor/Operations Manager/City Manager keep their existing,
  * real per-role computation (kraWasherPilot.ts / kraSupervisorPilot.ts /
  * kraOMPilot.ts / kraCityPilot.ts) sourced from live job/attendance/
- * revenue/subscription data — this screen just presents all four (plus
- * every other role) through one shared shell instead of 4 separate pages.
- * Every other role reads whatever KPI actuals exist for the picked month
- * (system-computed where a formula exists, manually entered otherwise via
+ * revenue/subscription data. CCE (kraCCEPilot.ts) is scored at the CITY
+ * level from the real cleancar_complaints records (resolution rate,
+ * CSAT, SLA compliance) — real per-CCE-employee attribution doesn't
+ * reliably exist for complaints created going forward, only in
+ * historical seed data, so this pilot is city-scoped like OM/City
+ * Manager rather than per-employee (a deliberate, confirmed decision).
+ * This screen just presents all of these (plus every other role) through
+ * one shared shell instead of separate pages. Every other role reads
+ * whatever KPI actuals exist for the picked month (system-computed where
+ * a formula exists, manually entered otherwise via
  * KraManualActualsModule.tsx) against the quarter's approved KRA targets.
  *
  * Access: HR / Super Admin see every role and employee. Everyone else
  * sees only themselves and (if they have any) their direct reports.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useJobs } from "../../contexts/JobContext";
 import { useAttendance } from "../../contexts/AttendanceContext";
 import { useIncentive } from "../../contexts/IncentiveContext";
@@ -31,10 +37,11 @@ import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { accountingEntryService } from "../../services/accountingEntryService";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
-import { WASHER_ROLE, computeWasherKraScores } from "../../services/kraWasherPilot";
-import { SUPERVISOR_ROLE, computeSupervisorKraScores } from "../../services/kraSupervisorPilot";
-import { OM_ROLE, computeOMKraScores } from "../../services/kraOMPilot";
-import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager } from "../../services/kraCityPilot";
+import { WASHER_ROLE, computeWasherKraScores, seedWasherKpiCatalogIfMissing } from "../../services/kraWasherPilot";
+import { SUPERVISOR_ROLE, computeSupervisorKraScores, seedSupervisorKpiCatalogIfMissing } from "../../services/kraSupervisorPilot";
+import { OM_ROLE, computeOMKraScores, seedOMKpiCatalogIfMissing } from "../../services/kraOMPilot";
+import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager, seedCityKpiCatalogIfMissing } from "../../services/kraCityPilot";
+import { CCE_ROLE, computeCCEKraScores, seedCCEKpiCatalogIfMissing, type CCEComplaintLike } from "../../services/kraCCEPilot";
 import { getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActual, getEffectiveQuarterlyKpiValue } from "../../services/kraEngineService";
 import { getFinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -43,8 +50,17 @@ import { Label } from "../ui/label";
 import { Progress } from "../ui/progress";
 import { Target, AlertCircle, CheckCircle, XCircle, MinusCircle } from "lucide-react";
 
-const CITY_LEVEL_ROLES = new Set([OM_ROLE, CITY_ROLE]);
+const CITY_LEVEL_ROLES = new Set([OM_ROLE, CITY_ROLE, CCE_ROLE]);
 const ALL_CITIES = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
+
+function readComplaints(): CCEComplaintLike[] {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("cleancar_complaints") : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
 const STATUS_ICON: Record<string, JSX.Element> = {
   "Met": <CheckCircle className="w-4 h-4 text-green-600" />,
@@ -97,10 +113,27 @@ export function KraScorecardHub() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const quarterForMonth = useMemo(() => getFinancialQuarter(new Date(`${month}-01T00:00:00`)), [month]);
 
+  useEffect(() => {
+    // Real fix: these seed functions existed but were never actually
+    // called anywhere after the 4 old per-role dashboards were deleted —
+    // without this, a fresh environment's KPI catalog never gets the
+    // real, formula-linked entries HR should pick from when authoring a
+    // KRA (an HR user typing a KPI name by hand instead would silently
+    // create a MANUAL_ENTRY duplicate, disconnected from the real
+    // computed formula). Idempotent — each function only inserts an
+    // entry if its code isn't already present.
+    seedWasherKpiCatalogIfMissing();
+    seedSupervisorKpiCatalogIfMissing();
+    seedOMKpiCatalogIfMissing();
+    seedCityKpiCatalogIfMissing();
+    seedCCEKpiCatalogIfMissing();
+  }, []);
+
   const catalog = useMemo(() => getKpiCatalog(), [selectedRole]);
-  const entries = useMemo(() => isCityLevel ? getRevenueByCity(selectedCityId) : [], [isCityLevel, getRevenueByCity, selectedCityId]);
+  const entries = useMemo(() => (selectedRole === OM_ROLE || selectedRole === CITY_ROLE) ? getRevenueByCity(selectedCityId) : [], [selectedRole, getRevenueByCity, selectedCityId]);
   const journals = useMemo(() => selectedRole === CITY_ROLE ? accountingEntryService.getAllJournals() : [], [selectedRole]);
   const ledgers = useMemo(() => selectedRole === CITY_ROLE ? accountingEntryService.getLedgers() : [], [selectedRole]);
+  const complaints = useMemo(() => selectedRole === CCE_ROLE ? readComplaints() : [], [selectedRole]);
 
   // ── Real per-role computation, reusing each pilot's own formula ──
   const washerResult = useMemo(() => {
@@ -117,6 +150,11 @@ export function KraScorecardHub() {
     if (selectedRole !== OM_ROLE) return null;
     return computeOMKraScores(selectedCityId, month, entries as any, subscriptions as any, customers as any);
   }, [selectedRole, selectedCityId, month, entries, subscriptions, customers]);
+
+  const cceResult = useMemo(() => {
+    if (selectedRole !== CCE_ROLE) return null;
+    return computeCCEKraScores(selectedCityId, month, complaints);
+  }, [selectedRole, selectedCityId, month, complaints]);
 
   const cityResult = useMemo(() => {
     if (selectedRole !== CITY_ROLE) return null;
@@ -223,6 +261,10 @@ export function KraScorecardHub() {
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
                 kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
+            {cceResult && cceResult.results.map((kra) => (
+              <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
+            ))}
             {cityResult && cityResult.results.map((kra) => {
               if (!maskCityFigures) {
                 return <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
@@ -243,7 +285,7 @@ export function KraScorecardHub() {
                 kpis={kra.kpis.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
 
-            {!washerResult && !supervisorResult && !omResult && !cityResult && !genericResult && (
+            {!washerResult && !supervisorResult && !omResult && !cceResult && !cityResult && !genericResult && (
               <p className="text-sm text-gray-400 text-center py-6">Select an employee to see their scorecard.</p>
             )}
           </CardContent>
