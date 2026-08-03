@@ -26,12 +26,16 @@ import { toast } from "sonner";
 
 const STATUS_BADGE: Record<string, string> = {
   "Pending Manager": "bg-amber-100 text-amber-700",
-  "Manager Approved": "bg-blue-100 text-blue-700",
   "Manager Rejected": "bg-red-100 text-red-700",
+  "Pending City Manager": "bg-amber-100 text-amber-700",
+  "City Manager Rejected": "bg-red-100 text-red-700",
   "Pending HR": "bg-blue-100 text-blue-700",
+  "HR Rejected": "bg-red-100 text-red-700",
   "HR Applied": "bg-green-100 text-green-700",
   "Auto-Rejected": "bg-gray-100 text-gray-600",
 };
+
+const REJECTED_STATUSES = ["Manager Rejected", "City Manager Rejected", "HR Rejected"];
 
 export function RegularizationRequestForm() {
   const { currentUser } = useRole();
@@ -171,7 +175,32 @@ export function RegularizationRequestForm() {
                     <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" /> Manager: {req.managerComment}
                   </p>
                 )}
-                {req.status === "Manager Rejected" && resubmittingId !== req.id && (
+                {req.cmComment && (
+                  <p className="text-xs text-gray-500 flex items-start gap-1">
+                    <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" /> City Manager: {req.cmComment}
+                  </p>
+                )}
+                {req.hrComment && (
+                  <p className="text-xs text-gray-500 flex items-start gap-1">
+                    <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" /> HR: {req.hrComment}
+                  </p>
+                )}
+                {req.history && req.history.length > 0 && (
+                  <details className="text-xs text-gray-500">
+                    <summary className="cursor-pointer select-none">Full history ({req.history.length})</summary>
+                    <ul className="mt-1 space-y-1 pl-3 border-l-2 border-gray-200">
+                      {req.history.map((h, i) => (
+                        <li key={i}>
+                          <span className="font-medium">{h.stage}</span> {h.action.toLowerCase()}
+                          {h.actorName ? ` by ${h.actorName}` : ""}
+                          {h.comment ? ` — ${h.comment}` : ""}
+                          {" · "}{new Date(h.at).toLocaleString("en-IN")}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {REJECTED_STATUSES.includes(req.status) && resubmittingId !== req.id && (
                   <Button size="sm" variant="outline" onClick={() => setResubmittingId(req.id)}>Resubmit</Button>
                 )}
                 {resubmittingId === req.id && (

@@ -19,19 +19,22 @@ import { useRole } from "../../contexts/RoleContext";
 import { useAttendance } from "../../contexts/AttendanceContext";
 import { matchesEmployeeId } from "../../services/employeeDatabaseService";
 import {
-  getPendingHRApprovals, markRegularizationHRApplied, getRegularizationPolicy, setRegularizationPolicy,
+  getPendingHRApprovals, markRegularizationHRApplied, hrRejectRegularization, getRegularizationPolicy, setRegularizationPolicy,
 } from "../../services/attendanceRegularizationService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
-import { CheckCircle, Settings } from "lucide-react";
+import { Textarea } from "../ui/textarea";
+import { CheckCircle, XCircle, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 export function RegularizationHRQueue() {
   const { currentUser } = useRole();
   const { getAttendanceForDate, updateAttendance, addAttendanceRecord } = useAttendance();
   const [refreshTick, setRefreshTick] = useState(0);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectComment, setRejectComment] = useState("");
 
   const pending = getPendingHRApprovals(currentUser?.cityId);
 
@@ -62,6 +65,17 @@ export function RegularizationHRQueue() {
     setRefreshTick((t) => t + 1);
   };
 
+  const handleReject = (requestId: string) => {
+    const result = hrRejectRegularization(requestId, currentUser?.name || "HR", rejectComment);
+    if (result.success) {
+      toast.success("Request rejected — employee notified");
+      setRejectingId(null); setRejectComment("");
+      setRefreshTick((t) => t + 1);
+    } else {
+      toast.error(result.error || "Could not reject");
+    }
+  };
+
   const policy = getRegularizationPolicy();
   const [maxDaysBack, setMaxDaysBack] = useState(String(policy.maxDaysBack));
   const [maxPerMonth, setMaxPerMonth] = useState(String(policy.maxRequestsPerMonth));
@@ -88,16 +102,37 @@ export function RegularizationHRQueue() {
             <p className="text-sm text-gray-400">Nothing pending.</p>
           ) : (
             pending.map((req) => (
-              <div key={req.id} className="flex items-center justify-between border rounded-lg p-3">
-                <div>
-                  <p className="font-medium text-gray-900">{req.employeeName}</p>
-                  <p className="text-xs text-gray-500">{req.date} · {req.punchType}
-                    {req.requestedCheckInTime && ` · In: ${req.requestedCheckInTime}`}
-                    {req.requestedCheckOutTime && ` · Out: ${req.requestedCheckOutTime}`}
-                  </p>
-                  <p className="text-xs text-gray-500">Manager: {req.managerActionBy}{req.managerComment ? ` — ${req.managerComment}` : ""}</p>
+              <div key={req.id} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{req.employeeName}</p>
+                    <p className="text-xs text-gray-500">{req.date} · {req.punchType}
+                      {req.requestedCheckInTime && ` · In: ${req.requestedCheckInTime}`}
+                      {req.requestedCheckOutTime && ` · Out: ${req.requestedCheckOutTime}`}
+                    </p>
+                    <p className="text-xs text-gray-500">Manager: {req.managerActionBy}{req.managerComment ? ` — ${req.managerComment}` : ""}</p>
+                    {req.cmActionBy && (
+                      <p className="text-xs text-gray-500">City Manager: {req.cmActionBy}{req.cmComment ? ` — ${req.cmComment}` : ""}</p>
+                    )}
+                  </div>
+                  {rejectingId !== req.id && (
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleApply(req)}>Apply Correction</Button>
+                      <Button size="sm" variant="outline" onClick={() => setRejectingId(req.id)}>
+                        <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <Button size="sm" onClick={() => handleApply(req)}>Apply Correction</Button>
+                {rejectingId === req.id && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <Textarea value={rejectComment} onChange={(e) => setRejectComment(e.target.value)} placeholder="Reason for rejection (required)" rows={2} />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)}>Confirm Reject</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setRejectingId(null); setRejectComment(""); }}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

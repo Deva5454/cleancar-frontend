@@ -48,6 +48,7 @@ import { employeeSalaryService } from "../../services/employeeSalaryService";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { useRole } from "../../contexts/RoleContext";
 import { getStatusDisplay } from "../../utils/payrollWorkflow";
+import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
 import { PayrollLineReviewModal, type ReviewStatus, type ReviewLogEntry } from "./PayrollLineReviewModal";
 
 // ============================================================================
@@ -462,6 +463,17 @@ export function PayrollReviewApproval() {
       if (activeRun && currentUser?.employeeId) {
         const ok = sendToReview(activeRun.payrollId, currentUser.employeeId);
         if (!ok) { toast.error("HR approval failed - check role permissions for this status"); return; }
+        // Real enforcement point: any regularization request still
+        // pending at Manager/City Manager/HR stage for this exact
+        // payroll period auto-rejects the moment HR approves this run —
+        // PayrollRun.tsx already does the same check at generation time,
+        // but a run generated before this fix shipped (or one where a
+        // request came in between generation and approval) needs this
+        // second, later check too.
+        const autoRejectedCount = autoRejectPendingForPayrollPeriod(activeRun.cityId, activeRun.period.endDate);
+        if (autoRejectedCount > 0) {
+          toast.info(`${autoRejectedCount} pending regularization request(s) auto-rejected — payroll period approved`);
+        }
       } else {
         setStatus("hr_approved"); // no real run yet (demo/no-data state) - local display only
       }

@@ -1,14 +1,17 @@
 /**
- * RegularizationManagerApprovals.tsx — real, previously-missing screen:
- * a reporting manager reviews and approves or rejects their team's real
- * regularization requests. A rejection always requires a real, mandatory
- * comment - enforced by the service, not just the UI.
+ * RegularizationCityManagerQueue.tsx — real, previously-missing screen:
+ * the second stage of the 3-stage approval chain (Reporting Manager →
+ * City Manager → HR). Shows requests already approved by the employee's
+ * reporting manager, routed to the real City Manager of the employee's
+ * city (resolved by employeeDatabaseService, not the disconnected
+ * organizationHierarchyService). A rejection always requires a real,
+ * mandatory comment, same as every other stage.
  */
 
 import { useState } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import {
-  getPendingManagerApprovals, managerApproveRegularization, managerRejectRegularization,
+  getPendingCityManagerApprovals, cityManagerApproveRegularization, cityManagerRejectRegularization,
 } from "../../services/attendanceRegularizationService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -16,22 +19,22 @@ import { Textarea } from "../ui/textarea";
 import { CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-export function RegularizationManagerApprovals() {
+export function RegularizationCityManagerQueue() {
   const { currentUser } = useRole();
   const [refreshTick, setRefreshTick] = useState(0);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState("");
 
-  const pending = getPendingManagerApprovals(currentUser?.employeeId || "");
+  const pending = getPendingCityManagerApprovals(currentUser?.employeeId || "");
 
   const handleApprove = (requestId: string) => {
-    managerApproveRegularization(requestId, currentUser?.employeeId || "", currentUser?.name || "Manager");
-    toast.success("Approved — forwarded to the City Manager");
+    cityManagerApproveRegularization(requestId, currentUser?.employeeId || "", currentUser?.name || "City Manager");
+    toast.success("Approved — forwarded to HR for final action");
     setRefreshTick((t) => t + 1);
   };
 
   const handleReject = (requestId: string) => {
-    const result = managerRejectRegularization(requestId, currentUser?.employeeId || "", currentUser?.name || "Manager", rejectComment);
+    const result = cityManagerRejectRegularization(requestId, currentUser?.employeeId || "", currentUser?.name || "City Manager", rejectComment);
     if (result.success) {
       toast.success("Request rejected — employee notified");
       setRejectingId(null); setRejectComment("");
@@ -44,8 +47,8 @@ export function RegularizationManagerApprovals() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Pending Regularization Approvals</CardTitle>
-        <p className="text-xs text-gray-500">Your real team's requests, awaiting your decision</p>
+        <CardTitle className="text-base">City Manager — Regularization Approvals</CardTitle>
+        <p className="text-xs text-gray-500">Manager-approved requests for your city, awaiting your decision</p>
       </CardHeader>
       <CardContent className="space-y-3">
         {pending.length === 0 ? (
@@ -66,6 +69,7 @@ export function RegularizationManagerApprovals() {
                 </div>
               </div>
               <p className="text-sm text-gray-700">{req.reason}</p>
+              <p className="text-xs text-gray-500">Manager: {req.managerActionBy}{req.managerComment ? ` — ${req.managerComment}` : ""}</p>
               {rejectingId === req.id ? (
                 <div className="space-y-2 pt-2 border-t">
                   <Textarea value={rejectComment} onChange={(e) => setRejectComment(e.target.value)} placeholder="Reason for rejection (required)" rows={2} />
@@ -92,4 +96,4 @@ export function RegularizationManagerApprovals() {
   );
 }
 
-export default RegularizationManagerApprovals;
+export default RegularizationCityManagerQueue;
