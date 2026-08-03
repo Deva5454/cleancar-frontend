@@ -9,17 +9,16 @@ import { useCity } from "../../contexts/CityContext";
 export interface CorporateAccount { corporateId:string; companyName:string; gstNumber?:string; contactName:string; contactPhone:string; contactEmail?:string; address:string; pincode:string; cityId:string; fleetSize:number; accountType:"OFFICE"|"HOUSING_SOCIETY"|"FLEET_OPERATOR"|"OTHER"; status:"ACTIVE"|"PROSPECT"|"INACTIVE"; vehicles:CorporateVehicle[]; subscriptionIds:string[]; billingCycle:"Monthly"|"Quarterly"|"Annual"; totalMRR:number; notes?:string; createdAt:string; }
 export interface CorporateVehicle { vehicleId:string; corporateId:string; registrationNumber:string; category:string; brand:string; model?:string; driverName?:string; driverPhone?:string; subscriptionId?:string; status:"ACTIVE"|"INACTIVE"; }
 
-const CORP_KEY = "cleancar_corporate_accounts";
 function genId(){return "CORP-"+Date.now().toString(36).toUpperCase();}
-function load():CorporateAccount[]{return DataService.get<CorporateAccount>(CORP_KEY)||[];}
-function save(a:CorporateAccount[]){DataService.setAll(CORP_KEY,a);}
+function load(cityId:string):CorporateAccount[]{return DataService.get<CorporateAccount>("CORPORATE_ACCOUNTS",cityId)||[];}
+function save(a:CorporateAccount[],cityId:string){DataService.setAll("CORPORATE_ACCOUNTS",a,cityId);}
 
 export function CorporateB2BPortal(){
   const {city}=useCity();
-  const [accounts,setAccounts]=useState(()=>load().filter(a=>a.cityId===city));
+  const [accounts,setAccounts]=useState(()=>load(city));
   const [view,setView]=useState<"list"|"add"|"detail">("list");
   const [selId,setSelId]=useState<string|null>(null);
-  const refresh=()=>setAccounts(load().filter(a=>a.cityId===city));
+  const refresh=()=>setAccounts(load(city));
   const sel=useMemo(()=>accounts.find(a=>a.corporateId===selId),[accounts,selId]);
   const totalMRR=accounts.filter(a=>a.status==="ACTIVE").reduce((s,a)=>s+a.totalMRR,0);
   const totalVeh=accounts.filter(a=>a.status==="ACTIVE").reduce((s,a)=>s+a.fleetSize,0);
@@ -44,7 +43,7 @@ export function CorporateB2BPortal(){
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold">{acc.companyName}</span>
                 <Badge className={acc.status==="ACTIVE"?"bg-green-100 text-green-800":acc.status==="PROSPECT"?"bg-yellow-100 text-yellow-800":"bg-gray-100 text-gray-600"}>{acc.status}</Badge>
-                <Badge className="bg-blue-100 text-blue-800 text-xs">{acc.accountType.replace(/_/g," ")}</Badge>
+                <Badge className="bg-blue-100 text-blue-800 text-xs">{(acc.accountType||"OTHER").replace(/_/g," ")}</Badge>
               </div>
               <div className="flex items-center gap-3 mt-1 text-sm text-gray-500 flex-wrap">
                 <span className="flex items-center gap-1"><Phone className="w-3 h-3"/>{acc.contactPhone}</span>
@@ -58,8 +57,8 @@ export function CorporateB2BPortal(){
         </CardContent>
       </Card>)}
     </div>}
-    {view==="add"&&<AddForm cityId={city} onSave={a=>{const all=load();all.push(a);save(all);refresh();setView("list");}} onCancel={()=>setView("list")}/>}
-    {view==="detail"&&sel&&<Detail account={sel} onBack={()=>setView("list")} onUpdate={u=>{save(load().map(a=>a.corporateId===u.corporateId?u:a));refresh();}}/>}
+    {view==="add"&&<AddForm cityId={city} onSave={a=>{const all=load(city);all.push(a);save(all,city);refresh();setView("list");}} onCancel={()=>setView("list")}/>}
+    {view==="detail"&&sel&&<Detail account={sel} onBack={()=>setView("list")} onUpdate={u=>{save(load(city).map(a=>a.corporateId===u.corporateId?u:a),city);refresh();}}/>}
   </div>);
 }
 
@@ -68,7 +67,7 @@ function AddForm({cityId,onSave,onCancel}:{cityId:string;onSave:(a:CorporateAcco
   const [err,setErr]=useState("");
   const submit=()=>{
     if(!f.companyName||!f.contactName||!f.contactPhone||!f.pincode){setErr("Company name, contact, phone and pincode required.");return;}
-    onSave({corporateId:genId(),...f,fleetSize:parseInt(f.fleetSize)||1,status:"PROSPECT",vehicles:[],subscriptionIds:[],totalMRR:0,createdAt:new Date().toISOString()});
+    onSave({corporateId:genId(),...f,cityId,fleetSize:parseInt(f.fleetSize)||1,status:"PROSPECT",vehicles:[],subscriptionIds:[],totalMRR:0,createdAt:new Date().toISOString()});
   };
   return(<Card><CardHeader><CardTitle className="text-base">New Corporate Account</CardTitle></CardHeader><CardContent className="space-y-3">
     {err&&<div className="text-red-600 text-sm">{err}</div>}
@@ -106,7 +105,7 @@ function Detail({account,onBack,onUpdate}:{account:CorporateAccount;onBack:()=>v
             <h2 className="text-xl font-bold">{account.companyName}</h2>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge className={account.status==="ACTIVE"?"bg-green-100 text-green-800":account.status==="PROSPECT"?"bg-yellow-100 text-yellow-800":"bg-gray-100 text-gray-600"}>{account.status}</Badge>
-              <Badge className="bg-blue-100 text-blue-800 text-xs">{account.accountType.replace(/_/g," ")}</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-xs">{(account.accountType||"OTHER").replace(/_/g," ")}</Badge>
             </div>
             <div className="grid grid-cols-2 gap-x-6 mt-2 text-sm text-gray-600">
               <span><Users className="w-3 h-3 inline mr-1"/>{account.contactName}</span>

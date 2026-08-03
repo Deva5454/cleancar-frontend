@@ -174,6 +174,14 @@ const STORAGE_KEYS = {
   // registered here, colliding at the same broken "undefined" key above.
   PAYROLL_MASTER:          "payroll_master",
   VENDOR_PAYMENT_STATUS:   "vendor_payment_status",
+  // ── Same class of bug, found later still: CorporateB2BPortal.tsx called
+  // DataService.get()/setAll() with the raw literal key string
+  // "cleancar_corporate_accounts" instead of a registered EntityType,
+  // colliding at the same broken "cleancar_{cityId}_undefined" key —
+  // real corporate accounts were never reliably saved, and whatever
+  // foreign data from another broken call site ended up there was read
+  // back as if it were CorporateAccount[], crashing on missing fields.
+  CORPORATE_ACCOUNTS:      "corporate_accounts",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
