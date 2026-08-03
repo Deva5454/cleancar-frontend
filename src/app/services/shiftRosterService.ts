@@ -308,6 +308,24 @@ class ShiftRosterService {
     return roster.slots.filter(s => s.employeeId === employeeId || s.effectiveEmployeeId === employeeId);
   }
 
+  /**
+   * Get an employee's real assigned shift slot for any specific date (not
+   * just today/current week) — searches every stored roster for the city,
+   * since the date may fall in a past or future published week. Matches on
+   * effectiveEmployeeId too, so a slot that's been swapped away correctly
+   * attributes to whoever is actually covering it.
+   */
+  getSlotForDate(employeeId: string, cityId: string, date: string): ShiftSlot | null {
+    const rosters = this.getRosters(cityId);
+    for (const roster of rosters) {
+      const slot = roster.slots.find(s =>
+        s.date === date && (s.effectiveEmployeeId === employeeId || (!s.effectiveEmployeeId && s.employeeId === employeeId))
+      );
+      if (slot) return slot;
+    }
+    return null;
+  }
+
   // ── Shift Swaps ───────────────────────────────────────────────────────────────
 
   getSwaps(cityId?: string): ShiftSwap[] {

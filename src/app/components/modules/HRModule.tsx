@@ -12,6 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Input } from "../ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Calendar as CalendarWidget } from "../ui/calendar";
+import { format, parseISO, subDays } from "date-fns";
 import {
   Table,
   TableBody,
@@ -20,8 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { 
-  Users, UserPlus, Calendar, DollarSign, 
+import {
+  Users, UserPlus, Calendar, CalendarDays, DollarSign,
   FileText, CheckCircle, XCircle, Download,
   Upload, Clock, AlertCircle, Award, TrendingUp,
   Search, Filter, Eye, Edit, Briefcase, GraduationCap,
@@ -43,11 +46,29 @@ import { salaryStructureService } from "../../services/salaryStructureService";
 import { EmployeeAttendanceDrillDown } from "../hr/EmployeeAttendanceDrillDown";
 import { offerLetterService } from "../../services/offerLetterService";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { shiftRosterService, type ShiftType } from "../../services/shiftRosterService";
+import { getTimeDiff, calculateWorkMinutes } from "../../utils/attendanceCalculator";
 
 // ✅ PERF FIX: Removed module-level getAll() call.
 // getAll() was executing at JS parse time AND inside useState, causing two synchronous
 // localStorage JSON.parse calls before the component even mounted.
 // liveEmployeeList inside the component now handles the single initialisation.
+
+// Real shift roster's 3 ShiftTypes (Morning/Split/Evening), mapped to the
+// First/Second/Third Shift codes used on the Attendance & Time Management
+// table, per real business definition.
+const SHIFT_TYPE_TO_CODE: Record<ShiftType, string> = {
+  Morning: "FS",
+  Evening: "SS",
+  Split:   "TS",
+};
+
+function formatHoursMinutes(totalMinutes: number): string {
+  const sign = totalMinutes < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(totalMinutes));
+  const hours = Math.floor(abs / 60);
+  return `${sign}${hours > 0 ? `${hours}h ` : ""}${abs % 60}m`;
+}
 
 // Payroll Interface
 interface PayrollRecord {
@@ -1223,13 +1244,26 @@ function HRModule() {
                 <CardTitle className="text-base">Attendance & Time Management</CardTitle>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-600">Date:</label>
-                  <Input
-                    type="date"
-                    value={selectedAttendanceDate}
-                    onChange={(e) => setSelectedAttendanceDate(e.target.value)}
-                    className="w-40"
-                    max={new Date().toISOString().split("T")[0]}
-                  />
+                  {/* Real fix: calendar defaults to today, but lets HR page back
+                      up to 40 days to review any day individually — the old
+                      plain date input had no lower bound at all. */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-40 justify-start font-normal">
+                        <CalendarDays className="w-4 h-4 mr-2" />
+                        {format(parseISO(selectedAttendanceDate), "dd MMM yyyy")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <CalendarWidget
+                        mode="single"
+                        selected={parseISO(selectedAttendanceDate)}
+                        defaultMonth={new Date()}
+                        onSelect={(d) => d && setSelectedAttendanceDate(format(d, "yyyy-MM-dd"))}
+                        disabled={{ after: new Date(), before: subDays(new Date(), 40) }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CardHeader>
@@ -1239,6 +1273,11 @@ function HRModule() {
                 const canMarkAttendance = currentRole === "Supervisor" || currentRole === "HR" || currentRole === "Super Admin" || currentRole === "Operations Manager";
                 const todaysRecords = getEmployeeAttendance ? getEmployeeAttendance(selectedAttendanceDate) : [];
                 const recordFor = (employeeId: string) => todaysRecords.find((r: any) => r.employeeId === employeeId);
+                const hhmmToMin = (t?: string): number | null => {
+                  if (!t) return null;
+                  const [h, m] = t.split(":").map(Number);
+                  return h * 60 + (m || 0);
+                };
 
                 const presentCount = todaysRecords.filter((r: any) => r.status === "Present" || r.status === "Late").length;
                 const leaveCount = todaysRecords.filter((r: any) => r.status === "Leave").length;
@@ -1325,24 +1364,73 @@ function HRModule() {
                       </div>
                     )}
 
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Check In</TableHead>
-                          <TableHead>Check Out</TableHead>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>In</TableHead>
+                          <TableHead>Out</TableHead>
+                          <TableHead>Shift</TableHead>
+                          <TableHead>Shift Time</TableHead>
+                          <TableHead>Required (Hrs)</TableHead>
+                          <TableHead>Gross Time</TableHead>
+                          <TableHead>Late/Early</TableHead>
+                          <TableHead>OT (Hrs)</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Mispunch</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {activeAttEmployees.map((emp: any) => {
                           const record = recordFor(emp.employeeId);
                           const displayName = emp.fullName || `${emp.firstName} ${emp.lastName}`;
+                          const category = employeeDatabaseService.getById(emp.employeeId)?.employeeType || "—";
+
+                          // Real assigned shift for this employee on this exact
+                          // date, pulled from the real weekly roster — not a
+                          // manually-picked dropdown.
+                          const slot = shiftRosterService.getSlotForDate(emp.employeeId, currentCityId, selectedAttendanceDate);
+                          const shiftCode = slot ? SHIFT_TYPE_TO_CODE[slot.shiftType] : null;
+                          const shiftTimeLabel = slot ? `${slot.startTime}–${slot.endTime}` : "—";
+                          const shiftStartMin = slot ? hhmmToMin(slot.startTime) : null;
+                          const shiftEndMin = slot ? hhmmToMin(slot.endTime) : null;
+                          const requiredHours = (shiftStartMin != null && shiftEndMin != null)
+                            ? ((shiftEndMin > shiftStartMin ? shiftEndMin - shiftStartMin : shiftEndMin + 24 * 60 - shiftStartMin) - (slot?.breakMinutes || 0)) / 60
+                            : null;
+
+                          const grossMinutes = (record?.checkInTime && record?.checkOutTime) ? calculateWorkMinutes(record) : null;
+
+                          const checkInMin = hhmmToMin(record?.checkInTime);
+                          const checkOutMin = hhmmToMin(record?.checkOutTime);
+                          const lateMins = (shiftStartMin != null && checkInMin != null && checkInMin > shiftStartMin) ? checkInMin - shiftStartMin : 0;
+                          const earlyMins = (shiftEndMin != null && checkOutMin != null && checkOutMin < shiftEndMin) ? shiftEndMin - checkOutMin : 0;
+                          const lateEarlyParts = [
+                            lateMins > 0 ? `Late ${formatHoursMinutes(lateMins)}` : null,
+                            earlyMins > 0 ? `Early ${formatHoursMinutes(earlyMins)}` : null,
+                          ].filter(Boolean);
+                          const lateEarlyLabel = lateEarlyParts.length > 0 ? lateEarlyParts.join(", ") : "—";
+
+                          const otHours = (grossMinutes != null && requiredHours != null && grossMinutes / 60 > requiredHours)
+                            ? (grossMinutes / 60 - requiredHours)
+                            : 0;
+
+                          // Real fix: Mispunch = the employee has a real attendance
+                          // record for this date but only ONE of check-in/check-out
+                          // was captured — a genuine missing punch, per real definition.
+                          const hasCheckIn = !!record?.checkInTime;
+                          const hasCheckOut = !!record?.checkOutTime;
+                          const isMispunch = !!record && (hasCheckIn !== hasCheckOut);
+
                           return (
                             <TableRow key={emp.employeeId} className={!record ? "bg-gray-50" : record.status === "Absent" ? "bg-red-50" : ""}>
+                              <TableCell className="text-xs text-gray-500">{emp.employeeId}</TableCell>
                               <TableCell
-                                className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
+                                className="font-medium text-blue-600 hover:text-blue-800 cursor-pointer hover:underline whitespace-nowrap"
                                 onClick={() => {
                                   setSelectedEmployeeForDrillDown({ id: emp.employeeId, name: displayName });
                                   setShowAttendanceDrillDown(true);
@@ -1351,7 +1439,9 @@ function HRModule() {
                               >
                                 {displayName}
                               </TableCell>
-                              <TableCell><Badge variant="outline">{emp.role}</Badge></TableCell>
+                              <TableCell className="text-xs">{emp.department || "—"}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-xs">{category}</Badge></TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{format(parseISO(selectedAttendanceDate), "dd/MM/yyyy")}</TableCell>
                               <TableCell>
                                 <Input
                                   type="time"
@@ -1370,6 +1460,12 @@ function HRModule() {
                                   disabled={!canMarkAttendance}
                                 />
                               </TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{shiftCode || "—"}</TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{shiftTimeLabel}</TableCell>
+                              <TableCell className="text-xs">{requiredHours != null ? requiredHours.toFixed(1) : "—"}</TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{grossMinutes != null ? formatHoursMinutes(grossMinutes) : "—"}</TableCell>
+                              <TableCell className="text-xs whitespace-nowrap">{lateEarlyLabel}</TableCell>
+                              <TableCell className="text-xs">{otHours > 0 ? otHours.toFixed(1) : "—"}</TableCell>
                               <TableCell>
                                 <Select value={record?.status || ""} onValueChange={(v) => handleStatusChange(emp.employeeId, v)} disabled={!canMarkAttendance}>
                                   <SelectTrigger className="w-32 h-8 text-xs">
@@ -1382,11 +1478,15 @@ function HRModule() {
                                   </SelectContent>
                                 </Select>
                               </TableCell>
+                              <TableCell>
+                                {isMispunch ? <Badge variant="destructive" className="text-xs">Yes</Badge> : <span className="text-xs text-gray-400">—</span>}
+                              </TableCell>
                             </TableRow>
                           );
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </>
                 );
               })()}

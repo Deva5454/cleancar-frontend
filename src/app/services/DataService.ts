@@ -186,6 +186,18 @@ const STORAGE_KEYS = {
   // foreign data from another broken call site ended up there was read
   // back as if it were CorporateAccount[], crashing on missing fields.
   CORPORATE_ACCOUNTS:      "corporate_accounts",
+  // ── Same class of bug, found later still: shiftRosterService.ts called
+  // DataService.get()/setAll() with 4 different entity-type strings
+  // (SHIFT_ROSTERS/SHIFT_SWAPS/SHIFT_ABSENCES/SHIFT_NOTIFICATIONS), none of
+  // which were ever registered here — since STORAGE_KEYS[entityType] is
+  // undefined for an unregistered key, buildKey(undefined, cityId) resolves
+  // to the literal "cleancar_{cityId}_undefined" for ALL FOUR of them,
+  // meaning weekly rosters, shift swaps, absences, and notifications were
+  // all silently overwriting each other's data at one shared physical key.
+  SHIFT_ROSTERS:           "shift_rosters",
+  SHIFT_SWAPS:             "shift_swaps",
+  SHIFT_ABSENCES:          "shift_absences",
+  SHIFT_NOTIFICATIONS:     "shift_notifications",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
@@ -651,6 +663,59 @@ function migrateFinanceAccountingSharedKeysToPerCity() {
   }
 }
 migrateFinanceAccountingSharedKeysToPerCity();
+
+/**
+ * One-time migration: shiftRosterService.ts read/wrote 4 different entity
+ * types (WeeklyRoster[], ShiftSwap[], ShiftAbsence[], ShiftNotification[])
+ * via unregistered entityType strings, so ALL FOUR collided at the same
+ * broken "cleancar_{cityId}_undefined" key — each setAll() call silently
+ * overwrote whatever the other 3 had stored there. Only the last type to
+ * write there before this fix shipped has any surviving data; the rest is
+ * unrecoverable (there's no way to un-overwrite localStorage). This
+ * inspects whatever's left at that key per city and, by shape, moves it to
+ * its correct new key — a no-op for the 3 types that already lost their data.
+ */
+function migrateShiftRosterSharedKeyToRegisteredKeys() {
+  const MIGRATION_FLAG = "cleancar_migration_shift_roster_keys_v1_done";
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    for (const cityId of ALL_CITY_IDS) {
+      const brokenKey = `cleancar_${cityId}_undefined`;
+      const raw = localStorage.getItem(brokenKey);
+      if (!raw) continue;
+
+      let parsed: any[];
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue; // corrupt — leave untouched
+      }
+      if (!Array.isArray(parsed) || parsed.length === 0) continue;
+
+      const first = parsed[0];
+      let destBaseKey: string | null = null;
+      if (first && Array.isArray(first.slots) && typeof first.weekStart === "string") destBaseKey = "shift_rosters";
+      else if (first && typeof first.swapId === "string") destBaseKey = "shift_swaps";
+      else if (first && typeof first.absenceId === "string") destBaseKey = "shift_absences";
+      else if (first && typeof first.notifId === "string") destBaseKey = "shift_notifications";
+      if (!destBaseKey) continue; // shape doesn't match any of the 4 — likely already-lost/foreign data, leave it alone
+
+      const destKey = `cleancar_${cityId}_${destBaseKey}`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(destKey) || "[]");
+        const existingArr = Array.isArray(existing) ? existing : [];
+        localStorage.setItem(destKey, JSON.stringify([...existingArr, ...parsed]));
+        localStorage.removeItem(brokenKey);
+      } catch { /* skip this city on any error — leave the broken key as-is */ }
+    }
+
+    localStorage.setItem(MIGRATION_FLAG, "true");
+  } catch (e) {
+    console.warn("[DataService] Shift roster key migration skipped:", e);
+  }
+}
+migrateShiftRosterSharedKeyToRegisteredKeys();
 
 // ========== ONE-TIME MIGRATIONS ==========
 
