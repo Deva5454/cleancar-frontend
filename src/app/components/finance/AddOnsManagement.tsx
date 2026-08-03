@@ -138,8 +138,10 @@ export function AddOnsManagement() {
                       <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Billing</TableHead>
-                      <TableHead>4W Price</TableHead>
-                      <TableHead>2W Price</TableHead>
+                      <TableHead>Hatchback</TableHead>
+                      <TableHead>SUV</TableHead>
+                      <TableHead>Luxury</TableHead>
+                      <TableHead>2W</TableHead>
                       <TableHead>Margin %</TableHead>
                       <TableHead>Best Paired With</TableHead>
                     </TableRow>
@@ -147,7 +149,7 @@ export function AddOnsManagement() {
               <TableBody>
                 {displayedAddOns.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       No add-on services found
                     </TableCell>
                   </TableRow>
@@ -172,10 +174,16 @@ export function AddOnsManagement() {
                         <Badge variant="outline">{addon.billing}</Badge>
                       </TableCell>
                       <TableCell>
-                        {formatPrice(addon.pricing["4W"])}
+                        {addon.pricing.hatchback === "NA" ? "NA" : formatPrice(addon.pricing.hatchback)}
                       </TableCell>
                       <TableCell>
-                        {formatPrice(addon.pricing["2W"])}
+                        {addon.pricing.suv === "NA" ? "NA" : formatPrice(addon.pricing.suv)}
+                      </TableCell>
+                      <TableCell>
+                        {addon.pricing.luxury === "NA" ? "NA" : formatPrice(addon.pricing.luxury)}
+                      </TableCell>
+                      <TableCell>
+                        {addon.pricing.twoW === "NA" ? "NA" : formatPrice(addon.pricing.twoW)}
                       </TableCell>
                       <TableCell>
                         <span className="text-green-600 font-medium">

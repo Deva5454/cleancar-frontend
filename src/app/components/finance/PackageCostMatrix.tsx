@@ -424,7 +424,7 @@ export function PackageCostMatrix() {
                         <TableCell className="font-bold">{addon.name}</TableCell>
                         <TableCell className="text-sm text-gray-600">{addon.description}</TableCell>
                         <TableCell className="text-right">
-                          {addon.pricing["4W"] === "NA" ? "NA" : `₹${addon.pricing["4W"]}`}
+                          {addon.pricing.hatchback === "NA" ? "NA" : `₹${addon.pricing.hatchback}`}
                         </TableCell>
                         <TableCell className="text-right">
                           {ebitdaData?.directCost4W ? `₹${ebitdaData.directCost4W}` : "—"}
@@ -438,10 +438,10 @@ export function PackageCostMatrix() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          {addon.pricing["2W"] === "NA" ? "NA" : `₹${addon.pricing["2W"]}`}
+                          {addon.pricing.twoW === "NA" ? "NA" : `₹${addon.pricing.twoW}`}
                         </TableCell>
                         <TableCell className="text-right">
-                          {addon.pricing["2W"] !== "NA" && (
+                          {addon.pricing.twoW !== "NA" && (
                             <span className="font-bold text-lg text-green-600">
                               {margin2W.toFixed(0)}%
                             </span>
@@ -505,67 +505,39 @@ export function PackageCostMatrix() {
                   <TableRow>
                     <TableHead>Combo Name</TableHead>
                     <TableHead>What's Included</TableHead>
-                    <TableHead className="text-right">Normal Price</TableHead>
-                    <TableHead className="text-right">Combo Price</TableHead>
-                    <TableHead className="text-right">Savings</TableHead>
-                    <TableHead className="text-right">Discount %</TableHead>
-                    <TableHead>Valid For</TableHead>
+                    <TableHead className="text-right">Hatchback Price</TableHead>
+                    <TableHead className="text-right">SUV Price</TableHead>
+                    <TableHead>Savings</TableHead>
+                    <TableHead>When to Push</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  
-{(COMBO_OFFERS ?? []).filter(combo => combo?.planCombination).map((combo) => {
-                    const vehicle1 = combo.planCombination?.vehicle1;
-                    const vehicle2 = combo.planCombination?.vehicle2;
-
-                    let description = "";
-                    if (combo.id === "combo-003" || combo.id === "combo-004") {
-                      description = combo.description;
-                    } else if (vehicle2) {
-                      description = `${vehicle1.plan} (${vehicle1.category}) + ${vehicle2.plan} (${vehicle2.category})`;
-                    } else {
-                      description = combo.description;
-                    }
-
-                    return (
-                      <TableRow key={combo.id}>
-                        <TableCell className="font-bold">{combo.name}</TableCell>
-                        <TableCell className="text-sm text-gray-600 max-w-xs">{description}</TableCell>
-                        <TableCell className="text-right">₹{(combo?.totalIndividualPrice ?? 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold text-blue-600">
-                          ₹{(combo?.comboPrice ?? 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-green-600">
-                          ₹{(combo?.savings ?? 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge className="bg-purple-100 text-purple-800 border-purple-300">
-                            {combo.savingsPercentage}% off
+                  {(COMBO_OFFERS ?? []).map((combo) => (
+                    <TableRow key={combo.id}>
+                      <TableCell className="font-bold">{combo.name}</TableCell>
+                      <TableCell className="text-sm text-gray-600 max-w-xs">{combo.description}</TableCell>
+                      <TableCell className="text-right font-bold text-blue-600">
+                        ₹{combo.hatchbackPrice.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-blue-600">
+                        ₹{combo.suvPrice.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-sm font-semibold text-green-600">{combo.saving}</TableCell>
+                      <TableCell className="text-sm text-gray-600 max-w-xs">{combo.whenToPush}</TableCell>
+                      <TableCell>
+                        {combo.isActive ? (
+                          <Badge className="bg-green-100 text-green-800 border-green-300">
+                            Active
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {combo.id === "combo-001" ? "Same address" :
-                           combo.id === "combo-002" ? "Same household" :
-                           combo.id === "combo-003" ? "Hatchback/Sedan" :
-                           combo.id === "combo-004" ? "SUV/MUV" :
-                           combo.id === "combo-005" ? "5+ vehicles" :
-                           "Corporate fleet"}
-                        </TableCell>
-                        <TableCell>
-                          {combo.isActive ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-300">
-                              Active
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-800 border-gray-300">
-                              Inactive
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-800 border-gray-300">
+                            Inactive
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -583,17 +555,17 @@ export function PackageCostMatrix() {
             </Card>
             <Card className="border-blue-200 bg-blue-50">
               <CardContent className="p-4">
-                <div className="text-xs text-blue-700 mb-1">Avg Discount</div>
+                <div className="text-xs text-blue-700 mb-1">Avg Hatchback Price</div>
                 <div className="font-bold text-lg text-blue-900">
-                  {(COMBO_OFFERS.reduce((sum, c) => sum + c.savingsPercentage, 0) / COMBO_OFFERS.length).toFixed(1)}%
+                  ₹{Math.round(COMBO_OFFERS.reduce((sum, c) => sum + c.hatchbackPrice, 0) / COMBO_OFFERS.length).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
             <Card className="border-purple-200 bg-purple-50">
               <CardContent className="p-4">
-                <div className="text-xs text-purple-700 mb-1">Total Monthly Value</div>
+                <div className="text-xs text-purple-700 mb-1">Avg SUV Price</div>
                 <div className="font-bold text-lg text-purple-900">
-                  ₹{COMBO_OFFERS.reduce((sum, c) => sum + c.comboPrice, 0).toLocaleString()}
+                  ₹{Math.round(COMBO_OFFERS.reduce((sum, c) => sum + c.suvPrice, 0) / COMBO_OFFERS.length).toLocaleString()}
                 </div>
               </CardContent>
             </Card>

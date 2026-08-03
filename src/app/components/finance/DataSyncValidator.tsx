@@ -87,12 +87,12 @@ export function DataSyncValidator() {
     ADD_ON_SERVICES.forEach((addon) => {
       const ebitdaData = ADD_ON_EBITDA_DATA.find((e) => e.id === addon.id);
       if (ebitdaData) {
-        if (addon.pricing["4W"] !== "NA" && ebitdaData.price4W !== (addon.pricing["4W"] as number)) {
+        if (addon.pricing.hatchback !== "NA" && ebitdaData.price4W !== (addon.pricing.hatchback as number)) {
           results.addOnsValid = false;
           results.issues.push({
             type: "Add-On Price Mismatch",
             entity: addon.name,
-            details: `Service: ${addon.pricing["4W"]} vs EBITDA: ${ebitdaData.price4W}`,
+            details: `Service (Hatchback): ${addon.pricing.hatchback} vs EBITDA (4W): ${ebitdaData.price4W}`,
             severity: "error",
           });
         }
@@ -111,57 +111,27 @@ export function DataSyncValidator() {
       }
     });
 
-    // 3. Validate Combo Offers - ensure prices match pricing matrix
+    // 3. Validate Combo Offers - ensure active combos have valid pricing
     COMBO_OFFERS.forEach((combo) => {
-      const vehicle1Price = CURRENT_PLAN_VERSION.pricingMatrix[
-        combo.planCombination.vehicle1.category
-      ][combo.planCombination.vehicle1.plan];
-
-      if (vehicle1Price !== "NA" && vehicle1Price !== combo.planCombination.vehicle1.individualPrice) {
+      if (combo.isActive && (combo.hatchbackPrice <= 0 || combo.suvPrice <= 0)) {
         results.combosValid = false;
         results.issues.push({
-          type: "Combo Price Mismatch",
+          type: "Invalid Combo Pricing",
           entity: combo.name,
-          details: `Vehicle1 price mismatch: ${vehicle1Price} vs ${combo.planCombination.vehicle1.individualPrice}`,
+          details: `Hatchback: ₹${combo.hatchbackPrice}, SUV: ₹${combo.suvPrice}`,
           severity: "error",
-        });
-      }
-
-      if (combo.planCombination.vehicle2) {
-        const vehicle2Price = CURRENT_PLAN_VERSION.pricingMatrix[
-          combo.planCombination.vehicle2.category
-        ][combo.planCombination.vehicle2.plan];
-
-        if (vehicle2Price !== "NA" && vehicle2Price !== combo.planCombination.vehicle2.individualPrice) {
-          results.combosValid = false;
-          results.issues.push({
-            type: "Combo Price Mismatch",
-            entity: combo.name,
-            details: `Vehicle2 price mismatch: ${vehicle2Price} vs ${combo.planCombination.vehicle2.individualPrice}`,
-            severity: "error",
-          });
-        }
-      }
-
-      // Validate savings calculation
-      const calculatedSavings = combo.totalIndividualPrice - combo.comboPrice;
-      if (Math.abs(calculatedSavings - combo.savings) > 1) {
-        results.warnings.push({
-          type: "Combo Savings Calculation",
-          entity: combo.name,
-          details: `Stored: ${combo.savings} vs Calculated: ${calculatedSavings}`,
         });
       }
     });
 
-    // 4. Validate One-Time Wash Pricing
-    const oneTimeCategories = new Set(ONE_TIME_WASH_PRICING.map((p) => p.vehicleCategory));
+    // 4. Validate One-Time Wash Pricing — real ONE_TIME_WASH_PRICING only
+    // covers the hatchback/suv/luxury 4W tiers, not 2-wheelers.
     VEHICLE_CATEGORIES.forEach((category) => {
-      if (!oneTimeCategories.has(category)) {
+      if (category.startsWith("2W")) {
         results.warnings.push({
           type: "Missing One-Time Pricing",
           entity: category,
-          details: "No one-time wash pricing defined for this vehicle category",
+          details: "No one-time wash pricing defined for 2-wheeler categories",
         });
       }
     });
@@ -181,7 +151,7 @@ export function DataSyncValidator() {
     });
     results.info.push({
       type: "One-Time Pricing",
-      details: `${ONE_TIME_WASH_PRICING.length} pricing options`,
+      details: `${Object.keys(ONE_TIME_WASH_PRICING.waterWash).length} vehicle tiers × 3 wash types`,
     });
 
     setValidationResults(results);

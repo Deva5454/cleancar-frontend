@@ -19,6 +19,10 @@
 // Default city for backward compatibility
 const DEFAULT_CITY = "CITY-SURAT";
 
+// All real cities — used to merge-read/split-write entity types whose
+// records each carry their own .cityId (Finance + accounting buckets)
+const ALL_CITY_IDS = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"] as const;
+
 /**
  * One-time migration: LEAVE_REQUESTS was used as a DataService entityType
  * before it was registered in STORAGE_KEYS below, so every read/write
@@ -424,10 +428,17 @@ class DataServiceClass {
         );
         staleKeys.forEach(k => { try { localStorage.removeItem(k); } catch(_) {} });
         try {
-          localStorage.setItem(key, JSON.stringify((records as any[]).slice(0, 200)));
-          console.warn(`[DataService] Quota exceeded for ${entityType} — stored 200 of ${records.length}`);
+          // Real fix: was .slice(0, 200) — kept the OLDEST 200 records and
+          // silently discarded the newest ones (the opposite of every other
+          // capping path in this file, which keeps the most recent). A user
+          // who just entered new real data could have it dropped while
+          // stale data was preserved.
+          localStorage.setItem(key, JSON.stringify((records as any[]).slice(-200)));
+          console.warn(`[DataService] Quota exceeded for ${entityType} — stored most recent 200 of ${records.length}`);
+          notifyQuotaError(entityType);
         } catch (_) {
           console.warn(`[DataService] Could not store ${entityType} — localStorage full`);
+          notifyQuotaError(entityType);
         }
       }
       import.meta.env.DEV && console.log(`[DataService] Set ${records.length} record(s) for ${entityType} (${cityId || DEFAULT_CITY})`);
@@ -435,6 +446,60 @@ class DataServiceClass {
       const isQuota = error instanceof DOMException && error.name === "QuotaExceededError";
       if (isQuota) { console.warn(`[DataService] Could not store ${entityType} — localStorage full`); }
       else { console.error(`[DataService] Error setting ${entityType}:`, error); }
+    }
+  }
+
+  /**
+   * Merge-read a real per-record-cityId collection across all 3 real
+   * cities' own physical keys. Use for entity types where every record
+   * already carries its own real .cityId (Finance buckets, accounting
+   * entries/journals/ledgers) — calling get() without a cityId always
+   * resolves to CITY-SURAT's key alone, which would silently drop the
+   * other two cities' data instead of merging it in.
+   *
+   * Real fix: reads each city's own physical key DIRECTLY, deliberately
+   * bypassing get()'s normal per-city legacy-key fallback. That fallback
+   * is correct for a single-city read (an empty city key legitimately
+   * falls back to the one shared legacy key), but here it back-fires:
+   * seed data writes the FULL, all-cities dataset to that same bare
+   * legacy key (for other unrelated legacy readers), so any city whose
+   * own key is still empty would silently inherit — and double-count —
+   * every other city's records too.
+   * @param entityType - Type of entity
+   */
+  getAllCities<T>(entityType: EntityType): T[] {
+    const baseKey = STORAGE_KEYS[entityType];
+    return ALL_CITY_IDS.flatMap((cid) => {
+      try {
+        const raw = localStorage.getItem(buildKey(baseKey, cid));
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? (parsed as T[]) : [];
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  /**
+   * Split-write a real per-record-cityId collection: groups records by
+   * their own .cityId field and writes each group to that city's own
+   * physical key via setAll (so each city gets its own MAX_RECORDS cap
+   * instead of all 3 cities competing for one shared cap/key). Pass the
+   * FULL, all-cities array every time — a city with zero records still
+   * gets its key rewritten to empty, so deletions persist correctly.
+   * @param entityType - Type of entity
+   * @param records - Complete, all-cities dataset to store
+   */
+  setAllByRecordCity<T extends { cityId?: string }>(entityType: EntityType, records: T[]): void {
+    const groups: Record<string, T[]> = {};
+    for (const cid of ALL_CITY_IDS) groups[cid] = [];
+    for (const r of records) {
+      const cid = (r && r.cityId) || DEFAULT_CITY;
+      (groups[cid] || groups[DEFAULT_CITY]).push(r);
+    }
+    for (const cid of ALL_CITY_IDS) {
+      this.setAll(entityType, groups[cid], cid);
     }
   }
 
@@ -514,6 +579,78 @@ class DataServiceClass {
  * Import this in all contexts/services
  */
 export const DataService = new DataServiceClass();
+
+/**
+ * One-time migration: FinanceContext's 7 buckets (payables, revenues, mrr,
+ * ledger, finance_budgets, finance_alerts, finance_recommendations) and
+ * accountingEntryService's 3 buckets (accounting_entries, journal_entries,
+ * ledger_masters) were all read/written via DataService.get/setAll with no
+ * cityId argument — every call silently resolved to the single
+ * CITY-SURAT-keyed entry, even though every record in these buckets
+ * carries its own real .cityId. All 3 cities' data has been living in that
+ * one shared key the whole time, isolated only by in-memory
+ * .filter(r => r.cityId === X) calls made by consumers elsewhere. This
+ * splits whatever's sitting there today out to each record's own real
+ * city-namespaced key — safe to run repeatedly, a no-op once split.
+ */
+const FINANCE_ACCOUNTING_SHARED_BASE_KEYS = [
+  "payables", "revenues", "mrr", "ledger",
+  "finance_budgets", "finance_alerts", "finance_recommendations",
+  "accounting_entries", "journal_entries", "ledger_masters",
+];
+function migrateFinanceAccountingSharedKeysToPerCity() {
+  const MIGRATION_FLAG = "cleancar_migration_finance_accounting_per_city_v1_done";
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    for (const baseKey of FINANCE_ACCOUNTING_SHARED_BASE_KEYS) {
+      const suratKey = `cleancar_CITY-SURAT_${baseKey}`;
+      const raw = localStorage.getItem(suratKey);
+      if (!raw) continue;
+
+      let records: any[];
+      try {
+        records = JSON.parse(raw);
+      } catch {
+        continue; // corrupt — leave untouched, DataService.get()'s own corrupt-key handling will clean it up
+      }
+      if (!Array.isArray(records) || records.length === 0) continue;
+
+      const byCity: Record<string, any[]> = { "CITY-SURAT": [], "CITY-MUMBAI": [], "CITY-AHMEDABAD": [] };
+      for (const r of records) {
+        const cid = (r && r.cityId) || "CITY-SURAT";
+        (byCity[cid] || byCity["CITY-SURAT"]).push(r);
+      }
+
+      // Only drop a city's records out of the Surat key once they're
+      // confirmed written to their own key — a failed write (e.g. quota)
+      // must not silently lose data, so those records stay put on Surat.
+      const suratRecords = [...byCity["CITY-SURAT"]];
+      for (const cid of ["CITY-MUMBAI", "CITY-AHMEDABAD"]) {
+        if (byCity[cid].length === 0) continue;
+        const destKey = `cleancar_${cid}_${baseKey}`;
+        try {
+          const existingRaw = JSON.parse(localStorage.getItem(destKey) || "[]");
+          const existing = Array.isArray(existingRaw) ? existingRaw : [];
+          const existingIds = new Set(existing.map((e: any) => e?.id));
+          const merged = [...existing, ...byCity[cid].filter((r: any) => !existingIds.has(r?.id))];
+          localStorage.setItem(destKey, JSON.stringify(merged));
+        } catch {
+          suratRecords.push(...byCity[cid]); // write failed — keep these records safe on the Surat key instead
+        }
+      }
+
+      // Rewrite the Surat key to hold only its own real records (plus any
+      // other city's records that failed to migrate above)
+      localStorage.setItem(suratKey, JSON.stringify(suratRecords));
+    }
+
+    localStorage.setItem(MIGRATION_FLAG, "true");
+  } catch (e) {
+    console.warn("[DataService] Finance/accounting per-city migration skipped:", e);
+  }
+}
+migrateFinanceAccountingSharedKeysToPerCity();
 
 // ========== ONE-TIME MIGRATIONS ==========
 

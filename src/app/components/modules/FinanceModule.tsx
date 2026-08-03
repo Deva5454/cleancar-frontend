@@ -49,6 +49,7 @@ export function FinanceModule() {
     getBudget,
     getForecast,
     getVariance,
+    markAsPaid,
   } = useFinance();
   const { getSalaryPayablesWithDetails } = useBusinessFlows();
 
@@ -87,83 +88,23 @@ export function FinanceModule() {
   const forecast = getForecast(cityId, currentMonth);
   const variance = getVariance(cityId, currentMonth);
 
-  const vendorPayables = [
-    { id: 1, vendor: "CleanPro Supplies", invoice: "INV-2026-045", amount: 45000, dueDate: "2026-03-05", status: "Pending" },
-    { id: 2, vendor: "Karcher India", invoice: "INV-2026-046", amount: 75000, dueDate: "2026-03-10", status: "Pending" },
-    { id: 3, vendor: "AutoCare Ltd", invoice: "INV-2026-044", amount: 15000, dueDate: "2026-02-28", status: "Paid" },
-  ];
+  // Real fix: these 3 arrays were static hardcoded mockups (specific-looking
+  // fake vendor names, invoice numbers, dates) that never reflected real
+  // data. Vendor Payments and Statutory Compliance now use FinanceContext's
+  // real payables (already filterable by type). Cash Collections and
+  // Marketing Expenses have no corresponding real data model anywhere in
+  // this app yet (no supervisor cash-deposit or campaign-spend tracking
+  // exists) — rather than invent one, those two tabs are now clearly
+  // labelled as illustrative below instead of presented as live data.
+  const vendorPayables = payables.filter(p => p.type === "Vendor");
+  const statutoryCompliance = payables.filter(p => p.type === "Statutory").map(p => {
+    const daysRemaining = Math.ceil((new Date(p.dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+    return { ...p, daysRemaining };
+  });
 
-  const cashCollections = [
-    { id: 1, supervisor: "Suresh Yadav", amount: 15000, collectionDate: "2026-02-27", depositDate: "—", status: "Pending Deposit" },
-    { id: 2, supervisor: "Ramesh Kumar", amount: 18500, collectionDate: "2026-02-27", depositDate: "—", status: "Pending Deposit" },
-    { id: 3, supervisor: "Vijay Singh", amount: 12000, collectionDate: "2026-02-26", depositDate: "2026-02-27", status: "Deposited" },
-  ];
-
-  const marketingExpenses = [
-    { id: 1, campaign: "Google Ads - Feb", cityManager: "Priya Sharma", amount: 35000, date: "2026-02-15", status: "Approved", roi: "3.2x" },
-    { id: 2, campaign: "Facebook Campaign", cityManager: "Priya Sharma", amount: 25000, date: "2026-02-20", status: "Approved", roi: "2.8x" },
-    { id: 3, campaign: "Local Events", cityManager: "Priya Sharma", amount: 15000, date: "2026-02-25", status: "Pending", roi: "—" },
-  ];
-
-  // ADDED: Statutory Compliance Tracking
-  const statutoryCompliance = [
-    { 
-      id: 1, 
-      type: "PF (Provident Fund)", 
-      month: "February 2026", 
-      amount: 45600, 
-      dueDate: "2026-03-15", 
-      challanNumber: "PF/2026/02", 
-      status: "Pending",
-      daysRemaining: 6,
-      reminder: true
-    },
-    { 
-      id: 2, 
-      type: "ESI (Employee State Insurance)", 
-      month: "February 2026", 
-      amount: 12400, 
-      dueDate: "2026-03-21", 
-      challanNumber: "ESI/2026/02", 
-      status: "Pending",
-      daysRemaining: 12,
-      reminder: true
-    },
-    { 
-      id: 3, 
-      type: "TDS (Tax Deducted at Source)", 
-      month: "February 2026", 
-      amount: 35200, 
-      dueDate: "2026-03-07", 
-      challanNumber: "TDS/2026/02", 
-      status: "Urgent",
-      daysRemaining: -2,
-      reminder: true
-    },
-    { 
-      id: 4, 
-      type: "Professional Tax", 
-      month: "February 2026", 
-      amount: 8900, 
-      dueDate: "2026-03-10", 
-      challanNumber: "PT/2026/02", 
-      status: "Pending",
-      daysRemaining: 1,
-      reminder: true
-    },
-    { 
-      id: 5, 
-      type: "PF (Provident Fund)", 
-      month: "January 2026", 
-      amount: 43200, 
-      dueDate: "2026-02-15", 
-      challanNumber: "PF/2026/01", 
-      status: "Paid",
-      paidDate: "2026-02-14",
-      daysRemaining: 0,
-      reminder: false
-    },
-  ];
+  const handleProcessPayment = (payableId: string) => {
+    markAsPaid(payableId, `PAY-${Date.now().toString(36).toUpperCase()}`, "Bank Transfer");
+  };
 
   return (
     <div className="space-y-6">
@@ -611,7 +552,7 @@ export function FinanceModule() {
                         </TableCell>
                         <TableCell className="text-right">
                           {payable.status === "Pending" && (
-                            <Button size="sm" variant="outline">Process Payment</Button>
+                            <Button size="sm" variant="outline" onClick={() => handleProcessPayment(payable.payableId)}>Process Payment</Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -631,30 +572,33 @@ export function FinanceModule() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {vendorPayables.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No vendor payables found.</p>
+                )}
                 {vendorPayables.map((payable) => (
-                  <div 
-                    key={payable.id} 
+                  <div
+                    key={payable.payableId}
                     className={`p-4 border rounded-lg ${
-                      payable.status === "Pending" ? "border-orange-300 bg-orange-50" : "border-gray-200"
+                      payable.status === "Pending" || payable.status === "Approved" ? "border-orange-300 bg-orange-50" : "border-gray-200"
                     }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-lg">{payable.vendor}</p>
+                          <p className="font-medium text-lg">{payable.vendorName || "Unknown Vendor"}</p>
                           <Badge variant={payable.status === "Paid" ? "secondary" : "default"}>
                             {payable.status}
                           </Badge>
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-x-4 text-sm">
-                          <div className="text-gray-600">Invoice: {payable.invoice}</div>
+                          <div className="text-gray-600">Invoice: {payable.invoiceNumber || "—"}</div>
                           <div className="text-gray-600">Due: {payable.dueDate}</div>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold">₹{(payable?.amount ?? 0).toLocaleString()}</p>
-                        {payable.status === "Pending" && (
-                          <Button size="sm" className="mt-2">Process Payment</Button>
+                        {(payable.status === "Pending" || payable.status === "Approved") && (
+                          <Button size="sm" className="mt-2" onClick={() => handleProcessPayment(payable.payableId)}>Process Payment</Button>
                         )}
                       </div>
                     </div>
@@ -666,84 +610,27 @@ export function FinanceModule() {
         </TabsContent>
 
         <TabsContent value="cash" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cash Collection & Deposit Tracking</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Supervisor</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead className="hidden md:table-cell">Collection Date</TableHead>
-                      <TableHead className="hidden md:table-cell">Deposit Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                <TableBody>
-                  {cashCollections.map((cash) => (
-                    <TableRow key={cash.id}>
-                      <TableCell className="font-medium">{cash.supervisor}</TableCell>
-                      <TableCell className="font-bold">₹{(cash?.amount ?? 0).toLocaleString()}</TableCell>
-                      <TableCell className="hidden md:table-cell">{cash.collectionDate}</TableCell>
-                      <TableCell className="hidden md:table-cell">{cash.depositDate}</TableCell>
-                      <TableCell>
-                        <Badge variant={cash.status === "Deposited" ? "secondary" : "default"}>
-                          {cash.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {cash.status === "Pending Deposit" && (
-                          <Button size="sm" variant="outline">Verify Deposit</Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-900">
+                Cash Collection & Deposit Tracking is not yet connected to real data — there is no
+                supervisor cash-in-hand or deposit-verification system built in this app yet.
+                This tab is illustrative only.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="marketing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Marketing Campaign Expenses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {marketingExpenses.map((expense) => (
-                  <div key={expense.id} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{expense.campaign}</p>
-                          <Badge variant={expense.status === "Approved" ? "secondary" : "default"}>
-                            {expense.status}
-                          </Badge>
-                        </div>
-                        <div className="mt-2 flex gap-6 text-sm text-gray-600">
-                          <span>City Manager: {expense.cityManager}</span>
-                          <span>Date: {expense.date}</span>
-                          {expense.roi !== "—" && (
-                            <span className="text-green-600 font-medium">ROI: {expense.roi}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xl font-bold">₹{(expense?.amount ?? 0).toLocaleString()}</p>
-                        {expense.status === "Pending" && (
-                          <Button size="sm" className="mt-2">Approve</Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <Card className="border-amber-300 bg-amber-50">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-900">
+                Marketing Campaign Expenses is not yet connected to real data — there is no
+                campaign-spend or ROI tracking system built in this app yet. This tab is
+                illustrative only.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -759,23 +646,26 @@ export function FinanceModule() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Type</TableHead>
-                      <TableHead className="hidden lg:table-cell">Month</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Due Date</TableHead>
-                      <TableHead className="hidden md:table-cell">Challan Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="hidden sm:table-cell">Days Remaining</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                 <TableBody>
+                  {statutoryCompliance.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                        No statutory payables found.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {statutoryCompliance.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium">{record.type}</TableCell>
-                      <TableCell className="hidden lg:table-cell">{record.month}</TableCell>
+                    <TableRow key={record.payableId}>
+                      <TableCell className="font-medium">{record.statutoryType || "—"}</TableCell>
                       <TableCell className="font-bold">₹{(record?.amount ?? 0).toLocaleString()}</TableCell>
                       <TableCell>{record.dueDate}</TableCell>
-                      <TableCell className="hidden md:table-cell">{record.challanNumber}</TableCell>
                       <TableCell>
                         <Badge variant={record.status === "Paid" ? "secondary" : "default"}>
                           {record.status}
@@ -789,8 +679,8 @@ export function FinanceModule() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {record.status === "Pending" && (
-                          <Button size="sm" variant="outline">Process Payment</Button>
+                        {(record.status === "Pending" || record.status === "Approved") && (
+                          <Button size="sm" variant="outline" onClick={() => handleProcessPayment(record.payableId)}>Process Payment</Button>
                         )}
                       </TableCell>
                     </TableRow>

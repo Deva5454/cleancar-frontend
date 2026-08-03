@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { type VehicleCategory, type PlanType, type AddOnService } from "../../data/subscriptionPlans";
+import { type VehicleCategory, type PlanType, type AddOnService, getAddOnPricingKey } from "../../data/subscriptionPlans";
 import { usePlanDefinitions } from "../../contexts/PlanDefinitionContext";
 import {
   getTotalCostPerWash,
@@ -35,7 +35,7 @@ export function DealEBITDAValidator() {
   const { CURRENT_PLAN_VERSION, VEHICLE_CATEGORIES, ADD_ON_SERVICES, formatPrice } = usePlanDefinitions();
   const [selectedVehicle, setSelectedVehicle] =
     useState<VehicleCategory>("Hatchback / Compact Sedan");
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>("Shampoo Wash");
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>("EXPRESS_WASH");
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [selectedDuration, setSelectedDuration] = useState<string>("Monthly");
   const [withIncentive, setWithIncentive] = useState(false);
@@ -99,8 +99,9 @@ export function DealEBITDAValidator() {
   );
 
   // Get available add-ons for this plan
+  const addonPricingKey = getAddOnPricingKey(selectedVehicle);
   const availableAddOns = ADD_ON_SERVICES.filter((addon) => {
-    const price = vehicleType === "4W" ? addon.pricing["4W"] : addon.pricing["2W"];
+    const price = addon.pricing[addonPricingKey];
     return price !== "NA" && addon.isActive;
   });
 
@@ -226,10 +227,7 @@ export function DealEBITDAValidator() {
             </label>
             <div className="grid grid-cols-3 gap-2">
               {availableAddOns.map((addon) => {
-                const price =
-                  vehicleType === "4W"
-                    ? addon.pricing["4W"]
-                    : addon.pricing["2W"];
+                const price = addon.pricing[addonPricingKey];
                 const isSelected = selectedAddOns.includes(addon.id);
 
                 return (

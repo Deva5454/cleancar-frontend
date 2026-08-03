@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import { useFinance } from "../../../contexts/FinanceContext"; // ✅ NEW: Real finance data
 import { useCity } from "../../../contexts/CityContext";
+import { useJobs } from "../../../contexts/JobContext";
 import {
   Table,
   TableBody,
@@ -164,6 +165,7 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
   // ✅ REPLACE FAKE financeEngine WITH REAL CONTEXT DATA
   const { getMRRByCity, getRevenueByCity, getPayablesByCity } = useFinance();
   const { availableCities } = useCity();
+  const { allJobs } = useJobs();
 
   useEffect(() => {
     loadMultiCityData();
@@ -182,9 +184,13 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
       });
 
       const buildCityMetrics = (cityId: string): CityMetrics => {
-        const revenue = getRevenueByCity(cityId);
+        // Real fix: apply the parent Report Filters' date range, which this
+        // report previously ignored entirely (always summed all-time data).
+        const revenue = getRevenueByCity(cityId)
+          .filter(r => r.receivedDate >= filters.startDate && r.receivedDate <= filters.endDate);
         const mrr = getMRRByCity(cityId);
-        const payables = getPayablesByCity(cityId);
+        const payables = getPayablesByCity(cityId)
+          .filter(p => p.dueDate >= filters.startDate && p.dueDate <= filters.endDate);
 
         const totalRevenue = revenue.reduce((sum, r) => sum + r.amount, 0);
         const totalMRR = mrr.reduce((sum, m) => sum + m.revenue, 0);
@@ -192,10 +198,17 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
         const profit = totalRevenue - totalExpenses;
         const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
-        // TODO: Get actual wash count from jobs/subscriptions
-        const estimatedWashes = Math.floor(totalRevenue / 150); // Estimate based on avg wash price
-        const revenuePerWash = estimatedWashes > 0 ? totalRevenue / estimatedWashes : 0;
-        const costPerWash = estimatedWashes > 0 ? totalExpenses / estimatedWashes : 0;
+        // Real fix: was Math.floor(totalRevenue / 150), a fabricated
+        // ₹150/wash assumption never disclosed as an estimate. Real
+        // completed-job counts already exist per city via JobContext —
+        // use those instead, same source UnitEconomicsReport uses.
+        const realWashes = allJobs.filter(j => {
+          if (j.status !== "Completed" || j.cityId !== cityId) return false;
+          const jobDate = j.completedAt || j.scheduledDate || "";
+          return jobDate >= filters.startDate && jobDate <= filters.endDate;
+        }).length;
+        const revenuePerWash = realWashes > 0 ? totalRevenue / realWashes : 0;
+        const costPerWash = realWashes > 0 ? totalExpenses / realWashes : 0;
         const profitPerWash = revenuePerWash - costPerWash;
 
         return {
@@ -205,7 +218,7 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
           expenses: totalExpenses,
           profit,
           profitMargin,
-          washes: estimatedWashes,
+          washes: realWashes,
           revenuePerWash,
           costPerWash,
           profitPerWash,
@@ -224,9 +237,9 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
 
       // Build radar chart data (if we have cities)
       if (metricsData.length > 0) {
-        const maxRevenue = Math.max(...metricsData.map(m => m.revenue));
-        const maxProfit = Math.max(...metricsData.map(m => m.profit));
-        const maxWashes = Math.max(...metricsData.map(m => m.washes));
+        const maxRevenue = Math.max(...metricsData.map(m => m.revenue)) || 1;
+        const maxProfit = Math.max(...metricsData.map(m => m.profit)) || 1;
+        const maxWashes = Math.max(...metricsData.map(m => m.washes)) || 1;
 
         const radarMetrics: ComparisonMetric[] = [
           {
@@ -258,7 +271,24 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
     washes: cityMetrics.reduce((sum, city) => sum + city.washes, 0),
   };
 
-  const topPerformer = cityMetrics[0]; // Already sorted by rank
+  const topPerformer = cityMetrics.length > 0 ? cityMetrics[0] : null; // Already sorted by rank
+
+  // Real fix: these used to be 3 hardcoded sentences ("Mumbai leads with
+  // ₹156.49/wash...", "Surat achieves the highest margin...") that could
+  // contradict whatever the real table above actually shows. Derive them
+  // from the same cityMetrics the table uses.
+  const bestRevenuePerWash = cityMetrics.length > 0
+    ? [...cityMetrics].sort((a, b) => b.revenuePerWash - a.revenuePerWash)[0]
+    : null;
+  const bestMargin = cityMetrics.length > 0
+    ? [...cityMetrics].sort((a, b) => b.profitMargin - a.profitMargin)[0]
+    : null;
+  const worstMargin = cityMetrics.length > 0
+    ? [...cityMetrics].sort((a, b) => a.profitMargin - b.profitMargin)[0]
+    : null;
+  const avgRevenuePerWash = cityMetrics.length > 0
+    ? cityMetrics.reduce((s, c) => s + c.revenuePerWash, 0) / cityMetrics.length
+    : 0;
 
   if (isLoading) {
     return (
@@ -276,40 +306,48 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
   return (
     <div className="space-y-6">
       {/* Top Performer Card */}
-      <Card className="border-2 border-yellow-300 bg-gradient-to-r from-yellow-50 to-white">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="w-6 h-6 text-yellow-600" />
-                <h3 className="text-lg font-bold text-gray-900">Top Performer</h3>
+      {topPerformer ? (
+        <Card className="border-2 border-yellow-300 bg-gradient-to-r from-yellow-50 to-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Award className="w-6 h-6 text-yellow-600" />
+                  <h3 className="text-lg font-bold text-gray-900">Top Performer</h3>
+                </div>
+                <p className="text-3xl font-bold text-yellow-700 mb-1">{topPerformer.cityName}</p>
+                <div className="grid grid-cols-4 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs text-gray-600">Revenue</p>
+                    <p className="text-sm font-semibold">{formatCurrency(topPerformer.revenue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Profit</p>
+                    <p className="text-sm font-semibold">{formatCurrency(topPerformer.profit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Margin</p>
+                    <p className="text-sm font-semibold">{topPerformer.profitMargin.toFixed(1)}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Profit/Wash</p>
+                    <p className="text-sm font-semibold">{formatCurrency(topPerformer.profitPerWash)}</p>
+                  </div>
+                </div>
               </div>
-              <p className="text-3xl font-bold text-yellow-700 mb-1">{topPerformer.cityName}</p>
-              <div className="grid grid-cols-4 gap-4 mt-4">
-                <div>
-                  <p className="text-xs text-gray-600">Revenue</p>
-                  <p className="text-sm font-semibold">{formatCurrency(topPerformer.revenue)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Profit</p>
-                  <p className="text-sm font-semibold">{formatCurrency(topPerformer.profit)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Margin</p>
-                  <p className="text-sm font-semibold">{topPerformer.profitMargin.toFixed(1)}%</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Profit/Wash</p>
-                  <p className="text-sm font-semibold">{formatCurrency(topPerformer.profitPerWash)}</p>
-                </div>
-              </div>
+              <Badge className="bg-yellow-600 text-white text-lg px-4 py-2">
+                #1
+              </Badge>
             </div>
-            <Badge className="bg-yellow-600 text-white text-lg px-4 py-2">
-              #1
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-8 text-center text-gray-500">
+            No city has any revenue or expense data for {filters.startDate} to {filters.endDate} yet.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Revenue Comparison Chart */}
@@ -441,15 +479,15 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
                 </TableCell>
                 <TableCell className="text-right">
                   <Badge className="bg-purple-600">
-                    {((companyTotals.profit / companyTotals.revenue) * 100).toFixed(1)}%
+                    {companyTotals.revenue > 0 ? ((companyTotals.profit / companyTotals.revenue) * 100).toFixed(1) : "0.0"}%
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">{formatNumber(companyTotals.washes)}</TableCell>
                 <TableCell className="text-right text-sm">
-                  {formatCurrency(companyTotals.revenue / companyTotals.washes)}
+                  {formatCurrency(companyTotals.washes > 0 ? companyTotals.revenue / companyTotals.washes : 0)}
                 </TableCell>
                 <TableCell className="text-right text-sm text-blue-700">
-                  {formatCurrency(companyTotals.profit / companyTotals.washes)}
+                  {formatCurrency(companyTotals.washes > 0 ? companyTotals.profit / companyTotals.washes : 0)}
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -458,49 +496,54 @@ export function MultiCityComparisonReport({ filters }: MultiCityComparisonReport
       </Card>
 
       {/* Insights Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-green-300 bg-green-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <TrendingUp className="w-5 h-5 text-green-600 mt-0.5" />
-              <div className="text-sm text-green-900">
-                <p className="font-semibold">Best Revenue per Wash</p>
-                <p className="mt-1">
-                  Mumbai leads with <strong>{formatCurrency(156.49)}/wash</strong>, 7% higher than company average
-                </p>
+      {cityMetrics.length > 0 && bestRevenuePerWash && bestMargin && worstMargin && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-green-300 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <TrendingUp className="w-5 h-5 text-green-600 mt-0.5" />
+                <div className="text-sm text-green-900">
+                  <p className="font-semibold">Best Revenue per Wash</p>
+                  <p className="mt-1">
+                    {bestRevenuePerWash.cityName} leads with <strong>{formatCurrency(bestRevenuePerWash.revenuePerWash)}/wash</strong>
+                    {avgRevenuePerWash > 0 && (
+                      <> ({(((bestRevenuePerWash.revenuePerWash - avgRevenuePerWash) / avgRevenuePerWash) * 100).toFixed(0)}% above company average)</>
+                    )}
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="border-blue-300 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Target className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <p className="font-semibold">Best Profit Margin</p>
-                <p className="mt-1">
-                  Surat achieves the highest margin, significantly above company average
-                </p>
+          <Card className="border-blue-300 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Target className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <p className="font-semibold">Best Profit Margin</p>
+                  <p className="mt-1">
+                    {bestMargin.cityName} achieves the highest margin at <strong>{bestMargin.profitMargin.toFixed(1)}%</strong>
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="border-orange-300 bg-orange-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
-              <div className="text-sm text-orange-900">
-                <p className="font-semibold">Improvement Opportunity</p>
-                <p className="mt-1">
-                  Focus on cost optimization across all cities to improve profitability
-                </p>
+          <Card className="border-orange-300 bg-orange-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
+                <div className="text-sm text-orange-900">
+                  <p className="font-semibold">Improvement Opportunity</p>
+                  <p className="mt-1">
+                    {worstMargin.cityName} has the lowest margin at <strong>{worstMargin.profitMargin.toFixed(1)}%</strong> — focus cost optimization there
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Ledger Query Info */}
       <Card className="border-blue-300 bg-blue-50">

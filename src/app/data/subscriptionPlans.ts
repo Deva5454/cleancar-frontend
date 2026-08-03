@@ -603,6 +603,17 @@ export function formatPrice(amount: number): string {
   return `₹${amount.toLocaleString("en-IN")}`;
 }
 
+// Maps a real VehicleCategory down to the AddOnService.pricing key that
+// covers it. AddOnService.pricing has 4 tiers (hatchback/suv/luxury/twoW),
+// not the coarser "4W"/"2W" split used elsewhere for plan-level EBITDA data —
+// indexing addon.pricing with "4W"/"2W" always returns undefined.
+export function getAddOnPricingKey(category: VehicleCategory): keyof AddOnService["pricing"] {
+  if (category.startsWith("2W")) return "twoW";
+  if (category === "SUV / MUV / Sedan") return "suv";
+  if (category === "Luxury / Large SUV") return "luxury";
+  return "hatchback";
+}
+
 // ONE_TIME_WASH_PRICING alias — used by PlanDefinitionContext and PricingOverview
 export const ONE_TIME_WASH_PRICING = {
   hatchback: ONE_TIME_PRICING.waterWash.hatchback,

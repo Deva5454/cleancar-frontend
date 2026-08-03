@@ -44,8 +44,6 @@ import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 export function EBITDADashboard() {
   const { CURRENT_PLAN_VERSION, VEHICLE_CATEGORIES, PLAN_TYPES, formatPrice } = usePlanDefinitions();
   const { calculateEBITDA: calculateActualEBITDA, getRevenueByCity } = useFinance();
-  // FIX: Also expose centralized metrics for consistent EBITDA display
-  const centralMetrics = useRevenueMetrics(currentMonth, city);
   const { city } = useCity();
   const [withIncentive, setWithIncentive] = useState(false);
   const [selectedVehicle, setSelectedVehicle] =
@@ -54,6 +52,8 @@ export function EBITDADashboard() {
   const vehicleType = selectedVehicle.includes("2W") ? "2W" : "4W";
 
   const currentMonth = new Date().toISOString().slice(0, 7);
+  // FIX: Also expose centralized metrics for consistent EBITDA display
+  const centralMetrics = useRevenueMetrics(currentMonth, city);
   const actualEBITDA = calculateActualEBITDA(city, currentMonth);
   const cityRevenues = getRevenueByCity(city).filter(r => r.status === "Received" && r.receivedDate.startsWith(currentMonth));
   const totalRevenue = cityRevenues.reduce((s, r) => s + r.amount, 0);

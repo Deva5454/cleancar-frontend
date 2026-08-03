@@ -65,6 +65,20 @@ import { accountingEntryService } from "../../services/accountingEntryService";
 // CGST+SGST. Customer records don't track a state field directly, only
 // city — an unrecognized city conservatively defaults to the company's own
 // state rather than guessing.
+// Real fix: `invoices.length + 1` / a per-map-iteration index (i+1) is
+// position/count-based, not sequence-based — the same invoice number can be
+// reassigned to a different invoice if the underlying list's order or
+// membership changes (e.g. after a deletion or a filter re-run), unlike
+// generateInvoiceNumber() elsewhere in the app, which is safe against that.
+function nextInvoiceNumber(prefix: string, existingNumbers: string[]): string {
+  const maxSeq = existingNumbers
+    .filter(n => n.startsWith(prefix))
+    .map(n => parseInt(n.replace(prefix, ""), 10))
+    .filter(n => !isNaN(n))
+    .reduce((max, n) => Math.max(max, n), 0);
+  return `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
+}
+
 function deriveCustomerStateCode(customer?: { address?: { city?: string } } | null): string {
   const city = customer?.address?.city?.toLowerCase() || "";
   if (city.includes("mumbai")) return "27";
@@ -492,19 +506,24 @@ export default function InvoiceManagement() {
   const generatedInvoices = subscriptions
     .filter((s: CustomerSubscription) => s.status === "Active")
     .slice(0, 20)
-    .map((sub: CustomerSubscription, i: number) => {
+    .reduce((acc: Invoice[], sub: CustomerSubscription) => {
       const customer = customers.find((c: Customer) => c.customerId === sub.customerId);
-      const invoiceNum = i + 1;
       const baseAmount = sub.pricing?.finalPrice || 0;
       const taxableAmount = baseAmount;
       const custStateCode = deriveCustomerStateCode(customer);
       const gst1 = calculateGST(taxableAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, custStateCode, "Unregistered", customer?.cityId);
       const { cgst, sgst, igst } = gst1;
       const totalAmount = gst1.totalBillValue;
+      // Real fix: was always "CC/SURAT/..." regardless of the customer's
+      // real city, and position-based (i+1) rather than sequence-based —
+      // both fixed by using the same generateInvoiceNumber() the rest of
+      // the app uses, keyed to the customer's own real city.
+      const custCityName = (customer?.cityId || "CITY-SURAT").replace("CITY-", "");
+      const invoiceNumber = generateInvoiceNumber(custCityName, acc.map(a => a.invoiceNumber));
 
-      return {
+      acc.push({
         id: sub.subscriptionId,
-        invoiceNumber: `CC/SURAT/${new Date().getFullYear().toString().slice(-2)}-${(new Date().getFullYear()+1).toString().slice(-2)}/${String(invoiceNum).padStart(4,"0")}`,
+        invoiceNumber,
         invoiceDate: sub.startDate || new Date().toISOString().split("T")[0],
         dueDate: sub.renewalDate || new Date().toISOString().split("T")[0],
         customerId: sub.customerId,
@@ -521,8 +540,9 @@ export default function InvoiceManagement() {
         paymentStatus: "COMPLETED" as const,
         city: customer?.cityId || "CITY-SURAT",
         createdAt: sub.startDate || new Date().toISOString(),
-      };
-    });
+      });
+      return acc;
+    }, [] as Invoice[]);
 
   const [invoices, setInvoices] = useState<Invoice[]>(generatedInvoices);
   const [isLoading, setIsLoading] = useState(true);
@@ -559,12 +579,12 @@ export default function InvoiceManagement() {
       const data = await fetchInvoices(filters, revenues, customers);
 
       // Merge with subscription-generated invoices (UNPAID ones for active subs)
+      const invPrefix = `INV-${new Date().getFullYear()}-`;
       const subInvoices: Invoice[] = subscriptions
         .filter((s: CustomerSubscription) => s.status === "Active")
         .slice(0, 20)
-        .map((sub: CustomerSubscription, i: number) => {
+        .reduce((acc: Invoice[], sub: CustomerSubscription) => {
           const customer = customers.find((c: Customer) => c.customerId === sub.customerId);
-          const invoiceNum = i + 1;
           const baseAmount = sub.pricing?.finalPrice || 0;
           const gst2 = calculateGST(baseAmount, COMPANY_GST_CONFIG.defaultServiceGstRate, deriveCustomerStateCode(customer), "Unregistered", cityId);
           const { cgst, sgst, igst: igst2 } = gst2;
@@ -572,9 +592,10 @@ export default function InvoiceManagement() {
           const dueDate = sub.renewalDate || new Date().toISOString().split("T")[0];
           const today = new Date().toISOString().split("T")[0];
           const isOverdueInv = dueDate < today;
-          return {
+          const existingNumbers = [...data.invoices.map(i => i.invoiceNumber), ...acc.map(a => a.invoiceNumber)];
+          acc.push({
             id: sub.subscriptionId,
-            invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoiceNum).padStart(4,"0")}`,
+            invoiceNumber: nextInvoiceNumber(invPrefix, existingNumbers),
             invoiceDate: sub.startDate || new Date().toISOString().split("T")[0],
             dueDate,
             customerId: sub.customerId,
@@ -594,8 +615,9 @@ export default function InvoiceManagement() {
             paymentStatus: "PENDING" as const,
             city: customer?.cityId || "CITY-SURAT",
             createdAt: sub.startDate || new Date().toISOString(),
-          };
-        });
+          });
+          return acc;
+        }, [] as Invoice[]);
 
       // De-duplicate: revenue invoices take priority over sub-generated ones
       const revenueIds = new Set(data.invoices.map(i => i.id));
@@ -700,7 +722,7 @@ export default function InvoiceManagement() {
     const total = gst3.totalBillValue;
     const newInv: Invoice = {
       id: `INV-${Date.now()}`,
-      invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4,"0")}`,
+      invoiceNumber: nextInvoiceNumber(`INV-${new Date().getFullYear()}-`, invoices.map(i => i.invoiceNumber)),
       customerId: createForm.customerId,
       customerName: matchedCustomer ? `${matchedCustomer.firstName} ${matchedCustomer.lastName}` : createForm.customerId,
       serviceType: createForm.serviceType || "Service",

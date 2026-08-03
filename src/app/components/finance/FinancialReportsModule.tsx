@@ -15,7 +15,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { useCity } from "../../contexts/CityContext";
 import { useFinance } from "../../contexts/FinanceContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -63,7 +62,6 @@ export interface ReportFilters {
 // ============================================================================
 
 export function FinancialReportsModule() {
-  const { cityInfo } = useCity();
   const { getRevenueByCity, getPayablesByCity } = useFinance();
   const [activeTab, setActiveTab] = useState("profit-loss");
   const [isLoading, setIsLoading] = useState(false);
@@ -93,9 +91,18 @@ export function FinancialReportsModule() {
     // Yield to browser so UI updates before heavy computation
     await new Promise(resolve => setTimeout(resolve, 0));
     try {
-      const city = cityInfo?.id || "CITY-SURAT";
-      const revs = getRevenueByCity ? getRevenueByCity(city) : [];
-      const pays = getPayablesByCity ? getPayablesByCity(city) : [];
+      // Real fix: follow the Report Filters card (city/date range/service
+      // type) instead of always exporting the globally active city's
+      // all-time data regardless of what the user actually selected above.
+      const ALL_CITIES = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
+      const cities = filters.city === "ALL" ? ALL_CITIES : [filters.city];
+      let revs = cities.flatMap(c => (getRevenueByCity ? getRevenueByCity(c) : []));
+      let pays = cities.flatMap(c => (getPayablesByCity ? getPayablesByCity(c) : []));
+      revs = revs.filter((r: any) => r.receivedDate >= filters.startDate && r.receivedDate <= filters.endDate);
+      pays = pays.filter((p: any) => p.dueDate >= filters.startDate && p.dueDate <= filters.endDate);
+      if (filters.serviceType !== "ALL") {
+        revs = revs.filter((r: any) => r.type === filters.serviceType);
+      }
       const rows = [
         ["Date","Type","Description","Amount","Status"],
         ...revs.map((r: any) => [r.receivedDate, "Revenue", r.type, r.amount, r.status]),
@@ -105,7 +112,7 @@ export function FinancialReportsModule() {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const a = document.createElement("a");
       a.href = "data:text/csv," + encodeURIComponent(csv);
-      a.download = `finance_report_${city}_${timestamp}.csv`;
+      a.download = `finance_report_${filters.city}_${timestamp}.csv`;
       a.click();
       toast?.success?.("Report exported successfully");
     } catch(e) {
@@ -169,9 +176,9 @@ export function FinancialReportsModule() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Cities</SelectItem>
-                  <SelectItem value="SUR">Surat</SelectItem>
-                  <SelectItem value="MUM">Mumbai</SelectItem>
-                  <SelectItem value="AHD">Ahmedabad</SelectItem>
+                  <SelectItem value="CITY-SURAT">Surat</SelectItem>
+                  <SelectItem value="CITY-MUMBAI">Mumbai</SelectItem>
+                  <SelectItem value="CITY-AHMEDABAD">Ahmedabad</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -208,9 +215,9 @@ export function FinancialReportsModule() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Services</SelectItem>
-                  <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-                  <SelectItem value="ON_DEMAND">On-Demand</SelectItem>
-                  <SelectItem value="DEEP_CLEAN">Deep Clean</SelectItem>
+                  <SelectItem value="Subscription">Subscription</SelectItem>
+                  <SelectItem value="One-Time">One-Time</SelectItem>
+                  <SelectItem value="Add-on">Add-on</SelectItem>
                 </SelectContent>
               </Select>
             </div>

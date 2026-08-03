@@ -72,17 +72,17 @@ export function AddOnComboAnalysis() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {addon.pricing["4W"] === "NA" ? (
+                      {addon.pricing.hatchback === "NA" ? (
                         <span className="text-gray-400">NA</span>
                       ) : (
-                        `₹${addon.pricing["4W"]}`
+                        `₹${addon.pricing.hatchback}`
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {addon.pricing["2W"] === "NA" ? (
+                      {addon.pricing.twoW === "NA" ? (
                         <span className="text-gray-400">NA</span>
                       ) : (
-                        `₹${addon.pricing["2W"]}`
+                        `₹${addon.pricing.twoW}`
                       )}
                     </TableCell>
                     <TableCell className="text-xs">
@@ -156,76 +156,45 @@ export function AddOnComboAnalysis() {
                   <TableRow>
                     <TableHead>Combo Name</TableHead>
                     <TableHead>What's Included</TableHead>
-                    <TableHead className="text-right">Normal Price</TableHead>
-                    <TableHead className="text-right">Combo Price</TableHead>
-                    <TableHead className="text-right">Monthly Saving</TableHead>
-                    <TableHead className="text-right">Discount %</TableHead>
-                    <TableHead>Valid For</TableHead>
+                    <TableHead className="text-right">Hatchback Price</TableHead>
+                    <TableHead className="text-right">SUV Price</TableHead>
+                    <TableHead>Saving</TableHead>
+                    <TableHead>When to Push</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
             <TableBody>
-              {COMBO_OFFERS.map((combo) => {
-                const vehicle1 = combo.planCombination.vehicle1;
-                const vehicle2 = combo.planCombination.vehicle2;
-
-                let description = "";
-                if (combo.id === "combo-003" || combo.id === "combo-004") {
-                  // Premium care packs include add-ons
-                  description = combo.description;
-                } else if (vehicle2) {
-                  description = `${vehicle1.plan} — 1 ${vehicle1.category} + 1 ${vehicle2.category}`;
-                } else {
-                  description = combo.description;
-                }
-
-                return (
-                  <TableRow key={combo.id}>
-                    <TableCell className="font-medium">{combo.name}</TableCell>
-                    <TableCell className="text-sm text-gray-600 max-w-xs">
-                      {description}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      ₹{combo.totalIndividualPrice.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-blue-600">
-                      ₹{combo.comboPrice.toLocaleString("en-IN")}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">
-                      ₹{combo.savings.toLocaleString("en-IN")} saved
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge className="bg-purple-100 text-purple-800 border-purple-300">
-                        {combo.savingsPercentage}% off
+              {COMBO_OFFERS.map((combo) => (
+                <TableRow key={combo.id}>
+                  <TableCell className="font-medium">{combo.name}</TableCell>
+                  <TableCell className="text-sm text-gray-600 max-w-xs">
+                    {combo.description}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    ₹{combo.hatchbackPrice.toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-blue-600">
+                    ₹{combo.suvPrice.toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="text-sm font-semibold text-green-600">
+                    {combo.saving}
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-600 max-w-xs">
+                    {combo.whenToPush}
+                  </TableCell>
+                  <TableCell>
+                    {combo.isActive ? (
+                      <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+                        Active
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {combo.id === "combo-001"
-                        ? "Same address"
-                        : combo.id === "combo-002"
-                        ? "Same household"
-                        : combo.id === "combo-003"
-                        ? "Hatchback/Sedan"
-                        : combo.id === "combo-004"
-                        ? "SUV/MUV"
-                        : combo.id === "combo-005"
-                        ? "5+ vehicles, same society"
-                        : "Corporate fleet"}
-                    </TableCell>
-                    <TableCell>
-                      {combo.isActive ? (
-                        <Badge className="bg-blue-100 text-blue-800 border-blue-300">
-                          Active
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-gray-100 text-gray-800 border-gray-300">
-                          Inactive
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                    ) : (
+                      <Badge className="bg-gray-100 text-gray-800 border-gray-300">
+                        Inactive
+                      </Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
             </div>

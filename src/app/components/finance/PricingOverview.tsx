@@ -15,7 +15,7 @@ import {
 } from "../ui/select";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { getPricingSummary, getPlanPrice, getOneTimeWashPrice, getAllOneTimeWashOptions, type VehicleCategory, PLAN_TYPES, CURRENT_PLAN_VERSION, formatPrice } from "../../data/subscriptionPlans";
+import { getPricingSummary, getPlanPrice, getOneTimeWashPrice, getAllOneTimeWashOptions, getAddOnPricingKey, type VehicleCategory, PLAN_TYPES, CURRENT_PLAN_VERSION, formatPrice } from "../../data/subscriptionPlans";
 import { usePlanDefinitions } from "../../contexts/PlanDefinitionContext";
 import {
   Car,
@@ -41,7 +41,6 @@ export function PricingOverview() {
     })),
     oneTimeWashes: getAllOneTimeWashOptions(selectedVehicle),
   };
-  const is4W = !selectedVehicle.includes("2W");
 
   return (
     <div className="space-y-6">
@@ -212,9 +211,7 @@ export function PricingOverview() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {ADD_ON_SERVICES.filter((addon) => addon.isActive).map(
                   (addon) => {
-                    const price = is4W
-                      ? addon.pricing["4W"]
-                      : addon.pricing["2W"];
+                    const price = addon.pricing[getAddOnPricingKey(selectedVehicle)];
 
                     if (price === "NA") return null;
 
@@ -278,7 +275,7 @@ export function PricingOverview() {
                             className="bg-green-50 text-green-700"
                           >
                             <TrendingDown className="h-3 w-3 mr-1" />
-                            Save {(combo?.savingsPercentage ?? 0).toFixed(1)}%
+                            {combo.saving}
                           </Badge>
                         </div>
                         <CardDescription className="text-xs">
@@ -289,23 +286,18 @@ export function PricingOverview() {
                         <div className="flex items-center justify-between">
                           <div className="flex-1 space-y-2">
                             <div className="text-sm">
-                              <span className="text-gray-600">
-                                Individual Total:{" "}
-                              </span>
-                              <span className="line-through text-gray-500">
-                                {formatPrice(combo.totalIndividualPrice)}
+                              <span className="text-gray-600">Hatchback: </span>
+                              <span className="font-semibold">
+                                {formatPrice(combo.hatchbackPrice)}
                               </span>
                             </div>
                             <div className="text-lg font-bold text-blue-600">
-                              Combo Price: {formatPrice(combo.comboPrice)}
+                              SUV: {formatPrice(combo.suvPrice)}
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-green-600">
-                              {formatPrice(combo.savings)}
-                            </div>
                             <div className="text-xs text-gray-600">
-                              Total Savings
+                              {combo.whenToPush}
                             </div>
                           </div>
                         </div>
@@ -345,9 +337,7 @@ export function PricingOverview() {
                 <CardTitle className="text-2xl">
                   {
                     ADD_ON_SERVICES.filter((a) =>
-                      is4W
-                        ? a.pricing["4W"] !== "NA"
-                        : a.pricing["2W"] !== "NA"
+                      a.pricing[getAddOnPricingKey(selectedVehicle)] !== "NA"
                     ).length
                   }
                 </CardTitle>

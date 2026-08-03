@@ -19,7 +19,6 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "../../../lib/formatters";
 import { useFinance } from "../../../contexts/FinanceContext";
-import { useCity } from "../../../contexts/CityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import {
@@ -83,38 +82,6 @@ interface DailyCashFlow {
 }
 
 // ============================================================================
-// MOCK DATA
-// ============================================================================
-
-const mockCashFlowByActivity: CashFlowCategory[] = [
-  { category: "Operating Activities", inflow: 4350000, outflow: 3595000, netFlow: 755000 },
-  { category: "Investing Activities", inflow: 0, outflow: 150000, netFlow: -150000 },
-  { category: "Financing Activities", inflow: 0, outflow: 0, netFlow: 0 },
-];
-
-const mockCashFlowByType: CashFlowCategory[] = [
-  { category: "Customer Payments", inflow: 4200000, outflow: 0, netFlow: 4200000 },
-  { category: "Subscription Collections", inflow: 150000, outflow: 0, netFlow: 150000 },
-  { category: "Salary Payments", inflow: 0, outflow: 3173000, netFlow: -3173000 },
-  { category: "Vendor Payments", inflow: 0, outflow: 280000, netFlow: -280000 },
-  { category: "Statutory Payments", inflow: 0, outflow: 142000, netFlow: -142000 },
-  { category: "Asset Purchases", inflow: 0, outflow: 150000, netFlow: -150000 },
-];
-
-const mockDailyCashFlow: DailyCashFlow[] = [
-  { date: "Apr 01", inflow: 120000, outflow: 85000, netFlow: 35000, balance: 1535000 },
-  { date: "Apr 02", inflow: 135000, outflow: 92000, netFlow: 43000, balance: 1578000 },
-  { date: "Apr 03", inflow: 128000, outflow: 110000, netFlow: 18000, balance: 1596000 },
-  { date: "Apr 04", inflow: 145000, outflow: 95000, netFlow: 50000, balance: 1646000 },
-  { date: "Apr 05", inflow: 142000, outflow: 3280000, netFlow: -3138000, balance: -1492000 }, // Salary day
-  { date: "Apr 06", inflow: 155000, outflow: 88000, netFlow: 67000, balance: -1425000 },
-  { date: "Apr 07", inflow: 165000, outflow: 105000, netFlow: 60000, balance: -1365000 },
-];
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -122,13 +89,15 @@ interface CashFlowReportProps {
   filters: ReportFilters;
 }
 
+const ALL_CITIES = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
+
 export function CashFlowReport({ filters }: CashFlowReportProps) {
   const { getRevenueByCity, getPayablesByCity } = useFinance();
-  const { city } = useCity();
   const [isLoading, setIsLoading] = useState(false);
   const [cashFlowByActivity, setCashFlowByActivity] = useState<CashFlowCategory[]>([]);
-  const [cashFlowByType, setCashFlowByType] = useState<CashFlowCategory[]>(mockCashFlowByType);
-  const [dailyCashFlow, setDailyCashFlow] = useState<DailyCashFlow[]>(mockDailyCashFlow);
+  const [cashFlowByType, setCashFlowByType] = useState<CashFlowCategory[]>([]);
+  const [dailyCashFlow, setDailyCashFlow] = useState<DailyCashFlow[]>([]);
+  const [openingBalance, setOpeningBalance] = useState(0);
 
   useEffect(() => {
     loadCashFlowData();
@@ -137,22 +106,78 @@ export function CashFlowReport({ filters }: CashFlowReportProps) {
   async function loadCashFlowData() {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Real fix: follow the parent Report Filters' City dropdown instead of
+      // the globally active city — "All Cities" aggregates across every
+      // real city rather than silently only ever showing whichever city
+      // happens to be active elsewhere in the app.
+      const cities = filters.city === "ALL" ? ALL_CITIES : [filters.city];
+      const receivedRevenues = cities.flatMap(c => getRevenueByCity(c)).filter(r => r.status === "Received");
+      const paidPayables = cities.flatMap(c => getPayablesByCity(c)).filter(p => p.status === "Paid" && p.paidAt);
 
-      // Operating: received revenues
-      const operating = getRevenueByCity(city)
-        .filter(r => r.status === "Received")
+      const inPeriodRevenues = receivedRevenues.filter(
+        r => r.receivedDate >= filters.startDate && r.receivedDate <= filters.endDate
+      );
+      const inPeriodPayables = paidPayables.filter(
+        p => p.paidAt! >= filters.startDate && p.paidAt! <= filters.endDate
+      );
+
+      // Real opening balance: net of all real cash movement before this period
+      const priorInflow = receivedRevenues
+        .filter(r => r.receivedDate < filters.startDate)
         .reduce((s, r) => s + r.amount, 0);
-      // Expenses paid
-      const expenses = getPayablesByCity(city)
-        .filter(p => p.status === "Paid")
+      const priorOutflow = paidPayables
+        .filter(p => p.paidAt! < filters.startDate)
         .reduce((s, p) => s + p.amount, 0);
-      const liveActivity: CashFlowCategory[] = [
+      setOpeningBalance(priorInflow - priorOutflow);
+
+      // Operating activities — the only activity type this data model currently
+      // supports (Payable.type has no Asset/investing or loan/financing bucket)
+      const operating = inPeriodRevenues.reduce((s, r) => s + r.amount, 0);
+      const expenses = inPeriodPayables.reduce((s, p) => s + p.amount, 0);
+      setCashFlowByActivity([
         { category: "Operating Activities", inflow: operating, outflow: expenses, netFlow: operating - expenses },
+      ]);
+
+      // By transaction type — real revenue.type / payable.type breakdown
+      const revenueByType: Record<string, number> = {};
+      inPeriodRevenues.forEach(r => { revenueByType[r.type] = (revenueByType[r.type] || 0) + r.amount; });
+      const payableByType: Record<string, number> = {};
+      inPeriodPayables.forEach(p => { payableByType[p.type] = (payableByType[p.type] || 0) + p.amount; });
+
+      const byType: CashFlowCategory[] = [
+        ...Object.entries(revenueByType).map(([category, inflow]) => ({
+          category, inflow, outflow: 0, netFlow: inflow,
+        })),
+        ...Object.entries(payableByType).map(([category, outflow]) => ({
+          category: `${category} Payments`, inflow: 0, outflow, netFlow: -outflow,
+        })),
       ];
-      setCashFlowByActivity(liveActivity.length > 0 ? liveActivity : mockCashFlowByActivity);
-      setCashFlowByType(mockCashFlowByType);
-      setDailyCashFlow(mockDailyCashFlow);
+      setCashFlowByType(byType);
+
+      // Daily series across the selected date range
+      const days: DailyCashFlow[] = [];
+      let runningBalance = priorInflow - priorOutflow;
+      const cursor = new Date(filters.startDate);
+      const end = new Date(filters.endDate);
+      while (cursor <= end) {
+        const dayStr = cursor.toISOString().slice(0, 10);
+        const dayInflow = inPeriodRevenues
+          .filter(r => r.receivedDate.slice(0, 10) === dayStr)
+          .reduce((s, r) => s + r.amount, 0);
+        const dayOutflow = inPeriodPayables
+          .filter(p => p.paidAt!.slice(0, 10) === dayStr)
+          .reduce((s, p) => s + p.amount, 0);
+        runningBalance += dayInflow - dayOutflow;
+        days.push({
+          date: cursor.toLocaleDateString("en-IN", { month: "short", day: "2-digit" }),
+          inflow: dayInflow,
+          outflow: dayOutflow,
+          netFlow: dayInflow - dayOutflow,
+          balance: runningBalance,
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      setDailyCashFlow(days);
     } catch (error) {
       console.error("Failed to load cash flow data:", error);
     } finally {
@@ -164,7 +189,7 @@ export function CashFlowReport({ filters }: CashFlowReportProps) {
     totalInflow: cashFlowByType.reduce((sum, item) => sum + item.inflow, 0),
     totalOutflow: cashFlowByType.reduce((sum, item) => sum + item.outflow, 0),
     netCashFlow: 0,
-    openingBalance: 1500000, // Would come from ledger
+    openingBalance,
     closingBalance: 0,
   };
 

@@ -11,7 +11,7 @@ import { useEventListener, useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue } from "../services/accountingEntryService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue, getCityStateCode, postPayableEntryForFinance, postPayableSettlementForFinance } from "../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../services/gstComplianceService";
 
 // Types
@@ -265,43 +265,47 @@ const withCityFallback = <T extends { cityId?: string; city?: string }>(item: T)
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const { subscribe } = useEvents();
   const [mrrData, setMRRData] = useState<MRRData[]>(() => {
-    const stored = DataService.get<MRRData>("FINANCE_MRR");
+    // Real fix: these buckets carry every record's own real cityId, so a
+    // plain DataService.get() with no cityId (which always resolves to
+    // CITY-SURAT's key alone) would silently drop Mumbai/Ahmedabad data.
+    // getAllCities() merges all 3 real cities' own physical keys instead.
+    const stored = DataService.getAllCities<MRRData>("FINANCE_MRR");
     logger.debug("FinanceContext MRR loaded", { count: stored.length });
     return stored.map(withCityFallback); // ✅ Apply cityId fallback
   });
 
   const [payables, setPayables] = useState<Payable[]>(() => {
-    const stored = DataService.get<Payable>("FINANCE_PAYABLES");
+    const stored = DataService.getAllCities<Payable>("FINANCE_PAYABLES");
     logger.debug("FinanceContext Payables loaded", { count: stored.length });
     return stored.map(withCityFallback); // ✅ Apply cityId fallback
   });
 
   const [revenues, setRevenues] = useState<Revenue[]>(() => {
-    const stored = DataService.get<Revenue>("FINANCE_REVENUES");
+    const stored = DataService.getAllCities<Revenue>("FINANCE_REVENUES");
     logger.debug("FinanceContext Revenues loaded", { count: stored.length });
     return stored.map(withCityFallback); // ✅ Apply cityId fallback
   });
 
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(() => {
-    const stored = DataService.get<LedgerEntry>("FINANCE_LEDGER");
+    const stored = DataService.getAllCities<LedgerEntry>("FINANCE_LEDGER");
     logger.debug("FinanceContext Ledger loaded", { count: stored.length });
     return stored.map(withCityFallback); // ✅ Apply cityId fallback
   });
 
   const [budgets, setBudgets] = useState<Budget[]>(() => {
-    const stored = DataService.get<Budget>("FINANCE_BUDGETS");
+    const stored = DataService.getAllCities<Budget>("FINANCE_BUDGETS");
     logger.debug("FinanceContext Budgets loaded", { count: stored.length });
     return stored;
   });
 
   const [alerts, setAlerts] = useState<FinanceAlert[]>(() => {
-    const stored = DataService.get<FinanceAlert>("FINANCE_ALERTS");
+    const stored = DataService.getAllCities<FinanceAlert>("FINANCE_ALERTS");
     logger.debug("FinanceContext Alerts loaded", { count: stored.length });
     return stored;
   });
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>(() => {
-    const stored = DataService.get<Recommendation>("FINANCE_RECOMMENDATIONS");
+    const stored = DataService.getAllCities<Recommendation>("FINANCE_RECOMMENDATIONS");
     logger.debug("FinanceContext Recommendations loaded", { count: stored.length });
     return stored;
   });
@@ -321,13 +325,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!mrrData.length) return;
     if (mrrTimerRef.current) clearTimeout(mrrTimerRef.current);
-    mrrTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_MRR", mrrData), 500);
+    // Real fix: split-write by each record's own cityId instead of always
+    // writing the full, all-cities array to CITY-SURAT's key alone.
+    mrrTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_MRR", mrrData), 500);
   }, [mrrData]);
 
   useEffect(() => {
     if (!payables.length) return;
     if (payTimerRef.current) clearTimeout(payTimerRef.current);
-    payTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_PAYABLES", payables), 500);
+    payTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_PAYABLES", payables), 500);
   }, [payables]);
 
   useEffect(() => {
@@ -335,31 +341,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // (Supabase will re-sync on next load if online — this is a fallback)
     if (!revenues.length) return;
     if (revTimerRef.current) clearTimeout(revTimerRef.current);
-    revTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_REVENUES", revenues), 500);
+    revTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_REVENUES", revenues), 500);
   }, [revenues]);
 
   useEffect(() => {
     if (!ledgerEntries.length) return;
     if (ledgTimerRef.current) clearTimeout(ledgTimerRef.current);
-    ledgTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_LEDGER", ledgerEntries), 500);
+    ledgTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_LEDGER", ledgerEntries), 500);
   }, [ledgerEntries]);
 
   useEffect(() => {
     if (!budgets.length) return;
     if (budgTimerRef.current) clearTimeout(budgTimerRef.current);
-    budgTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_BUDGETS", budgets), 500);
+    budgTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_BUDGETS", budgets), 500);
   }, [budgets]);
 
   useEffect(() => {
     if (!alerts.length) return;
     if (altTimerRef.current) clearTimeout(altTimerRef.current);
-    altTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_ALERTS", alerts), 500);
+    altTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_ALERTS", alerts), 500);
   }, [alerts]);
 
   useEffect(() => {
     if (!recommendations.length) return;
     if (recTimerRef.current) clearTimeout(recTimerRef.current);
-    recTimerRef.current = setTimeout(() => DataService.setAll("FINANCE_RECOMMENDATIONS", recommendations), 500);
+    recTimerRef.current = setTimeout(() => DataService.setAllByRecordCity("FINANCE_RECOMMENDATIONS", recommendations), 500);
   }, [recommendations]);
 
   // Backend sync (background, non-blocking)
@@ -475,17 +481,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   // Run at 1s and 3s to catch slow Supabase responses
   useEffect(() => {
     const rehydrate = () => {
-      // Read all cities combined (no cityId = reads CITY-SURAT key as default, falls back to legacy)
-      const storedRevenues = DataService.get<Revenue>("FINANCE_REVENUES");
+      // Merge-read all 3 real cities' own physical keys — a plain get()
+      // with no cityId would only ever see CITY-SURAT's key.
+      const storedRevenues = DataService.getAllCities<Revenue>("FINANCE_REVENUES");
       if (storedRevenues.length > revenues.length) {
         logger.debug("FinanceContext re-hydrating revenues", { count: storedRevenues.length });
         setRevenues(storedRevenues.map(withCityFallback));
       }
-      const storedPayables = DataService.get<Payable>("FINANCE_PAYABLES");
+      const storedPayables = DataService.getAllCities<Payable>("FINANCE_PAYABLES");
       if (storedPayables.length > payables.length) {
         setPayables(storedPayables);
       }
-      const storedMRR = DataService.get<MRRData>("FINANCE_MRR");
+      const storedMRR = DataService.getAllCities<MRRData>("FINANCE_MRR");
       if (storedMRR.length > mrrData.length) {
         setMRRData(storedMRR);
       }
@@ -635,6 +642,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       ]);
     }
 
+    // Real fix: also post to accountingEntryService's real ledger — the one
+    // ChartOfAccounts/ProfitLossReport/the GST adapter actually read — not
+    // just this context's own separate ledgerEntries above. See
+    // postPayableEntryForFinance's own comment for why this is needed.
+    try {
+      postPayableEntryForFinance({
+        payableId: newPayable.payableId,
+        type: newPayable.type,
+        amount: newPayable.amount,
+        dueDate: newPayable.dueDate,
+        description: newPayable.description,
+        vendorId: newPayable.vendorId,
+        vendorName: newPayable.vendorName,
+        city: newPayable.cityId,
+        cityId: newPayable.cityId,
+      });
+    } catch (e) {
+      console.error("Failed to post payable to real ledger:", e);
+    }
+
     return newPayable;
   };
 
@@ -692,6 +719,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payable.amount },
         { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "1000", accountName: "Bank Account", entryType: "CREDIT" as const, amount: payable.amount },
       ]);
+      // Real fix: also clear the liability on accountingEntryService's real
+      // ledger (see createPayable's identical fix above for why).
+      try {
+        postPayableSettlementForFinance({
+          payableId,
+          amount: payable.amount,
+          description: payable.description,
+          paymentReference,
+          cityId: payable.cityId,
+          city: payable.cityId,
+          createdBy: "System",
+        });
+      } catch (e) {
+        console.error("Failed to post payable settlement to real ledger:", e);
+      }
       // G9 FIX: fire PAYMENT_MADE so downstream modules (Supervisor, Reports) can react
       window.dispatchEvent(new CustomEvent("cc360_payment_made", {
         detail: {
@@ -777,7 +819,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // had opened that screen for, silently never reached P&L at all.
       try {
         const taxable = revenueData.amount / 1.18;
-        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", revenueData.cityId);
+        // Real fix: customers are served locally in the same city the
+        // revenue belongs to, so the customer's real state is that city's
+        // own state — not COMPANY_GST_CONFIG.stateCode (always Gujarat),
+        // which wrongly forced every non-Gujarat city's revenue to post as
+        // inter-state IGST instead of the real intra-state CGST/SGST split.
+        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, getCityStateCode(revenueData.cityId), "Unregistered", revenueData.cityId);
         const existingJournals = accountingEntryService.getAllJournals(revenueData.cityId);
         const existingNums = existingJournals.map(j => j.voucherNumber).filter(Boolean);
         const invNum = revenueData.invoiceNumber || generateInvoiceNumber(revenueData.cityId, existingNums);

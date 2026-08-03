@@ -87,9 +87,16 @@ export function CityProvider({ children }: CityProviderProps) {
   const { currentUser, currentRole } = useRole();
 
   // Priority: URL param > user's assigned city > persisted localStorage > default Surat
+  // Real fix: a City Manager's own assigned city must win over the URL param
+  // immediately, on the very first render — otherwise a bookmarked or
+  // manually-typed URL with a foreign ?city= briefly initializes state to
+  // the wrong city before the re-lock effect below corrects it.
   const urlCity = getCityFromURL();
   const persistedCity = localStorage.getItem("cleancar_selected_city") as CityId | null;
-  const defaultCity = urlCity || (currentUser?.cityId as CityId) || persistedCity || "CITY-SURAT";
+  const isLockedRole = currentRole === "City Manager";
+  const defaultCity = isLockedRole && currentUser?.cityId
+    ? (currentUser.cityId as CityId)
+    : urlCity || (currentUser?.cityId as CityId) || persistedCity || "CITY-SURAT";
   const [city, setCityState] = useState<CityId>(defaultCity);
 
   // Persist city selection to localStorage whenever city changes
@@ -100,11 +107,23 @@ export function CityProvider({ children }: CityProviderProps) {
     localStorage.setItem("cleancar_selected_city", city);
   }, [city]);
 
+  // Determine if city is locked based on role
+  const isLocked = currentRole === "City Manager";
+
+  // Real fix: these two URL-driven effects called setCityState() directly,
+  // bypassing setCity()'s lock check entirely — a City Manager (isLocked)
+  // simply navigating to (or clicking a nav link carrying) a URL with a
+  // different ?city= param switched their active city with no lock check
+  // at all, exposing another city's data. Both now refuse a URL city that
+  // doesn't match the locked user's own assigned city, same as setCity().
+  const canAdoptUrlCity = (urlCityId: CityId): boolean =>
+    !isLocked || urlCityId === (currentUser?.cityId as CityId);
+
   // Sync city from URL — runs only when location.search changes, not every render
   // Fixed: removed no-dep-array effect that was causing infinite render loops
   useEffect(() => {
     const urlCityId = getCityFromURL();
-    if (urlCityId && urlCityId !== city) {
+    if (urlCityId && urlCityId !== city && canAdoptUrlCity(urlCityId)) {
       setCityState(urlCityId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,16 +133,13 @@ export function CityProvider({ children }: CityProviderProps) {
   useEffect(() => {
     const handlePopState = () => {
       const urlCityId = getCityFromURL();
-      if (urlCityId && urlCityId !== city) {
+      if (urlCityId && urlCityId !== city && canAdoptUrlCity(urlCityId)) {
         setCityState(urlCityId);
       }
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [city]);
-
-  // Determine if city is locked based on role
-  const isLocked = currentRole === "City Manager";
+  }, [city, isLocked, currentUser?.cityId]);
 
   // Get available cities
   const availableCities = isLocked

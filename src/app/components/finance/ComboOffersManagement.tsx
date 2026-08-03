@@ -36,9 +36,11 @@ export function ComboOffersManagement() {
     return { label: "Premium Pack", color: "bg-orange-100 text-orange-800" };
   };
 
-  const totalSavings = activeOffers.reduce((sum, offer) => sum + offer.savings, 0);
-  const avgSavingsPercent = activeOffers.length > 0
-    ? activeOffers.reduce((sum, offer) => sum + offer.savingsPercentage, 0) / activeOffers.length
+  const avgHatchbackPrice = activeOffers.length > 0
+    ? activeOffers.reduce((sum, offer) => sum + offer.hatchbackPrice, 0) / activeOffers.length
+    : 0;
+  const avgSuvPrice = activeOffers.length > 0
+    ? activeOffers.reduce((sum, offer) => sum + offer.suvPrice, 0) / activeOffers.length
     : 0;
 
   return (
@@ -62,24 +64,26 @@ export function ComboOffersManagement() {
             </Card>
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Total Max Savings</CardDescription>
+                <CardDescription>Avg Hatchback Price</CardDescription>
                 <CardTitle className="text-2xl text-green-600">
-                  {formatPrice(totalSavings)}
+                  {formatPrice(avgHatchbackPrice)}
                 </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Avg Discount %</CardDescription>
+                <CardDescription>Avg SUV Price</CardDescription>
                 <CardTitle className="text-2xl text-blue-600">
-                  {avgSavingsPercent.toFixed(1)}%
+                  {formatPrice(avgSuvPrice)}
                 </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription>Bundle Types</CardDescription>
-                <CardTitle className="text-2xl">4</CardTitle>
+                <CardTitle className="text-2xl">
+                  {new Set(activeOffers.map((o) => getOfferTypeBadge(o.name).label)).size}
+                </CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -94,17 +98,16 @@ export function ComboOffersManagement() {
                       <TableHead>Offer Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Individual Price</TableHead>
-                      <TableHead>Combo Price</TableHead>
-                      <TableHead>Savings</TableHead>
-                      <TableHead>Discount %</TableHead>
+                      <TableHead>Hatchback Price</TableHead>
+                      <TableHead>SUV Price</TableHead>
+                      <TableHead>Saving</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
               <TableBody>
                 {activeOffers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       No combo offers found
                     </TableCell>
                   </TableRow>
@@ -128,38 +131,23 @@ export function ComboOffersManagement() {
                           {offer.description}
                         </TableCell>
                         <TableCell>
-                          {formatPrice(offer.totalIndividualPrice)}
+                          {formatPrice(offer.hatchbackPrice)}
                         </TableCell>
                         <TableCell className="font-semibold">
-                          {formatPrice(offer.comboPrice)}
+                          {formatPrice(offer.suvPrice)}
                         </TableCell>
                         <TableCell>
                           <span className="text-green-600 font-medium">
-                            {formatPrice(offer.savings)}
+                            {offer.saving}
                           </span>
                         </TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className="bg-green-50 text-green-700 border-green-200"
+                            className="bg-green-50 text-green-700 w-fit"
                           >
-                            {(offer?.savingsPercentage ?? 0).toFixed(1)}%
+                            Active
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <Badge
-                              variant="outline"
-                              className="bg-green-50 text-green-700 w-fit"
-                            >
-                              Active
-                            </Badge>
-                            {offer.validUntil && (
-                              <span className="text-xs text-gray-500">
-                                Until {new Date(offer.validUntil).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -184,71 +172,33 @@ export function ComboOffersManagement() {
                         variant="outline"
                         className="bg-green-50 text-green-700"
                       >
-                        Save {(offer?.savingsPercentage ?? 0).toFixed(1)}%
+                        {offer.saving}
                       </Badge>
                     </div>
                     <CardDescription>{offer.description}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {/* Vehicle 1 */}
+                      {/* Pricing by vehicle tier */}
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <div className="text-sm font-medium">
-                            {offer.planCombination.vehicle1.category}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {offer.planCombination.vehicle1.plan}
-                          </div>
-                        </div>
+                        <div className="text-sm font-medium">Hatchback</div>
                         <div className="text-sm font-semibold">
-                          {formatPrice(
-                            offer.planCombination.vehicle1.individualPrice
-                          )}
+                          {formatPrice(offer.hatchbackPrice)}
                         </div>
                       </div>
-
-                      {/* Vehicle 2 (if exists) */}
-                      {offer.planCombination.vehicle2 && (
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div>
-                            <div className="text-sm font-medium">
-                              {offer.planCombination.vehicle2.category}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {offer.planCombination.vehicle2.plan}
-                            </div>
-                          </div>
-                          <div className="text-sm font-semibold">
-                            {formatPrice(
-                              offer.planCombination.vehicle2.individualPrice
-                            )}
-                          </div>
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="text-sm font-medium">SUV</div>
+                        <div className="text-sm font-semibold">
+                          {formatPrice(offer.suvPrice)}
                         </div>
-                      )}
+                      </div>
 
                       {/* Pricing Summary */}
                       <div className="border-t pt-3 space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">
-                            Individual Total:
-                          </span>
-                          <span className="line-through text-gray-500">
-                            {formatPrice(offer.totalIndividualPrice)}
-                          </span>
+                          <span className="text-gray-600">When to push:</span>
                         </div>
-                        <div className="flex justify-between text-base font-semibold">
-                          <span>Combo Price:</span>
-                          <span className="text-blue-600">
-                            {formatPrice(offer.comboPrice)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-green-600">You Save:</span>
-                          <span className="text-green-600 font-medium">
-                            {formatPrice(offer.savings)}
-                          </span>
-                        </div>
+                        <p className="text-xs text-gray-500">{offer.whenToPush}</p>
                       </div>
                     </div>
                   </CardContent>

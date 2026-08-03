@@ -35,6 +35,7 @@ import {
   ADD_ON_SERVICES,
   COMBO_OFFERS,
   ONE_TIME_WASH_PRICING,
+  getAddOnPricingKey,
   type PlanVersion,
   type VehicleCategory,
   type PlanType,
@@ -64,7 +65,7 @@ interface PlanDefinitionContextType {
   getAddOnById: (id: string) => AddOnService | undefined;
   getAddOnsByCategory: (category: "Cleaning" | "Protection" | "Maintenance") => AddOnService[];
   getAddOnsForPlan: (planType: PlanType) => AddOnService[];
-  getAddOnPrice: (addonId: string, vehicleType: "4W" | "2W") => number | "NA";
+  getAddOnPrice: (addonId: string, vehicleCategory: VehicleCategory) => number | "NA";
 
   // Combo Offers
   COMBO_OFFERS: ComboOffer[];
@@ -185,9 +186,9 @@ export function PlanDefinitionProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const getAddOnPrice = (addonId: string, vehicleType: "4W" | "2W"): number | "NA" => {
+  const getAddOnPrice = (addonId: string, vehicleCategory: VehicleCategory): number | "NA" => {
     const addon = getAddOnById(addonId);
-    return addon ? addon.pricing[vehicleType] : "NA";
+    return addon ? addon.pricing[getAddOnPricingKey(vehicleCategory)] : "NA";
   };
 
   // Combo Offer Helper Functions
@@ -199,12 +200,10 @@ export function PlanDefinitionProvider({ children }: { children: ReactNode }) {
     return COMBO_OFFERS.filter((combo) => combo.isActive);
   };
 
-  const getCombosByVehicleCategory = (category: VehicleCategory): ComboOffer[] => {
-    return COMBO_OFFERS.filter(
-      (combo) =>
-        combo.planCombination.vehicle1.category === category ||
-        combo.planCombination.vehicle2?.category === category
-    );
+  const getCombosByVehicleCategory = (_category: VehicleCategory): ComboOffer[] => {
+    // Real ComboOffer has no per-vehicle-category field — every combo prices
+    // both a hatchback and an SUV tier, so it applies to any 4W category.
+    return COMBO_OFFERS.filter((combo) => combo.isActive);
   };
 
   // One-Time Wash Helper Function

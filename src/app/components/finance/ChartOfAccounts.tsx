@@ -1024,16 +1024,26 @@ function ChartOfAccounts() {
   const hasAccess   = ["Super Admin","Admin","Accounts"].includes(currentRole);
   const canRunAudit = ["Super Admin","Admin"].includes(currentRole);
 
-  // C4 FIX: totals computed HERE (before runSystemAudit) so closure captures current values
+  // Real fix: these totals — and everything downstream that depends on them
+  // (isBalanced, difference, the P&L preview, the Balance Sheet check, and
+  // "Run System Audit") — used to sum the illustrative account tree above,
+  // which never receives any real transaction and defaults every balance to
+  // 0, so the audit trivially always reported "Balanced". Now they use the
+  // same real, ledger-derived realNatureTotals the 5 summary cards already
+  // use. The real ledger system files "Capital & Equity" (accountHead
+  // "equity") under nature "liability" (a real accounting convention —
+  // equity is a liability-side claim on the business), so there is no
+  // separate real "equity" bucket to sum; realNatureTotals.liability
+  // already includes it, and the balance check is Assets === Liabilities.
   const totals = {
-    assets:      accounts.filter(a => a.category === "Assets"      && a.type === "Ledger").reduce((s,a)=>s+a.balance,0),
-    liabilities: accounts.filter(a => a.category === "Liabilities" && a.type === "Ledger").reduce((s,a)=>s+a.balance,0),
-    equity:      accounts.filter(a => a.category === "Equity"      && a.type === "Ledger").reduce((s,a)=>s+a.balance,0),
-    income:      accounts.filter(a => a.category === "Income"      && a.type === "Ledger").reduce((s,a)=>s+a.balance,0),
-    expenses:    accounts.filter(a => a.category === "Expenses"    && a.type === "Ledger").reduce((s,a)=>s+a.balance,0),
+    assets:      realNatureTotals.asset,
+    liabilities: realNatureTotals.liability,
+    equity:      0,
+    income:      realNatureTotals.income,
+    expenses:    realNatureTotals.expense,
   };
-  const isBalanced    = totals.assets === (totals.liabilities + totals.equity);
-  const difference    = totals.assets - (totals.liabilities + totals.equity);
+  const isBalanced    = totals.assets === totals.liabilities;
+  const difference    = totals.assets - totals.liabilities;
   const absDifference = Math.abs(difference);
 
   // C4 FIX: runSystemAudit defined AFTER totals — closure now captures live values

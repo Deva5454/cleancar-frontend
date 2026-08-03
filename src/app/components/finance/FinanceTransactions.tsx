@@ -159,7 +159,7 @@ const SOURCE_TAGS: SourceConfig[] = [
 export function FinanceTransactions() {
   const { city, cityInfo } = useCity();
   const { currentRole } = useRole();
-  const { getRevenues, getPayables, canSeeAllCities } = useFinanceForCurrentUser();
+  const { getRevenues } = useFinanceForCurrentUser();
 
   // ── Build real transactions from seeded data ──────────────────────────────
   // Derives transactions from accounting entries + revenue records. Shows an
@@ -206,13 +206,14 @@ export function FinanceTransactions() {
     });
 
     // 2. Revenue records (subscription + one-time + web)
-    const revenues: any[] = (() => {
-      try {
-        const key = `cleancar_CITY-${city.replace("CITY-","")}_revenues`;
-        const cityKey = `cleancar_${city}_revenues`;
-        return JSON.parse(localStorage.getItem(cityKey) || localStorage.getItem(key) || "[]");
-      } catch { return []; }
-    })();
+    // Real fix: was reading localStorage directly, bypassing FinanceContext
+    // entirely (missing its legacy-key fallback and able to disagree with
+    // its debounced writes) and ignoring the RBAC scoping
+    // useFinanceForCurrentUser exists specifically to add. getRevenues()
+    // already excludes other cities' data for non-admin-like roles; the
+    // extra city filter below keeps this function scoped to the one city
+    // it's building a transaction list for, even for roles that can see all.
+    const revenues: any[] = getRevenues().filter((r: any) => r.cityId === city);
     const revenueIds = new Set(fromEntries.map(e => e.referenceId));
     const fromRevenues: FinanceTransaction[] = revenues
       .filter((r: any) => !revenueIds.has(r.invoiceNumber))

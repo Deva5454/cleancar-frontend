@@ -54,18 +54,20 @@ export function formatCurrency(
 
   // Compact format (default) - for dashboards and summary views
   if (compact) {
-    if (amount >= 10000000) {
+    const sign = amount < 0 ? "-" : "";
+    const abs = Math.abs(amount);
+    if (abs >= 10000000) {
       // 1 Crore or more
-      return `₹${(amount / 10000000).toFixed(1)}Cr`;
-    } else if (amount >= 100000) {
+      return `${sign}₹${(abs / 10000000).toFixed(1)}Cr`;
+    } else if (abs >= 100000) {
       // 1 Lakh or more
-      return `₹${(amount / 100000).toFixed(1)}L`;
-    } else if (amount >= 1000) {
+      return `${sign}₹${(abs / 100000).toFixed(1)}L`;
+    } else if (abs >= 1000) {
       // 1 Thousand or more
-      return `₹${(amount / 1000).toFixed(1)}K`;
+      return `${sign}₹${(abs / 1000).toFixed(1)}K`;
     } else {
-      const decimalPlaces = decimals ?? (amount < 1000 ? 2 : 0);
-      return `₹${amount.toFixed(decimalPlaces)}`;
+      const decimalPlaces = decimals ?? (abs < 1000 ? 2 : 0);
+      return `${sign}₹${abs.toFixed(decimalPlaces)}`;
     }
   }
 

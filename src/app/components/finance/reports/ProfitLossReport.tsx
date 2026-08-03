@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { accountingEntryService } from "../../../services/accountingEntryService";
-import { useCity } from "../../../contexts/CityContext";
 import { Download, FileText, ChevronRight, ChevronDown } from "lucide-react";
 import { ReportFilters } from "../FinancialReportsModule";
 
@@ -9,10 +8,19 @@ interface ProfitLossReportProps {
 }
 
 export function ProfitLossReport({ filters }: ProfitLossReportProps) {
-  const { city } = useCity();
+  // Real fix: this report has its own duplicate date inputs below (kept for
+  // the Tally-format print/export layout), but the City filter — and now
+  // fromDate/toDate — must follow the parent Report Filters card, not a
+  // stale one-time initial value or the globally active city.
+  const city = filters.city === "ALL" ? undefined : filters.city;
   const [fromDate, setFromDate] = useState(filters.startDate || "2026-04-01");
   const [toDate, setToDate] = useState(filters.endDate || new Date().toISOString().split('T')[0]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setFromDate(filters.startDate);
+    setToDate(filters.endDate);
+  }, [filters.startDate, filters.endDate]);
 
   const toggleGroup = (groupKey: string) => {
     setExpandedGroups(prev => {
@@ -158,7 +166,7 @@ export function ProfitLossReport({ filters }: ProfitLossReportProps) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-          <div className="px-3 py-2 border rounded bg-white text-gray-700">{city}</div>
+          <div className="px-3 py-2 border rounded bg-white text-gray-700">{city ?? "All Cities"}</div>
         </div>
       </div>
 

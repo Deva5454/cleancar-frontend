@@ -475,6 +475,16 @@ const CITY_STATE_CODES: Record<string, string> = {
 };
 const DEFAULT_STATE_CODE = "24";
 
+// Real fix: exported so callers recording a LOCAL transaction (e.g. revenue
+// for a customer served in a given city) can derive that city's own real
+// state code, instead of hardcoding COMPANY_GST_CONFIG.stateCode (always
+// Gujarat/"24") as a stand-in for the customer's state — which wrongly
+// classified every non-Gujarat city's local revenue as inter-state (IGST).
+export function getCityStateCode(cityId?: string): string {
+  if (!cityId) return DEFAULT_STATE_CODE;
+  return CITY_STATE_CODES[cityId] || DEFAULT_STATE_CODE;
+}
+
 // Computes the next real date a recurring template is due, given a target
 // day-of-month. If that day has already passed this month, rolls to next
 // month — never returns a date in the past.
@@ -808,6 +818,118 @@ export function postSalesEntryForRevenue(params: {
 }
 
 /**
+ * postPayableEntryForFinance — real fix for the disconnected-ledger gap:
+ * FinanceContext.createPayable()/markAsPaid() only ever posted to
+ * FinanceContext's own ledgerEntries (accountCode-based), never to this
+ * service's real AccountingEntry/Journal/LedgerMaster store (accountHead-
+ * based) — the one ChartOfAccounts, ProfitLossReport, and the GST adapter
+ * all read exclusively. Paying a real Salary/Vendor/Statutory/Travel/Claim
+ * payable never reached the "single source of truth" reports at all.
+ *
+ * Posts a simple, real, NonGST 2-line accrual entry (Payable has no GST
+ * breakdown of its own, so none is fabricated here) using whichever real
+ * seeded ledgers exist for that payable type. Returns null (no throw) if
+ * the required ledgers aren't seeded yet for this city, or if an entry for
+ * this exact payableId was already posted — same "skip, don't fabricate"
+ * contract as postSalesEntryForRevenue above.
+ */
+export function postPayableEntryForFinance(params: {
+  payableId: string;
+  type: "Salary" | "Vendor" | "Statutory" | "Travel" | "Claim";
+  amount: number;
+  dueDate: string;
+  description: string;
+  vendorId?: string;
+  vendorName?: string;
+  city: string;
+  cityId: string;
+}): AccountingEntry | null {
+  const already = accountingEntryService.getAllEntries(params.cityId)
+    .some(e => e.invoiceNumber === params.payableId);
+  if (already) return null;
+
+  const ledgers = accountingEntryService.getLedgers(params.cityId);
+  // Real fix: no "purchase" ledger is seeded for any city, and the naive
+  // "first direct_expenses ledger" fallback landed on "Salaries and
+  // Employee Wages" — silently inflating that specific salary ledger with
+  // unrelated vendor spend. Named lookups instead, so a Vendor/Statutory
+  // payable can never land on the one ledger every salary-specific report
+  // reads by name.
+  const debitLedger =
+    params.type === "Salary"    ? ledgers.find(l => l.accountHead === "salary_expense") :
+    params.type === "Vendor"    ? ledgers.find(l => l.accountHead === "direct_expenses" && l.name === "Raw Materials And Consumables") :
+    ledgers.find(l => l.accountHead === "indirect_expenses");
+  const creditLedger =
+    params.type === "Salary"    ? ledgers.find(l => l.accountHead === "salary_payable") :
+    params.type === "Statutory" ? ledgers.find(l => l.accountHead === "statutory_payable") :
+    params.type === "Travel" || params.type === "Claim" ? ledgers.find(l => l.accountHead === "other_liabilities" && l.name === "Employee Reimbursements") :
+    (params.vendorName && ledgers.find(l => l.accountHead === "accounts_payable" && l.name === `AP — ${params.vendorName}`)) ||
+    ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
+  if (!debitLedger || !creditLedger) return null;
+
+  const entryType = params.type === "Vendor" ? "Purchase" : "Expense";
+
+  try {
+    return accountingEntryService.createEntry({
+      entryType,
+      date: params.dueDate,
+      vendorId: params.vendorId,
+      vendorName: params.vendorName,
+      invoiceNumber: params.payableId,
+      taxableValue: params.amount,
+      gstRate: 0,
+      gstEntryType: "NonGST",
+      cgst: 0, sgst: 0, igst: 0,
+      totalBillValue: params.amount,
+      paymentMode: "Bank",
+      isRCM: false,
+      debitAccount: debitLedger.id,
+      creditAccount: creditLedger.id,
+      narration: `${params.type} — ${params.description}`,
+      city: params.city,
+      cityId: params.cityId,
+      createdBy: "System",
+    }, params.city, { skipPayableSync: true });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * postPayableSettlementForFinance — the real-ledger counterpart to
+ * markAsPaid(). Clears the liability the matching accrual entry posted
+ * (found by payableId, the invoiceNumber postPayableEntryForFinance used)
+ * against Bank — same "Dr liability, Cr bank" settlement pattern already
+ * used elsewhere in this file (payRCMLiability, markRefundPaid). No-op if
+ * the original accrual entry was never posted (e.g. required ledgers
+ * weren't seeded for this city).
+ */
+export function postPayableSettlementForFinance(params: {
+  payableId: string;
+  amount: number;
+  description: string;
+  paymentReference: string;
+  cityId: string;
+  city: string;
+  createdBy: string;
+}): void {
+  const original = accountingEntryService.getAllEntries(params.cityId)
+    .find(e => e.invoiceNumber === params.payableId);
+  if (!original) return;
+  accountingEntryService.createJournal({
+    date: new Date().toISOString().split("T")[0],
+    narration: `Payment — ${params.description} (Ref: ${params.paymentReference})`,
+    lines: [
+      { accountHead: original.creditAccount, accountLabel: original.creditAccount, debit: params.amount, credit: 0 },
+      { accountHead: "bank", accountLabel: "Bank Account", debit: 0, credit: params.amount },
+    ],
+    city: params.city,
+    cityId: params.cityId,
+    createdBy: params.createdBy,
+  }, params.city);
+}
+
+/**
  * ✅ NEW: the real, previously-missing second half of the RCM lifecycle —
  * implementing the general 4-step pattern as the best available default,
  * per instruction, since the CA's specific 2-step-vs-4-step discrepancy
@@ -990,19 +1112,34 @@ class AccountingEntryService {
     DataService.setAll("ACCOUNTING_ITEM_MASTER", this.getItems().filter(i => i.id !== id));
   }
 
+  // Real fix: every AccountingEntry carries its own real cityId, but this
+  // used to be read/written via DataService.get/setAll with no cityId,
+  // silently resolving to the single CITY-SURAT-keyed entry for all 3
+  // cities' entries combined. getAllCities()/setAllByRecordCity() merge
+  // across, and split writes to, each city's own physical key instead.
+  private migrateLegacyEntriesKeyIfNeeded(): void {
+    try {
+      const raw = localStorage.getItem(this.ENTRIES_KEY);
+      if (!raw) return;
+      // Remove the legacy key BEFORE reading per-city data — DataService.get()
+      // itself falls back to this exact same legacy key when a city's own
+      // key is empty, so leaving it in place would let it get counted once
+      // per city (Surat, Mumbai, Ahmedabad) instead of once overall.
+      localStorage.removeItem(this.ENTRIES_KEY);
+      const parsed: AccountingEntry[] = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const existing = DataService.getAllCities<AccountingEntry>("ACCOUNTING_ENTRIES");
+      const existingIds = new Set(existing.map((e) => e.id));
+      const merged = [...existing, ...parsed.filter((p) => !existingIds.has(p.id))];
+      DataService.setAllByRecordCity("ACCOUNTING_ENTRIES", merged);
+    } catch { /* ignore corrupt legacy data */ }
+  }
   private getEntries(): AccountingEntry[] {
-    // Fix 17: use DataService for consistency — migrate raw key on first access
-    const ds = DataService.get<AccountingEntry>("ACCOUNTING_ENTRIES");
-    if (ds.length === 0) {
-      try {
-        const raw: AccountingEntry[] = JSON.parse(localStorage.getItem(this.ENTRIES_KEY) || "[]");
-        if (raw.length > 0) { DataService.setAll("ACCOUNTING_ENTRIES", raw); localStorage.removeItem(this.ENTRIES_KEY); return raw; }
-      } catch { /* ignore */ }
-    }
-    return ds;
+    this.migrateLegacyEntriesKeyIfNeeded();
+    return DataService.getAllCities<AccountingEntry>("ACCOUNTING_ENTRIES");
   }
   private saveEntries(entries: AccountingEntry[]): void {
-    DataService.setAll("ACCOUNTING_ENTRIES", entries);
+    DataService.setAllByRecordCity("ACCOUNTING_ENTRIES", entries);
   }
 
   getRecurringTemplates(cityId?: string): RecurringTemplate[] {
@@ -1155,7 +1292,6 @@ class AccountingEntryService {
     const total = cgst + sgst + igst;
     if (total <= 0) return { success: false, message: "This entry has no RCM tax amount to pay." };
 
-    const paymentVoucherId = `${entry.voucherId}-RCM-PAY`;
     const lines: { accountHead: string; accountLabel: string; debit: number; credit: number }[] = [];
     if (cgst > 0) lines.push({ accountHead: "gst_rcm_cgst_output", accountLabel: "RCM GST Payable (CGST)", debit: cgst, credit: 0 });
     if (sgst > 0) lines.push({ accountHead: "gst_rcm_sgst_output", accountLabel: "RCM GST Payable (SGST)", debit: sgst, credit: 0 });
@@ -1191,7 +1327,6 @@ class AccountingEntryService {
     const total = cgst + sgst + igst;
     if (total <= 0) return { success: false, message: "This entry has no RCM tax amount to claim." };
 
-    const claimVoucherId = `${entry.voucherId}-RCM-ITC`;
     const lines: { accountHead: string; accountLabel: string; debit: number; credit: number }[] = [];
     if (cgst > 0) lines.push({ accountHead: "gst_input_cgst", accountLabel: "Input CGST", debit: cgst, credit: 0 });
     if (sgst > 0) lines.push({ accountHead: "gst_input_sgst", accountLabel: "Input SGST", debit: sgst, credit: 0 });
@@ -1314,23 +1449,31 @@ class AccountingEntryService {
     return true;
   }
 
+  private migrateLegacyJournalsKeyIfNeeded(): void {
+    try {
+      const raw = localStorage.getItem(this.JOURNAL_KEY);
+      if (!raw) return;
+      localStorage.removeItem(this.JOURNAL_KEY); // remove first — see migrateLegacyEntriesKeyIfNeeded for why
+      const parsed: JournalEntry[] = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const existing = DataService.getAllCities<JournalEntry>("JOURNAL_ENTRIES");
+      const existingIds = new Set(existing.map((e) => e.id));
+      const merged = [...existing, ...parsed.filter((p) => !existingIds.has(p.id))];
+      DataService.setAllByRecordCity("JOURNAL_ENTRIES", merged);
+    } catch { /* ignore corrupt legacy data */ }
+  }
   private getJournals(): JournalEntry[] {
-    const ds = DataService.get<JournalEntry>("JOURNAL_ENTRIES");
-    if (ds.length === 0) {
-      try {
-        const raw: JournalEntry[] = JSON.parse(localStorage.getItem(this.JOURNAL_KEY) || "[]");
-        if (raw.length > 0) { DataService.setAll("JOURNAL_ENTRIES", raw); localStorage.removeItem(this.JOURNAL_KEY); return raw; }
-      } catch { /* ignore */ }
-    }
-    return ds;
+    this.migrateLegacyJournalsKeyIfNeeded();
+    return DataService.getAllCities<JournalEntry>("JOURNAL_ENTRIES");
   }
   private saveJournals(journals: JournalEntry[]): void {
-    DataService.setAll("JOURNAL_ENTRIES", journals);
+    DataService.setAllByRecordCity("JOURNAL_ENTRIES", journals);
   }
 
   createEntry(
     data: Omit<AccountingEntry, "id"|"voucherNumber"|"createdAt"|"status"|"changeHistory"|"financialYear">,
-    cityName: string
+    cityName: string,
+    options?: { skipPayableSync?: boolean }
   ): AccountingEntry {
     const all = this.getEntries();
     const entry: AccountingEntry = {
@@ -1371,7 +1514,12 @@ class AccountingEntryService {
     this.saveEntries([...all, entry]);
     // Notify FinanceContext so expense entries reflect in analytics
     // Only for expense/purchase types that create payables
-    if (["Expense", "Purchase", "AssetPurchase"].includes(entry.entryType) && entry.totalBillValue > 0) {
+    // Real fix: skipPayableSync prevents an infinite loop — this event's
+    // own listener (FinanceContext) creates a new Payable in response,
+    // which (via postPayableEntryForFinance) calls back into createEntry()
+    // for THIS exact accrual, re-firing the event forever. Only entries
+    // NOT already originating from a real Payable should ever reach here.
+    if (!options?.skipPayableSync && ["Expense", "Purchase", "AssetPurchase"].includes(entry.entryType) && entry.totalBillValue > 0) {
       try {
         window.dispatchEvent(new CustomEvent("cc360_accounting_entry_created", {
           detail: {
@@ -1583,19 +1731,27 @@ class AccountingEntryService {
     return [...accEntries, ...jvEntries];
   }
 
+  private migrateLegacyLedgersKeyIfNeeded(): void {
+    try {
+      const raw = localStorage.getItem(this.LEDGER_KEY);
+      if (!raw) return;
+      localStorage.removeItem(this.LEDGER_KEY); // remove first — see migrateLegacyEntriesKeyIfNeeded for why
+      const parsed: LedgerMaster[] = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const existing = DataService.getAllCities<LedgerMaster>("LEDGER_MASTERS");
+      const existingIds = new Set(existing.map((e) => e.id));
+      const merged = [...existing, ...parsed.filter((p) => !existingIds.has(p.id))];
+      DataService.setAllByRecordCity("LEDGER_MASTERS", merged);
+    } catch { /* ignore corrupt legacy data */ }
+  }
+
   getLedgers(cityId?: string): LedgerMaster[] {
-    // Fix 12: use DataService; auto-migrate raw localStorage on first access
-    let all: LedgerMaster[] = DataService.get<LedgerMaster>("LEDGER_MASTERS");
-    if (all.length === 0) {
-      try {
-        const raw: LedgerMaster[] = JSON.parse(localStorage.getItem(this.LEDGER_KEY) || "[]");
-        if (raw.length > 0) {
-          DataService.setAll("LEDGER_MASTERS", raw);
-          localStorage.removeItem(this.LEDGER_KEY);
-          all = raw;
-        }
-      } catch { /* ignore */ }
-    }
+    // Real fix: every LedgerMaster carries its own real cityId, but this
+    // used to be read/written via DataService.get/setAll with no cityId,
+    // silently resolving to the single CITY-SURAT-keyed entry for all 3
+    // cities' ledgers combined.
+    this.migrateLegacyLedgersKeyIfNeeded();
+    const all: LedgerMaster[] = DataService.getAllCities<LedgerMaster>("LEDGER_MASTERS");
     const effectiveCityId = cityId || "CITY-SURAT";
     const withSystem = this.ensureSystemLedgers(all, effectiveCityId);
     return cityId ? withSystem.filter(l => l.cityId === cityId) : withSystem;
@@ -1799,23 +1955,25 @@ class AccountingEntryService {
       return l;
     });
 
-    if (changed) localStorage.setItem(this.LEDGER_KEY, JSON.stringify(updated));
+    // Real fix: was writing to the bare, non-city-namespaced legacy key
+    // instead of splitting each city's own ledgers to its own key — every
+    // newly-seeded system ledger for any city landed in one shared blob.
+    if (changed) DataService.setAllByRecordCity("LEDGER_MASTERS", updated);
     return updated;
   }
 
   saveLedger(ledger: LedgerMaster): void {
-    // Fix 12: DataService instead of raw localStorage
     const all = this.getLedgers();
     const idx = all.findIndex(l => l.id === ledger.id);
     idx >= 0 ? all.splice(idx, 1, ledger) : all.push(ledger);
-    DataService.setAll("LEDGER_MASTERS", all);
+    DataService.setAllByRecordCity("LEDGER_MASTERS", all);
   }
 
   deleteLedger(id: string): boolean {
     const all = this.getLedgers();
     const ledger = all.find(l => l.id === id);
     if (!ledger || ledger.isSystem) return false;
-    DataService.setAll("LEDGER_MASTERS", all.filter(l => l.id !== id));
+    DataService.setAllByRecordCity("LEDGER_MASTERS", all.filter(l => l.id !== id));
     return true;
   }
 

@@ -39,12 +39,22 @@ import {
 } from "recharts";
 import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 
-const MONTHS = [
-  { value: "2026-04", label: "April 2026" },
-  { value: "2026-03", label: "March 2026" },
-  { value: "2026-02", label: "February 2026" },
-  { value: "2026-01", label: "January 2026" },
-];
+// Real fix: was hardcoded to Jan-Apr 2026, permanently omitting every month
+// after April regardless of the real current date. Generate the last 4
+// months ending at the real current month instead.
+function getLastNMonths(n: number): { value: string; label: string }[] {
+  const now = new Date();
+  const months: { value: string; label: string }[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+    });
+  }
+  return months;
+}
+const MONTHS = getLastNMonths(4);
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -102,59 +112,63 @@ function BarTopLabel({ x, y, width, value }: any) {
 
 // ── Revenue/Expense Drill-Down Component ─────────────────────────────────────
 
-const EXPENSE_CATEGORIES = [
-  { key: "Salary",        label: "Salaries & Wages",      account: "5200",  pct: 0.38 },
-  { key: "COGS",          label: "COGS / Materials",       account: "5100",  pct: 0.22 },
-  { key: "PF_ESI",        label: "PF & ESI (Statutory)",  account: "5210",  pct: 0.07 },
-  { key: "Conveyance",    label: "Conveyance & Fuel",      account: "5300",  pct: 0.06 },
-  { key: "Travel",        label: "Travel & Stay",          account: "5310",  pct: 0.04 },
-  { key: "Rent",          label: "Rent & Utilities",       account: "5400",  pct: 0.08 },
-  { key: "Marketing",     label: "Marketing / BTL",        account: "5500",  pct: 0.05 },
-  { key: "Depreciation",  label: "Depreciation",           account: "5600",  pct: 0.04 },
-  { key: "Misc",          label: "Miscellaneous",          account: "5900",  pct: 0.06 },
-];
+const REVENUE_TYPE_LABELS: Record<string, string> = {
+  Subscription: "Subscription Revenue",
+  "One-Time":   "One-Time / Walk-in",
+  "Add-on":     "Add-on Services",
+};
 
-const REVENUE_CATEGORIES = [
-  { key: "Subscription",  label: "Subscription Revenue",  account: "4010" },
-  { key: "OneTime",       label: "One-time / Walk-in",    account: "4000" },
-  { key: "BTL",           label: "BTL / Campaign",        account: "4020" },
-  { key: "Corporate",     label: "Corporate / B2B",       account: "4030" },
-  { key: "Addon",         label: "Add-on Services",       account: "4040" },
-];
+const EXPENSE_TYPE_LABELS: Record<string, string> = {
+  Salary:    "Salaries & Wages",
+  Vendor:    "Vendor Payments",
+  Statutory: "Statutory (PF/ESI/TDS/GST/PT)",
+  Travel:    "Travel & Reimbursements",
+  Claim:     "Expense Claims",
+};
 
 function RevenueSummaryCard({
   summary,
   filterStart,
   filterEnd,
+  monthRevenues,
   monthPayables,
 }: {
   summary: any;
   filterStart: string;
   filterEnd: string;
+  monthRevenues: any[];
   monthPayables: any[];
 }) {
   const [drillDown, setDrillDown] = useState<"revenue" | "expense" | null>(null);
 
-  // Build revenue breakdown
+  // Real fix: these used to apply fixed, hardcoded percentages (38%, 22%,
+  // etc. for expenses; 70/15/10/5% splits of "one-time" revenue) to the real
+  // totals — always showing the same made-up proportions no matter what the
+  // real category mix actually was. Group the real monthRevenues/
+  // monthPayables by their real .type field instead.
   const revenueBreakdown = useMemo(() => {
-    return REVENUE_CATEGORIES.map(cat => {
-      let value = 0;
-      if (cat.key === "Subscription") value = summary.subRevenue;
-      else if (cat.key === "OneTime") value = summary.onetimeRevenue * 0.7;
-      else if (cat.key === "BTL") value = summary.onetimeRevenue * 0.15;
-      else if (cat.key === "Corporate") value = summary.onetimeRevenue * 0.1;
-      else if (cat.key === "Addon") value = summary.onetimeRevenue * 0.05;
-      return { ...cat, value: Math.round(value) };
-    }).filter(r => r.value > 0);
-  }, [summary]);
+    const byType: Record<string, number> = {};
+    monthRevenues.forEach((r: any) => {
+      const t = r?.type || "Other";
+      byType[t] = (byType[t] || 0) + (Number(r?.amount) || 0);
+    });
+    return Object.entries(byType)
+      .map(([key, value]) => ({ key, label: REVENUE_TYPE_LABELS[key] || key, value: Math.round(value) }))
+      .filter(r => r.value > 0);
+  }, [monthRevenues]);
 
-  // Build expense breakdown
   const expenseBreakdown = useMemo(() => {
-    return EXPENSE_CATEGORIES.map(cat => ({
-      ...cat,
-      value: Math.round(summary.totalExpenses * cat.pct),
-    })).filter(e => e.value > 0);
-  }, [summary]);
+    const byType: Record<string, number> = {};
+    monthPayables
+      .filter((p: any) => p?.status === "Paid")
+      .forEach((p: any) => {
+        const t = p?.type || "Other";
+        byType[t] = (byType[t] || 0) + (Number(p?.amount) || 0);
+      });
+    return Object.entries(byType)
+      .map(([key, value]) => ({ key, label: EXPENSE_TYPE_LABELS[key] || key, value: Math.round(value) }))
+      .filter(e => e.value > 0);
+  }, [monthPayables]);
 
   const rows = [
     { label: "Total Revenue", value: summary.totalRevenue, color: "text-blue-700", drillKey: "revenue" as const, clickable: true },
@@ -213,7 +227,6 @@ function RevenueSummaryCard({
               <div key={item.key} className="flex justify-between items-center py-2.5 border-b last:border-0">
                 <div>
                   <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                  <p className="text-[11px] text-gray-400">A/c {item.account}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-green-700">₹{item.value.toLocaleString("en-IN")}</p>
@@ -244,7 +257,6 @@ function RevenueSummaryCard({
               <div key={item.key} className="flex justify-between items-center py-2.5 border-b last:border-0">
                 <div>
                   <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                  <p className="text-[11px] text-gray-400">A/c {item.account}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-red-600">₹{item.value.toLocaleString("en-IN")}</p>
@@ -498,6 +510,7 @@ export function FinanceAnalyticsDashboard() {
             summary={summary}
             filterStart={filterStart}
             filterEnd={filterEnd}
+            monthRevenues={monthRevenues}
             monthPayables={monthPayables}
           />
         </>

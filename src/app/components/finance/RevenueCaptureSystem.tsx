@@ -25,7 +25,7 @@ import { useCustomers } from "../../contexts/CustomerContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { BackButton } from "../ui/back-button";
 import { toast } from "sonner";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue } from "../../services/accountingEntryService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue, getCityStateCode } from "../../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { useRevenueMetrics } from "../../hooks/useRevenueMetrics";
 
@@ -50,12 +50,22 @@ const CITY_PINS: Record<string, string[]> = {
   "CITY-AHMEDABAD": ["380001","380002","380003","380004","380005","380006","380007","380008"],
 };
 
-const MONTHS = [
-  { value:"2026-04", label:"April 2026" },
-  { value:"2026-03", label:"March 2026" },
-  { value:"2026-02", label:"February 2026" },
-  { value:"2026-01", label:"January 2026" },
-];
+// Real fix: was hardcoded to Jan-Apr 2026 only, so once the real current
+// month moved past April, selectedMonth's default (the real current month)
+// wasn't in the list at all, and the dropdown offered no way back to it.
+function getLastNMonths(n: number): { value: string; label: string }[] {
+  const now = new Date();
+  const months: { value: string; label: string }[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+    });
+  }
+  return months;
+}
+const MONTHS = getLastNMonths(6);
 
 // â”€â”€ KPI Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function KPICard({ title, value, change, trend, icon: Icon }: any) {
@@ -145,7 +155,9 @@ export function RevenueCaptureSystem() {
       if (postedInvoices.has(invoiceRef)) return; // already posted
       try {
         const taxable = r.amount / 1.18;
-        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, COMPANY_GST_CONFIG.stateCode, "Unregistered", cityId);
+        // Real fix: see FinanceContext.recordRevenue()'s identical fix — the
+        // customer's real state is this city's own state, not always Gujarat.
+        const gst = calculateGST(taxable, COMPANY_GST_CONFIG.defaultServiceGstRate, getCityStateCode(cityId), "Unregistered", cityId);
         const invNum = r.invoiceNumber || generateInvoiceNumber(city || "SURAT", existingNums);
         existingNums.push(invNum);
         const entryDate = r.receivedDate?.split("T")[0] || new Date().toISOString().split("T")[0];
