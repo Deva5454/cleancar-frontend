@@ -17,7 +17,11 @@ export function GSTReports() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const matchMonth = !filterMonth || t.month === filterMonth;
+      // Real fix: filterMonth held "April"/"March"/"February" strings
+      // compared against the real GSTTransaction.month integer field
+      // (1-12) — always false, so picking any specific month always
+      // returned an empty register (only "All Months" ever worked).
+      const matchMonth = !filterMonth || t.month === Number(filterMonth);
       const matchType = !filterType || t.transactionType === filterType;
       const matchStatus = !filterStatus || t.status === filterStatus;
       const matchRisk = !filterRisk || t.riskLevel === filterRisk;
@@ -150,9 +154,9 @@ export function GSTReports() {
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
                 <option value="">All Months</option>
-                <option value="April">April</option>
-                <option value="March">March</option>
-                <option value="February">February</option>
+                <option value="4">April</option>
+                <option value="3">March</option>
+                <option value="2">February</option>
               </select>
               <select
                 value={filterType}

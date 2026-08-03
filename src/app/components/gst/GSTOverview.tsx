@@ -9,12 +9,18 @@ export function GSTOverview() {
   const navigate = useNavigate();
   const { city } = useCity();
   const [selectedGSTIN, setSelectedGSTIN] = useState("24GAOPS5676E1Z3");
-  const [selectedMonth, setSelectedMonth] = useState("April 2026");
+  // Real fix: this was a "Month Year" string ("April 2026") compared
+  // against the real GSTTransaction.month integer field (1-12) — always
+  // false, so every KPI/pipeline/risk card below always showed zero
+  // regardless of real data. Matches the numeric month + separate year
+  // convention already used by GSTR1Module/GSTR3BModule/GSTFilingModule.
+  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [selectedYear, setSelectedYear] = useState(2026);
 
   const transactions = useMemo(() => gstComplianceService.getTransactions(city), [city]);
   const monthTransactions = useMemo(() =>
-    transactions.filter(t => t.month === selectedMonth),
-    [transactions, selectedMonth]
+    transactions.filter(t => t.month === selectedMonth && t.year === selectedYear),
+    [transactions, selectedMonth, selectedYear]
   );
 
   const kpis = useMemo(() => {
@@ -105,12 +111,23 @@ export function GSTOverview() {
           <div className="relative">
             <select
               value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
               className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-10 text-sm"
             >
-              <option>April 2026</option>
-              <option>March 2026</option>
-              <option>February 2026</option>
+              <option value={4}>April</option>
+              <option value={3}>March</option>
+              <option value={2}>February</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+          </div>
+          <div className="relative">
+            <select
+              value={selectedYear}
+              onChange={e => setSelectedYear(Number(e.target.value))}
+              className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-10 text-sm"
+            >
+              <option value={2026}>2026</option>
+              <option value={2025}>2025</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
           </div>

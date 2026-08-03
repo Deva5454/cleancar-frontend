@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, AlertCircle, Send, X, Check, TrendingDown } from "lucide-react";
-import { gstComplianceService, type GSTTransaction } from "../../services/gstComplianceService";
+import { gstComplianceService, COMPANY_GST_CONFIG, type GSTTransaction } from "../../services/gstComplianceService";
 import { analyzeTransaction, scoreAfterCorrection, type AICorrection } from "../../services/gstAIScoringService";
 import { useCity } from "../../contexts/CityContext";
 
@@ -29,11 +29,19 @@ export function GSTValidationCentre() {
     if (correction.issueType === "Wrong GST rate") {
       const newRate = parseInt(correction.suggestedValue.replace('%', ''));
       updatedTxn.gstRate = newRate;
+      // Real fix: this passed placeOfSupply (a state NAME like "Gujarat")
+      // and a bogus 4th argument to a 3-parameter function expecting a
+      // supply-type enum ("INTRA_STATE"|"INTER_STATE"|etc) — isIntra was
+      // always false inside calculateGST, so CGST/SGST were always zeroed
+      // and the full tax dumped into IGST, even for intra-state transactions.
+      const isIntraState = updatedTxn.placeOfSupplyCode === COMPANY_GST_CONFIG.stateCode;
+      const supplyType = updatedTxn.reverseCharge
+        ? (isIntraState ? "RCM_INTRA" : "RCM_INTER")
+        : (isIntraState ? "INTRA_STATE" : "INTER_STATE");
       const gst = gstComplianceService.calculateGST(
         updatedTxn.taxableValue,
         newRate,
-        updatedTxn.placeOfSupply,
-        "Gujarat"
+        supplyType
       );
       updatedTxn = {
         ...updatedTxn,

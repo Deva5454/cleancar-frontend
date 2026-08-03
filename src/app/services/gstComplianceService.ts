@@ -229,7 +229,12 @@ export interface GSTReconciliationRecord {
   itcStatus: "Claimed" | "Provisional" | "Blocked" | "Not Claimed";
   vendorFilingStatus: "Filed" | "Not Filed" | "Delayed";
   notes: string;
-  month: string;
+  // Real fix: this was typed as a string, but the only real code that
+  // creates these records (GSTReconciliation.tsx's CSV upload) stores a
+  // number (1-12), matching GSTTransaction.month — the wrong type here is
+  // what made GSTR3BModule's real reconciliation.month === selectedMonth
+  // comparison look broken in tsc even though it works correctly at runtime.
+  month: number;
   year: number;
 }
 
@@ -301,6 +306,19 @@ class GSTComplianceService {
     const all = this.getList<GSTTransaction>(this.TXN_KEY);
     return cityId ? all.filter(t => t.cityId === cityId) : all;
   }
+
+  /**
+   * Real fix: getTransactions() only ever reads the ONE city currently
+   * active on this singleton service (this.cityId, set once app-wide via
+   * setCityId()) — no cityId argument can make it see a different city's
+   * data, since TXN_KEY itself is derived from this.cityId. GSTMonitoringModule's
+   * cross-city comparison needs to see every city's real data at once, so
+   * this reads a specific city's storage key directly, independent of
+   * whichever city is currently active for the rest of the app.
+   */
+  getTransactionsForCity(cityId: string): GSTTransaction[] {
+    return this.getList<GSTTransaction>(`cleancar_${cityId}_gst_transactions`);
+  }
   getReconciliation(): GSTReconciliationRecord[] { return this.getList<GSTReconciliationRecord>(this.RECON_KEY); }
 
   saveVendor(v: GSTVendor): void {
@@ -309,11 +327,11 @@ class GSTComplianceService {
     idx >= 0 ? list.splice(idx, 1, v) : list.push(v);
     this.saveList(this.VENDOR_KEY, list);
   }
-  saveCustomer(c: GSTCustomer): void {
+  saveCustomer(c: GSTCustomer): boolean {
     const list = this.getCustomers();
     const idx  = list.findIndex(x => x.id === c.id);
     idx >= 0 ? list.splice(idx, 1, c) : list.push(c);
-    this.saveList(this.CUSTOMER_KEY, list);
+    return this.saveList(this.CUSTOMER_KEY, list);
   }
   saveTransaction(t: GSTTransaction): boolean {
     const list = this.getTransactions();
@@ -321,11 +339,11 @@ class GSTComplianceService {
     idx >= 0 ? list.splice(idx, 1, t) : list.push(t);
     return this.saveList(this.TXN_KEY, list);
   }
-  saveReconciliationRecord(r: GSTReconciliationRecord): void {
+  saveReconciliationRecord(r: GSTReconciliationRecord): boolean {
     const list = this.getReconciliation();
     const idx  = list.findIndex(x => x.id === r.id);
     idx >= 0 ? list.splice(idx, 1, r) : list.push(r);
-    this.saveList(this.RECON_KEY, list);
+    return this.saveList(this.RECON_KEY, list);
   }
 
   getTransactionsByMonth(month: number, year: number, cityId?: string): GSTTransaction[] {

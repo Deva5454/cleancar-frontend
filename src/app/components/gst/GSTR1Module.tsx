@@ -1,7 +1,7 @@
 import { BackButton } from "../ui/back-button";
 import { useState, useMemo } from "react";
 import { FileOutput, Download, CheckCircle, XCircle, AlertTriangle, Copy, Check } from "lucide-react";
-import { type GSTTransaction } from "../../services/gstComplianceService";
+import { gstComplianceService, type GSTTransaction } from "../../services/gstComplianceService";
 import { getGSTTransactionsFromEntries, accountingEntryService } from "../../services/accountingEntryService";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { toast } from "sonner";
@@ -17,11 +17,17 @@ export function GSTR1Module() {
   const [showJSONPreview, setShowJSONPreview] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
 
-  // Real GST-bearing transactions post through accountingEntryService
-  // (AccountingEntry, Expense Voucher, Invoice Management, Revenue Capture)
-  // — gstComplianceService's own store is fed only by manual entry on
-  // /gst/transactions and real sales/purchases never reach it.
-  const transactions = getGSTTransactionsFromEntries(city);
+  // Real fix: this used to read ONLY accountingEntryService's postings
+  // (AccountingEntry, Expense Voucher, Invoice Management, Revenue Capture),
+  // so a transaction entered and manager-approved through the GST module
+  // (Transaction Entry -> Validation -> Manager Review) never appeared on
+  // the actual GSTR-1 return. Both are real, independently-entered
+  // transaction sources — merged here so the return honestly reflects
+  // everything real, from either entry point.
+  const transactions = [
+    ...getGSTTransactionsFromEntries(city),
+    ...gstComplianceService.getTransactions(city),
+  ];
 
   const monthTransactions = useMemo(() =>
     transactions.filter(t =>
@@ -96,8 +102,12 @@ export function GSTR1Module() {
   }, [monthTransactions]);
 
   const previousMonthData = useMemo(() => {
-    const prevMonth = selectedMonth === "April" ? "March" : "March";
-    const prevYear = selectedMonth === "April" ? selectedYear : selectedYear;
+    // Real fix: previously compared selectedMonth (a number) against the
+    // string "April" — always false — and both ternary branches returned
+    // "March" regardless, so this always showed March's (empty) totals as
+    // the "previous month" no matter which month was actually selected.
+    const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+    const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
     const prevTransactions = transactions.filter(t =>
       t.month === prevMonth &&
       t.year === prevYear &&
@@ -174,7 +184,11 @@ export function GSTR1Module() {
   const generateGSTR1JSON = () => {
     const json = {
       gstin: selectedGSTIN,
-      fp: `${selectedMonth.substring(0, 2)}${selectedYear}`,
+      // Real fix: selectedMonth is a number (1-12), not a string — calling
+      // .substring() on it crashed this function (and every button that
+      // calls it: Prepare JSON/Download JSON/Copy) every time. GSTN's real
+      // "fp" (filing period) format is 2-digit month + 4-digit year.
+      fp: `${String(selectedMonth).padStart(2, "0")}${selectedYear}`,
       b2b: b2bInvoices.map(t => ({
         ctin: t.partyGstin,
         inv: [{

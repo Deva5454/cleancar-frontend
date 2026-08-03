@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ReceiptText, Download, AlertTriangle, Lock } from "lucide-react";
-import { gstComplianceService } from "../../services/gstComplianceService";
+import { gstComplianceService, COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
 import { getGSTTransactionsFromEntries } from "../../services/accountingEntryService";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { useCity } from "../../contexts/CityContext";
@@ -13,10 +13,17 @@ export function GSTR3BModule() {
   const [status, setStatus] = useState<"Not Generated" | "Generated" | "Approved" | "Ready to File">("Not Generated");
   const [isApproved, setIsApproved] = useState(false);
 
-  // Real GST-bearing transactions post through accountingEntryService —
-  // gstComplianceService's own store is fed only by manual entry on
-  // /gst/transactions and real sales/purchases never reach it.
-  const transactions = getGSTTransactionsFromEntries(city);
+  // Real fix: this used to read ONLY accountingEntryService's postings,
+  // so a transaction entered and manager-approved through the GST module
+  // (Transaction Entry -> Validation -> Manager Review) never appeared on
+  // the actual return. Both are real, independently-entered transaction
+  // sources — merged here so the return honestly reflects everything real,
+  // from either entry point, rather than picking one and silently dropping
+  // the other.
+  const transactions = [
+    ...getGSTTransactionsFromEntries(city),
+    ...gstComplianceService.getTransactions(city),
+  ];
   const reconciliation = gstComplianceService.getReconciliation();
 
   const monthTransactions = useMemo(() =>
@@ -79,12 +86,18 @@ export function GSTR3BModule() {
   }, [salesTransactions, purchaseTransactions]);
 
   // Table 3.2 — Inter-State Supplies (state-wise breakdown for inter-state B2C)
+  // Real fix: previously filtered on t.supplyType/t.customerGSTIN/t.customerState,
+  // none of which exist on GSTTransaction (real fields are placeOfSupplyCode,
+  // partyGstin/gstType, partyState) — always evaluated to zero rows.
+  // Inter-state = place of supply differs from the company's home state;
+  // B2C = no real GSTIN on the transaction (matches gstType === "B2C").
   const table32 = useMemo(() => {
     const interStateB2C = (salesTransactions || []).filter(t =>
-      t.supplyType === "INTER_STATE" && !t.customerGSTIN
+      t.placeOfSupplyCode !== COMPANY_GST_CONFIG.stateCode &&
+      (t.gstType === "B2C" || !t.partyGstin)
     );
     const stateWise = interStateB2C.reduce((acc, t) => {
-      const state = t.customerState || "Unknown";
+      const state = t.partyState || "Unknown";
       if (!acc[state]) {
         acc[state] = { taxableValue: 0, igst: 0 };
       }
@@ -124,7 +137,10 @@ export function GSTR3BModule() {
 
   const table6 = useMemo(() => {
     const outputTax = salesTransactions.reduce((s, t) => s + t.totalTax, 0);
-    const itcCredit = itcData.netITCAvailable;
+    // Real fix: this read itcData.netITCAvailable, a field that doesn't
+    // exist (the real field computed above is netITC) — itcCredit was
+    // always undefined, making cashPayment always NaN.
+    const itcCredit = itcData.netITC;
     const cashPayment = Math.max(0, outputTax - itcCredit);
 
     return { outputTax, itcCredit, cashPayment };

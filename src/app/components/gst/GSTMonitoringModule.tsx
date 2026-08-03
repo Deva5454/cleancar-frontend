@@ -24,28 +24,38 @@ interface Alert {
   date: string;
 }
 
-export function GSTMonitoringModule() {
-  const [selectedMonth, setSelectedMonth] = useState("April 2026");
+const MONITORED_CITIES = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
 
-  const allTransactions = gstComplianceService.getTransactions(); // no city filter — cross-GSTIN view
+export function GSTMonitoringModule() {
+  // Real fix: was a "Month Year" string compared via a fragile regex
+  // rewrite that could never match, then unconditionally OR'd with `true`
+  // — so this filter had zero effect on anything. Matches the numeric
+  // month + separate year convention used across the rest of the GST cluster.
+  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [selectedYear, setSelectedYear] = useState(2026);
+
+  // Real fix: gstComplianceService.getTransactions() only ever reads
+  // whichever ONE city is currently active app-wide — it structurally
+  // cannot see another city's data no matter what's requested here. This
+  // reads each monitored city's real storage directly so all three
+  // genuinely contribute to the comparison below.
+  const allTransactions = useMemo(
+    () => MONITORED_CITIES.flatMap(cityId => gstComplianceService.getTransactionsForCity(cityId)),
+    []
+  );
 
   const gstinData: GSTINData[] = useMemo(() => {
-    const cities = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
-    return cities.map(cityId => {
-      const txns = allTransactions.filter(t =>
-        t.cityId === cityId &&
-        `${t.month}/${t.year}` === selectedMonth.replace(" ","").replace(/([A-Za-z]+)(\d+)/, "$2/$1") ||
-        true // show all if month format doesn't match — safer fallback
-      );
+    return MONITORED_CITIES.map(cityId => {
       const cityTxns = allTransactions.filter(t => t.cityId === cityId);
-      const outputTax   = cityTxns.filter(t => t.transactionType === "Sale")
+      const monthTxns = cityTxns.filter(t => t.month === selectedMonth && t.year === selectedYear);
+      const outputTax   = monthTxns.filter(t => t.transactionType === "Sale")
         .reduce((s,t) => s + t.totalTax, 0);
-      const itc = cityTxns.filter(t => t.itcEligible)
+      const itc = monthTxns.filter(t => t.itcEligible)
         .reduce((s,t) => s + t.itcAmount, 0);
-      const riskScore = cityTxns.length > 0
-        ? Math.round(cityTxns.reduce((s,t) => s + t.riskScore, 0) / cityTxns.length)
+      const riskScore = monthTxns.length > 0
+        ? Math.round(monthTxns.reduce((s,t) => s + t.riskScore, 0) / monthTxns.length)
         : 0;
-      const hasUnfiled = cityTxns.some(t => t.status !== "Filed");
+      const hasUnfiled = monthTxns.some(t => t.status !== "Filed");
       const gstinMap: Record<string, string> = {
         "CITY-SURAT": COMPANY_GST_CONFIG.gstin,
         "CITY-MUMBAI": "27GAOPS5676E1Z5",
@@ -59,16 +69,16 @@ export function GSTMonitoringModule() {
       return {
         gstin:          gstinMap[cityId] || COMPANY_GST_CONFIG.gstin,
         city:           cityNameMap[cityId] || "Surat",
-        transactions:   cityTxns.length,
+        transactions:   monthTxns.length,
         outputTax,
         itc,
         netPayable:     Math.max(0, outputTax - itc),
         riskScore,
-        filingStatus:   hasUnfiled ? "Pending" as const : "Filed" as const,
-        anomaliesCount: cityTxns.filter(t => t.riskLevel === "Critical" || t.riskLevel === "High").length,
+        filingStatus:   monthTxns.length > 0 ? (hasUnfiled ? "Pending" as const : "Filed" as const) : "Pending" as const,
+        anomaliesCount: monthTxns.filter(t => t.riskLevel === "Critical" || t.riskLevel === "High").length,
       };
     });
-  }, [allTransactions, selectedMonth]);
+  }, [allTransactions, selectedMonth, selectedYear]);
 
   const alerts: Alert[] = useMemo(() => {
     const result: Alert[] = [];
@@ -122,12 +132,33 @@ export function GSTMonitoringModule() {
     return result;
   }, [allTransactions]);
 
-  const monthlyTrends = useMemo(() => [
-    { month: "January 2026", gstin1: 32, gstin2: 45, gstin3: 22 },
-    { month: "February 2026", gstin1: 28, gstin2: 48, gstin3: 19 },
-    { month: "March 2026", gstin1: 22, gstin2: 40, gstin3: 15 },
-    { month: "April 2026", gstin1: 25, gstin2: 42, gstin3: 18 }
-  ], []);
+  // Real fix: this was a fully hardcoded fake 4-row array with invented
+  // risk scores, presented as if it were genuine history. Now computed
+  // from real transactions for the 4 real months ending at the selected
+  // period — a city/month with no real transactions honestly shows 0
+  // rather than a fabricated number.
+  const MONTH_NAMES = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const monthlyTrends = useMemo(() => {
+    const periods: { month: number; year: number }[] = [];
+    let m = selectedMonth, y = selectedYear;
+    for (let i = 0; i < 4; i++) {
+      periods.unshift({ month: m, year: y });
+      m = m === 1 ? 12 : m - 1;
+      if (m === 12) y -= 1;
+    }
+    return periods.map(({ month, year }) => {
+      const avgRiskForCity = (cityId: string) => {
+        const txns = allTransactions.filter(t => t.cityId === cityId && t.month === month && t.year === year);
+        return txns.length > 0 ? Math.round(txns.reduce((s, t) => s + t.riskScore, 0) / txns.length) : 0;
+      };
+      return {
+        month: `${MONTH_NAMES[month]} ${year}`,
+        gstin1: avgRiskForCity("CITY-SURAT"),
+        gstin2: avgRiskForCity("CITY-MUMBAI"),
+        gstin3: avgRiskForCity("CITY-AHMEDABAD"),
+      };
+    });
+  }, [allTransactions, selectedMonth, selectedYear]);
 
   const kpis = useMemo(() => {
     const totalGSTINs = gstinData.length;
@@ -214,12 +245,20 @@ export function GSTMonitoringModule() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
+            onChange={e => setSelectedMonth(Number(e.target.value))}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
           >
-            <option>April 2026</option>
-            <option>March 2026</option>
-            <option>February 2026</option>
+            <option value={4}>April</option>
+            <option value={3}>March</option>
+            <option value={2}>February</option>
+          </select>
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(Number(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          >
+            <option value={2026}>2026</option>
+            <option value={2025}>2025</option>
           </select>
         </div>
       </div>

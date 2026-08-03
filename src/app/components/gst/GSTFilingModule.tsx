@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Upload, Check, ChevronRight, Download, CheckCircle } from "lucide-react";
+import { Upload, Check, ChevronRight, Download, CheckCircle, AlertCircle } from "lucide-react";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { gstComplianceService } from "../../services/gstComplianceService";
+import { getGSTTransactionsFromEntries } from "../../services/accountingEntryService";
 import { useCity } from "../../contexts/CityContext";
 
 export function GSTFilingModule() {
@@ -16,33 +17,78 @@ export function GSTFilingModule() {
   const [filedBy] = useState("Current Manager");
   const [filed, setFiled] = useState(false);
 
-  const [checklist, setChecklist] = useState({
-    gstr1Generated: true,
-    gstr3bApproved: true,
-    transactionsLocked: true,
-    managerSignOff: true,
-    itcReconciled: true,
-    noCriticalRisk: true,
+  // Real fix: these 6 items used to default to `true` with no actual
+  // verification against anything — a user could reach "Confirm Filing"
+  // having never opened GSTR-1/GSTR-3B or checked a single real number.
+  // Only items with no real cross-screen persisted signal to check stay
+  // as manual confirmations (now honestly starting unchecked, not
+  // pre-ticked); items with real data behind them are computed below
+  // instead of being toggleable at all.
+  const [manualChecklist, setManualChecklist] = useState({
+    gstr1Generated: false,
+    gstr3bApproved: false,
+    managerSignOff: false,
     otpDscReady: false,
     bankBalanceSufficient: false,
     previousReturnsFiled: true,
     lateFeesVerified: true
   });
 
-  const allChecked = Object.values(checklist).every(v => v);
-
-  const handleChecklistChange = (key: keyof typeof checklist) => {
-    setChecklist(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleChecklistChange = (key: keyof typeof manualChecklist) => {
+    setManualChecklist(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const summaryData = {
-    totalTransactions: 150,
-    totalTaxableValue: 5250000,
-    totalOutputTax: 945000,
-    totalITC: 425000,
-    netTaxPayable: 520000,
-    lateFeePenalty: 0
-  };
+  // Real transactions for this period, merged from both real sources
+  // (accountingEntryService postings and the manually-entered GST module) —
+  // same merge GSTR1Module/GSTR3BModule use, so this period's real state
+  // is genuinely checked rather than assumed.
+  const periodTransactions = useMemo(() => {
+    const all = [
+      ...getGSTTransactionsFromEntries(city),
+      ...gstComplianceService.getTransactions(city),
+    ];
+    return all.filter(t => t.month === selectedMonth && t.year === selectedYear);
+  }, [city, selectedMonth, selectedYear]);
+
+  const reconciliation = gstComplianceService.getReconciliation();
+  const itcDifference = useMemo(() => {
+    const itcFrom2B = reconciliation
+      .filter(r => r.month === selectedMonth && r.year === selectedYear && r.itcClaimable)
+      .reduce((s, r) => s + r.gstAmount, 0);
+    const realITC = periodTransactions
+      .filter(t => t.transactionType === "Purchase" && t.itcEligible)
+      .reduce((s, t) => s + t.itcAmount, 0);
+    return realITC - itcFrom2B;
+  }, [reconciliation, periodTransactions, selectedMonth, selectedYear]);
+
+  const realChecks = useMemo(() => ({
+    transactionsLocked: periodTransactions.length > 0 && periodTransactions.every(t => t.status === "Approved" || t.status === "Filed"),
+    noCriticalRisk: !periodTransactions.some(t => t.riskLevel === "Critical"),
+    itcReconciled: Math.abs(itcDifference) <= 1000,
+  }), [periodTransactions, itcDifference]);
+
+  const allChecked = Object.values(manualChecklist).every(v => v) && Object.values(realChecks).every(v => v);
+
+  // Real fix: previously 6 fixed constants (150 transactions, ₹5.25L
+  // taxable, ₹9.45L output tax, etc.) that never reflected the actual
+  // state of the business — the "Final Review" always showed the same
+  // numbers regardless of what was really filed.
+  const summaryData = useMemo(() => {
+    const sales = periodTransactions.filter(t => t.transactionType === "Sale");
+    const totalTaxableValue = sales.reduce((s, t) => s + t.taxableValue, 0);
+    const totalOutputTax = sales.reduce((s, t) => s + t.totalTax, 0);
+    const totalITC = periodTransactions
+      .filter(t => t.transactionType === "Purchase" && t.itcEligible)
+      .reduce((s, t) => s + t.itcAmount, 0);
+    return {
+      totalTransactions: periodTransactions.length,
+      totalTaxableValue,
+      totalOutputTax,
+      totalITC,
+      netTaxPayable: Math.max(0, totalOutputTax - totalITC),
+      lateFeePenalty: 0, // no real due-date-vs-filed-date basis exists yet to compute this
+    };
+  }, [periodTransactions]);
 
   const handleDownloadFilingPackage = (e: React.MouseEvent) => {
     const data = [{
@@ -62,7 +108,10 @@ export function GSTFilingModule() {
   const handleDownloadJSON = () => {
     const json = {
       gstin: selectedGSTIN,
-      fp: selectedMonth,
+      // Real fix: selectedMonth is a number (1-12), not a "Month Year"
+      // string — GSTN's real "fp" (filing period) format is 2-digit month
+      // + 4-digit year.
+      fp: `${String(selectedMonth).padStart(2, "0")}${selectedYear}`,
       net_tax: summaryData.netTaxPayable,
       late_fee: summaryData.lateFeePenalty,
       total: summaryData.netTaxPayable + summaryData.lateFeePenalty,
@@ -72,7 +121,9 @@ export function GSTFilingModule() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `GST-Filing-${selectedGSTIN}-${selectedMonth.replace(' ', '-')}.json`;
+    // Real fix: calling .replace() on selectedMonth (a number) crashed this
+    // handler every time — reachable directly from "Download JSON for GST Portal".
+    a.download = `GST-Filing-${selectedGSTIN}-${String(selectedMonth).padStart(2, "0")}-${selectedYear}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -159,13 +210,29 @@ export function GSTFilingModule() {
           <p className="text-sm text-gray-600">Verify all items before proceeding to file</p>
 
           <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Verified automatically from real data</p>
+            {Object.entries({
+              transactionsLocked: "All transactions for this period are Approved or Filed",
+              noCriticalRisk: "No critical risk transactions",
+              itcReconciled: "ITC reconciliation complete (within ₹1,000 of GSTR-2B)",
+            }).map(([key, label]) => {
+              const passed = realChecks[key as keyof typeof realChecks];
+              return (
+                <div key={key} className={`flex items-center gap-3 p-3 border rounded-lg ${passed ? "border-gray-200" : "border-red-200 bg-red-50"}`}>
+                  {passed ? <CheckCircle className="w-5 h-5 text-green-600" /> : <AlertCircle className="w-5 h-5 text-red-600" />}
+                  <span className="flex-1 text-sm text-gray-700">{label}</span>
+                  <span className={`text-xs font-medium ${passed ? "text-green-700" : "text-red-700"}`}>
+                    {passed ? "Verified" : "Not yet satisfied"}
+                  </span>
+                </div>
+              );
+            })}
+
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide pt-2">Manual confirmation required</p>
             {Object.entries({
               gstr1Generated: "GSTR-1 generated and approved",
               gstr3bApproved: "GSTR-3B computed and approved",
-              transactionsLocked: "All transactions locked",
               managerSignOff: "Manager has signed off",
-              itcReconciled: "ITC reconciliation complete",
-              noCriticalRisk: "No critical risk transactions",
               otpDscReady: "OTP/DSC ready",
               bankBalanceSufficient: "Bank balance sufficient for tax payment",
               previousReturnsFiled: "Previous returns filed",
@@ -175,14 +242,14 @@ export function GSTFilingModule() {
                 <input
                   type="checkbox"
                   id={key}
-                  checked={checklist[key as keyof typeof checklist]}
-                  onChange={() => handleChecklistChange(key as keyof typeof checklist)}
+                  checked={manualChecklist[key as keyof typeof manualChecklist]}
+                  onChange={() => handleChecklistChange(key as keyof typeof manualChecklist)}
                   className="w-5 h-5 text-green-600 rounded"
                 />
                 <label htmlFor={key} className="flex-1 text-sm text-gray-700 cursor-pointer">
                   {label}
                 </label>
-                {checklist[key as keyof typeof checklist] && (
+                {manualChecklist[key as keyof typeof manualChecklist] && (
                   <CheckCircle className="w-5 h-5 text-green-600" />
                 )}
               </div>
