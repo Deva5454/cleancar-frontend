@@ -51,6 +51,7 @@ import { getStatusDisplay } from "../../utils/payrollWorkflow";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
 import { autoRejectPendingCompOffForPayrollPeriod } from "../../services/compOffLeaveRequestService";
 import { travelReimbursementService } from "../../services/travelReimbursementService";
+import { otherAdjustmentsService } from "../../services/otherAdjustmentsService";
 import { PayrollLineReviewModal, type ReviewStatus, type ReviewLogEntry } from "./PayrollLineReviewModal";
 
 // ============================================================================
@@ -483,6 +484,16 @@ export function PayrollReviewApproval() {
         const autoRejectedTravelCount = travelReimbursementService.autoRejectPendingForPayrollPeriod(activeRun.cityId, activeRun.period.endDate);
         if (autoRejectedTravelCount > 0) {
           toast.info(`${autoRejectedTravelCount} pending travel reimbursement claim(s) auto-rejected — payroll period approved`);
+        }
+        // Real, same policy - any Other Earning/Deduction still pending
+        // for this payroll month auto-rejects the moment HR approves this
+        // run. activeRun.month is "YYYY-MM" — otherAdjustmentsService keys
+        // off a full month name + year, so convert here.
+        const [runYearStr, runMonthStr] = activeRun.month.split("-");
+        const runMonthName = ["January","February","March","April","May","June","July","August","September","October","November","December"][Number(runMonthStr) - 1];
+        const autoRejectedAdjustmentsCount = otherAdjustmentsService.autoRejectPendingForPayrollPeriod(activeRun.cityId, runMonthName, Number(runYearStr));
+        if (autoRejectedAdjustmentsCount > 0) {
+          toast.info(`${autoRejectedAdjustmentsCount} pending other earning/deduction request(s) auto-rejected — payroll period approved`);
         }
       } else {
         setStatus("hr_approved"); // no real run yet (demo/no-data state) - local display only

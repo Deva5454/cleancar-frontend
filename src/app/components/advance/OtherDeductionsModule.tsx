@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { otherAdjustmentsService, DEDUCTION_CATEGORIES, type OtherAdjustment } from "../../services/otherAdjustmentsService";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
@@ -30,6 +31,7 @@ type TabType = "add" | "approvals" | "records";
 export function OtherDeductionsModule() {
   const { employees } = useEmployee();
   const { currentUser } = useRole();
+  const { city } = useCity();
   const [activeTab, setActiveTab] = useState<TabType>("add");
   const [allDeductions, setAllDeductions] = useState<OtherAdjustment[]>([]);
   const [pendingDeductions, setPendingDeductions] = useState<OtherAdjustment[]>([]);
@@ -59,10 +61,10 @@ export function OtherDeductionsModule() {
     // Set default month to current month
     const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
     setPayrollMonth(currentMonth);
-  }, []);
+  }, [city]);
 
   const loadData = () => {
-    const deductions = otherAdjustmentsService.getAllDeductions();
+    const deductions = otherAdjustmentsService.getAllDeductions(city);
     setAllDeductions(deductions);
     const pending = deductions.filter(d => d.status === "Pending");
     setPendingDeductions(pending);

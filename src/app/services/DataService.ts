@@ -215,6 +215,14 @@ const STORAGE_KEYS = {
   TRAVEL_PHOTOS:           "travel_photos",
   TRAVEL_NOTIFICATIONS:    "travel_notifications",
   TRAVEL_WEEKLY_BATCHES:   "travel_weekly_batches",
+  // ── Different flavor of the same class of bug: otherAdjustmentsService.ts
+  // (Other Earnings / Other Deductions) bypassed DataService entirely,
+  // reading/writing a single hardcoded raw localStorage key
+  // ("cleancar_other_adjustments") with no per-city namespacing at all —
+  // every city's records shared one global bucket despite each record
+  // carrying its own real .city field, so HR in one city could see and
+  // approve another city's pending requests.
+  OTHER_ADJUSTMENTS:       "other_adjustments",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
@@ -789,6 +797,61 @@ function migrateTravelSharedKeyToRegisteredKeys() {
   }
 }
 migrateTravelSharedKeyToRegisteredKeys();
+
+/**
+ * One-time migration: otherAdjustmentsService.ts (Other Earnings / Other
+ * Deductions) read/wrote a single hardcoded global key
+ * ("cleancar_other_adjustments") with no per-city namespacing, even though
+ * every record already carries its own real .city field. Splits whatever's
+ * sitting there today out to each record's own city-namespaced key —
+ * mirrors migrateFinanceAccountingSharedKeysToPerCity() above. Safe to run
+ * repeatedly, a no-op once split.
+ */
+function migrateOtherAdjustmentsToPerCity() {
+  const MIGRATION_FLAG = "cleancar_migration_other_adjustments_per_city_v1_done";
+  const LEGACY_KEY = "cleancar_other_adjustments";
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) { localStorage.setItem(MIGRATION_FLAG, "true"); return; }
+
+    let records: any[];
+    try {
+      records = JSON.parse(raw);
+    } catch {
+      localStorage.setItem(MIGRATION_FLAG, "true");
+      return; // corrupt — leave untouched
+    }
+    if (!Array.isArray(records) || records.length === 0) {
+      localStorage.setItem(MIGRATION_FLAG, "true");
+      return;
+    }
+
+    const byCity: Record<string, any[]> = {};
+    for (const r of records) {
+      const cid = (r && r.city) || "CITY-SURAT";
+      (byCity[cid] = byCity[cid] || []).push(r);
+    }
+
+    for (const [cid, cityRecords] of Object.entries(byCity)) {
+      const destKey = `cleancar_${cid}_other_adjustments`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(destKey) || "[]");
+        const existingArr = Array.isArray(existing) ? existing : [];
+        const existingIds = new Set(existingArr.map((e: any) => e?.id));
+        const merged = [...existingArr, ...cityRecords.filter((r: any) => !existingIds.has(r?.id))];
+        localStorage.setItem(destKey, JSON.stringify(merged));
+      } catch { /* leave the legacy key as-is on any error for this city */ continue; }
+    }
+
+    localStorage.removeItem(LEGACY_KEY);
+    localStorage.setItem(MIGRATION_FLAG, "true");
+  } catch (e) {
+    console.warn("[DataService] Other Adjustments per-city migration skipped:", e);
+  }
+}
+migrateOtherAdjustmentsToPerCity();
 
 // ========== ONE-TIME MIGRATIONS ==========
 

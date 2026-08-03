@@ -94,16 +94,18 @@ export function AccountsPayrollProcessing() {
     // (which risks double-counting or diverging from what the run used).
     const advances = monthRuns.reduce((sum, run) => sum + (run.advances || 0), 0);
 
-    // Get current month adjustments
-    const allEarnings = otherAdjustmentsService.getAllEarnings();
-    const allDeductions = otherAdjustmentsService.getAllDeductions();
+    // Get current month adjustments — only Approved ones actually affected
+    // real net pay (Pending/Rejected records were previously folded into
+    // this summary too, overstating the real adjustment impact).
+    const allEarnings = otherAdjustmentsService.getAllEarnings(city);
+    const allDeductions = otherAdjustmentsService.getAllDeductions(city);
 
     // Filter for current month (April 2026 from snapshot)
     const currentMonthEarnings = allEarnings.filter(
-      r => r.payrollMonth === `${snapshot.month} ${snapshot.year}`
+      r => r.status === "Approved" && r.payrollMonth === `${snapshot.month} ${snapshot.year}`
     );
     const currentMonthDeductions = allDeductions.filter(
-      r => r.payrollMonth === `${snapshot.month} ${snapshot.year}`
+      r => r.status === "Approved" && r.payrollMonth === `${snapshot.month} ${snapshot.year}`
     );
 
     const totalEarnings = currentMonthEarnings.reduce((sum, r) => sum + r.amount, 0);
@@ -115,7 +117,7 @@ export function AccountsPayrollProcessing() {
       otherDeductions: totalDeductions,
       netImpact: totalEarnings - totalDeductions,
     });
-  }, [snapshot]);
+  }, [snapshot, city]);
 
   const handleMarkAsPaid = () => {
     if (!snapshot) return;

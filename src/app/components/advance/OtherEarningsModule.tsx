@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { otherAdjustmentsService, EARNING_CATEGORIES, type OtherAdjustment } from "../../services/otherAdjustmentsService";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
@@ -30,6 +31,7 @@ type TabType = "add" | "approvals" | "records";
 export function OtherEarningsModule() {
   const { employees } = useEmployee();
   const { currentUser } = useRole();
+  const { city } = useCity();
   const [activeTab, setActiveTab] = useState<TabType>("add");
   const [allEarnings, setAllEarnings] = useState<OtherAdjustment[]>([]);
   const [pendingEarnings, setPendingEarnings] = useState<OtherAdjustment[]>([]);
@@ -59,10 +61,10 @@ export function OtherEarningsModule() {
     // Set default month to current month
     const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
     setPayrollMonth(currentMonth);
-  }, []);
+  }, [city]);
 
   const loadData = () => {
-    const earnings = otherAdjustmentsService.getAllEarnings();
+    const earnings = otherAdjustmentsService.getAllEarnings(city);
     setAllEarnings(earnings);
     const pending = earnings.filter(e => e.status === "Pending");
     setPendingEarnings(pending);

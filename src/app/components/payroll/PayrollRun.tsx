@@ -226,6 +226,14 @@ export function PayrollRun() {
       if (autoRejectedTravelCount > 0) {
         toast.info(`${autoRejectedTravelCount} pending travel reimbursement claim(s) auto-rejected — payroll period closed`);
       }
+      // Real, same policy - any Other Earning/Deduction still pending HR
+      // approval for this payroll month (or an earlier unresolved one)
+      // auto-rejects the instant this payroll run starts, rather than
+      // being silently ignored forever.
+      const autoRejectedAdjustmentsCount = otherAdjustmentsService.autoRejectPendingForPayrollPeriod(currentCityId, selectedMonth, Number(selectedYear));
+      if (autoRejectedAdjustmentsCount > 0) {
+        toast.info(`${autoRejectedAdjustmentsCount} pending other earning/deduction request(s) auto-rejected — payroll period closed`);
+      }
 
       let generated = 0;
       let skippedNoSalary = 0;
