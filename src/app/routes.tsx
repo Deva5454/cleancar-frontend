@@ -28,6 +28,7 @@ const KraAuthoringModule = lazy(() => import("./components/hr/KraAuthoringModule
 const KraApprovalQueue = lazy(() => import("./components/hr/KraApprovalQueue"));
 const KraGoalSettingModule = lazy(() => import("./components/hr/KraGoalSettingModule"));
 const KraManualActualsModule = lazy(() => import("./components/hr/KraManualActualsModule"));
+const KraQuarterlyReviewModule = lazy(() => import("./components/hr/KraQuarterlyReviewModule"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const PerformanceManagementModule = lazy(() => import("./components/hr/PerformanceManagementModule"));
@@ -623,6 +624,7 @@ export const router = createBrowserRouter([
       { path: "hr/kra-approvals", element: <KraApprovalQueue /> },
       { path: "hr/kra-goal-setting", element: <KraGoalSettingModule /> },
       { path: "hr/kra-manual-actuals", element: <KraManualActualsModule /> },
+      { path: "hr/kra-quarterly-review", element: <KraQuarterlyReviewModule /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
       { path: "performance-management", element: <PerformanceManagementModule /> },

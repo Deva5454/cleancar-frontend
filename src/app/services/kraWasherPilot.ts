@@ -18,6 +18,7 @@ import {
   computeWasherProductivityUnits, computeWasherAddonCount, computeWasherAttendanceRate,
   computeWasherOnTimeRate, getWasherAuditScore, type JobLike, type AttendanceLike,
 } from "./kraDataSources";
+import { financialQuarterForMonthKey } from "./financialQuarter";
 
 export const WASHER_ROLE = "Car Washer";
 
@@ -82,7 +83,8 @@ export interface WasherKraResult {
 export function computeWasherKraScores(
   employeeId: string, month: string, jobs: JobLike[], attendance: AttendanceLike[], employeeIncentives: any[]
 ): { results: WasherKraResult[]; totalScore: number } {
-  const { kras } = resolveEmployeeKras(employeeId, WASHER_ROLE);
+  const { financialYear, quarter } = financialQuarterForMonthKey(month);
+  const { kras } = resolveEmployeeKras(employeeId, WASHER_ROLE, financialYear, quarter);
   const catalog = getKpiCatalog();
 
   const results: WasherKraResult[] = kras.map((kra) => {

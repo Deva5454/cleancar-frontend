@@ -30,6 +30,10 @@
  *     (EXCLUDE/ADD/REWEIGHT/SET_KPI_TARGET).
  *   - kpiActual: snapshotted real, computed (or manually entered) values
  *     per employee per cycle key.
+ *   - kpiQuarterlyReview: the reporting manager's mandatory quarter-end
+ *     registration of each KPI's achieved value (agree with or adjust the
+ *     system-suggested figure, comment always required) — the real
+ *     figure of record for scoring once it exists.
  *   - incentiveRuleVersion: the payout formula itself as real, versioned
  *     data.
  *   - incentivePayout: the real ledger, pinning the exact rule version
@@ -51,7 +55,7 @@
  */
 
 import { DataService } from "./DataService";
-import { getFinancialQuarter, getQuarterInfo, getNextQuarter, quarterKey, type FinancialQuarter } from "./financialQuarter";
+import { getFinancialQuarter, getQuarterInfo, getNextQuarter, quarterKey, monthsInFinancialQuarter, type FinancialQuarter } from "./financialQuarter";
 
 export type LifecycleStatus = "Draft" | "PendingApproval" | "Active" | "Archived";
 export type MetricDirection = "higher-is-better" | "lower-is-better";
@@ -136,6 +140,27 @@ export interface KpiActual {
   actualValue: number;
   computedAt: string;
   source: "SYSTEM" | "MANUAL";
+}
+
+/**
+ * The real quarter-end registration of a KPI's achieved value. The system
+ * (real computed formula, or manual monthly entries) fills in a suggested
+ * figure — but the reporting manager must separately register their own
+ * figure here before it counts as final. The manager can agree (same
+ * number) or move it up or down, but a comment is mandatory either way,
+ * so every registered figure carries a real, attributable justification.
+ */
+export interface KpiQuarterlyReview {
+  id: string;
+  employeeId: string;
+  kpiCode: string;
+  financialYear: string;
+  financialQuarter: FinancialQuarter;
+  systemValue: number | null; // the system-suggested figure at the time of review (null if nothing was measured/entered yet)
+  managerValue: number;       // mandatory — the reporting manager's registered figure, the one actually used for scoring
+  managerComment: string;     // mandatory, regardless of whether managerValue matches systemValue
+  reviewedBy: string;
+  reviewedAt: string;
 }
 
 export interface IncentiveRuleVersion {
@@ -422,6 +447,74 @@ export function getKpiActual(employeeId: string, kpiCode: string, cycle: string)
 }
 export function getKpiActualRecord(employeeId: string, kpiCode: string, cycle: string): KpiActual | undefined {
   return getAll<KpiActual>("KRA_KPI_ACTUALS").find((a) => a.employeeId === employeeId && a.kpiCode === kpiCode && a.cycle === cycle);
+}
+
+// ─── KPI Quarterly Manager Review (mandatory achieved-value registration) ──
+
+/**
+ * The system-suggested quarter-level figure for one KPI — the average of
+ * whichever of the quarter's 3 constituent months genuinely have a saved
+ * actual (system-computed or manually entered). Null if none of the 3
+ * months have anything recorded yet, so the reporting manager can see
+ * plainly that there's nothing to agree with, not a fabricated 0.
+ */
+export function getSystemQuarterlyKpiValue(employeeId: string, kpiCode: string, financialYear: string, financialQuarter: FinancialQuarter): number | null {
+  const months = monthsInFinancialQuarter(financialYear, financialQuarter);
+  const values = months.map((m) => getKpiActual(employeeId, kpiCode, m)).filter((v): v is number => v !== undefined);
+  if (values.length === 0) return null;
+  return Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 100) / 100;
+}
+
+export function getKpiQuarterlyReview(employeeId: string, kpiCode: string, financialYear: string, financialQuarter: FinancialQuarter): KpiQuarterlyReview | undefined {
+  return getAll<KpiQuarterlyReview>("KRA_KPI_QUARTERLY_REVIEWS").find(
+    (r) => r.employeeId === employeeId && r.kpiCode === kpiCode && r.financialYear === financialYear && r.financialQuarter === financialQuarter
+  );
+}
+
+export function getKpiQuarterlyReviewsForEmployee(employeeId: string, financialYear: string, financialQuarter: FinancialQuarter): KpiQuarterlyReview[] {
+  return getAll<KpiQuarterlyReview>("KRA_KPI_QUARTERLY_REVIEWS").filter(
+    (r) => r.employeeId === employeeId && r.financialYear === financialYear && r.financialQuarter === financialQuarter
+  );
+}
+
+/**
+ * The reporting manager's mandatory quarter-end registration of one KPI's
+ * achieved value — they can agree with the system-suggested figure
+ * (same number) or move it up or down, but a comment is required in
+ * every case, so the final figure always carries a real, attributable
+ * justification rather than being a silent rubber stamp.
+ */
+export function submitManagerKpiQuarterlyReview(
+  employeeId: string, kpiCode: string, financialYear: string, financialQuarter: FinancialQuarter,
+  managerValue: number, comment: string, reviewedBy: string,
+): { success: boolean; error?: string; review?: KpiQuarterlyReview } {
+  if (!comment.trim()) return { success: false, error: "A comment is required when registering the achieved value" };
+  if (managerValue < 0) return { success: false, error: "Achieved value cannot be negative" };
+  const systemValue = getSystemQuarterlyKpiValue(employeeId, kpiCode, financialYear, financialQuarter);
+  const all = getAll<KpiQuarterlyReview>("KRA_KPI_QUARTERLY_REVIEWS");
+  const existingIdx = all.findIndex((r) => r.employeeId === employeeId && r.kpiCode === kpiCode && r.financialYear === financialYear && r.financialQuarter === financialQuarter);
+  const review: KpiQuarterlyReview = {
+    id: existingIdx >= 0 ? all[existingIdx].id : `QREV-${employeeId}-${kpiCode}-${quarterKey(financialYear, financialQuarter)}`,
+    employeeId, kpiCode, financialYear, financialQuarter,
+    systemValue, managerValue, managerComment: comment.trim(),
+    reviewedBy, reviewedAt: new Date().toISOString(),
+  };
+  if (existingIdx >= 0) all[existingIdx] = review; else all.push(review);
+  saveAll("KRA_KPI_QUARTERLY_REVIEWS", all);
+  return { success: true, review };
+}
+
+/**
+ * The real, final achieved value for scoring/ratings/history — the
+ * manager-registered figure once reviewed, falling back to the system's
+ * suggested quarterly figure before that review happens. Never silently
+ * prefers one over the other inconsistently: once a manager review
+ * exists for this employee+KPI+quarter, it is always authoritative.
+ */
+export function getEffectiveQuarterlyKpiValue(employeeId: string, kpiCode: string, financialYear: string, financialQuarter: FinancialQuarter): { value: number | null; reviewed: boolean; review?: KpiQuarterlyReview } {
+  const review = getKpiQuarterlyReview(employeeId, kpiCode, financialYear, financialQuarter);
+  if (review) return { value: review.managerValue, reviewed: true, review };
+  return { value: getSystemQuarterlyKpiValue(employeeId, kpiCode, financialYear, financialQuarter), reviewed: false };
 }
 
 // ─── Incentive Rule Versions ────────────────────────────────────────────────

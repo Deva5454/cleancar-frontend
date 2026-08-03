@@ -21,6 +21,7 @@ import {
 import {
   computeOMRealRevenue, computeOMRealRetentionRate, type AccountingEntryLike, type SubscriptionLike, type CustomerLike,
 } from "./kraOMDataSources";
+import { financialQuarterForMonthKey } from "./financialQuarter";
 
 export const OM_ROLE = "Operations Manager";
 
@@ -84,7 +85,8 @@ export interface OMKraResult {
 export function computeOMKraScores(
   cityId: string, month: string, entries: AccountingEntryLike[], subscriptions: SubscriptionLike[], customers: CustomerLike[]
 ): { results: OMKraResult[]; totalScore: number | null; realWeightCovered: number } {
-  const { kras } = resolveEmployeeKras(cityId, OM_ROLE);
+  const { financialYear, quarter } = financialQuarterForMonthKey(month);
+  const { kras } = resolveEmployeeKras(cityId, OM_ROLE, financialYear, quarter);
   const catalog = getKpiCatalog();
 
   const results: OMKraResult[] = kras.map((kra) => {

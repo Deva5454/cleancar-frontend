@@ -26,21 +26,15 @@
  * financial quarter (not just "whatever quarter it is today"), and the
  * suggested rating averages real KPI actuals across the quarter's 3
  * constituent months rather than using only the most recent one.
+ *
+ * Real change: once the reporting manager has registered their mandatory
+ * quarter-end achieved value for a KPI (KraQuarterlyReviewModule.tsx),
+ * that figure — not the raw system average — is the real figure of
+ * record this bridge uses for the goal's suggested rating.
  */
 
-import { resolveEmployeeKras, getKpiActual } from "./kraEngineService";
+import { resolveEmployeeKras, getEffectiveQuarterlyKpiValue } from "./kraEngineService";
 import { performanceManagementService, type RatingValue } from "./performanceManagementService";
-import { getQuarterInfo } from "./financialQuarter";
-
-/** The 3 "YYYY-MM" month keys that make up a financial quarter — real KPI actuals are saved monthly even though KRA approval/goals are quarterly. */
-function monthsInQuarter(financialYear: string, financialQuarter: import("./financialQuarter").FinancialQuarter): string[] {
-  const { startDate } = getQuarterInfo(financialYear, financialQuarter);
-  const [y, m] = startDate.split("-").map(Number);
-  return [0, 1, 2].map((i) => {
-    const date = new Date(y, m - 1 + i, 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  });
-}
 
 /**
  * Real, idempotent generation - only creates goals for KRAs this
@@ -117,17 +111,12 @@ export function computeSuggestedRatingForGoal(
   const kra = kras.find((k) => k.name === goalTitle);
   if (!kra) return { suggestedRating: null, kraScore: null };
 
-  const months = monthsInQuarter(cycle.financialYear, cycle.financialQuarter);
-
   const kpiScores = kra.kpis
     .map((link) => {
       const target = link.defaultTarget || 1;
-      const monthlyAchievements = months
-        .map((month) => getKpiActual(employeeId, link.kpiCode, month))
-        .filter((v): v is number => v !== undefined)
-        .map((actual) => Math.min(150, Math.round((actual / target) * 100)));
-      if (monthlyAchievements.length === 0) return null;
-      return Math.round(monthlyAchievements.reduce((s, v) => s + v, 0) / monthlyAchievements.length);
+      const { value } = getEffectiveQuarterlyKpiValue(employeeId, link.kpiCode, cycle.financialYear, cycle.financialQuarter);
+      if (value === null) return null;
+      return Math.min(150, Math.round((value / target) * 100));
     })
     .filter((s): s is number => s !== null);
 

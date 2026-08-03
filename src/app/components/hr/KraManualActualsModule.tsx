@@ -15,7 +15,7 @@ import { employeeDatabaseService } from "../../services/employeeDatabaseService"
 import {
   getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActualRecord, saveKpiActual,
 } from "../../services/kraEngineService";
-import { getFinancialQuarter, getQuarterInfo, listPastAndCurrentQuarters, type FinancialQuarter } from "../../services/financialQuarter";
+import { getFinancialQuarter, monthsInFinancialQuarter, listPastAndCurrentQuarters, type FinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -27,12 +27,9 @@ import { toast } from "sonner";
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function monthsInQuarter(financialYear: string, quarter: FinancialQuarter): { key: string; label: string }[] {
-  const { startDate } = getQuarterInfo(financialYear, quarter);
-  const [y, m] = startDate.split("-").map(Number);
-  return [0, 1, 2].map((i) => {
-    const date = new Date(y, m - 1 + i, 1);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    return { key, label: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}` };
+  return monthsInFinancialQuarter(financialYear, quarter).map((key) => {
+    const [y, m] = key.split("-").map(Number);
+    return { key, label: `${MONTH_NAMES[m - 1]} ${y}` };
   });
 }
 

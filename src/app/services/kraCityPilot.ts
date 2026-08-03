@@ -27,6 +27,7 @@ import {
   type JournalEntryLike, type LedgerLike,
 } from "./kraCityDataSources";
 import type { RevenueLike, SubscriptionLike, CustomerLike } from "./kraOMDataSources";
+import { financialQuarterForMonthKey } from "./financialQuarter";
 
 export const CITY_ROLE = "City Manager";
 const NOT_YET_AVAILABLE = "NOT_YET_AVAILABLE";
@@ -83,7 +84,8 @@ export function computeCityKraScores(
   revenueRecords: RevenueLike[], subscriptions: SubscriptionLike[], customers: CustomerLike[],
   journals: JournalEntryLike[], ledgers: LedgerLike[]
 ): { results: CityKraResult[]; totalScore: number | null; realWeightCovered: number } {
-  const { kras } = resolveEmployeeKras(cityId, CITY_ROLE);
+  const { financialYear, quarter } = financialQuarterForMonthKey(month);
+  const { kras } = resolveEmployeeKras(cityId, CITY_ROLE, financialYear, quarter);
   const catalog = getKpiCatalog();
 
   const realRevenue = computeCityRealRevenue(revenueRecords, cityId, month);

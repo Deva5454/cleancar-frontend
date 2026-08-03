@@ -236,6 +236,7 @@ const STORAGE_KEYS = {
   KRA_TEMPLATES:              "kra_templates",
   KRA_EMPLOYEE_ASSIGNMENTS:   "kra_employee_assignments",
   KRA_KPI_ACTUALS:            "kra_kpi_actuals",
+  KRA_KPI_QUARTERLY_REVIEWS:  "kra_kpi_quarterly_reviews",
   KRA_INCENTIVE_RULE_VERSIONS:"kra_incentive_rule_versions",
   KRA_INCENTIVE_PAYOUTS:      "kra_incentive_payouts",
   PMS_CYCLES:                 "pms_cycles",
@@ -258,7 +259,7 @@ type EntityType = keyof typeof STORAGE_KEYS;
 const GLOBAL_ENTITY_TYPES = new Set<EntityType>([
   "CITY_CONFIG",
   "KRA_KPI_CATALOG", "KRA_TEMPLATES", "KRA_EMPLOYEE_ASSIGNMENTS",
-  "KRA_KPI_ACTUALS", "KRA_INCENTIVE_RULE_VERSIONS", "KRA_INCENTIVE_PAYOUTS",
+  "KRA_KPI_ACTUALS", "KRA_KPI_QUARTERLY_REVIEWS", "KRA_INCENTIVE_RULE_VERSIONS", "KRA_INCENTIVE_PAYOUTS",
   "PMS_CYCLES", "PMS_GOALS", "PMS_SELF_APPRAISALS",
   "PMS_MANAGER_REVIEWS", "PMS_CALIBRATIONS", "PMS_INCREMENT_BANDS",
 ]);

@@ -22,6 +22,7 @@ import {
   getKpiCatalog, upsertKpiCatalogEntry, resolveEmployeeKras, saveKpiActual, type KraDefinition,
 } from "./kraEngineService";
 import { getRealRetentionRate, getRealConversionRate } from "./supervisorIncentiveService";
+import { financialQuarterForMonthKey } from "./financialQuarter";
 
 export const SUPERVISOR_ROLE = "Supervisor";
 
@@ -94,7 +95,8 @@ export interface SupervisorKraResult {
 export function computeSupervisorKraScores(
   supervisorId: string, month: string
 ): { results: SupervisorKraResult[]; totalScore: number | null; realWeightCovered: number } {
-  const { kras } = resolveEmployeeKras(supervisorId, SUPERVISOR_ROLE);
+  const { financialYear, quarter } = financialQuarterForMonthKey(month);
+  const { kras } = resolveEmployeeKras(supervisorId, SUPERVISOR_ROLE, financialYear, quarter);
   const catalog = getKpiCatalog();
 
   const results: SupervisorKraResult[] = kras.map((kra) => {

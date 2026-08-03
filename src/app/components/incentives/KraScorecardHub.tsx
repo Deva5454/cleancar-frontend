@@ -35,7 +35,7 @@ import { WASHER_ROLE, computeWasherKraScores } from "../../services/kraWasherPil
 import { SUPERVISOR_ROLE, computeSupervisorKraScores } from "../../services/kraSupervisorPilot";
 import { OM_ROLE, computeOMKraScores } from "../../services/kraOMPilot";
 import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager } from "../../services/kraCityPilot";
-import { getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActual } from "../../services/kraEngineService";
+import { getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActual, getEffectiveQuarterlyKpiValue } from "../../services/kraEngineService";
 import { getFinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -149,6 +149,13 @@ export function KraScorecardHub() {
   const activeTemplate = selectedRole ? getActiveKraTemplate(selectedRole, quarterForMonth.financialYear, quarterForMonth.quarter) : undefined;
   const maskCityFigures = selectedRole === CITY_ROLE && currentRole === "City Manager";
 
+  // ── Quarter-end effective value (manager-reviewed if registered, else system-suggested) per KPI ──
+  const reviewSubjectId = isCityLevel ? selectedCityId : selectedEmployeeId;
+  const quarterlyFor = (kpiCode: string) => {
+    if (!reviewSubjectId) return undefined;
+    return getEffectiveQuarterlyKpiValue(reviewSubjectId, kpiCode, quarterForMonth.financialYear, quarterForMonth.quarter);
+  };
+
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
       <div>
@@ -206,20 +213,20 @@ export function KraScorecardHub() {
           <CardContent className="space-y-4">
             {washerResult && washerResult.results.map((kra) => (
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
-                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct }))} />
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
             {supervisorResult && supervisorResult.results.map((kra) => (
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
-                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct }))} />
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
             {omResult && omResult.results.map((kra) => (
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
-                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct }))} />
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
             {cityResult && cityResult.results.map((kra) => {
               if (!maskCityFigures) {
                 return <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
-                  kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct }))} />;
+                  kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />;
               }
               const masked = maskKraResultForCityManager(kra);
               return (
@@ -233,7 +240,7 @@ export function KraScorecardHub() {
             })}
             {genericResult && genericResult.results.map((kra) => (
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
-                kpis={kra.kpis.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct }))} />
+                kpis={kra.kpis.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
 
             {!washerResult && !supervisorResult && !omResult && !cityResult && !genericResult && (
@@ -248,7 +255,7 @@ export function KraScorecardHub() {
 
 function KraBlock({ name, weight, score, kpis }: {
   name: string; weight: number; score: number | null;
-  kpis: { name: string; actual: number | null; target: number; pct: number | null }[];
+  kpis: { name: string; actual: number | null; target: number; pct: number | null; quarterly?: { value: number | null; reviewed: boolean } }[];
 }) {
   return (
     <div className="border rounded-lg p-3">
@@ -263,9 +270,19 @@ function KraBlock({ name, weight, score, kpis }: {
       {score !== null ? <Progress value={Math.min(100, score)} className="h-2 mb-2" /> : <div className="h-2 mb-2 bg-amber-100 rounded" />}
       <div className="space-y-1">
         {kpis.map((k) => (
-          <div key={k.name} className="flex justify-between text-xs text-gray-600">
-            <span>{k.name}</span>
-            <span>{k.actual !== null ? `${k.actual.toLocaleString("en-IN")} / ${k.target.toLocaleString("en-IN")} target (${k.pct}%)` : "No data yet"}</span>
+          <div key={k.name} className="text-xs text-gray-600">
+            <div className="flex justify-between">
+              <span>{k.name}</span>
+              <span>{k.actual !== null ? `${k.actual.toLocaleString("en-IN")} / ${k.target.toLocaleString("en-IN")} target (${k.pct}%)` : "No data yet"}</span>
+            </div>
+            {k.quarterly && (
+              <div className="flex justify-end">
+                <span className={`text-[11px] ${k.quarterly.reviewed ? "text-green-600" : "text-amber-600"}`}>
+                  Quarter figure: {k.quarterly.value !== null ? k.quarterly.value.toLocaleString("en-IN") : "—"}
+                  {" · "}{k.quarterly.reviewed ? "Manager reviewed" : "Pending manager review"}
+                </span>
+              </div>
+            )}
           </div>
         ))}
       </div>

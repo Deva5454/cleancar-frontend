@@ -74,6 +74,22 @@ export function listQuartersForYear(financialYear: string): QuarterInfo[] {
   return QUARTER_ORDER.map((q) => getQuarterInfo(financialYear, q));
 }
 
+/** The 3 "YYYY-MM" month keys that make up a financial quarter — KPI actuals are saved monthly even though KRA approval/goals/reviews are quarterly. */
+export function monthsInFinancialQuarter(financialYear: string, quarter: FinancialQuarter): string[] {
+  const { startDate } = getQuarterInfo(financialYear, quarter);
+  const [y, m] = startDate.split("-").map(Number);
+  return [0, 1, 2].map((i) => {
+    const date = new Date(y, m - 1 + i, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  });
+}
+
+/** Which financial quarter a "YYYY-MM" month key falls in. */
+export function financialQuarterForMonthKey(monthKey: string): QuarterInfo {
+  const [y, m] = monthKey.split("-").map(Number);
+  return getFinancialQuarter(new Date(y, m - 1, 1));
+}
+
 /** All quarters up to and including the current one, most recent first — for a "financial year" picker. */
 export function listPastAndCurrentQuarters(count: number = 8): QuarterInfo[] {
   const out: QuarterInfo[] = [];

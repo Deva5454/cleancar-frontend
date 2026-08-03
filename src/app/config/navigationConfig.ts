@@ -227,6 +227,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "KRA Approvals", path: "/hr/kra-approvals", icon: ClipboardCheck, module: "hr", match: "prefix" },
       { label: "KRA Goal Setting", path: "/hr/kra-goal-setting", icon: Users, module: "hr", match: "prefix" },
       { label: "KRA Manual Actuals", path: "/hr/kra-manual-actuals", icon: FileText, module: "hr", match: "prefix" },
+      { label: "KRA Quarterly Review", path: "/hr/kra-quarterly-review", icon: ClipboardCheck, module: "hr", match: "prefix" },
       { label: "Field Tracker",        path: "/field-tracker", icon: Navigation,  module: "hr", match: "prefix" },
       { label: "Other Earnings", path: "/advance/other-earnings", icon: PlusCircle, module: "hr", match: "prefix" },
       { label: "Other Deductions", path: "/advance/other-deductions", icon: MinusCircle, module: "hr", match: "prefix" },
