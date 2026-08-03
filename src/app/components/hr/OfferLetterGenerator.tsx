@@ -806,8 +806,14 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
 
       {/* Preview Modal */}
       {showPreviewModal && selectedOffer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <Card className="w-full max-w-4xl my-8">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          {/* Real fix: overflow-y-auto used to live on this centering backdrop
+              instead of the panel itself — with content taller than the
+              viewport, flex centering made the top of the letter (letterhead,
+              date, candidate address) permanently unreachable by scrolling.
+              Capping the panel's own height and scrolling *it* (same pattern
+              as the working Create Offer modal above) fixes that. */}
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="border-b sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between">
                 <CardTitle>Offer Letter Preview - {selectedOffer.id}</CardTitle>
@@ -1099,8 +1105,8 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
 
       {/* Edit Content Modal — HR / Super Admin only */}
       {showEditContentModal && selectedOffer && editDraft && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <Card className="w-full max-w-3xl my-8">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <CardHeader className="border-b sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between">
                 <CardTitle>Edit Offer Letter Content - {selectedOffer.id}</CardTitle>
