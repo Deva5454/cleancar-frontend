@@ -178,7 +178,12 @@ class ShiftRosterService {
   getRosters(cityId?: string): WeeklyRoster[] {
     try {
       const all = DataService.get<WeeklyRoster>(SK.ROSTERS);
-      return cityId ? all.filter(r => r.cityId === cityId) : all;
+      // Real fix: this key previously collided with 3 other unrelated data
+      // types (swaps/absences/notifications) before their entity types got
+      // registered — any leftover malformed/foreign record without a real
+      // .slots array must not crash every screen that reads rosters.
+      const normalized = all.map(r => (r && Array.isArray(r.slots)) ? r : { ...r, slots: [] });
+      return cityId ? normalized.filter(r => r.cityId === cityId) : normalized;
     } catch { return []; }
   }
 
