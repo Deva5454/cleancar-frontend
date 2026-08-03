@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
+import { autoRejectPendingCompOffForPayrollPeriod } from "../../services/compOffLeaveRequestService";
 // Real, mounted OrgContext — was importing "./OrgContext", a stray
 // unmounted duplicate local to this directory with its own separate
 // createContext/OrgProvider, so useOrg() here always threw "must be used
@@ -207,6 +208,13 @@ export function PayrollRun() {
       const autoRejectedCount = autoRejectPendingForPayrollPeriod(currentCityId, periodEnd);
       if (autoRejectedCount > 0) {
         toast.info(`${autoRejectedCount} pending regularization request(s) auto-rejected — payroll period closed`);
+      }
+      // Real, same policy as regularization above - any comp-off leave
+      // request still pending for this real period auto-rejects the
+      // instant this payroll run starts.
+      const autoRejectedCompOffCount = autoRejectPendingCompOffForPayrollPeriod(currentCityId, periodEnd);
+      if (autoRejectedCompOffCount > 0) {
+        toast.info(`${autoRejectedCompOffCount} pending comp-off request(s) auto-rejected — payroll period closed`);
       }
 
       let generated = 0;
