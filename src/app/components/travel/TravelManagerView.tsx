@@ -24,19 +24,19 @@ export function TravelManagerView() {
   );
 
   const handleApprove = (trip: TravelTrip) => {
-    travelReimbursementService.managerApprove(
+    const updated = travelReimbursementService.managerApprove(
       trip.id,
       currentUser?.employeeId || "",
       currentUser?.name || "Manager",
       comments
     );
-    toast.success(`Trip approved. Forwarded to HR for final approval.`);
+    toast.success(`Trip approved. Forwarded to ${updated.status === "Pending City Manager" ? "City Manager" : "HR"} for further approval.`);
     setSelected(null); setComments(""); setRefresh(r => r + 1);
   };
 
   const handleReject = (trip: TravelTrip) => {
-    if (!rejectReason.trim()) { toast.error("Rejection reason is required"); return; }
-    travelReimbursementService.reject(trip.id, currentUser?.name || "Manager", rejectReason);
+    const result = travelReimbursementService.managerReject(trip.id, currentUser?.employeeId || "", currentUser?.name || "Manager", rejectReason);
+    if (!result.success) { toast.error(result.error || "Rejection reason is required"); return; }
     toast.success("Trip rejected. Employee has been notified.");
     setSelected(null); setShowReject(false); setRejectReason(""); setRefresh(r => r + 1);
   };
@@ -184,7 +184,7 @@ export function TravelManagerView() {
                       </Button>
                       <Button className="flex-1 bg-green-600 hover:bg-green-700"
                         onClick={() => handleApprove(selected)}>
-                        <CheckCircle className="w-4 h-4 mr-1" /> Approve & Forward to HR
+                        <CheckCircle className="w-4 h-4 mr-1" /> Approve & Forward
                       </Button>
                     </div>
                   </>

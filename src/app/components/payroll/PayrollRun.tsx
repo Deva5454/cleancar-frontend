@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
 import { autoRejectPendingCompOffForPayrollPeriod } from "../../services/compOffLeaveRequestService";
+import { travelReimbursementService } from "../../services/travelReimbursementService";
 // Real, mounted OrgContext — was importing "./OrgContext", a stray
 // unmounted duplicate local to this directory with its own separate
 // createContext/OrgProvider, so useOrg() here always threw "must be used
@@ -215,6 +216,15 @@ export function PayrollRun() {
       const autoRejectedCompOffCount = autoRejectPendingCompOffForPayrollPeriod(currentCityId, periodEnd);
       if (autoRejectedCompOffCount > 0) {
         toast.info(`${autoRejectedCompOffCount} pending comp-off request(s) auto-rejected — payroll period closed`);
+      }
+      // Real, same policy - any travel reimbursement claim still pending
+      // at any approval stage for this real period auto-rejects the
+      // instant this payroll run starts (applies to every payout track -
+      // the approval deadline is enterprise-wide, only disbursement
+      // timing differs for Car Washer / Supervisor's weekly cycle).
+      const autoRejectedTravelCount = travelReimbursementService.autoRejectPendingForPayrollPeriod(currentCityId, periodEnd);
+      if (autoRejectedTravelCount > 0) {
+        toast.info(`${autoRejectedTravelCount} pending travel reimbursement claim(s) auto-rejected — payroll period closed`);
       }
 
       let generated = 0;

@@ -67,6 +67,30 @@ export function TravelEmployeeView() {
   const rate2W = travelReimbursementService.getEffectiveRate(currentUser?.employeeId || "", "2W");
   const rate4W = travelReimbursementService.getEffectiveRate(currentUser?.employeeId || "", "4W");
 
+  const [resubmittingId, setResubmittingId] = useState<string | null>(null);
+  const [resubmitComment, setResubmitComment] = useState("");
+
+  const firstApproverRoleLabel = emp?.designation === "Car Washer" ? "TSM"
+    : emp?.designation === "Supervisor" ? "Sales Head"
+    : "your reporting manager";
+  const payoutTrackLabel = (emp?.designation === "Car Washer" || emp?.designation === "Supervisor")
+    ? "paid weekly (reconciled every Monday, disbursed the following Wednesday)"
+    : "added to your monthly salary";
+
+  const handleResubmit = (tripId: string) => {
+    if (!resubmitComment.trim()) { toast.error("A comment explaining the resubmission is required"); return; }
+    const result = travelReimbursementService.reopenForResubmission(tripId, emp?.fullName || currentUser?.name || "", resubmitComment);
+    if (!result.success) { toast.error(result.error || "Could not resubmit"); return; }
+    toast.success("Claim reopened. Edit the details and submit again.");
+    setResubmittingId(null); setResubmitComment("");
+    setTab("new_trip"); setRefresh(r => r + 1);
+  };
+
+  const latestRejection = (trip: TravelTrip): string | undefined => {
+    const entry = [...trip.history].reverse().find(h => h.action === "Rejected" || h.action === "Auto-Rejected");
+    return entry?.comment || trip.rejectionReason;
+  };
+
   // Photo capture helper
   const capturePhoto = (file: File, cb: (data: string) => void) => {
     const reader = new FileReader();
@@ -140,7 +164,7 @@ export function TravelEmployeeView() {
     // Check for same-day duplicate
     const existingTrips = travelReimbursementService.getTrips();
     const hasDuplicate = existingTrips.some(t =>
-      t.tripDate === tripDate && t.status !== "Rejected"
+      t.tripDate === tripDate && !t.status.includes("Rejected")
     );
     if (hasDuplicate) return "A trip already exists for this date";
     return null;
@@ -163,13 +187,21 @@ export function TravelEmployeeView() {
   );
 
   const STATUS_COLORS: Record<string, string> = {
-    "Draft":          "bg-gray-100 text-gray-700",
-    "Pending Manager":"bg-amber-100 text-amber-700",
-    "Pending HR":     "bg-blue-100 text-blue-700",
-    "Approved":       "bg-green-100 text-green-700",
-    "Rejected":       "bg-red-100 text-red-700",
-    "Added to Payroll":"bg-purple-100 text-purple-700",
+    "Draft":                "bg-gray-100 text-gray-700",
+    "Pending Manager":      "bg-amber-100 text-amber-700",
+    "Manager Rejected":     "bg-red-100 text-red-700",
+    "Pending City Manager": "bg-orange-100 text-orange-700",
+    "City Manager Rejected":"bg-red-100 text-red-700",
+    "Pending HR":           "bg-blue-100 text-blue-700",
+    "HR Rejected":          "bg-red-100 text-red-700",
+    "HR Applied":           "bg-green-100 text-green-700",
+    "Auto-Rejected":        "bg-red-100 text-red-700",
+    // legacy, tolerated on old records
+    "Approved":             "bg-green-100 text-green-700",
+    "Rejected":             "bg-red-100 text-red-700",
+    "Added to Payroll":     "bg-purple-100 text-purple-700",
   };
+  const REJECTED_STATUSES = ["Manager Rejected", "City Manager Rejected", "HR Rejected"];
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
@@ -418,7 +450,8 @@ export function TravelEmployeeView() {
                 )}
 
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                  This will be submitted to <strong>{activeTrip.reportingManagerName || "your reporting manager"}</strong> for approval, then to HR. Amount will be added to your monthly salary.
+                  This will be submitted to <strong>{firstApproverRoleLabel}</strong>, then City Manager, then HR for final approval.
+                  Once approved, the amount will be {payoutTrackLabel}.
                 </p>
 
                 <div className="flex gap-3">
@@ -473,10 +506,54 @@ export function TravelEmployeeView() {
                     <span>·</span>
                     <span>{trip.vehicleType}</span>
                   </div>
-                  {trip.rejectionReason && (
+                  {REJECTED_STATUSES.includes(trip.status) && latestRejection(trip) && (
                     <p className="text-xs text-red-600 mt-1 bg-red-50 rounded p-1">
-                      Rejected: {trip.rejectionReason}
+                      Rejected: {latestRejection(trip)}
                     </p>
+                  )}
+                  {trip.status === "Auto-Rejected" && (
+                    <p className="text-xs text-red-600 mt-1 bg-red-50 rounded p-1">
+                      Auto-rejected: payroll approved before this claim was resolved.
+                    </p>
+                  )}
+                  {trip.status === "HR Applied" && trip.payoutTrack === "Weekly" && (
+                    <p className="text-xs text-green-700 mt-1 bg-green-50 rounded p-1">
+                      Approved — will be paid in the next weekly reimbursement cycle (reconciled Monday, disbursed Wednesday).
+                    </p>
+                  )}
+
+                  {REJECTED_STATUSES.includes(trip.status) && (
+                    resubmittingId === trip.id ? (
+                      <div className="mt-2 space-y-2">
+                        <Input value={resubmitComment} onChange={e => setResubmitComment(e.target.value)}
+                          placeholder="Comment explaining the resubmission *" />
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => { setResubmittingId(null); setResubmitComment(""); }}>Cancel</Button>
+                          <Button size="sm" className="flex-1" onClick={() => handleResubmit(trip.id)}>Confirm Resubmit</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" className="mt-2 w-full"
+                        onClick={() => { setResubmittingId(trip.id); setResubmitComment(""); }}>
+                        Edit & Resubmit
+                      </Button>
+                    )
+                  )}
+
+                  {trip.history.length > 0 && (
+                    <details className="mt-2 text-xs">
+                      <summary className="cursor-pointer text-gray-400 hover:text-gray-600">Full history</summary>
+                      <div className="mt-1 space-y-1 pl-2 border-l-2 border-gray-200">
+                        {trip.history.map((h, i) => (
+                          <div key={i} className="text-gray-500">
+                            <span className="font-medium text-gray-700">{h.stage}</span> {h.action.toLowerCase()}
+                            {h.actorName ? ` by ${h.actorName}` : ""}
+                            {h.comment ? ` — "${h.comment}"` : ""}
+                            <span className="text-gray-400"> · {new Date(h.at).toLocaleString("en-IN")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   )}
                 </CardContent>
               </Card>

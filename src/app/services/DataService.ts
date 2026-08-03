@@ -198,6 +198,23 @@ const STORAGE_KEYS = {
   SHIFT_SWAPS:             "shift_swaps",
   SHIFT_ABSENCES:          "shift_absences",
   SHIFT_NOTIFICATIONS:     "shift_notifications",
+  // ── Same class of bug, found later still: travelReimbursementService.ts
+  // called DataService.get()/setAll() with 6 different entity-type strings
+  // (TRAVEL_RATES/TRAVEL_EXCEPTIONS/TRAVEL_PERMISSIONS/TRAVEL_TRIPS/
+  // TRAVEL_PHOTOS/TRAVEL_NOTIFICATIONS), none of which were ever registered
+  // here — all six collided at the same broken "cleancar_{cityId}_undefined"
+  // key, meaning rate settings, exception policies, employee permissions,
+  // trips, odometer photos, and notifications were all silently
+  // overwriting each other's data in this already-live feature.
+  // TRAVEL_WEEKLY_BATCHES is a new key for the weekly reconciliation
+  // pipeline, registered correctly from the start.
+  TRAVEL_RATES:            "travel_rates",
+  TRAVEL_EXCEPTIONS:       "travel_exceptions",
+  TRAVEL_PERMISSIONS:      "travel_permissions",
+  TRAVEL_TRIPS:            "travel_trips",
+  TRAVEL_PHOTOS:           "travel_photos",
+  TRAVEL_NOTIFICATIONS:    "travel_notifications",
+  TRAVEL_WEEKLY_BATCHES:   "travel_weekly_batches",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
@@ -716,6 +733,62 @@ function migrateShiftRosterSharedKeyToRegisteredKeys() {
   }
 }
 migrateShiftRosterSharedKeyToRegisteredKeys();
+
+/**
+ * One-time migration: travelReimbursementService.ts read/wrote 6 different
+ * entity types (TravelRate[], TravelExceptionPolicy[], TravelModulePermission[],
+ * TravelTrip[], TripPhoto[], TravelNotification[]) via unregistered
+ * entityType strings, so ALL SIX collided at the same broken
+ * "cleancar_{cityId}_undefined" key shift rosters were also colliding at —
+ * each setAll() call silently overwrote whatever the others had stored
+ * there. Runs after the shift-roster migration above (which already
+ * removed the broken key wherever a shift-shaped record won the race);
+ * here we inspect whatever's left by shape and move it to its correct new
+ * key — a no-op for any type that already lost its data.
+ */
+function migrateTravelSharedKeyToRegisteredKeys() {
+  const MIGRATION_FLAG = "cleancar_migration_travel_keys_v1_done";
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+
+    for (const cityId of ALL_CITY_IDS) {
+      const brokenKey = `cleancar_${cityId}_undefined`;
+      const raw = localStorage.getItem(brokenKey);
+      if (!raw) continue;
+
+      let parsed: any[];
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue; // corrupt — leave untouched
+      }
+      if (!Array.isArray(parsed) || parsed.length === 0) continue;
+
+      const first = parsed[0];
+      let destBaseKey: string | null = null;
+      if (first && typeof first.ratePerKm === "number" && typeof first.effectiveFrom === "string" && !first.id) destBaseKey = "travel_rates";
+      else if (first && typeof first.overrideRatePerKm === "number") destBaseKey = "travel_exceptions";
+      else if (first && typeof first.isEnabled === "boolean" && typeof first.vehicleType === "string" && !first.tripDate) destBaseKey = "travel_permissions";
+      else if (first && typeof first.tripDate === "string" && typeof first.startReading === "number") destBaseKey = "travel_trips";
+      else if (first && typeof first.dataUrl === "string" && (first.type === "start_odometer" || first.type === "end_odometer")) destBaseKey = "travel_photos";
+      else if (first && typeof first.type === "string" && first.type.startsWith("travel_") && typeof first.message === "string") destBaseKey = "travel_notifications";
+      if (!destBaseKey) continue; // shape doesn't match any of the 6 — likely already-lost/foreign data, leave it alone
+
+      const destKey = `cleancar_${cityId}_${destBaseKey}`;
+      try {
+        const existing = JSON.parse(localStorage.getItem(destKey) || "[]");
+        const existingArr = Array.isArray(existing) ? existing : [];
+        localStorage.setItem(destKey, JSON.stringify([...existingArr, ...parsed]));
+        localStorage.removeItem(brokenKey);
+      } catch { /* skip this city on any error — leave the broken key as-is */ }
+    }
+
+    localStorage.setItem(MIGRATION_FLAG, "true");
+  } catch (e) {
+    console.warn("[DataService] Travel reimbursement key migration skipped:", e);
+  }
+}
+migrateTravelSharedKeyToRegisteredKeys();
 
 // ========== ONE-TIME MIGRATIONS ==========
 

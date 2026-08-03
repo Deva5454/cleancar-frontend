@@ -2,20 +2,21 @@ import { useState, useMemo } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { useCity } from "../../contexts/CityContext";
 import { useTravelPayableBridge } from "../../hooks/useTravelPayableBridge";
-import { travelReimbursementService, type TravelTrip, type TripStatus } from "../../services/travelReimbursementService";
+import { travelReimbursementService, type TravelTrip } from "../../services/travelReimbursementService";
+import { travelWeeklyPayoutService, getPreviousWeekRange } from "../../services/travelWeeklyPayoutService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
-import { CheckCircle, XCircle, Download, Search } from "lucide-react";
+import { CheckCircle, XCircle, Download, Search, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 
 export function TravelHRView() {
   const { currentUser } = useRole();
   const { city } = useCity();
   const { finalizeTravelApproval } = useTravelPayableBridge();
-  const [tab, setTab]         = useState<"pending" | "history">("pending");
+  const [tab, setTab]         = useState<"pending" | "history" | "weekly">("pending");
   const [selected, setSelected] = useState<TravelTrip | null>(null);
   const [comments, setComments] = useState("");
   const [rejectReason, setRejectReason] = useState("");
@@ -39,8 +40,13 @@ export function TravelHRView() {
   const STATUS_COLORS: Record<string, string> = {
     "Draft":                "bg-gray-100 text-gray-700",
     "Pending Manager":      "bg-amber-100 text-amber-700",
-    "Pending HR":           "bg-blue-100 text-blue-700",
+    "Manager Rejected":     "bg-red-100 text-red-700",
     "Pending City Manager": "bg-orange-100 text-orange-700",
+    "City Manager Rejected":"bg-red-100 text-red-700",
+    "Pending HR":           "bg-blue-100 text-blue-700",
+    "HR Rejected":          "bg-red-100 text-red-700",
+    "HR Applied":           "bg-green-100 text-green-700",
+    "Auto-Rejected":        "bg-red-100 text-red-700",
     "Approved":             "bg-green-100 text-green-700",
     "Rejected":             "bg-red-100 text-red-700",
     "Added to Payroll":     "bg-purple-100 text-purple-700",
@@ -48,10 +54,10 @@ export function TravelHRView() {
 
   const handleApprove = () => {
     if (!selected) return;
-    const updatedTrip = travelReimbursementService.hrApprove(selected.id, currentUser?.name || "HR", comments);
+    const updatedTrip = travelReimbursementService.hrApply(selected.id, currentUser?.name || "HR", comments);
 
-    if (updatedTrip.status === "Pending City Manager") {
-      toast.success(`Approved by HR. Sent to City Manager for approval (above ₹${updatedTrip.netPayableAmount?.toLocaleString()} threshold).`);
+    if (updatedTrip.payoutTrack === "Weekly") {
+      toast.success(`Approved. ₹${updatedTrip.netPayableAmount?.toLocaleString()} will be included in the next weekly reconciliation (Monday) for ${updatedTrip.employeeName}.`);
       setSelected(null); setComments(""); setPayImmediately(false); setRefresh(r => r + 1);
       return;
     }
@@ -67,10 +73,25 @@ export function TravelHRView() {
 
   const handleReject = () => {
     if (!selected) return;
-    if (!rejectReason.trim()) { toast.error("Rejection reason is required"); return; }
-    travelReimbursementService.reject(selected.id, currentUser?.name || "HR", rejectReason);
+    const result = travelReimbursementService.hrReject(selected.id, currentUser?.name || "HR", rejectReason);
+    if (!result.success) { toast.error(result.error || "Rejection reason is required"); return; }
     toast.success("Trip rejected.");
     setSelected(null); setShowReject(false); setRejectReason(""); setRefresh(r => r + 1);
+  };
+
+  // ── Weekly reconciliation (Car Washer / Supervisor claims) ──
+  const defaultWeek = getPreviousWeekRange();
+  const [reconWeekStart, setReconWeekStart] = useState(defaultWeek.weekStartDate);
+  const eligibleForRecon = travelWeeklyPayoutService.getEligibleTrips(
+    city, reconWeekStart, (() => { const d = new Date(reconWeekStart + "T00:00:00"); d.setDate(d.getDate() + 6); return d.toISOString().split("T")[0]; })()
+  );
+  const cityBatches = travelWeeklyPayoutService.getBatches(city);
+
+  const runReconciliation = () => {
+    const result = travelWeeklyPayoutService.runWeeklyReconciliation(city, reconWeekStart, currentUser?.employeeId || "", currentUser?.name || "HR");
+    if (!result.success || !result.batch) { toast.error(result.error || "Could not run reconciliation"); return; }
+    toast.success(`Reconciliation batch created: ${result.batch.tripIds.length} claim(s), ₹${result.batch.totalAmount.toLocaleString()}. Sent to Super Admin for approval.`);
+    setRefresh(r => r + 1);
   };
 
   // CSV Export
@@ -103,9 +124,9 @@ export function TravelHRView() {
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: "Pending HR",    value: pending.length,                             color: "text-blue-700"  },
-          { label: "Approved",      value: allTrips.filter(t => t.status === "Approved" || t.status === "Added to Payroll").length, color: "text-green-700" },
-          { label: "Total Amount",  value: `₹${allTrips.filter(t => t.status !== "Rejected" && t.status !== "Draft").reduce((s,t) => s + (t.netPayableAmount||0), 0).toLocaleString()}`, color: "text-purple-700" },
-          { label: "In Payroll",    value: allTrips.filter(t => t.status === "Added to Payroll").length, color: "text-gray-700" },
+          { label: "Applied",       value: allTrips.filter(t => t.status === "HR Applied" || t.status === "Approved" || t.status === "Added to Payroll").length, color: "text-green-700" },
+          { label: "Total Amount",  value: `₹${allTrips.filter(t => !t.status.includes("Rejected") && t.status !== "Draft").reduce((s,t) => s + (t.netPayableAmount||0), 0).toLocaleString()}`, color: "text-purple-700" },
+          { label: "Weekly Track",  value: allTrips.filter(t => t.payoutTrack === "Weekly" && t.status === "HR Applied").length, color: "text-gray-700" },
         ].map(k => (
           <div key={k.label} className="bg-white border rounded-xl p-3 text-center">
             <div className={`text-xl font-bold ${k.color}`}>{k.value}</div>
@@ -115,10 +136,10 @@ export function TravelHRView() {
       </div>
 
       <div className="flex gap-2 border-b">
-        {(["pending","history"] as const).map(t => (
+        {(["pending","weekly","history"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"}`}>
-            {t === "pending" ? `Pending HR Approval (${pending.length})` : `All Records (${allTrips.length})`}
+            {t === "pending" ? `Pending HR Approval (${pending.length})` : t === "weekly" ? "Weekly Reconciliation" : `All Records (${allTrips.length})`}
           </button>
         ))}
       </div>
@@ -131,8 +152,54 @@ export function TravelHRView() {
         </div>
       )}
 
+      {/* Weekly reconciliation tab (Car Washer / Supervisor claims) */}
+      {tab === "weekly" && (
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-4 h-4 text-blue-600" />
+                <span className="font-medium text-sm">Run Weekly Reconciliation</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Gathers every HR-applied Car Washer / Supervisor claim for the selected Mon-Sun week that isn't
+                already in another batch, and sends it to Super Admin for approval before Accounts disburses it.
+              </p>
+              <div>
+                <label className="block text-xs font-medium mb-1">Week starting (Monday)</label>
+                <Input type="date" value={reconWeekStart} onChange={e => setReconWeekStart(e.target.value)} />
+              </div>
+              <p className="text-xs text-gray-600">
+                {eligibleForRecon.length} eligible claim(s) totalling ₹{eligibleForRecon.reduce((s,t) => s + (t.netPayableAmount||0), 0).toLocaleString()}
+              </p>
+              <Button className="w-full" disabled={eligibleForRecon.length === 0} onClick={runReconciliation}>
+                Run Reconciliation
+              </Button>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-gray-500">Past batches</p>
+            {cityBatches.length === 0 && <p className="text-center text-gray-400 text-sm py-4">No batches yet.</p>}
+            {cityBatches.map(batch => (
+              <div key={batch.id} className="p-3 bg-white border rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{batch.weekStartDate} to {batch.weekEndDate}</p>
+                  <p className="text-xs text-gray-400">{batch.tripIds.length} claim(s) · ₹{batch.totalAmount.toLocaleString()} · Disbursement: {batch.disbursementDate}</p>
+                </div>
+                <Badge className={
+                  batch.status === "Approved" ? "bg-green-100 text-green-700"
+                  : batch.status === "Super Admin Rejected" ? "bg-red-100 text-red-700"
+                  : "bg-amber-100 text-amber-700"
+                }>{batch.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* List */}
-      {!selected && (
+      {tab !== "weekly" && !selected && (
         <div className="space-y-3">
           {(tab === "pending" ? pending : filtered).length === 0 && (
             <div className="text-center py-12 text-gray-400">
@@ -177,8 +244,10 @@ export function TravelHRView() {
                 ["Outcome",      selected.outcomeOfVisit || "—"],
                 ["Distance",     `${selected.totalKm} km`],
                 ["Rate",         `₹${selected.ratePerKm}/km`],
-                ["Manager",      selected.managerApprovedBy || "—"],
-                ["Mgr Comments", selected.managerComments || "—"],
+                [selected.firstApproverRole || "Manager", selected.managerApprovedBy || "—"],
+                ["Their Comments", selected.managerComments || "—"],
+                ["City Manager",   selected.cityManagerApprovedBy || "—"],
+                ["CM Comments",    selected.cityManagerComments || "—"],
               ].map(([k,v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-gray-500">{k}</span>
@@ -219,22 +288,30 @@ export function TravelHRView() {
                   <label className="block text-sm font-medium mb-1">HR Comments (optional)</label>
                   <Input value={comments} onChange={e => setComments(e.target.value)} placeholder="Any notes for records..." />
                 </div>
-                <label className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 rounded p-2 cursor-pointer">
-                  <Checkbox checked={payImmediately} onCheckedChange={(c) => setPayImmediately(c as boolean)} />
-                  Pay immediately (urgent / ad-hoc — skip next payroll cycle)
-                </label>
-                <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
-                  {payImmediately
-                    ? "Approving will send this to Accounts for immediate payment today, outside the normal payroll run."
-                    : `Approving will mark this for addition to ${selected.employeeName}'s salary for ${new Date().toLocaleString("en-IN", { month: "long", year: "numeric" })}. No TDS will be deducted.`}
-                </p>
+                {selected.payoutTrack === "Weekly" ? (
+                  <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+                    {selected.designation} claims are paid weekly — this will be included in the next Monday reconciliation, approved by Super Admin, and disbursed by Accounts the following Wednesday.
+                  </p>
+                ) : (
+                  <>
+                    <label className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 rounded p-2 cursor-pointer">
+                      <Checkbox checked={payImmediately} onCheckedChange={(c) => setPayImmediately(c as boolean)} />
+                      Pay immediately (urgent / ad-hoc — skip next payroll cycle)
+                    </label>
+                    <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
+                      {payImmediately
+                        ? "Approving will send this to Accounts for immediate payment today, outside the normal payroll run."
+                        : `Approving will mark this for addition to ${selected.employeeName}'s salary for ${new Date().toLocaleString("en-IN", { month: "long", year: "numeric" })}. No TDS will be deducted.`}
+                    </p>
+                  </>
+                )}
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
                     onClick={() => setShowReject(true)}>
                     <XCircle className="w-4 h-4 mr-1" /> Reject
                   </Button>
                   <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleApprove}>
-                    <CheckCircle className="w-4 h-4 mr-1" /> Final Approve & Add to Salary
+                    <CheckCircle className="w-4 h-4 mr-1" /> Final Approve
                   </Button>
                 </div>
               </>
@@ -254,6 +331,21 @@ export function TravelHRView() {
                 {selected.hrApprovedBy && ` · Approved by ${selected.hrApprovedBy}`}
                 {selected.payrollMonth && ` · Payroll: ${selected.payrollMonth}`}
               </div>
+            )}
+            {selected.history?.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-gray-400 hover:text-gray-600">Full history</summary>
+                <div className="mt-1 space-y-1 pl-2 border-l-2 border-gray-200">
+                  {selected.history.map((h, i) => (
+                    <div key={i} className="text-gray-500">
+                      <span className="font-medium text-gray-700">{h.stage}</span> {h.action.toLowerCase()}
+                      {h.actorName ? ` by ${h.actorName}` : ""}
+                      {h.comment ? ` — "${h.comment}"` : ""}
+                      <span className="text-gray-400"> · {new Date(h.at).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
           </CardContent>
         </Card>

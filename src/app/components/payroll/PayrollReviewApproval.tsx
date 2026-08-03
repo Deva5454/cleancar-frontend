@@ -50,6 +50,7 @@ import { useRole } from "../../contexts/RoleContext";
 import { getStatusDisplay } from "../../utils/payrollWorkflow";
 import { autoRejectPendingForPayrollPeriod } from "../../services/attendanceRegularizationService";
 import { autoRejectPendingCompOffForPayrollPeriod } from "../../services/compOffLeaveRequestService";
+import { travelReimbursementService } from "../../services/travelReimbursementService";
 import { PayrollLineReviewModal, type ReviewStatus, type ReviewLogEntry } from "./PayrollLineReviewModal";
 
 // ============================================================================
@@ -478,6 +479,10 @@ export function PayrollReviewApproval() {
         const autoRejectedCompOffCount = autoRejectPendingCompOffForPayrollPeriod(activeRun.cityId, activeRun.period.endDate);
         if (autoRejectedCompOffCount > 0) {
           toast.info(`${autoRejectedCompOffCount} pending comp-off request(s) auto-rejected — payroll period approved`);
+        }
+        const autoRejectedTravelCount = travelReimbursementService.autoRejectPendingForPayrollPeriod(activeRun.cityId, activeRun.period.endDate);
+        if (autoRejectedTravelCount > 0) {
+          toast.info(`${autoRejectedTravelCount} pending travel reimbursement claim(s) auto-rejected — payroll period approved`);
         }
       } else {
         setStatus("hr_approved"); // no real run yet (demo/no-data state) - local display only

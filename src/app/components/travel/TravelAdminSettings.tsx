@@ -5,11 +5,12 @@ import { useCity } from "../../contexts/CityContext";
 import { useTravelPayableBridge } from "../../hooks/useTravelPayableBridge";
 import { isFieldTrackingRole, FIELD_TRACKING_ROLES } from "../../services/fieldTrackingService";
 import { travelReimbursementService, type VehicleType, type TravelExceptionPolicy, type TravelTrip } from "../../services/travelReimbursementService";
+import { travelWeeklyPayoutService, getPreviousWeekRange } from "../../services/travelWeeklyPayoutService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Settings, Users, Bike, Car, Plus, Trash2, Shield, ToggleLeft, ToggleRight, CheckCircle, XCircle, ListOrdered } from "lucide-react";
+import { Settings, Users, Bike, Car, Plus, Trash2, Shield, ToggleLeft, ToggleRight, CheckCircle, XCircle, ListOrdered, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props { cityManagerMode?: boolean; }
@@ -17,8 +18,13 @@ interface Props { cityManagerMode?: boolean; }
 const STATUS_COLORS: Record<string, string> = {
   "Draft":                "bg-gray-100 text-gray-700",
   "Pending Manager":      "bg-amber-100 text-amber-700",
-  "Pending HR":           "bg-blue-100 text-blue-700",
+  "Manager Rejected":     "bg-red-100 text-red-700",
   "Pending City Manager": "bg-orange-100 text-orange-700",
+  "City Manager Rejected":"bg-red-100 text-red-700",
+  "Pending HR":           "bg-blue-100 text-blue-700",
+  "HR Rejected":          "bg-red-100 text-red-700",
+  "HR Applied":           "bg-green-100 text-green-700",
+  "Auto-Rejected":        "bg-red-100 text-red-700",
   "Approved":             "bg-green-100 text-green-700",
   "Rejected":             "bg-red-100 text-red-700",
   "Added to Payroll":     "bg-purple-100 text-purple-700",
@@ -28,33 +34,60 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
   const { currentUser, currentRole } = useRole();
   const employees = employeeDatabaseService.getAll();
   const { city, availableCities } = useCity();
-  const { finalizeTravelApproval } = useTravelPayableBridge();
+  const { releaseTravelWeeklyBatchPayables } = useTravelPayableBridge();
   const isSuperAdmin = currentRole === "Super Admin" || currentRole === "Admin";
 
-  const [tab, setTab] = useState<"rates" | "permissions" | "exceptions" | "approvals" | "ledger">(
+  const [tab, setTab] = useState<"rates" | "permissions" | "exceptions" | "approvals" | "ledger" | "weekly">(
     cityManagerMode ? "approvals" : "rates"
   );
   const [refresh, setRefresh] = useState(0);
   const [selectedForApproval, setSelectedForApproval] = useState<TravelTrip | null>(null);
   const [approvalComments, setApprovalComments] = useState("");
 
-  // ── City Manager approvals ──
-  const pendingCityManagerApprovals = travelReimbursementService.getPendingCityManagerApproval(cityManagerMode ? city : undefined);
+  // ── City Manager approvals — resolved per-person (the real City
+  // Manager for this city), not just "anyone with the City Manager role
+  // viewing this city" ──
+  const pendingCityManagerApprovals = travelReimbursementService.getPendingCityManagerApproval(currentUser?.employeeId || "");
 
   const approveTrip = (trip: TravelTrip) => {
+    // City Manager is now stage 2 of 3 (Manager/TSM/Sales Head → City
+    // Manager → HR) — approving here forwards to HR, it does NOT finalize
+    // the claim, so there's no Payable bridge call at this stage anymore.
     const updatedTrip = travelReimbursementService.cityManagerApprove(trip.id, currentUser?.employeeId || "", currentUser?.name || "City Manager", approvalComments);
-
-    finalizeTravelApproval(updatedTrip);
-
-    toast.success(`Approved. ₹${trip.netPayableAmount?.toLocaleString()} will be added to ${trip.employeeName}'s payroll.`);
+    toast.success(updatedTrip.status === "HR Applied"
+      ? `Approved and finalized. ₹${trip.netPayableAmount?.toLocaleString()} will be paid to ${trip.employeeName}.`
+      : `Approved. Forwarded to HR for final approval.`);
     setSelectedForApproval(null); setApprovalComments(""); setRefresh(r => r + 1);
   };
 
   const rejectTrip = (trip: TravelTrip, reason: string) => {
-    if (!reason.trim()) { toast.error("Rejection reason is required"); return; }
-    travelReimbursementService.reject(trip.id, currentUser?.name || "City Manager", reason);
+    const result = travelReimbursementService.cityManagerReject(trip.id, currentUser?.employeeId || "", currentUser?.name || "City Manager", reason);
+    if (!result.success) { toast.error(result.error || "Rejection reason is required"); return; }
     toast.success("Trip rejected.");
     setSelectedForApproval(null); setApprovalComments(""); setRefresh(r => r + 1);
+  };
+
+  // ── Weekly Payouts (Super Admin only) — approve/reject HR's weekly
+  // reconciliation batches for Car Washer / Supervisor claims ──
+  const pendingBatches = isSuperAdmin ? travelWeeklyPayoutService.getPendingSuperAdminBatches() : [];
+  const allBatches = isSuperAdmin ? travelWeeklyPayoutService.getBatches() : [];
+  const [batchComment, setBatchComment] = useState("");
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+
+  const approveBatch = (batchId: string) => {
+    const result = travelWeeklyPayoutService.superAdminApproveBatch(batchId, currentUser?.employeeId || "", currentUser?.name || "Super Admin", batchComment);
+    if (!result.success || !result.batch) { toast.error(result.error || "Could not approve batch"); return; }
+    const trips = result.batch.tripIds.map(id => travelReimbursementService.getTrips().find(t => t.id === id)).filter((t): t is TravelTrip => !!t);
+    releaseTravelWeeklyBatchPayables(result.batch, trips);
+    toast.success(`Batch approved. ₹${result.batch.totalAmount.toLocaleString()} released to Accounts for disbursement on ${result.batch.disbursementDate}.`);
+    setSelectedBatchId(null); setBatchComment(""); setRefresh(r => r + 1);
+  };
+
+  const rejectBatch = (batchId: string) => {
+    const result = travelWeeklyPayoutService.superAdminRejectBatch(batchId, currentUser?.employeeId || "", currentUser?.name || "Super Admin", batchComment);
+    if (!result.success) { toast.error(result.error || "A comment is required to reject a batch"); return; }
+    toast.success("Batch rejected. Claims are eligible for the next reconciliation run.");
+    setSelectedBatchId(null); setBatchComment(""); setRefresh(r => r + 1);
   };
 
   // ── Super Admin trip ledger (all cities, all employees) ──
@@ -73,19 +106,6 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
     toast.success(`${vt} rate updated to ₹${rate}/km`);
     if (vt === "2W") setEditing2W(false);
     else setEditing4W(false);
-    setRefresh(r => r + 1);
-  };
-
-  // ── City Manager approval threshold ──
-  const cityManagerThreshold = travelReimbursementService.getCityManagerApprovalThreshold();
-  const [editingThreshold, setEditingThreshold] = useState(false);
-  const [newThreshold, setNewThreshold] = useState(cityManagerThreshold);
-
-  const saveThreshold = (value: number) => {
-    if (value <= 0) { toast.error("Threshold must be greater than 0"); return; }
-    travelReimbursementService.setCityManagerApprovalThreshold(value, currentUser?.name || "Super Admin");
-    toast.success(`City Manager approval threshold updated to ₹${value.toLocaleString()}`);
-    setEditingThreshold(false);
     setRefresh(r => r + 1);
   };
 
@@ -157,21 +177,21 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Travel Reimbursement — Settings</h1>
           <p className="text-sm text-gray-500">
-            {cityManagerMode ? "Approve high-value claims and manage employee access for your city" : "Global rates, permissions, exceptions and trip ledger"}
+            {cityManagerMode ? "Approve claims for your city and manage employee access" : "Global rates, permissions, exceptions, weekly payouts and trip ledger"}
           </p>
         </div>
       </div>
 
       <div className="flex gap-2 border-b">
         {(!cityManagerMode
-          ? ["rates","permissions","exceptions","ledger"]
+          ? ["rates","permissions","exceptions","weekly","ledger"]
           : ["approvals","permissions"]
         ).map(t => (
           <button key={t} onClick={() => setTab(t as any)}
             className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors capitalize ${
               tab === t ? "border-slate-700 text-slate-900" : "border-transparent text-gray-500"
             }`}>
-            {t === "approvals" ? `Approvals (${pendingCityManagerApprovals.length})` : t}
+            {t === "approvals" ? `Approvals (${pendingCityManagerApprovals.length})` : t === "weekly" ? `Weekly Payouts (${pendingBatches.length})` : t}
           </button>
         ))}
       </div>
@@ -219,38 +239,15 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
           })}
           <Card className="col-span-2">
             <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-5 h-5 text-orange-600" />
-                <span className="font-semibold">City Manager Approval Threshold</span>
+                <span className="font-semibold">Approval Chain</span>
               </div>
-              {!editingThreshold ? (
-                <>
-                  <div className="text-3xl font-bold text-gray-900 mb-1">
-                    ₹{cityManagerThreshold.toLocaleString()}<span className="text-sm font-normal text-gray-400"> and above</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mb-3">
-                    Claims above this amount require City Manager approval after HR review.
-                  </p>
-                  {isSuperAdmin && (
-                    <Button size="sm" variant="outline" className="w-full" onClick={() => { setNewThreshold(cityManagerThreshold); setEditingThreshold(true); }}>
-                      Change Threshold
-                    </Button>
-                  )}
-                  {!isSuperAdmin && (
-                    <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-                      <Shield className="w-3 h-3" /> Only Super Admin can change this
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <Input type="number" value={newThreshold} onChange={e => setNewThreshold(Number(e.target.value))} min={1} />
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditingThreshold(false)}>Cancel</Button>
-                    <Button size="sm" className="flex-1" onClick={() => saveThreshold(newThreshold)}>Save</Button>
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-gray-500">
+                Every claim always goes through all 3 stages: Reporting Manager (TSM for Car Washers, Sales Head for Supervisors) → City Manager → HR.
+                Car Washer and Supervisor claims are paid weekly (reconciled by HR every Monday, approved by Super Admin, disbursed by Accounts on Wednesday);
+                everyone else is paid with their monthly salary.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -382,7 +379,7 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
       {tab === "approvals" && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            Claims above ₹{cityManagerThreshold.toLocaleString()} require your approval after HR review.
+            Every claim requires your approval — stage 2 of 3, after the reporting manager (or TSM / Sales Head) and before HR's final approval.
           </p>
           {pendingCityManagerApprovals.length === 0 && (
             <p className="text-center text-gray-400 py-8">No claims pending your approval.</p>
@@ -395,7 +392,7 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
                     <p className="font-medium text-sm text-gray-900">{trip.employeeName}</p>
                     <p className="text-xs text-gray-500">{trip.designation} · {trip.tripDate} · {trip.totalKm} km</p>
                     <p className="text-xs text-gray-600 mt-0.5">{trip.purposeOfVisit}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Approved by manager: {trip.managerApprovedBy || "—"} · HR: {trip.hrApprovedBy || "—"}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Approved by {trip.firstApproverRole || "manager"}: {trip.managerApprovedBy || "—"}</p>
                   </div>
                   <p className="font-bold text-green-700 text-sm">₹{trip.netPayableAmount?.toLocaleString()}</p>
                 </div>
@@ -420,6 +417,71 @@ export function TravelAdminSettings({ cityManagerMode = false }: Props) {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* ── WEEKLY PAYOUTS TAB ── (Super Admin only — approve/reject HR's weekly reconciliation batches) */}
+      {tab === "weekly" && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 flex items-center gap-1.5">
+            <Wallet className="w-4 h-4" /> Car Washer / Supervisor claims are reconciled weekly by HR (every Monday, for the prior Mon-Sun). Approving here releases the payables to Accounts for disbursement.
+          </p>
+          {pendingBatches.length === 0 && (
+            <p className="text-center text-gray-400 py-8">No weekly batches pending your approval.</p>
+          )}
+          {pendingBatches.map(batch => (
+            <Card key={batch.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{batch.cityId} — {batch.weekStartDate} to {batch.weekEndDate}</p>
+                    <p className="text-xs text-gray-500">{batch.tripIds.length} claim(s) · Reconciled by {batch.createdByName}</p>
+                    <p className="text-xs text-gray-400">Disbursement due: {batch.disbursementDate}</p>
+                  </div>
+                  <p className="font-bold text-green-700 text-sm">₹{batch.totalAmount.toLocaleString()}</p>
+                </div>
+                {selectedBatchId === batch.id ? (
+                  <div className="space-y-2">
+                    <Input value={batchComment} onChange={e => setBatchComment(e.target.value)} placeholder="Comments (optional for approve, required for reject)" />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
+                        onClick={() => rejectBatch(batch.id)}>
+                        <XCircle className="w-4 h-4 mr-1" /> Reject
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => approveBatch(batch.id)}>
+                        <CheckCircle className="w-4 h-4 mr-1" /> Approve & Release
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => { setSelectedBatchId(batch.id); setBatchComment(""); }}>
+                    Review
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {allBatches.length > 0 && (
+            <div className="pt-2">
+              <p className="text-xs font-medium text-gray-500 mb-2">All batches</p>
+              <div className="space-y-2">
+                {allBatches.map(batch => (
+                  <div key={batch.id} className="p-3 bg-white border rounded-xl flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{batch.cityId} — {batch.weekStartDate} to {batch.weekEndDate}</p>
+                      <p className="text-xs text-gray-400">{batch.tripIds.length} claim(s) · ₹{batch.totalAmount.toLocaleString()}</p>
+                    </div>
+                    <Badge className={
+                      batch.status === "Approved" ? "bg-green-100 text-green-700"
+                      : batch.status === "Super Admin Rejected" ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-700"
+                    }>{batch.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

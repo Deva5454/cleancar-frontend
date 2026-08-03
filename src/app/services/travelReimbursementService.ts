@@ -2,31 +2,73 @@
  * Travel Reimbursement Service
  * Handles all CRUD, approval workflow, and rate management
  * No TDS/Tax applied on reimbursements (per company policy)
+ *
+ * Real approval chain (rebuilt to match the same 3-stage pattern as
+ * attendance regularization / comp-off leave):
+ *   Stage 1 (role-dependent) → City Manager → HR (final approval + record update)
+ *   - Car Washer   → TSM
+ *   - Supervisor   → Sales Head
+ *   - Everyone else → Reporting Manager
+ * City Manager approval is now always required (the old ₹2000-threshold
+ * conditional skip has been removed). Every stage requires a real,
+ * mandatory comment to reject — never a silent reject — and every
+ * request keeps an append-only history[] visible to everyone in the
+ * chain. A rejected claim can be resubmitted.
+ *
+ * Payout timing differs by role:
+ *   - Car Washer / Supervisor (payoutTrack "Weekly"): NOT bridged into a
+ *     monthly Finance Payable on HR Apply. Instead it becomes eligible
+ *     for the weekly reconciliation batch (travelWeeklyPayoutService.ts)
+ *     — HR reconciles Mon-Sun every Monday, Super Admin approves, then
+ *     it's disbursed by Accounts (via the existing PayablesDashboard).
+ *   - Everyone else (payoutTrack "Monthly"): unchanged from before — HR
+ *     Apply bridges into a Finance Payable due next payroll cycle
+ *     (useTravelPayableBridge.ts), same as Expense Claims.
+ * Still-unresolved claims auto-reject when payroll approves for that
+ * period — same real policy as regularization/comp-off, tied to the
+ * monthly payroll cycle regardless of payout track (the approval
+ * deadline is enterprise-wide; only disbursement timing differs).
  */
 
 import { DataService } from "./DataService";
 import { employeeDatabaseService } from "./employeeDatabaseService";
+import { findCityManagerForCity, findTSMForCity, findSalesHeadForCity } from "./orgResolution";
+import { CITIES } from "../contexts/CityContext";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type VehicleType = "2W" | "4W";
+
 export type TripStatus =
   | "Draft"
   | "Pending Manager"
-  | "Pending HR"
+  | "Manager Rejected"
   | "Pending City Manager"
+  | "City Manager Rejected"
+  | "Pending HR"
+  | "HR Rejected"
+  | "HR Applied"
+  | "Auto-Rejected"
+  // Legacy statuses tolerated on read from records created before this
+  // rewrite — never produced by new code. getTrips() migrates these
+  // forward the first time they're read (see migrateLegacyTrip()).
   | "Approved"
   | "Rejected"
   | "Added to Payroll";
 
-// Default: claims above this amount require City Manager approval after HR review.
-// Super Admin can override at runtime — see getCityManagerApprovalThreshold()/setCityManagerApprovalThreshold().
-export const CITY_MANAGER_APPROVAL_THRESHOLD = 2000;
+export type TravelApproverRole = "Reporting Manager" | "TSM" | "Sales Head";
+export type PayoutTrack = "Monthly" | "Weekly";
 
-export interface CityManagerThresholdSetting {
-  threshold: number;
-  setBy: string;
-  updatedAt: string;
+export type TravelHistoryStage = "Employee" | "Manager" | "City Manager" | "HR" | "System";
+export type TravelHistoryAction = "Submitted" | "Resubmitted" | "Approved" | "Rejected" | "Applied" | "Auto-Rejected" | "Migrated";
+
+export interface TravelHistoryEntry {
+  stage: TravelHistoryStage;
+  action: TravelHistoryAction;
+  actorId?: string;
+  actorName?: string;
+  comment?: string;
+  at: string;
 }
 
 export interface TravelRate {
@@ -79,8 +121,14 @@ export interface TravelTrip {
   designation: string;
   cityId: string;
   city: string;
+  // Stage-1 approver — whoever it resolves to (Reporting Manager / TSM /
+  // Sales Head). See firstApproverRole for which one it actually is.
   reportingManagerId: string;
   reportingManagerName: string;
+  firstApproverRole?: TravelApproverRole;
+  cityManagerId?: string;
+  cityManagerName?: string;
+  payoutTrack?: PayoutTrack;
   vehicleType: VehicleType;
   vehicleNumber: string;
 
@@ -128,6 +176,15 @@ export interface TravelTrip {
   rejectedAt?: string;
   rejectionReason?: string;
 
+  isResubmission?: boolean;
+  originalRequestId?: string;
+  resubmissionComment?: string;
+  history: TravelHistoryEntry[];
+
+  // Weekly payout (Car Washer / Supervisor track) — set once this trip is
+  // claimed by a reconciliation batch, see travelWeeklyPayoutService.ts.
+  travelBatchId?: string;
+
   payrollMonth?: string;       // "2026-05" — set when Added to Payroll
   payrollRunId?: string;
   createdAt: string;
@@ -138,6 +195,9 @@ export interface TravelTrip {
   fieldSessionId?: string;                   // links back to FieldSession.id
   gpsDistanceKm?: number;                    // raw GPS haversine distance used
   gpsTrailPoints?: number;                   // how many GPS points in the trail
+
+  // Internal migration marker — do not read/set outside migrateLegacyTrip().
+  legacySkipFinalHR?: boolean;
 }
 
 export interface TravelNotification {
@@ -149,6 +209,9 @@ export interface TravelNotification {
   createdAt: string;
 }
 
+const PENDING_STATUSES: TripStatus[] = ["Pending Manager", "Pending City Manager", "Pending HR"];
+const REJECTED_STATUSES: TripStatus[] = ["Manager Rejected", "City Manager Rejected", "HR Rejected"];
+
 // ── Keys ──────────────────────────────────────────────────────────────────
 
 const KEYS = {
@@ -158,8 +221,7 @@ const KEYS = {
   TRIPS:               "TRAVEL_TRIPS",
   PHOTOS:              "TRAVEL_PHOTOS",
   NOTIFICATIONS:       "TRAVEL_NOTIFICATIONS",
-  CITY_MANAGER_THRESHOLD: "TRAVEL_CITY_MANAGER_THRESHOLD",
-};
+} as const;
 
 // ── Default rates ─────────────────────────────────────────────────────────
 
@@ -167,6 +229,10 @@ const DEFAULT_RATES: TravelRate[] = [
   { vehicleType: "2W", ratePerKm: 3, effectiveFrom: "2026-01-01", setBy: "System", updatedAt: new Date().toISOString() },
   { vehicleType: "4W", ratePerKm: 6, effectiveFrom: "2026-01-01", setBy: "System", updatedAt: new Date().toISOString() },
 ];
+
+function payoutTrackForDesignation(designation: string): PayoutTrack {
+  return (designation === "Car Washer" || designation === "Supervisor") ? "Weekly" : "Monthly";
+}
 
 class TravelReimbursementService {
 
@@ -195,22 +261,6 @@ class TravelReimbursementService {
     };
     DataService.setAll(KEYS.RATES, [...rates, updated]);
     return updated;
-  }
-
-  // ── City Manager approval threshold ─────────────────────────────────────
-
-  getCityManagerApprovalThreshold(): number {
-    const stored = DataService.get<CityManagerThresholdSetting>(KEYS.CITY_MANAGER_THRESHOLD);
-    return stored[0]?.threshold ?? CITY_MANAGER_APPROVAL_THRESHOLD;
-  }
-
-  // Only Super Admin can call this
-  setCityManagerApprovalThreshold(threshold: number, setBy: string): CityManagerThresholdSetting {
-    const setting: CityManagerThresholdSetting = {
-      threshold, setBy, updatedAt: new Date().toISOString(),
-    };
-    DataService.setAll(KEYS.CITY_MANAGER_THRESHOLD, [setting]);
-    return setting;
   }
 
   // ── Exception Policies ───────────────────────────────────────────────────
@@ -311,10 +361,63 @@ class TravelReimbursementService {
     return DataService.get<TripPhoto>(KEYS.PHOTOS).find(p => p.id === id);
   }
 
+  // ── Legacy migration ──────────────────────────────────────────────────────
+
+  /**
+   * Best-effort, one-time forward-migration for trips created before this
+   * approval-chain rewrite (real fix — this app has live production travel
+   * claims, unlike regularization/comp-off which started from zero data).
+   * Idempotent: a trip with firstApproverRole + a real history[] is treated
+   * as already-migrated and returned unchanged.
+   */
+  private migrateLegacyTrip(t: any): TravelTrip {
+    if (t.firstApproverRole && Array.isArray(t.history)) return t as TravelTrip;
+
+    const history: TravelHistoryEntry[] = Array.isArray(t.history) ? [...t.history] : [];
+    const payoutTrack: PayoutTrack = t.payoutTrack ?? payoutTrackForDesignation(t.designation);
+    const now = new Date().toISOString();
+    let status: TripStatus = t.status;
+    let legacySkipFinalHR: boolean | undefined;
+
+    if (status === "Approved") {
+      status = "HR Applied";
+    } else if (status === "Pending HR" && !t.cityManagerApprovedBy) {
+      // Legacy "Pending HR" meant "manager-approved, awaiting HR's first
+      // pass (possibly forwarding to City Manager if over the old
+      // threshold)". City Manager approval is now always required and
+      // hasn't happened yet for this claim — route it there.
+      status = "Pending City Manager";
+      history.push({ stage: "System", action: "Migrated", comment: "Legacy record migrated to the new approval order — routed to City Manager (was awaiting first HR review under the old flow).", at: now });
+    } else if (status === "Pending City Manager" && t.hrApprovedBy) {
+      // Legacy conditional-threshold claim: HR already reviewed under the
+      // old rules before City Manager. Let City Manager's approval finalize
+      // it directly rather than sending it back through a second HR pass.
+      legacySkipFinalHR = true;
+      history.push({ stage: "System", action: "Migrated", comment: "Legacy record — HR already reviewed this claim under the old flow; City Manager approval will finalize it directly.", at: now });
+    }
+
+    if (history.length === 0) {
+      history.push({ stage: "System", action: "Migrated", comment: "Legacy travel record — no history was captured before this workflow was rebuilt.", at: now });
+    }
+
+    return {
+      ...t,
+      status,
+      payoutTrack,
+      firstApproverRole: t.firstApproverRole ?? "Reporting Manager",
+      history,
+      legacySkipFinalHR,
+    } as TravelTrip;
+  }
+
   // ── Trips ─────────────────────────────────────────────────────────────────
 
   getTrips(): TravelTrip[] {
-    return DataService.get<TravelTrip>(KEYS.TRIPS);
+    const raw = DataService.get<any>(KEYS.TRIPS);
+    const needsMigration = raw.some(t => !t.firstApproverRole || !Array.isArray(t.history));
+    const migrated = raw.map(t => this.migrateLegacyTrip(t));
+    if (needsMigration && migrated.length > 0) DataService.setAll(KEYS.TRIPS, migrated);
+    return migrated;
   }
 
   getTripsByEmployee(employeeId: string): TravelTrip[] {
@@ -337,9 +440,9 @@ class TravelReimbursementService {
     );
   }
 
-  getPendingCityManagerApproval(cityId?: string): TravelTrip[] {
+  getPendingCityManagerApproval(cityManagerId: string): TravelTrip[] {
     return this.getTrips().filter(t =>
-      t.status === "Pending City Manager" && (!cityId || t.cityId === cityId)
+      t.status === "Pending City Manager" && t.cityManagerId === cityManagerId
     );
   }
 
@@ -386,6 +489,7 @@ class TravelReimbursementService {
       ...data,
       taxAmount: 0, tdsAmount: 0,
       status: "Draft",
+      history: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ratePerKm,
@@ -413,90 +517,261 @@ class TravelReimbursementService {
     return updated;
   }
 
+  /**
+   * Real routing decision for a claim's approval chain — resolved fresh
+   * every time a trip actually enters the approval queue (first
+   * submission AND every resubmission), so org changes since a previous
+   * attempt are always picked up.
+   */
+  private resolveApprovalRouting(designation: string, cityId: string, fallbackApproverId?: string, fallbackApproverName?: string): {
+    status: TripStatus;
+    firstApproverRole: TravelApproverRole;
+    approverId?: string;
+    approverName?: string;
+    cityManagerId?: string;
+    cityManagerName?: string;
+    payoutTrack: PayoutTrack;
+    systemNotes: TravelHistoryEntry[];
+  } {
+    const now = new Date().toISOString();
+    const systemNotes: TravelHistoryEntry[] = [];
+    const payoutTrack = payoutTrackForDesignation(designation);
+    const cm = findCityManagerForCity(cityId);
+    const cityManagerId = cm?.id;
+    const cityManagerName = cm?.name;
+
+    let firstApproverRole: TravelApproverRole = "Reporting Manager";
+    let approverId = fallbackApproverId;
+    let approverName = fallbackApproverName;
+
+    if (designation === "Car Washer") {
+      firstApproverRole = "TSM";
+      const tsm = findTSMForCity(cityId);
+      approverId = tsm?.id; approverName = tsm?.name;
+    } else if (designation === "Supervisor") {
+      firstApproverRole = "Sales Head";
+      const sh = findSalesHeadForCity(cityId);
+      approverId = sh?.id; approverName = sh?.name;
+    }
+
+    if (approverId) {
+      return { status: "Pending Manager", firstApproverRole, approverId, approverName, cityManagerId, cityManagerName, payoutTrack, systemNotes };
+    }
+
+    // No real stage-1 approver found for this city/role — skip straight to
+    // City Manager (or HR if there's no City Manager either), same
+    // fallback pattern already used by attendance regularization / comp-off.
+    systemNotes.push({
+      stage: "System", action: "Approved",
+      comment: `No ${firstApproverRole} found for this city — routed directly to ${cityManagerId ? "City Manager" : "HR"}.`,
+      at: now,
+    });
+    if (cityManagerId) {
+      return { status: "Pending City Manager", firstApproverRole, cityManagerId, cityManagerName, payoutTrack, systemNotes };
+    }
+    return { status: "Pending HR", firstApproverRole, payoutTrack, systemNotes };
+  }
+
   submitTrip(tripId: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
-    const updated = { ...trip, status: "Pending Manager" as TripStatus, submittedAt: new Date().toISOString() };
+    const routing = this.resolveApprovalRouting(trip.designation, trip.cityId, trip.reportingManagerId, trip.reportingManagerName);
+    const now = new Date().toISOString();
+    const updated: TravelTrip = {
+      ...trip,
+      status: routing.status,
+      submittedAt: now,
+      firstApproverRole: routing.firstApproverRole,
+      reportingManagerId: routing.approverId || "",
+      reportingManagerName: routing.approverName || "",
+      cityManagerId: routing.cityManagerId,
+      cityManagerName: routing.cityManagerName,
+      payoutTrack: routing.payoutTrack,
+      history: [
+        ...trip.history,
+        ...routing.systemNotes,
+        { stage: "Employee", action: "Submitted", actorId: trip.employeeId, actorName: trip.employeeName, at: now },
+      ],
+    };
     this.saveTrip(updated);
-
-    // localStorage-only: no remote sync
-
     return updated;
   }
 
-  managerApprove(tripId: string, managerId: string, managerName: string, comments: string): TravelTrip {
+  managerApprove(tripId: string, managerId: string, managerName: string, comments?: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
-    const updated = {
-      ...trip, status: "Pending HR" as TripStatus,
-      managerApprovedBy: managerName, managerApprovedAt: new Date().toISOString(),
+    const now = new Date().toISOString();
+    const hasCityManager = !!trip.cityManagerId;
+    const updated: TravelTrip = {
+      ...trip, status: hasCityManager ? "Pending City Manager" : "Pending HR",
+      managerApprovedBy: managerName, managerApprovedAt: now,
       managerComments: comments,
+      history: [
+        ...trip.history,
+        { stage: "Manager", action: "Approved", actorId: managerId, actorName: managerName, comment: comments, at: now },
+        ...(hasCityManager ? [] : [{ stage: "System" as const, action: "Approved" as const, comment: "No City Manager assigned for this city — routed directly to HR", at: now }]),
+      ],
     };
     this.saveTrip(updated);
-    this.pushNotification(trip.employeeId, "travel_manager_approved",
-      `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by your manager — HR is now reviewing.`);
+    this.pushNotification(trip.employeeId, hasCityManager ? "travel_pending_city_manager" : "travel_manager_approved",
+      `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by your ${(trip.firstApproverRole || "Manager").toLowerCase()} — forwarded to ${hasCityManager ? "City Manager" : "HR"}.`);
     return updated;
   }
 
-  hrApprove(tripId: string, hrName: string, comments: string): TravelTrip {
+  managerReject(tripId: string, managerId: string, managerName: string, comment: string): { success: boolean; error?: string } {
+    if (!comment.trim()) return { success: false, error: "A comment is required to reject a claim" };
+    const trip = this.getTrips().find(t => t.id === tripId);
+    if (!trip) return { success: false, error: "Trip not found" };
+    const now = new Date().toISOString();
+    this.saveTrip({
+      ...trip, status: "Manager Rejected",
+      managerApprovedBy: managerName, managerApprovedAt: now, managerComments: comment,
+      history: [...trip.history, { stage: "Manager", action: "Rejected", actorId: managerId, actorName: managerName, comment, at: now }],
+    });
+    this.pushNotification(trip.employeeId, "travel_rejected", `Your travel claim for ${trip.tripDate} was rejected by your ${(trip.firstApproverRole || "Manager").toLowerCase()}: ${comment}`);
+    return { success: true };
+  }
+
+  cityManagerApprove(tripId: string, cmId: string, cmName: string, comments?: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
-    const threshold = this.getCityManagerApprovalThreshold();
-    const needsCityManager = (trip.netPayableAmount ?? 0) > threshold;
-    const updated = {
-      ...trip, status: (needsCityManager ? "Pending City Manager" : "Approved") as TripStatus,
-      hrApprovedBy: hrName, hrApprovedAt: new Date().toISOString(),
-      hrComments: comments,
+    const now = new Date().toISOString();
+    const skipToApplied = trip.legacySkipFinalHR === true;
+    const updated: TravelTrip = {
+      ...trip, status: skipToApplied ? "HR Applied" : "Pending HR",
+      cityManagerApprovedBy: cmName, cityManagerApprovedAt: now, cityManagerComments: comments,
+      history: [
+        ...trip.history,
+        { stage: "City Manager", action: "Approved", actorId: cmId, actorName: cmName, comment: comments, at: now },
+        ...(skipToApplied ? [{ stage: "System" as const, action: "Applied" as const, comment: "Routed directly to HR-Applied — HR already approved this legacy claim before City Manager.", at: now }] : []),
+      ],
     };
     this.saveTrip(updated);
-    if (needsCityManager) {
-      this.pushNotification(trip.employeeId, "travel_pending_city_manager",
-        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and now needs City Manager approval (above ₹${threshold}).`);
-    } else {
-      this.pushNotification(trip.employeeId, "travel_hr_approved",
-        `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and will be added to your payroll.`);
-    }
+    this.pushNotification(trip.employeeId, skipToApplied ? "travel_city_manager_approved" : "travel_city_manager_approved",
+      skipToApplied
+        ? `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by the City Manager and finalized.`
+        : `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by the City Manager — forwarded to HR for final approval.`);
     return updated;
   }
 
-  cityManagerApprove(tripId: string, cmId: string, cmName: string, comments: string): TravelTrip {
+  cityManagerReject(tripId: string, cmId: string, cmName: string, comment: string): { success: boolean; error?: string } {
+    if (!comment.trim()) return { success: false, error: "A comment is required to reject a claim" };
+    const trip = this.getTrips().find(t => t.id === tripId);
+    if (!trip) return { success: false, error: "Trip not found" };
+    const now = new Date().toISOString();
+    this.saveTrip({
+      ...trip, status: "City Manager Rejected",
+      cityManagerApprovedBy: cmName, cityManagerApprovedAt: now, cityManagerComments: comment,
+      history: [...trip.history, { stage: "City Manager", action: "Rejected", actorId: cmId, actorName: cmName, comment, at: now }],
+    });
+    this.pushNotification(trip.employeeId, "travel_rejected", `Your travel claim for ${trip.tripDate} was rejected by the City Manager: ${comment}`);
+    return { success: true };
+  }
+
+  /**
+   * Final stage. Marks the claim applied. Does NOT itself create the
+   * Finance Payable / weekly-batch inclusion — the caller (TravelHRView)
+   * does that immediately after, since it needs useFinance()'s
+   * createPayable (a hook, unavailable inside this plain service module).
+   */
+  hrApply(tripId: string, hrName: string, comments?: string): TravelTrip {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) throw new Error("Trip not found");
-    const updated = {
-      ...trip, status: "Approved" as TripStatus,
-      cityManagerApprovedBy: cmName, cityManagerApprovedAt: new Date().toISOString(),
-      cityManagerComments: comments,
+    const now = new Date().toISOString();
+    const updated: TravelTrip = {
+      ...trip, status: "HR Applied",
+      hrApprovedBy: hrName, hrApprovedAt: now, hrComments: comments,
+      history: [...trip.history, { stage: "HR", action: "Applied", actorName: hrName, comment: comments, at: now }],
     };
     this.saveTrip(updated);
-    this.pushNotification(trip.employeeId, "travel_city_manager_approved",
-      `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by the City Manager and will be added to your payroll.`);
+    this.pushNotification(trip.employeeId, "travel_hr_approved",
+      trip.payoutTrack === "Weekly"
+        ? `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and will be paid in the next weekly reimbursement cycle.`
+        : `Your travel claim of ₹${trip.netPayableAmount} for ${trip.tripDate} was approved by HR and will be added to your payroll.`);
     return updated;
   }
 
-  reject(tripId: string, rejectedBy: string, reason: string): TravelTrip {
+  hrReject(tripId: string, hrName: string, comment: string): { success: boolean; error?: string } {
+    if (!comment.trim()) return { success: false, error: "A comment is required to reject a claim" };
     const trip = this.getTrips().find(t => t.id === tripId);
-    if (!trip) throw new Error("Trip not found");
-    const updated = {
-      ...trip, status: "Rejected" as TripStatus,
-      rejectedBy, rejectedAt: new Date().toISOString(), rejectionReason: reason,
+    if (!trip) return { success: false, error: "Trip not found" };
+    const now = new Date().toISOString();
+    this.saveTrip({
+      ...trip, status: "HR Rejected",
+      hrApprovedBy: hrName, hrApprovedAt: now, hrComments: comment,
+      history: [...trip.history, { stage: "HR", action: "Rejected", actorName: hrName, comment, at: now }],
+    });
+    this.pushNotification(trip.employeeId, "travel_rejected", `Your travel claim for ${trip.tripDate} was rejected by HR: ${comment}`);
+    return { success: true };
+  }
+
+  /**
+   * Reopens a rejected claim for editing. The employee then edits and
+   * calls submitTrip() again (same as any other Draft) to actually
+   * resubmit it — routing (stage-1 approver / City Manager) is re-resolved
+   * fresh at that point.
+   */
+  reopenForResubmission(tripId: string, employeeName: string, comment: string): { success: boolean; error?: string; trip?: TravelTrip } {
+    if (!comment.trim()) return { success: false, error: "A comment explaining the resubmission is required" };
+    const trip = this.getTrips().find(t => t.id === tripId);
+    if (!trip) return { success: false, error: "Trip not found" };
+    if (!REJECTED_STATUSES.includes(trip.status)) return { success: false, error: "Only a rejected claim can be resubmitted" };
+    const now = new Date().toISOString();
+    const updated: TravelTrip = {
+      ...trip,
+      status: "Draft",
+      isResubmission: true,
+      originalRequestId: trip.originalRequestId || trip.id,
+      resubmissionComment: comment,
+      history: [...trip.history, { stage: "Employee", action: "Resubmitted", actorId: trip.employeeId, actorName: employeeName, comment, at: now }],
     };
     this.saveTrip(updated);
-    this.pushNotification(trip.employeeId, "travel_rejected",
-      `Your travel claim for ${trip.tripDate} was rejected: ${reason}`);
-    return updated;
+    return { success: true, trip: updated };
   }
 
   markAddedToPayroll(tripId: string, payrollMonth: string, payrollRunId: string): void {
     const trip = this.getTrips().find(t => t.id === tripId);
     if (!trip) return;
-    this.saveTrip({ ...trip, status: "Added to Payroll", payrollMonth, payrollRunId });
+    this.saveTrip({ ...trip, payrollMonth, payrollRunId });
+  }
+
+  /** Stamps a trip as claimed by a weekly reconciliation batch (see travelWeeklyPayoutService.ts). */
+  markInWeeklyBatch(tripId: string, travelBatchId: string | undefined): void {
+    const trip = this.getTrips().find(t => t.id === tripId);
+    if (!trip) return;
+    this.saveTrip({ ...trip, travelBatchId });
   }
 
   // Monthly summary for payroll integration
   getApprovedTotalForEmployee(employeeId: string, month: string): number {
     return this.getTrips()
-      .filter(t => t.employeeId === employeeId && t.status === "Approved" && t.tripDate.startsWith(month))
+      .filter(t => t.employeeId === employeeId && t.status === "HR Applied" && t.tripDate.startsWith(month))
       .reduce((s, t) => s + (t.netPayableAmount || 0), 0);
+  }
+
+  /**
+   * Real, confirmed policy — if a claim is still pending at any stage
+   * when payroll runs for that period, it auto-rejects rather than
+   * blocking payroll. Applies to every employee regardless of payout
+   * track: the approval deadline is enterprise-wide (tied to the monthly
+   * payroll cycle); only disbursement timing differs for Washers/Supervisors.
+   */
+  autoRejectPendingForPayrollPeriod(cityId: string, periodEndDate: string): number {
+    const all = this.getTrips();
+    let count = 0;
+    const updated = all.map(t => {
+      if (t.cityId === cityId && t.tripDate <= periodEndDate && PENDING_STATUSES.includes(t.status)) {
+        count++;
+        const now = new Date().toISOString();
+        return {
+          ...t, status: "Auto-Rejected" as TripStatus,
+          history: [...t.history, { stage: "System" as const, action: "Auto-Rejected" as const, comment: "Auto-rejected: payroll approved before this claim was resolved", at: now }],
+        };
+      }
+      return t;
+    });
+    if (count > 0) DataService.setAll(KEYS.TRIPS, updated);
+    return count;
   }
 
   /**
@@ -526,41 +801,59 @@ class TravelReimbursementService {
     );
     if (existing) return existing;
 
-    // 3. Get employee permission record for vehicle type
+    // 3. Resolve the employee's real city — real fix: this used to be
+    //    hardcoded to CITY-SURAT regardless of the employee's actual city,
+    //    which would silently misroute stage-1/City-Manager approval for
+    //    anyone outside Surat.
+    const allEmployees = employeeDatabaseService.getAll();
+    const emp = allEmployees.find(e => e.id === session.employeeId || e.tempId === session.employeeId);
+    const cityId = emp?.workLocation || emp?.cityId || "CITY-SURAT";
+
+    // 4. Get employee permission record for vehicle type
     const permission = this.getPermissions().find(
       p => p.employeeId === session.employeeId && p.isEnabled
     );
     const vehicleType: VehicleType = permission?.vehicleType ?? "2W";
 
-    // 4. Get effective rate (respects individual / uniform exceptions)
+    // 5. Get effective rate (respects individual / uniform exceptions)
     const ratePerKm = this.getEffectiveRate(session.employeeId, vehicleType);
 
-    // 5. Compute financials from GPS distance
+    // 6. Compute financials from GPS distance
     const totalKm = session.totalDistanceKm;
     const calculatedAmount = Math.round(totalKm * ratePerKm);
 
-    // 6. Extract location label from last GPS point
+    // 7. Extract location label from last GPS point
     const lastPoint = session.trail[session.trail.length - 1];
     const visitLocation = lastPoint
       ? `${lastPoint.lat.toFixed(4)}, ${lastPoint.lng.toFixed(4)} (GPS)`
       : "Field location (GPS)";
 
-    // 7. Build check-in / check-out times for the trip
+    // 8. Build check-in / check-out times for the trip
     const startTime = new Date(session.checkInTime).toTimeString().slice(0, 5);
     const endTime   = new Date(session.checkOutTime).toTimeString().slice(0, 5);
 
-    // 8. Build the trip — use GPS distance as odometer
-    //    startReading = 0, endReading = totalDistanceKm (relative)
+    // 9. Resolve the real approval routing (stage-1 approver by
+    //    designation, City Manager, payout track) exactly like a manually
+    //    submitted trip.
+    const designation = emp?.designation || session.role;
+    const routing = this.resolveApprovalRouting(designation, cityId);
     const now = new Date().toISOString();
+
+    // 10. Build the trip — use GPS distance as odometer
+    //     startReading = 0, endReading = totalDistanceKm (relative)
     const trip: TravelTrip = {
       id:                  `TRIP-GPS-${Date.now()}`,
       employeeId:          session.employeeId,
       employeeName:        session.employeeName,
-      designation:         session.role,
-      cityId:              "CITY-SURAT", // resolved from permission record if available
-      city:                permission ? "Surat" : "Surat",
-      reportingManagerId:  "",          // resolved below
-      reportingManagerName:"",          // resolved below
+      designation,
+      cityId,
+      city:                (CITIES as any)[cityId]?.displayName || cityId,
+      reportingManagerId:  routing.approverId || "",
+      reportingManagerName:routing.approverName || "",
+      firstApproverRole:   routing.firstApproverRole,
+      cityManagerId:       routing.cityManagerId,
+      cityManagerName:     routing.cityManagerName,
+      payoutTrack:         routing.payoutTrack,
       vehicleType,
       vehicleNumber:       "GPS-TRACKED",
       tripDate:            session.date,
@@ -577,10 +870,14 @@ class TravelReimbursementService {
       taxAmount:           0,
       tdsAmount:           0,
       netPayableAmount:    calculatedAmount,
-      status:              "Pending Manager",
+      status:              routing.status,
       submittedAt:         now,
       createdAt:           now,
       updatedAt:           now,
+      history: [
+        ...routing.systemNotes,
+        { stage: "Employee", action: "Submitted", actorId: session.employeeId, actorName: session.employeeName, comment: "Auto-submitted from GPS field tracking at checkout", at: now },
+      ],
       // GPS metadata
       autoSubmittedFromFieldTracking: true,
       fieldSessionId:      session.id,
@@ -588,16 +885,7 @@ class TravelReimbursementService {
       gpsTrailPoints:      session.trail.length,
     };
 
-    // 9. Resolve reporting manager from the employee database record
-    const allEmployees = employeeDatabaseService.getAll();
-    const emp = allEmployees.find(e => e.id === session.employeeId || e.tempId === session.employeeId);
-    const manager = emp?.reportingManager
-      ? allEmployees.find(e => e.fullName === emp.reportingManager)
-      : undefined;
-    trip.reportingManagerId   = manager?.id ?? "";
-    trip.reportingManagerName = manager?.fullName ?? emp?.reportingManager ?? "";
-
-    // 10. Save and return
+    // 11. Save and return
     this.saveTrip(trip);
     console.log(
       `[Travel] Auto-submitted TRIP-GPS from session ${session.id}:`,

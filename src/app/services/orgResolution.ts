@@ -29,3 +29,31 @@ export function findCityManagerForCity(cityId: string): { id: string; name: stri
   );
   return emp ? { id: emp.id, name: emp.fullName } : null;
 }
+
+/**
+ * Real resolution of a city's TSM (Territory Sales Manager) - same
+ * designation+city pattern as findCityManagerForCity. Used to route
+ * Car Washer travel reimbursement claims to their TSM for first
+ * approval (a policy-driven routing, not the washer's actual
+ * operational reporting line — real seed data has washers reporting to
+ * their Supervisor, not a TSM).
+ */
+export function findTSMForCity(cityId: string): { id: string; name: string } | null {
+  const emp = employeeDatabaseService.getAll().find(
+    (e: any) => (e.cityId === cityId || e.workLocation === cityId) && e.designation === "TSM" && e.status !== "Inactive"
+  );
+  return emp ? { id: emp.id, name: emp.fullName } : null;
+}
+
+/**
+ * Real resolution of a city's Sales Head - same pattern. Used to route
+ * Supervisor travel reimbursement claims to their Sales Head for first
+ * approval (again a policy-driven routing, not the real operational
+ * reporting line — Supervisors report to Operations Managers).
+ */
+export function findSalesHeadForCity(cityId: string): { id: string; name: string } | null {
+  const emp = employeeDatabaseService.getAll().find(
+    (e: any) => (e.cityId === cityId || e.workLocation === cityId) && e.designation === "Sales Head" && e.status !== "Inactive"
+  );
+  return emp ? { id: emp.id, name: emp.fullName } : null;
+}
