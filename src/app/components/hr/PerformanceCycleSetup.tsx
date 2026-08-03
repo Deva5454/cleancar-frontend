@@ -4,11 +4,13 @@ import {
   performanceManagementService,
   type PerformanceCycle, type CyclePhase, type PhaseWindow,
 } from "../../services/performanceManagementService";
+import { getFinancialQuarter, getQuarterInfo, listPastAndCurrentQuarters, type FinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { ArrowRight, CalendarRange, PlayCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,24 +43,30 @@ function defaultWindows(startDate: string): Record<CyclePhase, PhaseWindow> {
 export function PerformanceCycleSetup() {
   const { currentUser } = useRole();
   const [refresh, setRefresh] = useState(0);
+  const current = getFinancialQuarter();
+  const [financialYear, setFinancialYear] = useState(current.financialYear);
+  const [financialQuarter, setFinancialQuarter] = useState<FinancialQuarter>(current.quarter);
+  const quarterOptions = useMemo(() => listPastAndCurrentQuarters(8), []);
   const [name, setName] = useState("");
-  const [financialYear, setFinancialYear] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
 
   const cycles = useMemo(() => performanceManagementService.listCycles(), [refresh]);
   const activeCycle = useMemo(() => performanceManagementService.getActiveCycle(), [refresh]);
 
   const handleCreate = () => {
-    if (!name.trim() || !financialYear.trim()) { toast.error("Enter a cycle name and financial year"); return; }
     if (activeCycle) { toast.error("An active cycle already exists — close it before starting a new one"); return; }
+    if (performanceManagementService.getCycleForQuarter(financialYear, financialQuarter)) {
+      toast.error(`A cycle already exists for ${financialQuarter} FY${financialYear}`); return;
+    }
+    const { startDate } = getQuarterInfo(financialYear, financialQuarter);
+    const cycleName = name.trim() || `${financialQuarter} FY${financialYear} Review`;
 
     performanceManagementService.createCycle({
-      name, financialYear,
+      name: cycleName, financialYear, financialQuarter,
       phaseWindows: defaultWindows(startDate),
       createdBy: currentUser?.name || "HR",
     });
     toast.success("Performance cycle created — Goal Setting phase is now open");
-    setName(""); setFinancialYear("");
+    setName("");
     setRefresh((r) => r + 1);
   };
 
@@ -73,18 +81,24 @@ export function PerformanceCycleSetup() {
       <Card>
         <CardHeader><CardTitle className="text-base">Start a New Performance Cycle</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label>Cycle Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="FY 2026-27 Annual Review" />
+              <Label>Financial Quarter</Label>
+              <Select
+                value={`${financialYear}|${financialQuarter}`}
+                onValueChange={(v) => { const [y, q] = v.split("|"); setFinancialYear(y); setFinancialQuarter(q as FinancialQuarter); }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {quarterOptions.map((q) => (
+                    <SelectItem key={`${q.financialYear}|${q.quarter}`} value={`${q.financialYear}|${q.quarter}`}>{q.label} ({q.startDate} → {q.endDate})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label>Financial Year</Label>
-              <Input value={financialYear} onChange={(e) => setFinancialYear(e.target.value)} placeholder="2026-27" />
-            </div>
-            <div>
-              <Label>Start Date</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Label>Cycle Name (optional)</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`${financialQuarter} FY${financialYear} Review`} />
             </div>
           </div>
           <Button onClick={handleCreate} disabled={!!activeCycle}>
@@ -106,7 +120,7 @@ export function PerformanceCycleSetup() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{cycle.name}</p>
-                  <p className="text-xs text-gray-400">FY {cycle.financialYear}</p>
+                  <p className="text-xs text-gray-400">{cycle.financialQuarter} FY{cycle.financialYear}</p>
                 </div>
                 <Badge className={cycle.status === "Closed" ? "bg-gray-100 text-gray-600" : "bg-green-100 text-green-700"}>
                   {cycle.status}

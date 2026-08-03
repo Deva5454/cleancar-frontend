@@ -20,8 +20,7 @@
  */
 
 import {
-  getKpiCatalog, upsertKpiCatalogEntry, getActiveKraTemplate, createKraTemplateVersion,
-  approveKraTemplate, resolveEmployeeKras, saveKpiActual, type KraDefinition,
+  getKpiCatalog, upsertKpiCatalogEntry, resolveEmployeeKras, saveKpiActual, type KraDefinition,
 } from "./kraEngineService";
 import {
   computeCityRealRevenue, computeCityRealRetentionRate, computeCityRealExpenses, computeCityRealEBITDAPercentage,
@@ -39,22 +38,24 @@ const CITY_KPI_CATALOG = [
   { code: "CITY_MARKET_GROWTH", name: "Market Growth", unit: "%", direction: "higher-is-better" as const, dataSource: NOT_YET_AVAILABLE, description: "Confirmed: no real data source exists anywhere in the app for new-cluster tracking or growth rate" },
 ];
 
-/** Real, confirmed KRA structure for City Manager - matches §5.9 exactly. */
-const CITY_DEFAULT_KRAS: KraDefinition[] = [
+/** Suggested starting point for HR when authoring this role's KRA - matches §5.9. Not auto-created/auto-approved. */
+export const CITY_DEFAULT_KRAS: KraDefinition[] = [
   { kraCode: "CITY_REVENUE_DELIVERY", name: "Revenue Delivery", weight: 40, kpis: [{ kpiCode: "CITY_REAL_REVENUE", weight: 100, defaultTarget: 5000000 }] },
   { kraCode: "CITY_PROFITABILITY", name: "Profitability / EBITDA", weight: 30, kpis: [{ kpiCode: "CITY_REAL_EBITDA", weight: 100, defaultTarget: 25 }] },
   { kraCode: "CITY_CUSTOMER_RETENTION", name: "Customer Retention", weight: 20, kpis: [{ kpiCode: "CITY_REAL_RETENTION", weight: 100, defaultTarget: 80 }] },
   { kraCode: "CITY_MARKET_GROWTH_KRA", name: "Market Growth", weight: 10, kpis: [{ kpiCode: "CITY_MARKET_GROWTH", weight: 100, defaultTarget: 10 }] },
 ];
 
-export function seedCityKraTemplateIfMissing(createdBy: string): void {
+/**
+ * Seeds only the reusable KPI catalog entries — no longer auto-creates and
+ * auto-approves a KRA template for this role. HR now authors and Super
+ * Admin approves a real KRA template via the KRA Authoring / Approval
+ * screens.
+ */
+export function seedCityKpiCatalogIfMissing(): void {
   CITY_KPI_CATALOG.forEach((entry) => {
     if (!getKpiCatalog().find((e) => e.code === entry.code)) upsertKpiCatalogEntry(entry);
   });
-  if (getActiveKraTemplate(CITY_ROLE)) return;
-  const today = new Date().toISOString().split("T")[0];
-  const template = createKraTemplateVersion(CITY_ROLE, CITY_DEFAULT_KRAS, createdBy, today);
-  approveKraTemplate(template.id, createdBy);
 }
 
 export interface CityKpiResult {

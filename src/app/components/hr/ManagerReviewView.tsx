@@ -61,10 +61,9 @@ export function ManagerReviewView() {
     const goals = performanceManagementService.listGoalsForEmployee(cycle.id, employeeId).filter((g) => g.status === "Approved");
     const existing = performanceManagementService.getManagerReview(cycle.id, employeeId);
     const employee = directReports.find((e: any) => e.id === employeeId);
-    const thisMonth = new Date().toISOString().slice(0, 7);
     setGoalRatings(existing?.goalRatings || goals.map((g) => {
       if (g.category === "KPI" && employee?.designation) {
-        const { suggestedRating } = computeSuggestedRatingForGoal(employeeId, employee.designation, g.title, thisMonth);
+        const { suggestedRating } = computeSuggestedRatingForGoal(employeeId, employee.designation, g.title, cycle.id);
         if (suggestedRating !== null) return { goalId: g.id, rating: suggestedRating, comments: "System-suggested from real, measured KRA performance — adjust if needed." };
       }
       return { goalId: g.id, rating: 3 as RatingValue, comments: "" };

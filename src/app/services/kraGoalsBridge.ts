@@ -11,7 +11,8 @@
  * Deliberately additive, not destructive: an employee's real Goal
  * record (title, weight, description) is genuinely generated from
  * their real, resolved KRA structure (role template + any real
- * employee-level overrides), reusing the exact same real
+ * employee-level overrides, including the per-KPI targets their
+ * reporting manager set for this quarter), reusing the exact same real
  * performanceManagementService.addGoal() persistence every other real
  * goal already uses - not a new, parallel goal-storage mechanism.
  *
@@ -19,10 +20,27 @@
  * confirmed unused for this purpose before now - genuinely the
  * intended slot for a measurable, system-driven goal, distinct from
  * "Competency" / "Development" goals that stay genuinely subjective.
+ *
+ * Real change: cycles are now quarterly (performanceManagementService.ts),
+ * so both functions here resolve the KRA structure for the CYCLE's own
+ * financial quarter (not just "whatever quarter it is today"), and the
+ * suggested rating averages real KPI actuals across the quarter's 3
+ * constituent months rather than using only the most recent one.
  */
 
 import { resolveEmployeeKras, getKpiActual } from "./kraEngineService";
 import { performanceManagementService, type RatingValue } from "./performanceManagementService";
+import { getQuarterInfo } from "./financialQuarter";
+
+/** The 3 "YYYY-MM" month keys that make up a financial quarter — real KPI actuals are saved monthly even though KRA approval/goals are quarterly. */
+function monthsInQuarter(financialYear: string, financialQuarter: import("./financialQuarter").FinancialQuarter): string[] {
+  const { startDate } = getQuarterInfo(financialYear, financialQuarter);
+  const [y, m] = startDate.split("-").map(Number);
+  return [0, 1, 2].map((i) => {
+    const date = new Date(y, m - 1 + i, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  });
+}
 
 /**
  * Real, idempotent generation - only creates goals for KRAs this
@@ -33,7 +51,10 @@ import { performanceManagementService, type RatingValue } from "./performanceMan
 export function generateGoalsFromKraAssignment(
   employeeId: string, employeeName: string, role: string, cycleId: string
 ): { created: number } {
-  const { kras } = resolveEmployeeKras(employeeId, role);
+  const cycle = performanceManagementService.getCycle(cycleId);
+  const { kras } = cycle
+    ? resolveEmployeeKras(employeeId, role, cycle.financialYear, cycle.financialQuarter)
+    : resolveEmployeeKras(employeeId, role);
   if (kras.length === 0) return { created: 0 };
 
   const existingGoals = performanceManagementService.listGoalsForEmployee(cycleId, employeeId);
@@ -47,7 +68,7 @@ export function generateGoalsFromKraAssignment(
       employeeId,
       employeeName,
       title: kra.name,
-      description: `Real, measured KRA — ${kra.kpis.length} KPI(s): ${kra.kpis.map((k) => k.kpiCode).join(", ")}. Rating for this goal is computed from real, system-measured performance, not typed manually.`,
+      description: `Real, measured KRA — ${kra.kpis.length} KPI(s): ${kra.kpis.map((k) => `${k.kpiCode} (target ${k.defaultTarget ?? "—"})`).join(", ")}. Rating for this goal is computed from real, system-measured performance, not typed manually.`,
       category: "KPI",
       weight: kra.weight,
     });
@@ -74,31 +95,39 @@ export function computeSystemRatingFromKraScore(kraScore: number | null): Rating
 }
 
 /**
- * Real, suggested rating for one specific KPI-category goal, using the
- * employee's real, resolved KRA structure and any real, already-saved
- * KPI actuals for the given month (the same real KpiActual records
- * each real role's own dashboard saves when it computes scores).
+ * Real, suggested rating for one specific KPI-category goal in a given
+ * quarterly cycle, using the employee's real, resolved KRA structure
+ * (targets included) and any real KPI actuals saved for that quarter's
+ * 3 constituent months (the same real KpiActual records each real
+ * role's own scorecard computation saves).
  *
- * Honest, confirmed simplification: the appraisal cycle itself is
- * annual, while real KPI actuals are saved monthly - rather than
- * fabricate a full-cycle average from months that may never have been
- * measured, this uses the most recent real month's genuinely saved
- * actual, and returns null (not a guessed middle rating) if none
- * exists yet for this goal at all.
+ * Honest, confirmed approach: averages whichever of the quarter's 3
+ * months genuinely have a saved actual, rather than fabricating a
+ * full-quarter figure from months that were never measured — and
+ * returns null (not a guessed middle rating) if none exists yet for
+ * this goal at all.
  */
 export function computeSuggestedRatingForGoal(
-  employeeId: string, role: string, goalTitle: string, month: string
+  employeeId: string, role: string, goalTitle: string, cycleId: string
 ): { suggestedRating: RatingValue | null; kraScore: number | null } {
-  const { kras } = resolveEmployeeKras(employeeId, role);
+  const cycle = performanceManagementService.getCycle(cycleId);
+  if (!cycle) return { suggestedRating: null, kraScore: null };
+
+  const { kras } = resolveEmployeeKras(employeeId, role, cycle.financialYear, cycle.financialQuarter);
   const kra = kras.find((k) => k.name === goalTitle);
   if (!kra) return { suggestedRating: null, kraScore: null };
 
+  const months = monthsInQuarter(cycle.financialYear, cycle.financialQuarter);
+
   const kpiScores = kra.kpis
     .map((link) => {
-      const actual = getKpiActual(employeeId, link.kpiCode, month);
-      if (actual === undefined) return null;
       const target = link.defaultTarget || 1;
-      return Math.min(150, Math.round((actual / target) * 100));
+      const monthlyAchievements = months
+        .map((month) => getKpiActual(employeeId, link.kpiCode, month))
+        .filter((v): v is number => v !== undefined)
+        .map((actual) => Math.min(150, Math.round((actual / target) * 100)));
+      if (monthlyAchievements.length === 0) return null;
+      return Math.round(monthlyAchievements.reduce((s, v) => s + v, 0) / monthlyAchievements.length);
     })
     .filter((s): s is number => s !== null);
 

@@ -19,8 +19,7 @@
  */
 
 import {
-  getKpiCatalog, upsertKpiCatalogEntry, getActiveKraTemplate, createKraTemplateVersion,
-  approveKraTemplate, resolveEmployeeKras, saveKpiActual, type KraDefinition,
+  getKpiCatalog, upsertKpiCatalogEntry, resolveEmployeeKras, saveKpiActual, type KraDefinition,
 } from "./kraEngineService";
 import { getRealRetentionRate, getRealConversionRate } from "./supervisorIncentiveService";
 
@@ -40,21 +39,25 @@ const SUPERVISOR_KPI_CATALOG = [
  * Real, confirmed KRA structure for Supervisor - matches
  * IncentiveConfiguration.tsx's SupervisorIncentiveRules KPI weights exactly.
  */
-const SUPERVISOR_DEFAULT_KRAS: KraDefinition[] = [
+/** Suggested starting point for HR when authoring this role's KRA for the first time — matches IncentiveConfiguration.tsx's real weights, but is not auto-created/auto-approved. */
+export const SUPERVISOR_DEFAULT_KRAS: KraDefinition[] = [
   { kraCode: "SUP_CONVERSION", name: "BTL Conversion", weight: 40, kpis: [{ kpiCode: "SUP_CONVERSION_RATE", weight: 100, defaultTarget: 30 }] },
   { kraCode: "SUP_RETENTION", name: "Customer Retention", weight: 30, kpis: [{ kpiCode: "SUP_RETENTION_RATE", weight: 100, defaultTarget: 80 }] },
   { kraCode: "SUP_AUDIT", name: "Audit Compliance", weight: 20, kpis: [{ kpiCode: "SUP_AUDIT_COMPLIANCE", weight: 100, defaultTarget: 100 }] },
   { kraCode: "SUP_COMPLAINTS", name: "Customer Complaint SLA", weight: 10, kpis: [{ kpiCode: "SUP_COMPLAINT_SLA", weight: 100, defaultTarget: 100 }] },
 ];
 
-export function seedSupervisorKraTemplateIfMissing(createdBy: string): void {
+/**
+ * Seeds only the reusable KPI catalog entries — no longer auto-creates and
+ * auto-approves a KRA template for this role. Real fix: that used to mean
+ * "approved by Super Admin" was fiction (the code approved its own draft
+ * the instant the dashboard first mounted). HR now authors and Super Admin
+ * approves a real KRA template via the KRA Authoring / Approval screens.
+ */
+export function seedSupervisorKpiCatalogIfMissing(): void {
   SUPERVISOR_KPI_CATALOG.forEach((entry) => {
     if (!getKpiCatalog().find((e) => e.code === entry.code)) upsertKpiCatalogEntry(entry);
   });
-  if (getActiveKraTemplate(SUPERVISOR_ROLE)) return;
-  const today = new Date().toISOString().split("T")[0];
-  const template = createKraTemplateVersion(SUPERVISOR_ROLE, SUPERVISOR_DEFAULT_KRAS, createdBy, today);
-  approveKraTemplate(template.id, createdBy);
 }
 
 function computeSupervisorConversionRate(supervisorId: string): number {

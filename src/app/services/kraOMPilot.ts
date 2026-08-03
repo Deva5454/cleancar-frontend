@@ -16,8 +16,7 @@
  */
 
 import {
-  getKpiCatalog, upsertKpiCatalogEntry, getActiveKraTemplate, createKraTemplateVersion,
-  approveKraTemplate, resolveEmployeeKras, saveKpiActual, type KraDefinition,
+  getKpiCatalog, upsertKpiCatalogEntry, resolveEmployeeKras, saveKpiActual, type KraDefinition,
 } from "./kraEngineService";
 import {
   computeOMRealRevenue, computeOMRealRetentionRate, type AccountingEntryLike, type SubscriptionLike, type CustomerLike,
@@ -36,8 +35,8 @@ const OM_KPI_CATALOG = [
   { code: "OM_CUSTOMER_EXPERIENCE", name: "Customer Experience", unit: "%", direction: "higher-is-better" as const, dataSource: NOT_YET_AVAILABLE, description: "Confirmed: no computation exists at all, real or mock" },
 ];
 
-/** Real, confirmed KRA structure for Operations Manager - matches §5.7 exactly. */
-const OM_DEFAULT_KRAS: KraDefinition[] = [
+/** Suggested starting point for HR when authoring this role's KRA - matches §5.7. Not auto-created/auto-approved. */
+export const OM_DEFAULT_KRAS: KraDefinition[] = [
   { kraCode: "OM_REVENUE_DELIVERY", name: "Revenue Delivery", weight: 40, kpis: [{ kpiCode: "OM_REAL_REVENUE", weight: 100, defaultTarget: 3500000 }] },
   { kraCode: "OM_LEAD_CONVERSION_KRA", name: "Lead Conversion", weight: 20, kpis: [{ kpiCode: "OM_LEAD_CONVERSION", weight: 100, defaultTarget: 100 }] },
   { kraCode: "OM_CUSTOMER_RETENTION", name: "Customer Retention", weight: 20, kpis: [{ kpiCode: "OM_REAL_RETENTION", weight: 100, defaultTarget: 80 }] },
@@ -45,14 +44,16 @@ const OM_DEFAULT_KRAS: KraDefinition[] = [
   { kraCode: "OM_CUSTOMER_EXPERIENCE_KRA", name: "Customer Experience", weight: 10, kpis: [{ kpiCode: "OM_CUSTOMER_EXPERIENCE", weight: 100, defaultTarget: 100 }] },
 ];
 
-export function seedOMKraTemplateIfMissing(createdBy: string): void {
+/**
+ * Seeds only the reusable KPI catalog entries — no longer auto-creates and
+ * auto-approves a KRA template for this role. HR now authors and Super
+ * Admin approves a real KRA template via the KRA Authoring / Approval
+ * screens.
+ */
+export function seedOMKpiCatalogIfMissing(): void {
   OM_KPI_CATALOG.forEach((entry) => {
     if (!getKpiCatalog().find((e) => e.code === entry.code)) upsertKpiCatalogEntry(entry);
   });
-  if (getActiveKraTemplate(OM_ROLE)) return;
-  const today = new Date().toISOString().split("T")[0];
-  const template = createKraTemplateVersion(OM_ROLE, OM_DEFAULT_KRAS, createdBy, today);
-  approveKraTemplate(template.id, createdBy);
 }
 
 export interface OMKpiResult {

@@ -223,9 +223,45 @@ const STORAGE_KEYS = {
   // carrying its own real .city field, so HR in one city could see and
   // approve another city's pending requests.
   OTHER_ADJUSTMENTS:       "other_adjustments",
+  // ── Same underlying defect (raw hardcoded localStorage keys, never
+  // registered here) found in kraEngineService.ts and
+  // performanceManagementService.ts. Unlike Other Adjustments, these are
+  // genuinely role-level/company-wide (a KRA template applies to a role
+  // across the whole company, not a specific city) or keyed by employeeId
+  // (already globally unique) — so they're registered as GLOBAL entities
+  // (see the CITY_CONFIG special-case below) rather than city-namespaced,
+  // matching how the data actually works. The fix here is eliminating the
+  // storage-key collision, not adding a city dimension that doesn't apply.
+  KRA_KPI_CATALOG:            "kra_kpi_catalog",
+  KRA_TEMPLATES:              "kra_templates",
+  KRA_EMPLOYEE_ASSIGNMENTS:   "kra_employee_assignments",
+  KRA_KPI_ACTUALS:            "kra_kpi_actuals",
+  KRA_INCENTIVE_RULE_VERSIONS:"kra_incentive_rule_versions",
+  KRA_INCENTIVE_PAYOUTS:      "kra_incentive_payouts",
+  PMS_CYCLES:                 "pms_cycles",
+  PMS_GOALS:                  "pms_goals",
+  PMS_SELF_APPRAISALS:        "pms_self_appraisals",
+  PMS_MANAGER_REVIEWS:        "pms_manager_reviews",
+  PMS_CALIBRATIONS:           "pms_calibrations",
+  PMS_INCREMENT_BANDS:        "pms_increment_bands",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
+
+/**
+ * Entity types that are genuinely company-wide, not per-city — stored at a
+ * single global key instead of being namespaced per city. CITY_CONFIG was
+ * already special-cased this way; the KRA- and PMS-prefixed entries were
+ * added alongside it for the same reason (role-level KRA structures and
+ * employeeId-keyed records, neither of which is naturally city-scoped).
+ */
+const GLOBAL_ENTITY_TYPES = new Set<EntityType>([
+  "CITY_CONFIG",
+  "KRA_KPI_CATALOG", "KRA_TEMPLATES", "KRA_EMPLOYEE_ASSIGNMENTS",
+  "KRA_KPI_ACTUALS", "KRA_INCENTIVE_RULE_VERSIONS", "KRA_INCENTIVE_PAYOUTS",
+  "PMS_CYCLES", "PMS_GOALS", "PMS_SELF_APPRAISALS",
+  "PMS_MANAGER_REVIEWS", "PMS_CALIBRATIONS", "PMS_INCREMENT_BANDS",
+]);
 
 /**
  * Generic DataService interface
@@ -253,8 +289,8 @@ class DataServiceClass {
     try {
       const baseKey = STORAGE_KEYS[entityType];
 
-      // CITY_CONFIG is global - don't namespace it
-      if (entityType === "CITY_CONFIG") {
+      // Some entity types are global, not per-city — don't namespace them.
+      if (GLOBAL_ENTITY_TYPES.has(entityType)) {
         const globalKey = buildLegacyKey(baseKey);
         const data = localStorage.getItem(globalKey);
         return data ? JSON.parse(data) : [];
@@ -427,8 +463,8 @@ class DataServiceClass {
     try {
       const baseKey = STORAGE_KEYS[entityType];
 
-      // CITY_CONFIG is global - don't namespace it
-      if (entityType === "CITY_CONFIG") {
+      // Some entity types are global, not per-city — don't namespace them.
+      if (GLOBAL_ENTITY_TYPES.has(entityType)) {
         const globalKey = buildLegacyKey(baseKey);
         localStorage.setItem(globalKey, JSON.stringify(records));
         import.meta.env.DEV && console.log(`[DataService] Set ${records.length} record(s) for ${entityType} (GLOBAL)`);

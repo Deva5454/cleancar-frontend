@@ -23,10 +23,11 @@ const TravelReimbursementModule = lazy(() => import("./components/travel/TravelR
 const ShiftRosterManager = lazy(() => import("./components/hr/ShiftRosterManager").then(m => ({ default: m.ShiftRosterManager })));
 const AttendanceRegularizationModule = lazy(() => import("./components/hr/AttendanceRegularizationModule"));
 const CompOffLeaveModule = lazy(() => import("./components/hr/CompOffLeaveModule"));
-const WasherKraDashboard = lazy(() => import("./components/incentives/WasherKraDashboard"));
-const OMKraDashboard = lazy(() => import("./components/incentives/OMKraDashboard"));
-const CityKraDashboard = lazy(() => import("./components/incentives/CityKraDashboard"));
-const SupervisorKraDashboard = lazy(() => import("./components/incentives/SupervisorKraDashboard"));
+const KraScorecardHub = lazy(() => import("./components/incentives/KraScorecardHub"));
+const KraAuthoringModule = lazy(() => import("./components/hr/KraAuthoringModule"));
+const KraApprovalQueue = lazy(() => import("./components/hr/KraApprovalQueue"));
+const KraGoalSettingModule = lazy(() => import("./components/hr/KraGoalSettingModule"));
+const KraManualActualsModule = lazy(() => import("./components/hr/KraManualActualsModule"));
 const ExpenseClaimsModule = lazy(() => import("./components/claims/ExpenseClaimsModule"));
 const InvestmentDeclarationModule = lazy(() => import("./components/hr/InvestmentDeclarationModule"));
 const PerformanceManagementModule = lazy(() => import("./components/hr/PerformanceManagementModule"));
@@ -617,10 +618,11 @@ export const router = createBrowserRouter([
       { path: "hr/duty-roster", element: <ShiftRosterManager /> },
       { path: "attendance/regularization", element: <AttendanceRegularizationModule /> },
       { path: "attendance/comp-off", element: <CompOffLeaveModule /> },
-      { path: "incentives/washer-kra", element: <WasherKraDashboard /> },
-      { path: "incentives/om-kra", element: <OMKraDashboard /> },
-      { path: "incentives/city-kra", element: <CityKraDashboard /> },
-      { path: "incentives/supervisor-kra", element: <SupervisorKraDashboard /> },
+      { path: "incentives/kra-scorecard", element: <KraScorecardHub /> },
+      { path: "hr/kra-authoring", element: <KraAuthoringModule /> },
+      { path: "hr/kra-approvals", element: <KraApprovalQueue /> },
+      { path: "hr/kra-goal-setting", element: <KraGoalSettingModule /> },
+      { path: "hr/kra-manual-actuals", element: <KraManualActualsModule /> },
       { path: "claims", element: <ExpenseClaimsModule /> },
       { path: "investment-declaration", element: <InvestmentDeclarationModule /> },
       { path: "performance-management", element: <PerformanceManagementModule /> },

@@ -12,8 +12,7 @@
  */
 
 import {
-  getKpiCatalog, upsertKpiCatalogEntry, getActiveKraTemplate, createKraTemplateVersion,
-  approveKraTemplate, resolveEmployeeKras, saveKpiActual, type KraDefinition,
+  getKpiCatalog, upsertKpiCatalogEntry, resolveEmployeeKras, saveKpiActual, type KraDefinition,
 } from "./kraEngineService";
 import {
   computeWasherProductivityUnits, computeWasherAddonCount, computeWasherAttendanceRate,
@@ -35,7 +34,7 @@ const WASHER_KPI_CATALOG = [
  * Daily Productivity 50 / Service Add-on Delivery 20 /
  * Attendance & Discipline 20 / Quality & Compliance 10.
  */
-const WASHER_DEFAULT_KRAS: KraDefinition[] = [
+export const WASHER_DEFAULT_KRAS: KraDefinition[] = [
   { kraCode: "WASHER_DAILY_PRODUCTIVITY", name: "Daily Productivity", weight: 50, kpis: [{ kpiCode: "WASHER_PRODUCTIVITY_UNITS", weight: 100, defaultTarget: 25 * 26 }] },
   { kraCode: "WASHER_ADDON_DELIVERY", name: "Service Add-on Delivery", weight: 20, kpis: [{ kpiCode: "WASHER_ADDON_COUNT", weight: 100, defaultTarget: 10 }] },
   { kraCode: "WASHER_ATTENDANCE_DISCIPLINE", name: "Attendance & Discipline", weight: 20, kpis: [
@@ -46,20 +45,15 @@ const WASHER_DEFAULT_KRAS: KraDefinition[] = [
 ];
 
 /**
- * Real, idempotent seed - only creates and activates the template if
- * Washer genuinely has none yet. Safe to call repeatedly; never
- * duplicates or overwrites an existing real template.
+ * Seeds only the reusable KPI catalog entries — no longer auto-creates and
+ * auto-approves a KRA template for this role (that made "approved by
+ * Super Admin" fiction). HR now authors and Super Admin approves a real
+ * KRA template via the KRA Authoring / Approval screens.
  */
-export function seedWasherKraTemplateIfMissing(createdBy: string): void {
+export function seedWasherKpiCatalogIfMissing(): void {
   WASHER_KPI_CATALOG.forEach((entry) => {
     if (!getKpiCatalog().find((e) => e.code === entry.code)) upsertKpiCatalogEntry(entry);
   });
-
-  if (getActiveKraTemplate(WASHER_ROLE)) return;
-
-  const today = new Date().toISOString().split("T")[0];
-  const template = createKraTemplateVersion(WASHER_ROLE, WASHER_DEFAULT_KRAS, createdBy, today);
-  approveKraTemplate(template.id, createdBy);
 }
 
 const KPI_COMPUTE_FN: Record<string, (jobs: JobLike[], attendance: AttendanceLike[], incentives: any[], employeeId: string, month: string) => number> = {

@@ -6,7 +6,23 @@
  * stays as-is for daily/monthly targets) with an actual appraisal workflow
  * that produces a locked Final Rating per employee per cycle, plus a
  * suggested increment % that Payroll/HR can read when doing salary revisions.
+ *
+ * Real change: cycles now run per financial QUARTER (4/year) rather than
+ * annually, so KRA/goal-setting stays in step with each quarter's approved
+ * KRA structure (kraEngineService.ts) instead of drifting a full year out
+ * of date. The phase machinery itself (Goal Setting -> Self Appraisal ->
+ * Manager Review -> Calibration -> Finalized) is unchanged - it already
+ * operates generically per cycleId regardless of how long a cycle spans.
+ *
+ * Real fix: this used to bypass DataService entirely with 6 hardcoded raw
+ * localStorage keys, unregistered and never city-scoped - same bug class
+ * fixed elsewhere this session. Now routed through DataService's
+ * registered (global - these are employeeId-keyed, not per-city) PMS_*
+ * entity types.
  */
+
+import { DataService } from "./DataService";
+import { getFinancialQuarter, type FinancialQuarter } from "./financialQuarter";
 
 export type CyclePhase =
   | "Goal Setting"
@@ -24,8 +40,9 @@ export interface PhaseWindow {
 
 export interface PerformanceCycle {
   id: string;
-  name: string;           // e.g. "FY 2026-27 Annual Review"
+  name: string;           // e.g. "Q1 FY2026-27 Review"
   financialYear: string;  // e.g. "2026-27"
+  financialQuarter: FinancialQuarter;
   currentPhase: CyclePhase;
   status: CycleStatus;
   phaseWindows: Record<CyclePhase, PhaseWindow>;
@@ -132,19 +149,22 @@ const KEYS = {
   MANAGER_REVIEWS: "PMS_MANAGER_REVIEWS",
   CALIBRATIONS: "PMS_CALIBRATIONS",
   INCREMENT_BANDS: "PMS_INCREMENT_BANDS",
-};
+} as const;
 
-function readJSON<T>(key: string, fallback: T): T {
+// Every call site here operates on arrays, so these stay thin wrappers
+// around DataService's registered (global) PMS_* entity types instead of
+// raw localStorage — same fix already applied to kraEngineService.ts.
+function readJSON<T extends any[]>(entityType: (typeof KEYS)[keyof typeof KEYS], fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    const result = DataService.get<any>(entityType);
+    return result.length > 0 ? (result as T) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function writeJSON<T>(key: string, value: T): void {
-  localStorage.setItem(key, JSON.stringify(value));
+function writeJSON<T extends any[]>(entityType: (typeof KEYS)[keyof typeof KEYS], value: T): void {
+  DataService.setAll(entityType, value as any);
 }
 
 class PerformanceManagementService {
@@ -175,6 +195,7 @@ class PerformanceManagementService {
   createCycle(input: {
     name: string;
     financialYear: string;
+    financialQuarter: FinancialQuarter;
     phaseWindows: Record<CyclePhase, PhaseWindow>;
     createdBy: string;
   }): PerformanceCycle {
@@ -182,6 +203,7 @@ class PerformanceManagementService {
       id: `CYCLE_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       name: input.name,
       financialYear: input.financialYear,
+      financialQuarter: input.financialQuarter,
       currentPhase: "Goal Setting",
       status: "Active",
       phaseWindows: input.phaseWindows,
@@ -191,6 +213,17 @@ class PerformanceManagementService {
     writeJSON(KEYS.CYCLES, [...this.listCycles(), cycle]);
     this.notify();
     return cycle;
+  }
+
+  /** The Active cycle for a specific financial quarter, if one exists. */
+  getCycleForQuarter(financialYear: string, financialQuarter: FinancialQuarter): PerformanceCycle | undefined {
+    return this.listCycles().find((c) => c.financialYear === financialYear && c.financialQuarter === financialQuarter);
+  }
+
+  /** The Active cycle for the current real-world quarter, defaulting sensibly when none exists yet. */
+  getActiveCycleForCurrentQuarter(): PerformanceCycle | undefined {
+    const current = getFinancialQuarter();
+    return this.getCycleForQuarter(current.financialYear, current.quarter);
   }
 
   advancePhase(cycleId: string): PerformanceCycle | null {
