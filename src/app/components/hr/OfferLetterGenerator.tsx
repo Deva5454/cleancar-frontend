@@ -848,7 +848,7 @@ export function OfferLetterGenerator({ onSwitchToTemplates }: { onSwitchToTempla
                 <img src={getLetterheadImage()} alt="Company letterhead" className="w-full mb-6" />
 
                 {/* Date */}
-                <div className="text-right text-sm text-gray-700 mb-6">
+                <div className="text-left text-sm text-gray-700 mb-6">
                   <strong>
                     {new Date(selectedOffer.issueDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                   </strong>
