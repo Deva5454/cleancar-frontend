@@ -56,6 +56,13 @@ export interface InventoryItem {
   unitCost: number;
   lastProcurementDate?: string;
   supplierId?: string;
+  // Real item-master GST fields — the source of truth a Purchase Order
+  // line now maps its tax rate from, instead of being manually re-typed
+  // (and potentially inconsistent) on every single PO. Optional so
+  // existing/seeded items without this set yet don't break — callers
+  // fall back to the same 18% default the PO form already used.
+  gstRate?: number;
+  hsnCode?: string;
   createdAt: string;
   updatedAt: string;
 }

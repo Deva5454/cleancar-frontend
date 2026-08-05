@@ -13,7 +13,7 @@
  * the same way KimUniformReceiptScreen creates a new size on the fly.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -30,7 +30,7 @@ const CATEGORIES = ["Cleaning Supplies", "Equipment", "Consumables", "Tools", "P
 const UNITS = ["L", "Kg", "Pcs", "Box"] as const;
 
 export function GeneralProcurement() {
-  const { inventory, addInventoryItem, procureInventory, stockTransactions } = useInventory();
+  const { inventory, addInventoryItem, procureInventory, stockTransactions, updateInventoryItem } = useInventory();
   const { city } = useCity();
 
   const cityItems = inventory
@@ -44,11 +44,34 @@ export function GeneralProcurement() {
   const [newUnit, setNewUnit] = useState<typeof UNITS[number]>("Pcs");
   const [newReorderLevel, setNewReorderLevel] = useState("10");
   const [newUnitCost, setNewUnitCost] = useState("");
+  const [newGstRate, setNewGstRate] = useState("18");
+  const [newHsnCode, setNewHsnCode] = useState("");
   const [existingItemRate, setExistingItemRate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [supplierName, setSupplierName] = useState("");
 
   const selectedItem = cityItems.find((i: any) => i.itemId === itemId);
+  // Real item-master GST correction — most items in this app were
+  // seeded before gstRate/hsnCode existed, so this is the one place to
+  // set/fix them for an item already on file, not just at creation.
+  const [editGstRate, setEditGstRate] = useState("");
+  const [editHsnCode, setEditHsnCode] = useState("");
+
+  useEffect(() => {
+    setEditGstRate(selectedItem?.gstRate != null ? String(selectedItem.gstRate) : "18");
+    setEditHsnCode(selectedItem?.hsnCode || "");
+  }, [selectedItem?.itemId]);
+
+  const handleUpdateGstMaster = () => {
+    if (!selectedItem) return;
+    const rate = parseFloat(editGstRate);
+    if (!Number.isFinite(rate) || rate < 0) {
+      toast.error("Enter a real, non-negative GST rate");
+      return;
+    }
+    updateInventoryItem(selectedItem.itemId, city, { gstRate: rate, hsnCode: editHsnCode.trim() || undefined });
+    toast.success(`GST master updated for ${selectedItem.itemName} — Purchase Orders for this item now map to ${rate}% / HSN ${editHsnCode.trim() || "—"}`);
+  };
 
   const recentReceipts = stockTransactions
     .filter((t: any) => t.cityId === city && t.type === "Procurement")
@@ -85,6 +108,8 @@ export function GeneralProcurement() {
         unit: newUnit,
         reorderLevel: parseInt(newReorderLevel, 10) || 0,
         unitCost: parseFloat(newUnitCost) || 0,
+        gstRate: parseFloat(newGstRate) || 0,
+        hsnCode: newHsnCode.trim() || undefined,
         centralStock: 0,
         branchStock: {},
         supervisorStock: {},
@@ -147,6 +172,22 @@ export function GeneralProcurement() {
                   </p>
                 )}
               </div>
+              {selectedItem && (
+                <div className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                  <Label className="text-xs text-gray-500">Item-Master GST (real source Purchase Orders map this item's tax rate from)</Label>
+                  <div className="grid grid-cols-3 gap-2 items-end">
+                    <div>
+                      <Label className="text-xs">GST Rate (%)</Label>
+                      <Input type="number" min="0" step="0.01" value={editGstRate} onChange={(e) => setEditGstRate(e.target.value)} className="h-8" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">HSN Code</Label>
+                      <Input value={editHsnCode} onChange={(e) => setEditHsnCode(e.target.value)} className="h-8" placeholder="e.g. 3402" />
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleUpdateGstMaster}>Update</Button>
+                  </div>
+                </div>
+              )}
               {/* ✅ FIX: real rate capture for existing items — previously
                   this flow never asked for a rate at all, meaning every
                   re-procurement of an existing item had no real FIFO batch
@@ -202,6 +243,17 @@ export function GeneralProcurement() {
                   <Input type="number" min="0" value={newUnitCost} onChange={(e) => setNewUnitCost(e.target.value)} placeholder="0" />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>GST Rate (%)</Label>
+                  <Input type="number" min="0" step="0.01" value={newGstRate} onChange={(e) => setNewGstRate(e.target.value)} />
+                </div>
+                <div>
+                  <Label>HSN Code</Label>
+                  <Input value={newHsnCode} onChange={(e) => setNewHsnCode(e.target.value)} placeholder="e.g. 3402" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">Real item-master GST — every future Purchase Order for this item maps its tax rate from here, instead of being re-typed each time.</p>
             </div>
           )}
 

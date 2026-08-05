@@ -30,6 +30,8 @@ import { gstComplianceService, COMPANY_GST_CONFIG } from "../../services/gstComp
 import { calculateGST } from "../../services/accountingEntryService";
 import { snapshotCurrentTerms } from "../../services/poTermsTemplateService";
 import { downloadPurchaseOrderPDF } from "./PurchaseOrderPDF";
+import { useInventory } from "../../contexts/InventoryContext";
+import { useRole } from "../../contexts/RoleContext";
 import type { PurchaseOrder } from "../../lib/materialRequisition";
 
 interface PurchaseOrdersProps {
@@ -79,30 +81,50 @@ function generatePONumber(existing: any[]): string {
   return `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
 }
 
+// Real delivery-location -> cityId mapping — used both to filter which
+// real inventory items are offered on the PO form and to compute GST
+// (intra-/inter-state) for the vendor. Hoisted out of handleSubmitPO so
+// both uses share one source of truth instead of two copies drifting.
+const DELIVERY_CITY_MAP: Record<string, string> = { branch1: "CITY-MUMBAI", branch2: "CITY-AHMEDABAD", central: "CITY-SURAT" };
+
 export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrdersProps = {}) {
   const navigate = useNavigate();
+  const { inventory } = useInventory();
+  const { currentUser } = useRole();
   const [searchTerm, setSearchTerm] = useState("");
   const [showPODialog, setShowPODialog] = useState(false);
   const [viewPO, setViewPO] = useState<any>(null);
+  const [cancellingPO, setCancellingPO] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState("");
   const [poDate, setPoDate] = useState(new Date().toISOString().split("T")[0]);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("central");
   const [poItems, setPOItems] = useState([
-    { id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }
+    { id: 1, itemId: "", itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }
   ]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>(loadPOs);
+
+  const cityIdForGst = DELIVERY_CITY_MAP[deliveryLocation] || DELIVERY_CITY_MAP.central;
+  // Real item-master catalog for this PO's delivery city — selecting one
+  // of these maps its GST rate/HSN code straight from the item master,
+  // instead of being re-typed (and potentially inconsistent) per PO.
+  const catalogItems = inventory.filter((i: any) => i.cityId === cityIdForGst);
 
   // Open dialog pre-filled when navigated from MR Convert to PO
   useEffect(() => {
     if (prefillFromMR) {
       const items = (prefillFromMR.items ?? []).map((item: any, i: number) => ({
         id: i + 1,
+        itemId: "",
         itemName: item.itemName ?? item.name ?? "",
         quantity: item.qtyRequired ?? item.quantity ?? 0,
         unit: item.unit ?? "Pieces",
         rate: 0,
         amount: 0,
+        hsnCode: "",
+        gstRate: 18,
+        discountPct: 0,
       }));
       if (items.length > 0) setPOItems(items);
       setShowPODialog(true);
@@ -125,7 +147,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
   };
 
   const handleAddItem = () => {
-    setPOItems([...poItems, { id: Date.now(), itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0 }]);
+    setPOItems([...poItems, { id: Date.now(), itemId: "", itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }]);
   };
 
   const handleRemoveItem = (id: number) => {
@@ -145,6 +167,29 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     }));
   };
 
+  // Real item-master mapping: selecting a real catalog item pulls its
+  // GST rate, HSN code, and unit straight from the item master —
+  // becoming the source of truth for this line, rather than a
+  // per-PO-typed guess. Selecting "Custom" clears itemId and reverts
+  // to today's free-text/manually-typed behavior for anything not yet
+  // in the catalog.
+  const handleItemCatalogSelect = (id: number, catalogItemId: string) => {
+    if (!catalogItemId) {
+      setPOItems(poItems.map(item => item.id === id ? { ...item, itemId: "" } : item));
+      return;
+    }
+    const catalogItem = catalogItems.find((i: any) => i.itemId === catalogItemId);
+    if (!catalogItem) return;
+    setPOItems(poItems.map(item => item.id === id ? {
+      ...item,
+      itemId: catalogItem.itemId,
+      itemName: catalogItem.itemName,
+      unit: catalogItem.unit,
+      hsnCode: catalogItem.hsnCode || "",
+      gstRate: catalogItem.gstRate ?? 18,
+    } : item));
+  };
+
   const handleSubmitPO = () => {
     if (!selectedSupplier) { toast.error("Select a supplier"); return; }
     const vendor = vendors.find(v => v.id === selectedSupplier);
@@ -156,8 +201,10 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
 
     // ✅ FIX: real per-item GST, computed the same way the accounting
     // engine computes it everywhere else in this app — not a flat,
-    // uncomputed `gst` total.
-    const cityIdForGst = deliveryLocation === "branch1" ? "CITY-MUMBAI" : deliveryLocation === "branch2" ? "CITY-AHMEDABAD" : "CITY-SURAT";
+    // uncomputed `gst` total. cityIdForGst is the same city used to
+    // filter the item-master catalog above, so a mapped item's GST
+    // rate and this delivery's intra-/inter-state determination always
+    // agree with each other.
     const realItems = validItems.map((item) => {
       const discountAmt = item.amount * ((item.discountPct || 0) / 100);
       const taxableValue = Math.round((item.amount - discountAmt) * 100) / 100;
@@ -226,7 +273,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     setShowPODialog(false);
     setSelectedSupplier("");
     setDeliveryDate("");
-    setPOItems([{ id: 1, itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }]);
+    setPOItems([{ id: 1, itemId: "", itemName: "", quantity: 0, unit: "Pieces", rate: 0, amount: 0, hsnCode: "", gstRate: 18, discountPct: 0 }]);
   };
 
   const handleDownloadPDF = async (po: any) => {
@@ -276,6 +323,34 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
     toast.success(`${po.poNumber} approved`);
   };
 
+  // Real, previously-missing PO cancellation — the "Cancelled" status
+  // was already declared on the typed PurchaseOrder record but nothing
+  // anywhere ever set it. Only cancellable before delivery genuinely
+  // starts (Pending Approval / Approved) — once a PO is In Transit or
+  // Delivered, goods are already moving/received, so that needs a real
+  // return/adjustment process instead, not a plain status flip.
+  // Mandatory reason, matching every other reject/cancel action in this
+  // app — never a silent cancel.
+  const CANCELLABLE_STATUSES = ["Pending Approval", "Approved"];
+  const handleOpenCancel = (po: any) => {
+    setCancellingPO(po);
+    setCancelReason("");
+  };
+  const handleConfirmCancel = () => {
+    if (!cancellingPO) return;
+    if (!cancelReason.trim()) { toast.error("A reason is required to cancel a PO"); return; }
+    const updated = purchaseOrders.map(p => p.poNumber === cancellingPO.poNumber
+      ? { ...p, status: "Cancelled", cancelledBy: currentUser?.name || "Store Manager", cancelledAt: new Date().toISOString(), cancelledReason: cancelReason.trim() }
+      : p
+    );
+    setPurchaseOrders(updated);
+    try { localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updated)); } catch {}
+    toast.success(`${cancellingPO.poNumber} cancelled`);
+    setCancellingPO(null);
+    setCancelReason("");
+    if (viewPO?.poNumber === cancellingPO.poNumber) setViewPO(null);
+  };
+
   const handleViewPO = (poNumber: string) => {
     const po = purchaseOrders.find(p => p.poNumber === poNumber);
     setViewPO(po ?? null);
@@ -289,15 +364,20 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
       case "Approved": return "default";
       case "In Transit": return "secondary";
       case "Delivered": return "outline";
+      case "Cancelled": return "outline";
       default: return "outline";
     }
   };
+
+  const getStatusBadgeClassName = (status: string) =>
+    status === "Cancelled" ? "bg-red-50 text-red-700 border-red-300" : undefined;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "Pending Approval": return <Clock className="w-4 h-4" />;
       case "Approved": return <CheckCircle className="w-4 h-4" />;
       case "Delivered": return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case "Cancelled": return <XCircle className="w-4 h-4 text-red-600" />;
       default: return <FileText className="w-4 h-4" />;
     }
   };
@@ -327,7 +407,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-orange-600">{purchaseOrders.filter(po => po.status === "Pending Approval").length}</p>
@@ -352,6 +432,12 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
             <p className="text-xs text-gray-500">Delivered</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-red-600">{purchaseOrders.filter(po => po.status === "Cancelled").length}</p>
+            <p className="text-xs text-gray-500">Cancelled</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -367,7 +453,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{po.poNumber}</p>
-                      <Badge variant={getStatusColor(po.status)}>{po.status}</Badge>
+                      <Badge variant={getStatusColor(po.status)} className={getStatusBadgeClassName(po.status)}>{po.status}</Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
                       <span>{po.supplier}</span>
@@ -385,6 +471,11 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                   {po.status === "Pending Approval" && (
                     <Button size="sm" onClick={() => handleApprovePO(po)} className="bg-green-600 hover:bg-green-700">
                       Approve
+                    </Button>
+                  )}
+                  {CANCELLABLE_STATUSES.includes(po.status) && (
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50" onClick={() => handleOpenCancel(po)}>
+                      Cancel
                     </Button>
                   )}
                   {po.attachmentFileBase64 ? (
@@ -513,7 +604,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                   <div className="space-y-3">
                     {/* Header */}
                     <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 pb-2 border-b">
-                      <div className="col-span-4">Item Name / Description</div>
+                      <div className="col-span-4">Item (real catalog maps GST/HSN) / Description</div>
                       <div className="col-span-2">Quantity</div>
                       <div className="col-span-2">Unit</div>
                       <div className="col-span-2">Rate (₹)</div>
@@ -523,12 +614,26 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                     {/* Items */}
                     {poItems.map((item, index) => (
                       <div key={item.id} className="grid grid-cols-12 gap-2 items-start">
-                        <div className="col-span-4">
+                        <div className="col-span-4 space-y-1">
+                          {/* ✅ NEW: real item-master mapping — selecting a real catalog
+                              item pulls its GST rate/HSN/unit from the item master
+                              instead of a per-PO free-typed guess. "Custom" keeps the
+                              existing free-text behavior for anything not yet catalogued. */}
+                          <Select value={item.itemId || "__custom__"} onValueChange={(v) => handleItemCatalogSelect(item.id, v === "__custom__" ? "" : v)}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="From catalog..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__custom__">Custom / Not in Catalog</SelectItem>
+                              {catalogItems.map((i: any) => (
+                                <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.gstRate ?? 18}% GST)</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             placeholder="Enter item name"
                             value={item.itemName}
                             onChange={(e) => handleItemChange(item.id, "itemName", e.target.value)}
                             className="h-9"
+                            readOnly={!!item.itemId}
                           />
                         </div>
                         <div className="col-span-2">
@@ -582,13 +687,15 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                             </Button>
                           )}
                         </div>
-                        {/* ✅ NEW: HSN code, GST rate, and discount — needed for real GST computation and the PO PDF's tax breakup */}
+                        {/* ✅ NEW: HSN code, GST rate, and discount — needed for real GST computation and the PO PDF's tax breakup.
+                            Read-only once a real catalog item is selected above — mapped from the item master, not re-typed. */}
                         <div className="col-span-4">
                           <Input
                             placeholder="HSN code"
                             value={item.hsnCode}
                             onChange={(e) => handleItemChange(item.id, "hsnCode", e.target.value)}
                             className="h-8 text-xs"
+                            readOnly={!!item.itemId}
                           />
                         </div>
                         <div className="col-span-3">
@@ -598,6 +705,8 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                             value={item.gstRate ?? 18}
                             onChange={(e) => handleItemChange(item.id, "gstRate", parseFloat(e.target.value) || 0)}
                             className="h-8 text-xs"
+                            readOnly={!!item.itemId}
+                            title={item.itemId ? "Mapped from the item master — pick Custom above to override" : undefined}
                           />
                         </div>
                         <div className="col-span-3">
@@ -686,10 +795,17 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-lg p-4 text-sm">
                 <div><p className="text-xs text-gray-400">Supplier</p><p className="font-medium">{viewPO.supplier}</p></div>
-                <div><p className="text-xs text-gray-400">Status</p><Badge variant={getStatusColor(viewPO.status) as any}>{viewPO.status}</Badge></div>
+                <div><p className="text-xs text-gray-400">Status</p><Badge variant={getStatusColor(viewPO.status) as any} className={getStatusBadgeClassName(viewPO.status)}>{viewPO.status}</Badge></div>
                 <div><p className="text-xs text-gray-400">Date</p><p>{viewPO.date}</p></div>
                 <div><p className="text-xs text-gray-400">Items</p><p>{viewPO.items} line item{viewPO.items !== 1 ? "s" : ""}</p></div>
                 {viewPO.approvedBy && <div className="col-span-2"><p className="text-xs text-gray-400">Approved By</p><p className="text-green-700 font-medium">{viewPO.approvedBy}</p></div>}
+                {viewPO.status === "Cancelled" && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-400">Cancelled</p>
+                    <p className="text-red-700 font-medium">By {viewPO.cancelledBy} on {new Date(viewPO.cancelledAt).toLocaleDateString("en-IN")}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">"{viewPO.cancelledReason}"</p>
+                  </div>
+                )}
               </div>
               {viewPO.itemsList && viewPO.itemsList.length > 0 && (
                 <div>
@@ -712,9 +828,32 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewPO(null)}>Close</Button>
+            {viewPO && CANCELLABLE_STATUSES.includes(viewPO.status) && (
+              <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-50" onClick={() => handleOpenCancel(viewPO)}>Cancel PO</Button>
+            )}
             {viewPO?.status === "Pending Approval" && (
               <Button onClick={() => { handleApprovePO(viewPO); setViewPO(null); }} className="bg-green-600 hover:bg-green-700">Approve PO</Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CANCEL PO DIALOG ── */}
+      <Dialog open={!!cancellingPO} onOpenChange={o => { if (!o) setCancellingPO(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel {cancellingPO?.poNumber}?</DialogTitle>
+            <DialogDescription>
+              This PO will no longer be actionable. A reason is required and stays on the record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Reason for cancellation *</Label>
+            <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g. Vendor unable to fulfil, duplicate PO, requirement no longer needed..." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancellingPO(null)}>Keep PO</Button>
+            <Button variant="destructive" onClick={handleConfirmCancel}>Confirm Cancellation</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
