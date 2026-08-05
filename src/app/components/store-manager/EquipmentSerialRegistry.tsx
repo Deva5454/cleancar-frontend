@@ -29,6 +29,12 @@ const LOCATION_COLORS: Record<string, string> = {
   Supervisor: "bg-purple-100 text-purple-700 border-purple-300",
   Washer: "bg-green-100 text-green-700 border-green-300",
   UnderRepair: "bg-red-100 text-red-700 border-red-300",
+  UnderRepairAtBranch: "bg-orange-100 text-orange-700 border-orange-300",
+};
+
+const LOCATION_LABELS: Record<string, string> = {
+  UnderRepair: "Under Repair (at Central)",
+  UnderRepairAtBranch: "Under Repair (at Branch)",
 };
 
 export function EquipmentSerialRegistry() {
@@ -58,10 +64,10 @@ export function EquipmentSerialRegistry() {
 
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-5 gap-2 text-center">
-            {["Central", "Branch", "Supervisor", "Washer", "UnderRepair"].map((loc) => (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+            {["Central", "Branch", "Supervisor", "Washer", "UnderRepairAtBranch", "UnderRepair"].map((loc) => (
               <div key={loc} className="bg-gray-50 rounded-lg p-2">
-                <p className="text-xs text-gray-500">{loc === "UnderRepair" ? "Under Repair" : loc}</p>
+                <p className="text-xs text-gray-500">{LOCATION_LABELS[loc] || loc}</p>
                 <p className="text-xl font-bold text-gray-900">{counts[loc] || 0}</p>
               </div>
             ))}
@@ -107,7 +113,7 @@ export function EquipmentSerialRegistry() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className={LOCATION_COLORS[unit.location] || ""}>
-                        {unit.location === "UnderRepair" ? "Under Repair" : unit.location}
+                        {LOCATION_LABELS[unit.location] || unit.location}
                         {unit.locationId ? ` — ${unit.locationId}` : ""}
                       </Badge>
                       {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}

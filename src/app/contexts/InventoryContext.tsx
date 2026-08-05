@@ -45,6 +45,13 @@ export interface InventoryItem {
   // centralStock, since a unit here is not usable/issuable until a
   // real "Mark Repaired" action moves it across.
   underRepairStock?: number;
+  // Real, previously-missing bucket - equipment reported broken and
+  // collected by a supervisor, physically sitting at a branch store
+  // awaiting onward dispatch to Kim (Central) for actual repair. Keyed
+  // by branchId, mirroring branchStock's shape. A unit here has NOT
+  // yet reached Kim - it only moves into underRepairStock once Central
+  // genuinely confirms receipt via receiveRepairAtCentral().
+  underRepairAtBranch?: Record<string, number>;
   // Pricing
   unitCost: number;
   lastProcurementDate?: string;
@@ -124,8 +131,8 @@ export interface EquipmentUnit {
   unitId: string; // the real, human-readable serial, e.g. "PWM-SUR-0007"
   itemId: string; // links back to the real InventoryItem this unit is one of
   cityId: string;
-  location: "Central" | "Branch" | "Supervisor" | "Washer" | "UnderRepair";
-  locationId?: string; // real branchId/supervisorId/washerId — not set for Central/UnderRepair
+  location: "Central" | "Branch" | "Supervisor" | "Washer" | "UnderRepair" | "UnderRepairAtBranch";
+  locationId?: string; // real branchId/supervisorId/washerId — not set for Central/UnderRepair; a real branchId for UnderRepairAtBranch
   history: Array<{
     event: string; // e.g. "Created", "Issued", "Sent for repair", "Repaired", "Transferred"
     fromLocation?: string;
@@ -269,7 +276,47 @@ interface InventoryContextType {
     reportedBy: string,
     cityId: string
   ) => boolean;
-  sendEquipmentForRepair: (itemId: string, fromLocation: "Washer" | "Supervisor", fromId: string, reportedBy: string, reason: string, cityId: string) => boolean;
+  // Real, corrected equipment-repair flow: a supervisor collects a
+  // washer's (or their own buffer's) broken equipment and it travels
+  // Washer/Supervisor -> Branch Store -> Central ("Kim") for repair —
+  // never straight to Central, since the branch store (in the City
+  // Manager's custody) is the only real stock-holding point between
+  // the field and Central; the supervisor is purely the courier who
+  // physically carries it, never a stock-holding location themselves.
+  // If the branch already holds a spare unit of the same equipment, one
+  // is issued back immediately in the same action — the real,
+  // previously-missing "what does the washer use meanwhile" answer.
+  reportBrokenEquipment: (
+    itemId: string,
+    fromLocation: "Washer" | "Supervisor",
+    fromId: string,
+    branchId: string,
+    reportedBy: string,
+    reason: string,
+    cityId: string
+  ) => { success: boolean; error?: string; spareIssued: boolean };
+  // Real Branch -> Central dispatch of accumulated broken equipment,
+  // mirroring transferToBranch's own challan-based, reserve-on-send
+  // pattern exactly, just reversed in direction.
+  dispatchRepairToCentral: (
+    itemId: string,
+    branchId: string,
+    quantity: number,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ) => StockTransaction | null;
+  // Real receipt confirmation at Central for a Branch -> Central repair
+  // dispatch, mirroring receiveBranchTransfer's own damage/loss-honest
+  // pattern. Only once this confirms does a unit enter the existing,
+  // unchanged underRepairStock/EquipmentRepairQueue.tsx pipeline.
+  receiveRepairAtCentral: (
+    transactionId: string,
+    quantityReceived: number,
+    missingQty: number,
+    notes: string | undefined,
+    cityId: string
+  ) => void;
   markEquipmentRepaired: (itemId: string, quantity: number, repairedBy: string, cityId: string) => boolean;
   // Real link between a repair and the spare part it actually used —
   // previously a repair could be marked complete with no connection at
@@ -1510,72 +1557,202 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Real, previously-missing equipment repair flow. A supervisor
-   * collects a washer's genuinely broken equipment and sends it
-   * toward Kim in one real action - representing a supervisor
-   * physically taking it from the washer, the same real pattern used
-   * for uniform replacement, never skipping the supervisor's own real
-   * role. This removes the unit from the washer's real stock and adds
-   * it to Kim's real underRepairStock bucket, where it stays until a
-   * genuine "Mark Repaired" action confirms it's actually fixed.
+   * Real, corrected equipment-repair flow (replaces the earlier
+   * sendEquipmentForRepair, which wrongly jumped straight to Central,
+   * skipping the branch store entirely). A supervisor collects a
+   * washer's (or their own buffer's) genuinely broken equipment — the
+   * broken unit's real journey is Washer/Supervisor -> Branch Store ->
+   * Central ("Kim"), matching how every other stock movement in this
+   * app already flows. The supervisor is purely the courier who
+   * physically carries it to the branch; they are never a real
+   * stock-holding location for equipment, so supervisorStock is never
+   * touched as an intermediate waypoint — only read from directly when
+   * the supervisor's own buffer-held unit is the one that broke.
+   *
+   * If the branch store already holds a spare unit of this same
+   * equipment (real stock in the City Manager's custody), one is
+   * issued straight back — Branch -> Washer/Supervisor, in the exact
+   * same direct, courier-noted style as fulfillReplacementThroughSupervisor
+   * already uses for uniform replacement — so whoever reported the
+   * break isn't left without equipment while the broken unit works its
+   * way through repair. If the branch has no spare, that's the honest,
+   * disclosed limit: nothing is fabricated, they go without until a
+   * spare arrives or the repair loop completes.
    */
-  const sendEquipmentForRepair = (
+  const reportBrokenEquipment = (
     itemId: string,
     fromLocation: "Washer" | "Supervisor",
     fromId: string,
+    branchId: string,
     reportedBy: string,
     reason: string,
     cityId: string
-  ): boolean => {
-    if (!cityId) {
-      console.warn("[InventoryContext] Blocked sendEquipmentForRepair: cityId missing");
-      return false;
+  ): { success: boolean; error?: string; spareIssued: boolean } => {
+    if (!cityId || !branchId || !reason.trim()) {
+      console.warn("[InventoryContext] Blocked reportBrokenEquipment: cityId, branchId, or reason missing");
+      return { success: false, error: "City, branch, and reason are all required", spareIssued: false };
     }
     const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
     if (!item) {
-      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: item ${itemId} not found`);
-      return false;
+      console.warn(`[InventoryContext] Blocked reportBrokenEquipment: item ${itemId} not found`);
+      return { success: false, error: "Item not found", spareIssued: false };
     }
-    // ✅ Generalized: previously this only ever pulled from washerStock,
-    // hardcoded to a washerId parameter. A supervisor's own buffer-held
-    // equipment (not yet issued to any washer) can break too, and had
-    // no real repair path at all. Now both real sources use the same
-    // one function, matching every other movement in this file.
     const currentQty = fromLocation === "Washer" ? (item.washerStock[fromId] || 0) : (item.supervisorStock[fromId] || 0);
     if (currentQty <= 0) {
-      console.warn(`[InventoryContext] Blocked sendEquipmentForRepair: ${fromLocation} ${fromId} has none of ${itemId} to send`);
-      return false;
+      console.warn(`[InventoryContext] Blocked reportBrokenEquipment: ${fromLocation} ${fromId} has none of ${itemId} to report broken`);
+      return { success: false, error: `${fromLocation} does not currently hold this equipment`, spareIssued: false };
     }
+    const spareAvailable = (item.branchStock?.[branchId] || 0) > 0;
 
     setInventory(prev => prev.map(i => {
       if (i.itemId !== itemId || i.cityId !== cityId) return i;
-      return {
+      const sourceBucket = fromLocation === "Washer" ? "washerStock" : "supervisorStock";
+      const updated: InventoryItem = {
         ...i,
-        ...(fromLocation === "Washer"
-          ? { washerStock: { ...i.washerStock, [fromId]: currentQty - 1 } }
-          : { supervisorStock: { ...i.supervisorStock, [fromId]: currentQty - 1 } }),
-        underRepairStock: (i.underRepairStock || 0) + 1,
+        [sourceBucket]: { ...i[sourceBucket], [fromId]: currentQty - 1 },
+        underRepairAtBranch: { ...(i.underRepairAtBranch || {}), [branchId]: (i.underRepairAtBranch?.[branchId] || 0) + 1 },
         updatedAt: new Date().toISOString(),
       };
+      if (spareAvailable) {
+        updated.branchStock = { ...(i.branchStock || {}), [branchId]: (i.branchStock?.[branchId] || 0) - 1 };
+        updated[sourceBucket] = { ...updated[sourceBucket], [fromId]: (updated[sourceBucket][fromId] || 0) + 1 };
+      }
+      return updated;
     }));
 
     createTransaction({
       itemId, type: "Transfer", quantity: 1,
       fromLocation, fromId,
-      toLocation: "Central", toId: undefined,
+      toLocation: "Branch", toId: branchId,
       status: "Completed", requestedBy: reportedBy, cityId,
-      reason: `Sent for repair: ${reason}`,
+      reason: `Reported broken, collected by supervisor for repair — awaiting dispatch to Central: ${reason}`,
     });
 
-    // ✅ Real serial tracking — this is the real fix for "which exact
-    // unit went for repair, and is the one that comes back the same
-    // one". Moves one real tracked unit to "UnderRepair" with a real
-    // history entry recording the reason.
     if (item.category === "Equipment") {
-      moveEquipmentUnit(itemId, cityId, fromLocation, fromId, "UnderRepair", undefined, reportedBy, "Sent for repair", reason);
+      moveEquipmentUnit(itemId, cityId, fromLocation, fromId, "UnderRepairAtBranch", branchId, reportedBy, "Reported broken - awaiting dispatch to Central", reason);
     }
 
-    return true;
+    if (spareAvailable) {
+      createTransaction({
+        itemId, type: "Transfer", quantity: 1,
+        fromLocation: "Branch", fromId: branchId,
+        toLocation: fromLocation, toId: fromId,
+        status: "Completed", requestedBy: reportedBy, cityId,
+        reason: `Spare unit issued from Branch against the damaged unit sent for repair — collected and handed over by Supervisor ${reportedBy}`,
+      });
+      if (item.category === "Equipment") {
+        moveEquipmentUnit(itemId, cityId, "Branch", branchId, fromLocation, fromId, reportedBy, "Issued (spare against damaged unit)");
+      }
+    }
+
+    return { success: true, spareIssued: spareAvailable };
+  };
+
+  /**
+   * Real Branch -> Central dispatch of accumulated broken equipment —
+   * mirrors transferToBranch() exactly, just reversed in direction.
+   * Same real challan requirement (there's no vendor/GRN behind this
+   * movement either), same immediate reservation of the source bucket
+   * on send so it can't be double-committed to another dispatch while
+   * awaiting Central's confirmation.
+   */
+  const dispatchRepairToCentral = (
+    itemId: string,
+    branchId: string,
+    quantity: number,
+    challanNumber: string,
+    requestedBy: string,
+    cityId: string
+  ): StockTransaction | null => {
+    if (!cityId || !challanNumber.trim()) {
+      console.warn("[InventoryContext] Blocked dispatchRepairToCentral: cityId or challan missing");
+      return null;
+    }
+    const item = inventory.find(i => i.itemId === itemId && i.cityId === cityId);
+    if (!item) {
+      console.warn(`[InventoryContext] Item ${itemId} not found in ${cityId}`);
+      return null;
+    }
+    if ((item.underRepairAtBranch?.[branchId] || 0) < quantity) {
+      console.warn(`[InventoryContext] Blocked dispatchRepairToCentral: insufficient real underRepairAtBranch for ${itemId} at ${branchId}`);
+      return null;
+    }
+    setInventory(prev => prev.map(i =>
+      i.itemId === itemId && i.cityId === cityId
+        ? { ...i, underRepairAtBranch: { ...(i.underRepairAtBranch || {}), [branchId]: (i.underRepairAtBranch?.[branchId] || 0) - quantity } }
+        : i
+    ));
+    const transaction = createTransaction({
+      itemId,
+      type: "Transfer",
+      quantity,
+      fromLocation: "Branch",
+      fromId: branchId,
+      toLocation: "Central",
+      status: "Pending",
+      requestedBy,
+      cityId,
+      challanNumber: challanNumber.trim(),
+      quantitySent: quantity,
+    });
+    return transaction;
+  };
+
+  /**
+   * Real receipt confirmation at Central for a Branch -> Central repair
+   * dispatch — mirrors receiveBranchTransfer()'s own honest-accounting
+   * pattern, adapted for equipment that's already known broken: a unit
+   * that genuinely arrives still needs repair either way, so
+   * quantityReceived lands in the existing, unchanged underRepairStock
+   * bucket (the same one EquipmentRepairQueue.tsx/markEquipmentRepaired
+   * already operate on). missingQty represents a real, honest transit
+   * loss (never arrived at all) — logged on the transaction for
+   * accountability, but not added anywhere, since nothing physically
+   * arrived to add.
+   */
+  const receiveRepairAtCentral = (
+    transactionId: string,
+    quantityReceived: number,
+    missingQty: number,
+    notes: string | undefined,
+    cityId: string
+  ) => {
+    const transaction = stockTransactions.find(t => t.transactionId === transactionId);
+    if (!transaction || transaction.toLocation !== "Central" || transaction.fromLocation !== "Branch" || transaction.type !== "Transfer") {
+      console.warn("[InventoryContext] Blocked receiveRepairAtCentral: transaction not found or not a branch-to-central repair dispatch");
+      return;
+    }
+    const sentQty = transaction.quantitySent ?? transaction.quantity;
+    if (
+      !Number.isFinite(quantityReceived) || quantityReceived < 0 ||
+      !Number.isFinite(missingQty) || missingQty < 0 ||
+      quantityReceived + missingQty > sentQty
+    ) {
+      console.warn(`[InventoryContext] Blocked receiveRepairAtCentral: received (${quantityReceived}) + missing (${missingQty}) exceeds quantitySent (${sentQty}), or a negative value was supplied`);
+      return;
+    }
+    const branchId = transaction.fromId!;
+    setInventory(prev => prev.map(item => {
+      if (item.itemId !== transaction.itemId || item.cityId !== cityId) return item;
+      return {
+        ...item,
+        underRepairStock: (item.underRepairStock || 0) + quantityReceived,
+      };
+    }));
+    setStockTransactions(prev => prev.map(t =>
+      t.transactionId === transactionId
+        ? { ...t, status: "Completed", completedAt: new Date().toISOString(), quantityReceived, damagedQuantity: missingQty, damageNotes: notes }
+        : t
+    ));
+
+    if (quantityReceived > 0) {
+      const item = inventory.find(i => i.itemId === transaction.itemId && i.cityId === cityId);
+      if (item?.category === "Equipment") {
+        for (let i = 0; i < quantityReceived; i++) {
+          moveEquipmentUnit(transaction.itemId, cityId, "UnderRepairAtBranch", branchId, "UnderRepair", undefined, "Central", "Received at Central for repair");
+        }
+      }
+    }
   };
 
   /**
@@ -2069,7 +2246,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         returnEmptyBottles,
         reportLostOrDamagedBottle,
         writeOffWasherItem,
-        sendEquipmentForRepair,
+        reportBrokenEquipment,
+        dispatchRepairToCentral,
+        receiveRepairAtCentral,
         markEquipmentRepaired,
         consumePressureWasherPart,
         fulfillReplacementThroughSupervisor,

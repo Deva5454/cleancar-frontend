@@ -40,16 +40,18 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { getBranchesForCity } from "../../config/branchStores";
 import { toast } from "sonner";
 
 export function SupervisorMaterialManagement() {
   const {
     inventory, getSupervisorStock, getWasherStock, transferInventory,
-    sendEquipmentForRepair, createTransaction, getPendingTransactions,
+    reportBrokenEquipment, createTransaction, getPendingTransactions,
   } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole, getEmployeeById } = useEmployee();
+  const branch = getBranchesForCity(city)[0];
 
   // Real, currently-logged-in supervisor — not a hardcoded ID.
   const supervisorId = currentUser?.employeeId || "";
@@ -104,11 +106,17 @@ export function SupervisorMaterialManagement() {
 
   const handleReportBreakdown = (reason: string) => {
     if (!selectedItem || !supervisorId) return;
-    const ok = sendEquipmentForRepair(selectedItem.itemId, "Supervisor", supervisorId, supervisorName, reason, city);
-    if (ok) {
-      toast.success(`${selectedItem.itemName} sent for repair — now with Kim`);
+    if (!branch) {
+      toast.error("No real branch store found for this city");
+      return;
+    }
+    const result = reportBrokenEquipment(selectedItem.itemId, "Supervisor", supervisorId, branch.id, supervisorName, reason, city);
+    if (result.success) {
+      toast.success(result.spareIssued
+        ? `${selectedItem.itemName} sent toward Kim via the Branch Store — a spare was issued from real Branch stock`
+        : `${selectedItem.itemName} sent toward Kim via the Branch Store — no spare was on hand, you'll be short this item until repair completes or a spare arrives`);
     } else {
-      toast.error("Could not report — check you actually hold this item");
+      toast.error(result.error || "Could not report — check you actually hold this item");
     }
     setShowBreakdownModal(false);
     setSelectedItemId(null);

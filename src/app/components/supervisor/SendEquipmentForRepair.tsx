@@ -1,9 +1,16 @@
 /**
- * SendEquipmentForRepair.tsx — real, previously-missing action: a
- * supervisor collects a washer's genuinely broken equipment and sends
- * it toward Kim for repair, in one real action - never skipping the
- * supervisor's own role in the chain, matching the same real pattern
- * as uniform replacement.
+ * SendEquipmentForRepair.tsx — real, corrected equipment-repair action:
+ * a supervisor collects a washer's genuinely broken equipment and it
+ * travels Washer -> Supervisor -> Branch Store -> Central ("Kim") for
+ * repair — never straight to Central, since the branch store (real
+ * stock in the City Manager's custody) is the only real stock-holding
+ * point between the field and Central. The supervisor is purely the
+ * courier here, never a stock-holding location themselves, matching
+ * the same real pattern already used for uniform replacement.
+ *
+ * If the branch already holds a spare unit of the same equipment, it's
+ * issued straight back to the washer in this same action — the real,
+ * previously-missing answer to "what does the washer use meanwhile".
  */
 
 import { useState } from "react";
@@ -11,6 +18,7 @@ import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { getBranchesForCity } from "../../config/branchStores";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -22,11 +30,16 @@ import { Hammer } from "lucide-react";
 import { toast } from "sonner";
 
 export function SendEquipmentForRepair() {
-  const { inventory, sendEquipmentForRepair } = useInventory();
+  const { inventory, reportBrokenEquipment } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeesByRole } = useEmployee();
   const washers = getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"]);
+  // Only one real branch store exists per city today (see
+  // branchStores.ts) — same real shortcut UniformEntitlement.tsx
+  // already uses, rather than adding a picker for a choice that
+  // doesn't yet exist.
+  const branch = getBranchesForCity(city)[0];
 
   const equipmentItems = inventory.filter((i: any) => i.category === "Equipment" && i.cityId === city);
 
@@ -39,12 +52,20 @@ export function SendEquipmentForRepair() {
       toast.error("Select the washer, the equipment, and enter a reason");
       return;
     }
-    const ok = sendEquipmentForRepair(itemId, "Washer", washerId, currentUser?.name || "Supervisor", reason.trim(), city);
-    if (ok) {
-      toast.success("Equipment sent for repair — now with Kim, tracked in the real Equipment Repair Queue");
+    if (!branch) {
+      toast.error("No real branch store found for this city");
+      return;
+    }
+    const result = reportBrokenEquipment(itemId, "Washer", washerId, branch.id, currentUser?.name || "Supervisor", reason.trim(), city);
+    if (result.success) {
+      if (result.spareIssued) {
+        toast.success("Broken unit sent toward Kim via the Branch Store — a spare was issued from real Branch stock, so the washer isn't left without equipment");
+      } else {
+        toast.success("Broken unit sent toward Kim via the Branch Store — no spare was on hand at the branch, so the washer will be short this equipment until repair completes or a spare arrives");
+      }
       setWasherId(""); setItemId(""); setReason("");
     } else {
-      toast.error("Could not send this — that washer may not actually have this equipment");
+      toast.error(result.error || "Could not send this — that washer may not actually have this equipment");
     }
   };
 

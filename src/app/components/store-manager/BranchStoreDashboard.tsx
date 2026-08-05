@@ -22,12 +22,12 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { Package, Truck } from "lucide-react";
+import { Package, Truck, Wrench } from "lucide-react";
 import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 import { toast } from "sonner";
 
 export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
-  const { inventory, stockTransactions, receiveBranchTransfer, transferBranchToSupervisor } = useInventory();
+  const { inventory, stockTransactions, receiveBranchTransfer, transferBranchToSupervisor, dispatchRepairToCentral } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const { getEmployeeById, getEmployeesByRole } = useEmployee();
@@ -85,6 +85,38 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
     () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.branchStock?.[activeBranch.id]) || 0) > 0) : [],
     [inventory, city, activeBranch]
   );
+
+  // Real, previously-missing step: equipment a supervisor reported
+  // broken and physically brought here (see reportBrokenEquipment in
+  // InventoryContext) sits at this branch, awaiting dispatch onward to
+  // Kim (Central) for actual repair — the branch never repairs
+  // anything itself.
+  const equipmentAwaitingRepairDispatch = useMemo(
+    () => activeBranch ? inventory.filter((i: any) => i.cityId === city && ((i.underRepairAtBranch?.[activeBranch.id]) || 0) > 0) : [],
+    [inventory, city, activeBranch]
+  );
+  const [repairItemId, setRepairItemId] = useState("");
+  const [repairQty, setRepairQty] = useState("");
+  const [repairChallan, setRepairChallan] = useState("");
+
+  const handleDispatchRepair = () => {
+    if (!activeBranch || !repairItemId || !repairQty || !repairChallan.trim()) {
+      toast.error("Select an item, quantity, and enter a real challan number");
+      return;
+    }
+    const qty = parseInt(repairQty, 10);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Enter a valid quantity");
+      return;
+    }
+    const result = dispatchRepairToCentral(repairItemId, activeBranch.id, qty, repairChallan, currentUser?.name || "Branch Manager", city);
+    if (!result) {
+      toast.error("Could not dispatch — check that enough equipment is actually awaiting repair here");
+      return;
+    }
+    toast.success(`Dispatched toward Kim for repair — challan ${repairChallan}, awaiting their confirmation`);
+    setRepairItemId(""); setRepairQty(""); setRepairChallan("");
+  };
 
   const pendingReceipts = useMemo(
     () => activeBranch
@@ -259,6 +291,34 @@ export function BranchStoreDashboard({ branchId }: { branchId?: string }) {
           )}
         </CardContent>
       </Card>
+
+      {equipmentAwaitingRepairDispatch.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Wrench className="w-4 h-4" /> Equipment Awaiting Dispatch to Central (Repair)</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label>Item</Label>
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" value={repairItemId} onChange={(e) => setRepairItemId(e.target.value)}>
+                  <option value="">Select item</option>
+                  {equipmentAwaitingRepairDispatch.map((i: any) => (
+                    <option key={i.itemId} value={i.itemId}>{i.itemName} (awaiting dispatch: {i.underRepairAtBranch?.[activeBranch.id]})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Quantity</Label>
+                <Input type="number" value={repairQty} onChange={(e) => setRepairQty(e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <Label>Challan Number *</Label>
+                <Input value={repairChallan} onChange={(e) => setRepairChallan(e.target.value)} placeholder="CHL-2026-001" />
+              </div>
+            </div>
+            <Button onClick={handleDispatchRepair} className="w-full">Dispatch to Kim for Repair</Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Receipt History</CardTitle></CardHeader>

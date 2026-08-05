@@ -2,6 +2,12 @@
  * EquipmentRepairQueue.tsx — real screen at Kim showing every real
  * equipment item currently under repair, with a genuine "Mark
  * Repaired" action that returns it to real, usable central stock.
+ *
+ * Also shows real Branch -> Central repair dispatches awaiting Kim's
+ * receipt confirmation — a unit only actually enters the "Mark
+ * Repaired" queue below once genuinely confirmed received here,
+ * mirroring the same real, damage/loss-honest confirm-receipt pattern
+ * BranchStoreDashboard.tsx already uses for ordinary stock transfers.
  */
 
 import { useState } from "react";
@@ -16,14 +22,53 @@ import { Input } from "../ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../ui/select";
-import { Wrench } from "lucide-react";
+import { Truck, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 export function EquipmentRepairQueue() {
-  const { inventory, markEquipmentRepaired, consumePressureWasherPart } = useInventory();
+  const { inventory, stockTransactions, markEquipmentRepaired, consumePressureWasherPart, receiveRepairAtCentral } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
   const [refreshTick, setRefreshTick] = useState(0);
+
+  const pendingRepairReceipts = stockTransactions.filter(
+    (t: any) => t.cityId === city && t.type === "Transfer" && t.fromLocation === "Branch" && t.toLocation === "Central" && t.status === "Pending"
+  );
+  const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [qtyReceived, setQtyReceived] = useState("");
+  const [qtyMissing, setQtyMissing] = useState("0");
+  const [receiptNotes, setReceiptNotes] = useState("");
+
+  const openReceive = (transactionId: string, sentQty: number) => {
+    setReceivingId(transactionId);
+    setQtyReceived(String(sentQty));
+    setQtyMissing("0");
+    setReceiptNotes("");
+  };
+
+  const confirmReceive = () => {
+    if (!receivingId) return;
+    if (qtyReceived.trim() === "" || isNaN(Number(qtyReceived))) {
+      toast.error("Enter the quantity actually received (0 if genuinely nothing arrived)");
+      return;
+    }
+    const received = parseInt(qtyReceived, 10);
+    const missing = parseInt(qtyMissing, 10) || 0;
+    const transaction = pendingRepairReceipts.find((t: any) => t.transactionId === receivingId);
+    const sentQty = transaction?.quantitySent ?? transaction?.quantity ?? 0;
+    if (received < 0 || missing < 0) {
+      toast.error("Quantity received/missing can't be negative");
+      return;
+    }
+    if (received + missing > sentQty) {
+      toast.error(`Received (${received}) + missing (${missing}) can't exceed what was dispatched (${sentQty})`);
+      return;
+    }
+    receiveRepairAtCentral(receivingId, received, missing, receiptNotes || undefined, city);
+    toast.success("Receipt confirmed — now in the real Mark Repaired queue below");
+    setReceivingId(null);
+    setRefreshTick((t) => t + 1);
+  };
 
   const underRepair = inventory.filter((i: any) => i.cityId === city && (i.underRepairStock || 0) > 0);
   // ✅ FIX: previously there was no way to record which real spare part
@@ -66,6 +111,51 @@ export function EquipmentRepairQueue() {
   };
 
   return (
+    <div className="space-y-6">
+      {pendingRepairReceipts.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Truck className="w-4 h-4" /> Awaiting Receipt from Branch ({pendingRepairReceipts.length})</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {pendingRepairReceipts.map((t: any) => {
+              const item = inventory.find((i: any) => i.itemId === t.itemId);
+              return (
+                <div key={t.transactionId} className="bg-white rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{item?.itemName || t.itemId}</p>
+                      <p className="text-xs text-gray-500">Challan {t.challanNumber} · Dispatched: {t.quantitySent}</p>
+                    </div>
+                    {receivingId !== t.transactionId && (
+                      <Button size="sm" onClick={() => openReceive(t.transactionId, t.quantitySent || t.quantity)}>Confirm Receipt</Button>
+                    )}
+                  </div>
+                  {receivingId === t.transactionId && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
+                      <div>
+                        <Label className="text-xs">Quantity Received</Label>
+                        <Input type="number" value={qtyReceived} onChange={(e) => setQtyReceived(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Missing in Transit (if any)</Label>
+                        <Input type="number" value={qtyMissing} onChange={(e) => setQtyMissing(e.target.value)} />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Notes (if any)</Label>
+                        <Input value={receiptNotes} onChange={(e) => setReceiptNotes(e.target.value)} placeholder="What happened, if relevant" />
+                      </div>
+                      <div className="col-span-2 flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setReceivingId(null)}>Cancel</Button>
+                        <Button size="sm" onClick={confirmReceive}>Confirm</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
@@ -121,6 +211,7 @@ export function EquipmentRepairQueue() {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }
 
