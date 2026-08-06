@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart, Download } from "lucide-react";
+import { Plus, Search, FileText, CheckCircle, Clock, XCircle, Trash2, ShoppingCart, Download, Package } from "lucide-react";
 import { toast } from "sonner";
 // ✅ NEW: real vendor master (already exists, was just never wired into this
 // screen — previously a 4-item hardcoded suppliers array with no
@@ -260,7 +260,9 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
       status: "Pending Approval",
       date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
       items: validItems.length,
-      itemsList: validItems,
+      // receivedQty: 0 seeds real per-line GRN tracking — GRNEntry.tsx
+      // increments this as goods are received against this PO.
+      itemsList: validItems.map((i) => ({ ...i, receivedQty: 0 })),
       createdAt: new Date().toISOString(),
       poRecord,
     };
@@ -363,6 +365,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
       case "Pending Approval": return "destructive";
       case "Approved": return "default";
       case "In Transit": return "secondary";
+      case "Partially Received": return "secondary";
       case "Delivered": return "outline";
       case "Cancelled": return "outline";
       default: return "outline";
@@ -370,12 +373,15 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
   };
 
   const getStatusBadgeClassName = (status: string) =>
-    status === "Cancelled" ? "bg-red-50 text-red-700 border-red-300" : undefined;
+    status === "Cancelled" ? "bg-red-50 text-red-700 border-red-300"
+    : status === "Partially Received" ? "bg-amber-50 text-amber-700 border-amber-300"
+    : undefined;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "Pending Approval": return <Clock className="w-4 h-4" />;
       case "Approved": return <CheckCircle className="w-4 h-4" />;
+      case "Partially Received": return <Package className="w-4 h-4 text-amber-600" />;
       case "Delivered": return <CheckCircle className="w-4 h-4 text-green-600" />;
       case "Cancelled": return <XCircle className="w-4 h-4 text-red-600" />;
       default: return <FileText className="w-4 h-4" />;
@@ -407,7 +413,7 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-orange-600">{purchaseOrders.filter(po => po.status === "Pending Approval").length}</p>
@@ -424,6 +430,12 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-purple-600">{purchaseOrders.filter(po => po.status === "In Transit").length}</p>
             <p className="text-xs text-gray-500">In Transit</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-amber-600">{purchaseOrders.filter(po => po.status === "Partially Received").length}</p>
+            <p className="text-xs text-gray-500">Partially Received</p>
           </CardContent>
         </Card>
         <Card>
@@ -811,11 +823,23 @@ export function PurchaseOrders({ prefillFromMR, onPrefillConsumed }: PurchaseOrd
                 <div>
                   <p className="text-xs font-semibold text-gray-600 mb-2">Line Items</p>
                   <table className="w-full text-xs border-collapse">
-                    <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b">Item</th><th className="text-right px-2 py-1.5 border-b">Qty</th><th className="text-right px-2 py-1.5 border-b">Rate</th><th className="text-right px-2 py-1.5 border-b">Amount</th></tr></thead>
+                    <thead><tr className="bg-gray-50"><th className="text-left px-2 py-1.5 border-b">Item</th><th className="text-right px-2 py-1.5 border-b">Qty</th><th className="text-right px-2 py-1.5 border-b">Received</th><th className="text-right px-2 py-1.5 border-b">Rate</th><th className="text-right px-2 py-1.5 border-b">Amount</th></tr></thead>
                     <tbody className="divide-y">{viewPO.itemsList.map((item: any, i: number) => (
-                      <tr key={i}><td className="px-2 py-1.5">{item.itemName}</td><td className="px-2 py-1.5 text-right">{item.quantity} {item.unit}</td><td className="px-2 py-1.5 text-right">₹{item.rate}</td><td className="px-2 py-1.5 text-right font-medium">₹{item.amount.toLocaleString()}</td></tr>
+                      <tr key={i}>
+                        <td className="px-2 py-1.5">{item.itemName}</td>
+                        <td className="px-2 py-1.5 text-right">{item.quantity} {item.unit}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          {item.receivedQty != null ? (
+                            <span className={item.receivedQty >= item.quantity ? "text-green-600 font-medium" : item.receivedQty > 0 ? "text-amber-600 font-medium" : "text-gray-400"}>
+                              {item.receivedQty}
+                            </span>
+                          ) : <span className="text-gray-400">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">₹{item.rate}</td>
+                        <td className="px-2 py-1.5 text-right font-medium">₹{item.amount.toLocaleString()}</td>
+                      </tr>
                     ))}</tbody>
-                    <tfoot><tr className="border-t-2"><td className="px-2 py-1.5 font-bold" colSpan={3}>Total</td><td className="px-2 py-1.5 text-right font-bold">₹{viewPO.amount.toLocaleString()}</td></tr></tfoot>
+                    <tfoot><tr className="border-t-2"><td className="px-2 py-1.5 font-bold" colSpan={4}>Total</td><td className="px-2 py-1.5 text-right font-bold">₹{viewPO.amount.toLocaleString()}</td></tr></tfoot>
                   </table>
                 </div>
               )}

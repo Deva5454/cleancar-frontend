@@ -36,24 +36,33 @@ import {
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 
-// A saved PO only ever records a total item COUNT and rupee amount, never
-// per-line quantities (see PurchaseOrderCreation.tsx) — so "ordered" here
-// falls back to that rupee amount only until a real GRN has actually been
-// recorded against this PO (at which point orderedQty/receivedQty, set by
-// handleSubmitGRN below, become the real per-unit figures).
+// ✅ FIX: this used to read po.po / po.vendor / po.orderedQty — fields that
+// don't exist on a real PO record (PurchaseOrders.tsx writes poNumber /
+// supplier / itemsList). Every field read here came back undefined, so no
+// PO ever matched, every PO looked "pending" forever regardless of its
+// real status, and a completed GRN could never actually close a PO out.
+// Real per-line ordered/received quantities now come straight from
+// itemsList (each line carries its own receivedQty, updated by
+// handleSubmitGRN below) — only POs with real line-item data, that are
+// Approved or already Partially Received and not yet fully Delivered or
+// Cancelled, are eligible to receive against.
 function buildPendingDeliveries(posList: any[]) {
   return posList
-    .filter((po: any) => po.status !== "GRN Complete")
-    .map((po: any, i: number) => ({
-      id: i + 1,
-      po: po.po,
-      vendor: po.vendor,
-      items: po.items || 0,
-      ordered: po.orderedQty ?? po.amount ?? 0,
-      received: po.receivedQty || 0,
-      status: po.status === "Partial Delivery" ? "Partial" : "Pending",
-      date: po.date,
-    }));
+    .filter((po: any) => po.itemsList?.length > 0 && (po.status === "Approved" || po.status === "Partially Received"))
+    .map((po: any, i: number) => {
+      const ordered = po.itemsList.reduce((s: number, it: any) => s + (it.quantity || 0), 0);
+      const received = po.itemsList.reduce((s: number, it: any) => s + (it.receivedQty || 0), 0);
+      return {
+        id: i + 1,
+        po: po.poNumber,
+        vendor: po.supplier,
+        items: po.items || po.itemsList.length,
+        ordered,
+        received,
+        status: received > 0 && received < ordered ? "Partial" : "Pending",
+        date: po.date,
+      };
+    });
 }
 
 export function GRNEntry() {
@@ -69,16 +78,44 @@ export function GRNEntry() {
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedPO, setSelectedPO] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
+  // Index into the selected PO's own itemsList — used instead of
+  // selectedItemId whenever GRN is being recorded against a real PO, so
+  // the quantity ordered/remaining comes from that PO's actual line, not
+  // a free-typed guess.
+  const [selectedLineIndex, setSelectedLineIndex] = useState("");
 
   const cityItems = (inventory || []).filter((i: any) => i.cityId === city);
   const selectedVendorName = savedVendors.find(v => v.id === selectedVendor)?.name || "";
 
+  // ✅ FIX: was po.vendor (always undefined on a real PO record, so this
+  // filter matched nothing once a vendor was picked) and po.status !==
+  // "GRN Complete" (a status this app never actually writes, so it never
+  // excluded anything — even Cancelled/Delivered POs stayed "open").
+  // Only POs with real line-item data that are Approved or already
+  // Partially Received are eligible to receive against.
   const openPOs = savedPOs.filter((po: any) =>
-    po.status !== "GRN Complete" && (!selectedVendorName || po.vendor === selectedVendorName)
+    po.itemsList?.length > 0 &&
+    (po.status === "Approved" || po.status === "Partially Received") &&
+    (!selectedVendorName || po.supplier === selectedVendorName)
   );
 
+  const selectedPOObj = selectedPO && selectedPO !== "manual"
+    ? savedPOs.find((po: any) => po.poNumber === selectedPO)
+    : null;
+  // Only lines that still have something outstanding to receive.
+  const poLineItems = (selectedPOObj?.itemsList || []).filter((it: any) => (it.receivedQty || 0) < it.quantity);
+  const selectedLine = selectedLineIndex !== "" ? poLineItems[parseInt(selectedLineIndex, 10)] : null;
+  // Resolve the real inventory item to procure into: prefer the line's
+  // own itemId (set when this PO's item was picked from the real item
+  // catalog); otherwise a best-effort name match against this city's
+  // item master, for older/custom-typed PO lines that never had one.
+  const resolvedItemId = selectedLine
+    ? (selectedLine.itemId || cityItems.find((i: any) => i.itemName.toLowerCase() === selectedLine.itemName.toLowerCase())?.itemId || "")
+    : "";
+  const remainingForLine = selectedLine ? selectedLine.quantity - (selectedLine.receivedQty || 0) : 0;
+
   const [pendingDeliveries, setPendingDeliveries] = useState(() => buildPendingDeliveries(savedPOs));
-  const completedCount = savedPOs.filter((po: any) => po.status === "GRN Complete").length;
+  const completedCount = savedPOs.filter((po: any) => po.status === "Delivered").length;
 
   const [documentFileName, setDocumentFileName] = useState<string | null>(null);
   const [documentFileType, setDocumentFileType] = useState<string | null>(null);
@@ -114,15 +151,32 @@ export function GRNEntry() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const quantityReceived = parseInt(formData.get('quantity-received') as string) || 0;
-    const quantityOrdered  = parseInt(formData.get('quantity-ordered')  as string) || 0;
     const challanNo        = String(formData.get('challan-number') || "");
 
     if (!selectedVendor) { toast.error("Please select a vendor."); return; }
-    if (!selectedItemId) { toast.error("Please select which item was received."); return; }
     if (!challanNo.trim()) { toast.error("Please enter the challan number."); return; }
 
-    const invItem = cityItems.find((i: any) => i.itemId === selectedItemId);
-    const itemName = invItem?.itemName || "Unknown Item";
+    // Real per-PO-line receipt when a real PO is selected; falls back to
+    // the free-typed manual path (no PO to reference) otherwise.
+    let quantityOrdered: number;
+    let itemName: string;
+    let procureItemId: string;
+
+    if (selectedPOObj) {
+      if (!selectedLine) { toast.error("Select which item on this PO was received."); return; }
+      if (!resolvedItemId) {
+        toast.error(`"${selectedLine.itemName}" on this PO isn't linked to a real inventory item — add it to the item master first, or record this GRN manually without selecting a PO.`);
+        return;
+      }
+      quantityOrdered = remainingForLine;
+      itemName = selectedLine.itemName;
+      procureItemId = resolvedItemId;
+    } else {
+      if (!selectedItemId) { toast.error("Please select which item was received."); return; }
+      quantityOrdered = parseInt(formData.get('quantity-ordered') as string) || 0;
+      itemName = cityItems.find((i: any) => i.itemId === selectedItemId)?.itemName || "Unknown Item";
+      procureItemId = selectedItemId;
+    }
     const supplierName = selectedVendorName || "Walk-in";
 
     // ✅ C3 FIX: Save GRN record to localStorage
@@ -148,24 +202,35 @@ export function GRNEntry() {
     // weighted-average cost update via the same path every other real
     // procurement in this app goes through.
     if (quantityReceived > 0) {
-      procureInventory(selectedItemId, quantityReceived, selectedVendor, city);
+      procureInventory(procureItemId, quantityReceived, selectedVendor, city);
     }
 
-    // Reflect this GRN on the real PO it was recorded against (if any),
-    // so the status cards/alert below stop showing permanently-fake
-    // numbers and instead track real per-PO receipt state.
+    // ✅ FIX: was matched on po.po (always undefined) and wrote a status
+    // ("GRN Complete"/"Partial Delivery") that PurchaseOrders.tsx never
+    // reads or displays — the two screens were writing to the same
+    // localStorage key with completely incompatible shapes. Now updates
+    // the specific line item's receivedQty and rolls that up into the
+    // real PO status vocabulary ("Partially Received"/"Delivered") that
+    // PurchaseOrders.tsx actually renders.
     let updatedPOs = savedPOs;
-    if (selectedPO && selectedPO !== "manual") {
+    if (selectedPOObj) {
+      const fullIndex = selectedPOObj.itemsList.findIndex((it: any) => it === selectedLine);
       updatedPOs = savedPOs.map((po: any) => {
-        if (po.po !== selectedPO) return po;
-        const newReceived = (po.receivedQty || 0) + quantityReceived;
-        const targetQty = po.orderedQty ?? quantityOrdered ?? newReceived;
-        return {
-          ...po,
-          orderedQty: targetQty,
-          receivedQty: newReceived,
-          status: newReceived >= targetQty ? "GRN Complete" : "Partial Delivery",
-        };
+        if (po.poNumber !== selectedPOObj.poNumber) return po;
+        const newItemsList = po.itemsList.map((it: any, idx: number) =>
+          idx === fullIndex ? { ...it, receivedQty: (it.receivedQty || 0) + quantityReceived } : it
+        );
+        const allReceived = newItemsList.every((it: any) => (it.receivedQty || 0) >= it.quantity);
+        const anyReceived = newItemsList.some((it: any) => (it.receivedQty || 0) > 0);
+        const newStatus = allReceived ? "Delivered" : anyReceived ? "Partially Received" : po.status;
+        const newPoRecord = po.poRecord ? {
+          ...po.poRecord,
+          status: allReceived ? "Fully Received" : "Partially Received",
+          items: po.poRecord.items.map((it: any, idx: number) =>
+            idx === fullIndex ? { ...it, receivedQty: (it.receivedQty || 0) + quantityReceived } : it
+          ),
+        } : po.poRecord;
+        return { ...po, itemsList: newItemsList, status: newStatus, poRecord: newPoRecord };
       });
       try { localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updatedPOs)); } catch {}
       setSavedPOs(updatedPOs);
@@ -186,6 +251,7 @@ export function GRNEntry() {
     setSelectedVendor("");
     setSelectedPO("");
     setSelectedItemId("");
+    setSelectedLineIndex("");
   };
 
   const partialDeliveries = pendingDeliveries.filter(d => d.status === "Partial");
@@ -221,7 +287,7 @@ export function GRNEntry() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="vendor">Vendor Name *</Label>
-                      <Select value={selectedVendor} onValueChange={v => { setSelectedVendor(v); setSelectedPO(""); }}>
+                      <Select value={selectedVendor} onValueChange={v => { setSelectedVendor(v); setSelectedPO(""); setSelectedLineIndex(""); setSelectedItemId(""); }}>
                         <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
                         <SelectContent>
                           {savedVendors.length > 0 ? savedVendors.map(v => (
@@ -234,28 +300,44 @@ export function GRNEntry() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="po-number">Purchase Order Number *</Label>
-                      <Select value={selectedPO} onValueChange={setSelectedPO} disabled={!selectedVendor}>
+                      <Select value={selectedPO} onValueChange={v => { setSelectedPO(v); setSelectedLineIndex(""); setSelectedItemId(""); }} disabled={!selectedVendor}>
                         <SelectTrigger>
                           <SelectValue placeholder={selectedVendor ? "Select PO" : "Select vendor first"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {openPOs.map((po: any) => <SelectItem key={po.po} value={po.po}>{po.po} — ₹{(po.amount ?? 0).toLocaleString()}</SelectItem>)}
+                          {openPOs.map((po: any) => <SelectItem key={po.poNumber} value={po.poNumber}>{po.poNumber} — ₹{(po.amount ?? 0).toLocaleString()}</SelectItem>)}
                           <SelectItem value="manual">Enter manually (no PO)</SelectItem>
+                          {openPOs.length === 0 && <SelectItem value="__none_open__" disabled>No Approved POs open for receipt for this vendor</SelectItem>}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="item">Item Received *</Label>
-                      <Select value={selectedItemId} onValueChange={setSelectedItemId}>
-                        <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-                        <SelectContent>
-                          {cityItems.length > 0 ? cityItems.map((i: any) => (
-                            <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.unit})</SelectItem>
-                          )) : (
-                            <SelectItem value="none" disabled>No inventory items found for this city.</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      {selectedPOObj ? (
+                        <Select value={selectedLineIndex} onValueChange={setSelectedLineIndex}>
+                          <SelectTrigger><SelectValue placeholder="Select item on this PO" /></SelectTrigger>
+                          <SelectContent>
+                            {poLineItems.length > 0 ? poLineItems.map((it: any, idx: number) => (
+                              <SelectItem key={idx} value={String(idx)}>
+                                {it.itemName} — {it.quantity - (it.receivedQty || 0)} remaining of {it.quantity}
+                              </SelectItem>
+                            )) : (
+                              <SelectItem value="none" disabled>All items on this PO are already fully received.</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Select value={selectedItemId} onValueChange={setSelectedItemId}>
+                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectContent>
+                            {cityItems.length > 0 ? cityItems.map((i: any) => (
+                              <SelectItem key={i.itemId} value={i.itemId}>{i.itemName} ({i.unit})</SelectItem>
+                            )) : (
+                              <SelectItem value="none" disabled>No inventory items found for this city.</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="challan-number">Challan Number *</Label>
@@ -263,7 +345,11 @@ export function GRNEntry() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quantity-ordered">Quantity Ordered *</Label>
-                      <Input id="quantity-ordered" name="quantity-ordered" type="number" min="1" defaultValue="100" required />
+                      {selectedPOObj ? (
+                        <Input key="po-line" id="quantity-ordered" name="quantity-ordered" type="number" value={remainingForLine} readOnly className="bg-gray-50" title="Remaining quantity on this PO line — not editable" />
+                      ) : (
+                        <Input key="manual" id="quantity-ordered" name="quantity-ordered" type="number" min="1" defaultValue="100" required />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quantity-received">Quantity Received *</Label>
@@ -433,6 +519,8 @@ export function GRNEntry() {
                           const vendorId = savedVendors.find(v => v.name === delivery.vendor)?.id || "";
                           setSelectedVendor(vendorId);
                           setSelectedPO(delivery.po);
+                          setSelectedLineIndex("");
+                          setSelectedItemId("");
                           setGrnDialogOpen(true);
                         }}
                       >
