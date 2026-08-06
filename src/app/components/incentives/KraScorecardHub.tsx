@@ -42,6 +42,15 @@ import { SUPERVISOR_ROLE, computeSupervisorKraScores, seedSupervisorKpiCatalogIf
 import { OM_ROLE, computeOMKraScores, seedOMKpiCatalogIfMissing } from "../../services/kraOMPilot";
 import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager, seedCityKpiCatalogIfMissing } from "../../services/kraCityPilot";
 import { CCE_ROLE, computeCCEKraScores, seedCCEKpiCatalogIfMissing, type CCEComplaintLike } from "../../services/kraCCEPilot";
+import { ACCOUNTS_ROLE, computeAccountsKraScores, seedAccountsKpiCatalogIfMissing } from "../../services/kraAccountsPilot";
+import { STORE_ROLE, computeStoreKraScores, seedStoreKpiCatalogIfMissing, readMonthEndVerifications } from "../../services/kraStorePilot";
+import { PROCUREMENT_ROLE, computeProcurementKraScores, seedProcurementKpiCatalogIfMissing } from "../../services/kraProcurementPilot";
+import { seedTSEKpiCatalogIfMissing } from "../../services/kraTSEPilot";
+import { seedTSMKpiCatalogIfMissing } from "../../services/kraTSMPilot";
+import { seedSalesHeadKpiCatalogIfMissing } from "../../services/kraSalesHeadPilot";
+import { seedSalesManagerKpiCatalogIfMissing } from "../../services/kraSalesManagerPilot";
+import { seedClusterManagerKpiCatalogIfMissing } from "../../services/kraClusterManagerPilot";
+import { seedHRKpiCatalogIfMissing } from "../../services/kraHRPilot";
 import { getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActual, getEffectiveQuarterlyKpiValue } from "../../services/kraEngineService";
 import { getFinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -50,7 +59,7 @@ import { Label } from "../ui/label";
 import { Progress } from "../ui/progress";
 import { Target, AlertCircle, CheckCircle, XCircle, MinusCircle } from "lucide-react";
 
-const CITY_LEVEL_ROLES = new Set([OM_ROLE, CITY_ROLE, CCE_ROLE]);
+const CITY_LEVEL_ROLES = new Set([OM_ROLE, CITY_ROLE, CCE_ROLE, ACCOUNTS_ROLE, STORE_ROLE, PROCUREMENT_ROLE]);
 const ALL_CITIES = ["CITY-SURAT", "CITY-MUMBAI", "CITY-AHMEDABAD"];
 
 function readComplaints(): CCEComplaintLike[] {
@@ -80,7 +89,7 @@ export function KraScorecardHub() {
   const { employeeIncentives } = useIncentive();
   const { subscriptions } = useCustomerSubscriptions();
   const { customers } = useCustomers();
-  const { getRevenueByCity } = useFinance();
+  const { getRevenueByCity, getPayablesByCity } = useFinance();
 
   const isHRorSuperAdmin = currentRole === "HR" || currentRole === "Super Admin";
   const directReports = useMemo(() => getDirectReports(currentUser?.employeeId || ""), [getDirectReports, currentUser]);
@@ -127,6 +136,15 @@ export function KraScorecardHub() {
     seedOMKpiCatalogIfMissing();
     seedCityKpiCatalogIfMissing();
     seedCCEKpiCatalogIfMissing();
+    seedAccountsKpiCatalogIfMissing();
+    seedStoreKpiCatalogIfMissing();
+    seedProcurementKpiCatalogIfMissing();
+    seedTSEKpiCatalogIfMissing();
+    seedTSMKpiCatalogIfMissing();
+    seedSalesHeadKpiCatalogIfMissing();
+    seedSalesManagerKpiCatalogIfMissing();
+    seedClusterManagerKpiCatalogIfMissing();
+    seedHRKpiCatalogIfMissing();
   }, []);
 
   const catalog = useMemo(() => getKpiCatalog(), [selectedRole]);
@@ -134,6 +152,8 @@ export function KraScorecardHub() {
   const journals = useMemo(() => selectedRole === CITY_ROLE ? accountingEntryService.getAllJournals() : [], [selectedRole]);
   const ledgers = useMemo(() => selectedRole === CITY_ROLE ? accountingEntryService.getLedgers() : [], [selectedRole]);
   const complaints = useMemo(() => selectedRole === CCE_ROLE ? readComplaints() : [], [selectedRole]);
+  const payables = useMemo(() => (selectedRole === ACCOUNTS_ROLE || selectedRole === PROCUREMENT_ROLE) ? getPayablesByCity(selectedCityId) : [], [selectedRole, getPayablesByCity, selectedCityId]);
+  const monthEndRecords = useMemo(() => selectedRole === STORE_ROLE ? readMonthEndVerifications() : [], [selectedRole]);
 
   // ── Real per-role computation, reusing each pilot's own formula ──
   const washerResult = useMemo(() => {
@@ -160,6 +180,21 @@ export function KraScorecardHub() {
     if (selectedRole !== CITY_ROLE) return null;
     return computeCityKraScores(selectedCityId, month, entries as any, subscriptions as any, customers as any, journals as any, ledgers as any);
   }, [selectedRole, selectedCityId, month, entries, subscriptions, customers, journals, ledgers]);
+
+  const accountsResult = useMemo(() => {
+    if (selectedRole !== ACCOUNTS_ROLE) return null;
+    return computeAccountsKraScores(selectedCityId, month, payables as any);
+  }, [selectedRole, selectedCityId, month, payables]);
+
+  const storeResult = useMemo(() => {
+    if (selectedRole !== STORE_ROLE) return null;
+    return computeStoreKraScores(selectedCityId, month, monthEndRecords);
+  }, [selectedRole, selectedCityId, month, monthEndRecords]);
+
+  const procurementResult = useMemo(() => {
+    if (selectedRole !== PROCUREMENT_ROLE) return null;
+    return computeProcurementKraScores(selectedCityId, month, payables as any);
+  }, [selectedRole, selectedCityId, month, payables]);
 
   // ── Generic path: any other role, reads whatever actuals exist (manual or system) ──
   const genericResult: { results: GenericKraRow[]; totalScore: number | null; realWeightCovered: number } | null = useMemo(() => {
@@ -265,6 +300,18 @@ export function KraScorecardHub() {
               <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
                 kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
+            {accountsResult && accountsResult.results.map((kra) => (
+              <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
+            ))}
+            {storeResult && storeResult.results.map((kra) => (
+              <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
+            ))}
+            {procurementResult && procurementResult.results.map((kra) => (
+              <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
+                kpis={kra.kpiResults.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
+            ))}
             {cityResult && cityResult.results.map((kra) => {
               if (!maskCityFigures) {
                 return <KraBlock key={kra.kraCode} name={kra.kraName} weight={kra.kraWeight} score={kra.kraScore}
@@ -285,7 +332,7 @@ export function KraScorecardHub() {
                 kpis={kra.kpis.map((k) => ({ name: k.kpiName, actual: k.actual, target: k.target, pct: k.achievementPct, quarterly: quarterlyFor(k.kpiCode) }))} />
             ))}
 
-            {!washerResult && !supervisorResult && !omResult && !cceResult && !cityResult && !genericResult && (
+            {!washerResult && !supervisorResult && !omResult && !cceResult && !cityResult && !accountsResult && !storeResult && !procurementResult && !genericResult && (
               <p className="text-sm text-gray-400 text-center py-6">Select an employee to see their scorecard.</p>
             )}
           </CardContent>
