@@ -15,6 +15,13 @@ import {
   FileText, CheckCircle, XCircle, AlertTriangle, Package, ShoppingCart, IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
+// ✅ NEW: real Finance payable + Vendor Master — previously "matching" an
+// invoice pushed a raw record into a disconnected localStorage key
+// (cleancar_supplier_payments) that FinanceContext never read, so a
+// matched invoice never actually became payable anywhere real.
+import { useFinance, type Payable } from "../../contexts/FinanceContext";
+import { useCity } from "../../contexts/CityContext";
+import { gstComplianceService } from "../../services/gstComplianceService";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface InvoiceLine { description: string; qty: number; unit: string; unitPrice: number; total: number; }
@@ -99,6 +106,8 @@ const INITIAL_INVOICES: Invoice[] = [
 ];
 
 export function InvoiceMatching() {
+  const { city } = useCity();
+  const { payables, createPayable, updatePayable } = useFinance();
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     try {
       const stored = localStorage.getItem("cleancar_invoices");
@@ -182,24 +191,59 @@ export function InvoiceMatching() {
   const [resolutionType, setResolutionType] = useState("");
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+  // ✅ FIX: previously pushed a raw record into cleancar_supplier_payments,
+  // a localStorage key FinanceContext never read — a "matched" invoice
+  // never actually became a real payable anywhere. Now links to (or
+  // creates) a real Vendor Payable, visible in Supplier Payments,
+  // Payables Dashboard, and Creditors Report alike.
   const handleConfirmMatch = (inv: Invoice) => {
     persistInvoices(invoices.map(i =>
       i.invoiceNumber === inv.invoiceNumber
         ? { ...i, status:"Matched", matchType:"3-Way Match" }
         : i
     ));
-    // Push to payment queue
-    try {
-      const payments = JSON.parse(localStorage.getItem("cleancar_supplier_payments") || "[]");
-      payments.unshift({
-        paymentId: `PAY-${Date.now()}`, supplier: inv.supplier,
-        invoices: [inv.invoiceNumber], amount: inv.amount,
-        dueDate: inv.dueDate ?? "TBD", status: "Pending Approval",
-        paymentMethod: "NEFT", createdAt: new Date().toISOString(),
+
+    // If this invoice's PO already has a real payable (created when its
+    // GRN was received — see GRNEntry.tsx), link the invoice to it and
+    // mark it ready for payment rather than creating a duplicate. The
+    // GRN-derived amount (real GST included) stays authoritative; a
+    // genuine mismatch is exactly what the 3-way match/discrepancy flow
+    // above is for, not something to silently overwrite here.
+    const existingPayable = inv.poNumber && inv.poNumber !== "—"
+      ? payables.find((p: Payable) => p.type === "Vendor" && p.poNumber === inv.poNumber)
+      : undefined;
+
+    if (existingPayable) {
+      updatePayable(existingPayable.payableId, {
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        status: existingPayable.status === "Pending" ? "Approved" : existingPayable.status,
       });
-      localStorage.setItem("cleancar_supplier_payments", JSON.stringify(payments));
-    } catch {}
-    toast.success(`${inv.invoiceNumber} matched ✓ — added to payment queue`);
+      if (Math.abs(existingPayable.amount - inv.amount) > 1) {
+        toast.warning(`${inv.invoiceNumber} matched, but the invoice amount (₹${inv.amount.toLocaleString()}) differs from the GRN-derived payable amount (₹${existingPayable.amount.toLocaleString()}) — the real GRN/GST figure was kept.`);
+      } else {
+        toast.success(`${inv.invoiceNumber} matched ✓ — approved for payment`);
+      }
+    } else {
+      // No PO-linked payable exists (e.g. a manually recorded invoice
+      // with no real PO/GRN behind it) — create one directly, best-effort
+      // linking to a real vendor by name if it matches the Vendor Master.
+      const vendor = gstComplianceService.getVendors().find(v => v.name.toLowerCase() === inv.supplier.toLowerCase());
+      createPayable({
+        type: "Vendor",
+        vendorId: vendor?.id,
+        vendorName: inv.supplier,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        amount: inv.amount,
+        dueDate: inv.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+        status: "Approved",
+        description: `Invoice ${inv.invoiceNumber} — ${inv.supplier}`,
+        cityId: city,
+      });
+      toast.success(`${inv.invoiceNumber} matched ✓ — approved for payment`);
+    }
+
     setMatchInvoice(null);
   };
 

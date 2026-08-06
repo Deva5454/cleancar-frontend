@@ -57,11 +57,15 @@ import {
 } from "recharts";
 import { gstComplianceService } from "../../services/gstComplianceService";
 import { useRole } from "../../contexts/RoleContext";
+// ✅ NEW: real Finance payable data — this vendor's outstanding balance
+// and payment history are now genuinely computable from it.
+import { useFinance, type Payable } from "../../contexts/FinanceContext";
 
 export function SupplierDetail() {
   const navigate = useNavigate();
   const { supplierId } = useParams();
   const { currentUser } = useRole();
+  const { payables } = useFinance();
   // Bumped after any real save (blacklist/reactivate/note) so vendors/
   // vendorData/supplier below recompute with the persisted change —
   // gstComplianceService.getVendors() isn't reactive on its own.
@@ -85,12 +89,15 @@ export function SupplierDetail() {
     // No real vendor rating exists anywhere in this app yet — 4.0 is a
     // neutral placeholder, same as before, kept out of this fix's scope.
     rating: (vendorData as any).rating ?? 4.0,
-    // Real fix: neither field exists on GSTVendor (no vendor credit-limit
-    // or outstanding-balance tracking anywhere in this app) — these were
-    // silently defaulting to 0, which then divided 0/0 into NaN% below.
-    // hasCreditData stays false so the UI can say "Not tracked" honestly
-    // instead of showing a fabricated ₹0K / NaN%.
-    outstanding: 0,
+    // ✅ FIX: outstanding is now real — the sum of remaining balance
+    // (amount - paidAmount) across this vendor's real, not-yet-fully-paid
+    // Vendor payables. creditLimit has no real source anywhere in this
+    // app (no such field on GSTVendor), so hasCreditData stays false and
+    // that card honestly says "Not tracked" rather than fabricating a
+    // limit or a NaN% utilization against it.
+    outstanding: payables
+      .filter((p: Payable) => p.type === "Vendor" && p.vendorId === vendorData?.id && p.status !== "Paid")
+      .reduce((s: number, p: Payable) => s + (p.amount - (p.paidAmount || 0)), 0),
     creditLimit: 0,
     hasCreditData: false,
     paymentTerms: vendorData.paymentTerms || "Net 30",
@@ -109,13 +116,12 @@ export function SupplierDetail() {
         .slice(0, 5);
     } catch { return []; }
   })();
-  const paymentHistory = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("cleancar_supplier_payments") || "[]")
-        .filter((p: any) => supplier && (p.supplier ?? "").toLowerCase().includes(supplier.companyName.split(" ")[0].toLowerCase()))
-        .slice(0, 5);
-    } catch { return []; }
-  })();
+  // ✅ FIX: previously matched by a fragile substring of the supplier's
+  // name against a disconnected mock localStorage key. Real payables,
+  // matched by the real vendorId — no name-guessing needed.
+  const paymentHistory = payables
+    .filter((p: Payable) => p.type === "Vendor" && p.vendorId === vendorData?.id)
+    .slice(0, 5);
   const invoiceHistory: any[] = [];
   // Real compliance documents already uploaded via GST → Vendor Master
   // (gstCertificate/panCertificate) — replaces a permanently-empty fake list.
@@ -291,9 +297,9 @@ export function SupplierDetail() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Outstanding</p>
-                <p className="text-2xl font-bold text-gray-400">Not tracked</p>
+                <p className="text-2xl font-bold text-gray-900">₹{(supplier?.outstanding ?? 0).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  No real vendor credit/outstanding tracking yet
+                  Real unpaid balance across this vendor's payables
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-amber-600 opacity-20" />
@@ -539,17 +545,26 @@ export function SupplierDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentHistory.map((payment, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{payment.date}</TableCell>
-                      <TableCell className="text-right font-medium">₹{payment.amount.toLocaleString()}</TableCell>
+                  {/* ✅ FIX: was rendering payment.date/.mode/.reference/.invoices
+                      — fields that never existed on the old mock Payment type
+                      either, so this table always rendered blank/undefined.
+                      Real Payable fields now. */}
+                  {paymentHistory.map((payment: Payable) => (
+                    <TableRow key={payment.payableId}>
+                      <TableCell>{payment.paidAt ? new Date(payment.paidAt).toLocaleDateString("en-IN") : "—"}</TableCell>
+                      <TableCell className="text-right font-medium">₹{((payment.paidAmount ?? payment.amount)).toLocaleString()}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{payment.mode}</Badge>
+                        <Badge variant="outline">{payment.status}</Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{payment.reference}</TableCell>
-                      <TableCell className="text-sm">{payment.invoices}</TableCell>
+                      <TableCell className="font-mono text-xs">{payment.paymentReference || "—"}</TableCell>
+                      <TableCell className="text-sm">{payment.invoiceNumber || "—"}</TableCell>
                     </TableRow>
                   ))}
+                  {paymentHistory.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-400 py-6">No payments on record for this vendor yet.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

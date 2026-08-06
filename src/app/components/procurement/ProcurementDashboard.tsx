@@ -50,12 +50,18 @@ import { toast } from "sonner";
 // 0 is falsy in JS, a genuinely healthy state (e.g. zero overdue payments)
 // was silently replaced with a fake hardcoded number, so a true zero could
 // never actually be shown. Now reports the real count as-is, including 0.
-function computeKPIs() {
+//
+// ✅ FIX: invoicesAwaitingPayment/overduePayments used to read
+// cleancar_supplier_payments — a disconnected mock key SupplierPayments.tsx
+// wrote to but FinanceContext never did. Now reads the real Vendor payables
+// FinanceContext persists (via DataService's FINANCE_PAYABLES entity),
+// the same data SupplierPayments.tsx/PayablesDashboard.tsx now show.
+function computeKPIs(cityId: string) {
   try {
     const mrs      = JSON.parse(localStorage.getItem("cleancar_material_requisitions") || "[]");
     const pos      = JSON.parse(localStorage.getItem("cleancar_purchase_orders")       || "[]");
     const grns     = JSON.parse(localStorage.getItem("cleancar_grn_records")           || "[]");
-    const payments = JSON.parse(localStorage.getItem("cleancar_supplier_payments")     || "[]");
+    const payables = DataService.get<any>("FINANCE_PAYABLES", cityId).filter((p: any) => p.type === "Vendor");
     return {
       openRequisitions:        mrs.filter((r: any) => ["Pending Approval","Draft"].includes(r.status)).length,
       posAwaitingApproval:     pos.filter((p: any) => p.status === "Pending Approval").length,
@@ -66,8 +72,8 @@ function computeKPIs() {
       // InvoiceMatching data source exists) — 0 here is honest; it was
       // previously a permanent fake "7" regardless of real state.
       invoicesPending:         0,
-      invoicesAwaitingPayment: payments.filter((p: any) => p.status === "Pending Approval").length,
-      overduePayments:         payments.filter((p: any) => p.status === "Overdue").length,
+      invoicesAwaitingPayment: payables.filter((p: any) => p.status === "Pending" || p.status === "Approved").length,
+      overduePayments:         payables.filter((p: any) => p.status === "Overdue").length,
     };
   } catch {
     return { openRequisitions:0, posAwaitingApproval:0, posAwaitingAck:0, deliveriesThisWeek:0, grnsQualityCheck:0, invoicesPending:0, invoicesAwaitingPayment:0, overduePayments:0 };
@@ -170,7 +176,7 @@ export function ProcurementOverview() {
   const { currentRole } = useRole();
   const { city } = useCity();
   // ✅ Live KPIs and reorder alerts from real data
-  const kpiData = computeKPIs();
+  const kpiData = computeKPIs(city);
   const reorderAlerts = computeReorderAlerts(city);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showPODialog, setShowPODialog] = useState(false);
