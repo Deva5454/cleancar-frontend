@@ -13,15 +13,29 @@ import {
 } from "../ui/select";
 import {
   Plus, FileText, CheckCircle, Clock, Trash2, Send, Users,
-  Star, TrendingDown, Award, AlertTriangle,
+  Star, TrendingDown, Award, AlertTriangle, ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
+// ✅ NEW: real Vendor Master + real GST engine — previously this screen's
+// supplier list was a 5-item hardcoded local array with no GSTIN/state
+// code, so a quote could never carry real GST (no vendor state to
+// determine CGST+SGST vs IGST), and a PO raised from a quote had no real
+// vendor to link back to.
+import { gstComplianceService } from "../../services/gstComplianceService";
+import { calculateGST } from "../../services/accountingEntryService";
+import { snapshotCurrentTerms } from "../../services/poTermsTemplateService";
+import { useCity } from "../../contexts/CityContext";
+import { useInventory } from "../../contexts/InventoryContext";
+import type { PurchaseOrder } from "../../lib/materialRequisition";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SupplierQuote {
   supplierId: string;
   supplierName: string;
   unitPrice: number;
+  // Taxable value only (unitPrice × RFQ quantity) — the historic meaning of
+  // this field in the seed data (never included tax). Real GST is now
+  // carried separately below rather than folded in silently.
   totalAmount: number;
   deliveryDays: number;
   paymentTerms: string;
@@ -29,6 +43,17 @@ interface SupplierQuote {
   notes?: string;
   rating: number;
   recommended?: boolean;
+  // ✅ NEW: real tax on the quote itself — previously a quotation never
+  // mentioned tax at all. Computed via the same calculateGST() every real
+  // PO in this app uses, from the real vendor's stateCode. Optional so
+  // older seed quotes (which predate this) still render without
+  // fabricating numbers for them.
+  hsnCode?: string;
+  gstRate?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  grandTotal?: number;
 }
 
 interface RFQRecord {
@@ -38,6 +63,11 @@ interface RFQRecord {
   unit: string;
   status: "Pending Quotes" | "Quotes Received" | "Comparison Done" | "PO Raised";
   suppliers: number;
+  // ✅ NEW: which real vendors this RFQ actually went to — previously only
+  // a count was kept, so there was no way to scope "Record Quote" to the
+  // suppliers actually invited (and no way to re-derive it for older
+  // seed RFQs, which fall back to "any real vendor").
+  invitedSupplierIds?: string[];
   deadline: string;
   quotesReceived?: number;
   createdDate: string;
@@ -96,11 +126,20 @@ const loadRFQs = (): RFQRecord[] => {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// Real delivery-location -> cityId mapping, matching PurchaseOrders.tsx —
+// a PO raised from a quote defaults to Central Store delivery (no
+// location picker in this compare-quotes flow yet).
+const RFQ_DELIVERY_CITY = "CITY-SURAT";
+const RFQ_DELIVERY_ADDRESS = "Central Store, Vesu, Surat, Gujarat";
+
 export function QuotationManagement() {
+  const { city } = useCity();
+  const { inventory } = useInventory();
   const [rfqs, setRfqs]                   = useState<RFQRecord[]>(loadRFQs);
   const [showRFQDialog, setShowRFQDialog] = useState(false);
   const [viewRFQ, setViewRFQ]             = useState<RFQRecord | null>(null);
   const [compareRFQ, setCompareRFQ]       = useState<RFQRecord | null>(null);
+  const [quoteRFQ, setQuoteRFQ]           = useState<RFQRecord | null>(null);
 
   // Create RFQ form state
   const [rfqItems, setRFQItems]           = useState([{ id:1, itemName:"", quantity:0, unit:"Pieces", specifications:"" }]);
@@ -108,13 +147,29 @@ export function QuotationManagement() {
   const [rfqDeadline, setRfqDeadline]     = useState("");
   const [rfqCategory, setRfqCategory]     = useState("");
 
-  const suppliers = [
-    { id:"SUP-001", name:"CleanPro Supplies Pvt Ltd", category:"Chemicals" },
-    { id:"SUP-002", name:"AutoCare Enterprises",      category:"Consumables" },
-    { id:"SUP-003", name:"Karcher India Pvt Ltd",     category:"Equipment" },
-    { id:"SUP-004", name:"Eco Wash Solutions",        category:"Chemicals" },
-    { id:"SUP-005", name:"ProWash Equipment",         category:"Equipment" },
-  ];
+  // Record Quote form state
+  const [quoteVendorId, setQuoteVendorId]         = useState("");
+  const [quoteUnitPrice, setQuoteUnitPrice]       = useState("");
+  const [quoteDeliveryDays, setQuoteDeliveryDays] = useState("");
+  const [quotePaymentTerms, setQuotePaymentTerms] = useState("Net 30");
+  const [quoteValidUntil, setQuoteValidUntil]     = useState("");
+  const [quoteNotes, setQuoteNotes]               = useState("");
+  const [quoteGstRate, setQuoteGstRate]           = useState("18");
+  const [quoteHsnCode, setQuoteHsnCode]           = useState("");
+
+  // ✅ FIX: was a 5-item hardcoded local array with no GSTIN/state code —
+  // now the real Vendor Master, the same one PurchaseOrders.tsx already
+  // uses. Needed for real per-vendor GST (CGST+SGST vs IGST depends on
+  // the vendor's real state) and so a PO raised from a quote links to a
+  // real vendor instead of a free-typed name string.
+  const suppliers = gstComplianceService.getVendors();
+
+  // Real item-master match for this RFQ — when the RFQ's item name is
+  // already a real catalog item, its GST rate/HSN are mapped in
+  // automatically on Record Quote, the same way PurchaseOrders.tsx maps
+  // a catalog item's GST instead of leaving it free-typed per quote.
+  const matchCatalogItem = (itemName: string) =>
+    inventory.find((i: any) => i.cityId === RFQ_DELIVERY_CITY && i.itemName.toLowerCase() === itemName.toLowerCase());
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleAddItem = () =>
@@ -137,6 +192,7 @@ export function QuotationManagement() {
       unit: rfqItems[0].unit,
       status: "Pending Quotes",
       suppliers: selectedSuppliers.length,
+      invitedSupplierIds: selectedSuppliers,
       deadline: rfqDeadline || "TBD",
       createdDate: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
       category: rfqCategory,
@@ -155,16 +211,156 @@ export function QuotationManagement() {
     setSelectedSuppliers([]);
   };
 
-  const handleRaisePO = (rfq: RFQRecord, quote: SupplierQuote) => {
-    const updated = rfqs.map(r => r.id === rfq.id ? { ...r, status:"PO Raised" as const, selectedQuote: quote.supplierId } : r);
+  // ✅ NEW: previously there was no way to actually record a quote a
+  // supplier sent back — only hardcoded seed data ever had quotes at all,
+  // so a real RFQ created in this screen could never move past "Pending
+  // Quotes." Real vendor, real per-quote GST (computed from the vendor's
+  // real state code, the same way every PO in this app computes it).
+  const openRecordQuote = (rfq: RFQRecord) => {
+    setQuoteRFQ(rfq);
+    setQuoteVendorId("");
+    setQuoteUnitPrice("");
+    setQuoteDeliveryDays("");
+    setQuotePaymentTerms("Net 30");
+    setQuoteValidUntil("");
+    setQuoteNotes("");
+    const catalogItem = matchCatalogItem(rfq.item);
+    setQuoteGstRate(catalogItem?.gstRate != null ? String(catalogItem.gstRate) : "18");
+    setQuoteHsnCode(catalogItem?.hsnCode || "");
+  };
+
+  const handleSubmitQuote = () => {
+    if (!quoteRFQ) return;
+    if (!quoteVendorId) { toast.error("Select which supplier this quote is from"); return; }
+    const vendor = suppliers.find(v => v.id === quoteVendorId);
+    if (!vendor) { toast.error("Selected supplier could not be found in the Vendor Master."); return; }
+    const unitPrice = parseFloat(quoteUnitPrice) || 0;
+    if (unitPrice <= 0) { toast.error("Enter a unit price"); return; }
+    if (!quoteValidUntil) { toast.error("Enter a validity date"); return; }
+
+    // ✅ FIX: real GST, computed the same way every PO in this app
+    // computes it — from the real vendor's state code, not fabricated or
+    // silently omitted like every quote before this.
+    const taxableValue = Math.round(unitPrice * quoteRFQ.quantity * 100) / 100;
+    const gstRate = parseFloat(quoteGstRate) || 0;
+    const gst = calculateGST(taxableValue, gstRate, vendor.stateCode, "B2B", RFQ_DELIVERY_CITY);
+    const grandTotal = Math.round((taxableValue + gst.cgst + gst.sgst + gst.igst) * 100) / 100;
+
+    const newQuote: SupplierQuote = {
+      supplierId: vendor.id, supplierName: vendor.name,
+      unitPrice, totalAmount: taxableValue,
+      deliveryDays: parseInt(quoteDeliveryDays) || 0,
+      paymentTerms: quotePaymentTerms,
+      validUntil: new Date(quoteValidUntil).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      notes: quoteNotes.trim() || undefined,
+      // No real quote-rating mechanism exists yet — a flat, clearly
+      // neutral default rather than inventing per-vendor praise.
+      rating: 4.0,
+      hsnCode: quoteHsnCode.trim() || undefined,
+      gstRate, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, grandTotal,
+    };
+
+    const updated = rfqs.map(r => {
+      if (r.id !== quoteRFQ.id) return r;
+      const quotes = [...(r.quotes || []), newQuote];
+      return { ...r, quotes, quotesReceived: quotes.length, status: "Quotes Received" as const };
+    });
     setRfqs(updated);
+    try { localStorage.setItem("cleancar_rfq_records", JSON.stringify(updated)); } catch {}
+    toast.success(`Quote recorded from ${vendor.name} — ₹${grandTotal.toLocaleString("en-IN")} incl. GST`);
+    setQuoteRFQ(null);
+  };
+
+  // ✅ FIX: previously built a completely different, ad-hoc PO shape —
+  // random PO-YYYY-NNNN numbering (not the real CCW-PO{FY}{seq} scheme),
+  // a free-typed supplier name string (no real vendorId), no itemsList,
+  // no GST at all. That PO was a dead end: PurchaseOrders.tsx couldn't
+  // show its GST breakup, it could never be cancelled (no real status
+  // vocabulary), and GRNEntry.tsx couldn't receive against it (no
+  // itemsList). Now builds the exact same real PO shape
+  // PurchaseOrders.tsx's own handleSubmitPO produces, carrying the
+  // quote's real GST straight through — a full citizen of the existing
+  // PO cancel / GRN receipt / Accounts payable pipeline.
+  const handleRaisePO = (rfq: RFQRecord, quote: SupplierQuote) => {
+    const vendor = suppliers.find(v => v.id === quote.supplierId);
+    if (!vendor) { toast.error("This quote's supplier could not be found in the Vendor Master."); return; }
+
+    let existingPOs: any[] = [];
+    try { existingPOs = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]"); } catch {}
+
+    // Same sequential CCW-PO{FY}{seq} numbering PurchaseOrders.tsx uses —
+    // was previously a random PO-YYYY-NNNN, a different, inconsistent
+    // scheme from every other PO in this app.
+    const now = new Date();
+    const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fy = `${String(fyYear).slice(-2)}${String(fyYear + 1).slice(-2)}`;
+    const prefix = `CCW-PO${fy}`;
+    const maxSeq = existingPOs
+      .map((po: any) => po.poNumber || "")
+      .filter((n: string) => n.startsWith(prefix))
+      .map((n: string) => parseInt(n.slice(prefix.length), 10) || 0)
+      .reduce((max: number, n: number) => Math.max(max, n), 0);
+    const poNumber = `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
+
+    // Recompute GST fresh at PO-raise time (rather than trusting the
+    // quote's snapshot) using the same real vendor + delivery-city
+    // inputs, so it always agrees with how every other PO's GST is
+    // computed — the quote's own figures were already real, this just
+    // guards against them going stale between quoting and raising.
+    const gstRate = quote.gstRate ?? 18;
+    const taxableValue = quote.totalAmount;
+    const gst = calculateGST(taxableValue, gstRate, vendor.stateCode, "B2B", RFQ_DELIVERY_CITY);
+    const netAmount = Math.round((taxableValue + gst.cgst + gst.sgst + gst.igst) * 100) / 100;
+
+    const realItem = {
+      itemId: matchCatalogItem(rfq.item)?.itemId || "",
+      itemName: rfq.item, quantity: rfq.quantity, unit: rfq.unit,
+      rate: quote.unitPrice, amount: taxableValue,
+      hsnCode: quote.hsnCode || "", gstRate, discountPct: 0,
+      taxableValue, cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst, netAmount,
+      receivedQty: 0,
+    };
+
+    const termsSnapshot = snapshotCurrentTerms();
+    const poRecord: PurchaseOrder = {
+      poNumber, vendorId: vendor.id, vendorName: vendor.name,
+      vendorGstin: vendor.gstin, vendorPan: vendor.pan, vendorAddress: vendor.address,
+      vendorStateCode: vendor.stateCode, vendorContactName: vendor.contactPerson,
+      vendorContactPhone: vendor.contactPhone, vendorContactEmail: vendor.contactEmail,
+      dateIssued: now.toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }).split("/").join("-"),
+      expectedDelivery: "—",
+      deliveryAddress: RFQ_DELIVERY_ADDRESS,
+      status: "Issued",
+      items: [realItem],
+      totalAmount: taxableValue,
+      gst: Math.round((gst.cgst + gst.sgst + gst.igst) * 100) / 100,
+      cgstTotal: gst.cgst, sgstTotal: gst.sgst, igstTotal: gst.igst, grandTotal: netAmount,
+      approvedBy: "",
+      termsSnapshot,
+      remarks: `Raised from RFQ ${rfq.id}, quote from ${vendor.name}.`,
+    };
+
+    const newPO = {
+      poNumber, supplier: vendor.name,
+      amount: netAmount,
+      status: "Pending Approval",
+      date: now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      items: 1,
+      itemsList: [realItem],
+      rfqRef: rfq.id,
+      createdAt: now.toISOString(),
+      poRecord,
+    };
+
     try {
-      const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
-      const poId = `PO-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
-      pos.unshift({ poNumber:poId, supplier:quote.supplierName, amount:quote.totalAmount, status:"Pending Approval", date: new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}), items:1, rfqRef:rfq.id, createdAt:new Date().toISOString() });
-      localStorage.setItem("cleancar_purchase_orders", JSON.stringify(pos));
+      localStorage.setItem("cleancar_purchase_orders", JSON.stringify([newPO, ...existingPOs]));
     } catch {}
-    toast.success(`PO created from quote by ${quote.supplierName}`, { description: `₹${quote.totalAmount.toLocaleString()} · ${quote.deliveryDays} days delivery` });
+
+    const updated = rfqs.map(r => r.id === rfq.id ? { ...r, status: "PO Raised" as const, selectedQuote: quote.supplierId } : r);
+    setRfqs(updated);
+    try { localStorage.setItem("cleancar_rfq_records", JSON.stringify(updated)); } catch {}
+
+    toast.success(`${poNumber} created from quote by ${vendor.name}`, { description: `₹${netAmount.toLocaleString("en-IN")} incl. GST · ${quote.deliveryDays} days delivery` });
     setCompareRFQ(null);
   };
 
@@ -218,6 +414,11 @@ export function QuotationManagement() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  {rfq.status !== "PO Raised" && (
+                    <Button size="sm" variant="outline" onClick={() => openRecordQuote(rfq)}>
+                      <ReceiptText className="w-4 h-4 mr-1"/>Record Quote
+                    </Button>
+                  )}
                   {(rfq.status === "Quotes Received" || rfq.status === "Comparison Done") && (
                     <Button size="sm" onClick={() => setCompareRFQ(rfq)}>Compare Quotes</Button>
                   )}
@@ -280,7 +481,17 @@ export function QuotationManagement() {
                             {q.notes && <p className="text-xs text-gray-400 mt-1 italic">{q.notes}</p>}
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-gray-900">₹{q.totalAmount.toLocaleString()}</p>
+                            {q.grandTotal != null ? (
+                              <>
+                                <p className="font-bold text-gray-900">₹{q.grandTotal.toLocaleString()}</p>
+                                <p className="text-xs text-gray-500">₹{q.totalAmount.toLocaleString()} + {q.gstRate}% GST (₹{((q.cgst||0)+(q.sgst||0)+(q.igst||0)).toLocaleString()})</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-bold text-gray-900">₹{q.totalAmount.toLocaleString()}</p>
+                                <p className="text-xs text-amber-600">Pre-dates real GST tracking</p>
+                              </>
+                            )}
                             <p className="text-xs text-gray-400">Valid till {q.validUntil}</p>
                           </div>
                         </div>
@@ -319,19 +530,24 @@ export function QuotationManagement() {
           </DialogHeader>
           {compareRFQ && compareRFQ.quotes && compareRFQ.quotes.length > 0 && (
             <div className="space-y-5">
-              {/* Summary insight */}
+              {/* Summary insight — real GST-inclusive total (what the vendor
+                  actually gets paid), not the pre-tax figure, drives
+                  "lowest price" here — two quotes with the same taxable
+                  value but different GST rates can rank differently once
+                  tax is real. */}
               {(() => {
                 const quotes = compareRFQ.quotes!;
-                const cheapest = [...quotes].sort((a,b) => a.totalAmount - b.totalAmount)[0];
+                const effTotal = (q: SupplierQuote) => q.grandTotal ?? q.totalAmount;
+                const cheapest = [...quotes].sort((a,b) => effTotal(a) - effTotal(b))[0];
                 const fastest  = [...quotes].sort((a,b) => a.deliveryDays - b.deliveryDays)[0];
                 const bestRated= [...quotes].sort((a,b) => b.rating - a.rating)[0];
                 return (
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                       <TrendingDown className="w-5 h-5 text-green-600 mx-auto mb-1"/>
-                      <p className="text-xs text-gray-500">Lowest Price</p>
+                      <p className="text-xs text-gray-500">Lowest Price {cheapest.grandTotal != null && "(incl. GST)"}</p>
                       <p className="font-semibold text-sm">{cheapest.supplierName.split(" ")[0]}</p>
-                      <p className="text-green-700 font-bold">₹{cheapest.totalAmount.toLocaleString()}</p>
+                      <p className="text-green-700 font-bold">₹{effTotal(cheapest).toLocaleString()}</p>
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
                       <Clock className="w-5 h-5 text-blue-600 mx-auto mb-1"/>
@@ -356,7 +572,9 @@ export function QuotationManagement() {
                     <tr className="bg-gray-50">
                       <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 border-b">Supplier</th>
                       <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-b">Unit Price</th>
-                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-b">Total (₹)</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-b">Taxable (₹)</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-b">GST</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-b">Total incl. GST (₹)</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 border-b">Delivery</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 border-b">Payment</th>
                       <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 border-b">Rating</th>
@@ -366,7 +584,8 @@ export function QuotationManagement() {
                   </thead>
                   <tbody className="divide-y">
                     {compareRFQ.quotes!
-                      .sort((a, b) => a.totalAmount - b.totalAmount)
+                      .slice()
+                      .sort((a, b) => (a.grandTotal ?? a.totalAmount) - (b.grandTotal ?? b.totalAmount))
                       .map((q, idx) => {
                         const isSelected = compareRFQ.selectedQuote === q.supplierId;
                         const isCheapest = idx === 0;
@@ -386,8 +605,17 @@ export function QuotationManagement() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right font-medium">₹{q.unitPrice}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">₹{q.totalAmount.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">
+                              {q.grandTotal != null ? (
+                                <>
+                                  <span>{q.gstRate}%</span>
+                                  <p className="text-xs text-gray-400">₹{((q.cgst||0)+(q.sgst||0)+(q.igst||0)).toLocaleString()}</p>
+                                </>
+                              ) : <span className="text-xs text-amber-600">No GST on record</span>}
+                            </td>
                             <td className="px-4 py-3 text-right">
-                              <p className={`font-bold ${isCheapest ? "text-green-700" : "text-gray-900"}`}>₹{q.totalAmount.toLocaleString()}</p>
+                              <p className={`font-bold ${isCheapest ? "text-green-700" : "text-gray-900"}`}>₹{(q.grandTotal ?? q.totalAmount).toLocaleString()}</p>
                               {isCheapest && <p className="text-xs text-green-600">Lowest bid</p>}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -505,13 +733,15 @@ export function QuotationManagement() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {suppliers.map(s => (
+                {suppliers.length > 0 ? suppliers.map(s => (
                   <div key={s.id} onClick={() => toggleSupplier(s.id)}
                     className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${selectedSuppliers.includes(s.id) ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
                     <input type="checkbox" readOnly checked={selectedSuppliers.includes(s.id)} className="w-4 h-4"/>
-                    <div><p className="font-medium text-sm">{s.name}</p><p className="text-xs text-gray-500">{s.category}</p></div>
+                    <div><p className="font-medium text-sm">{s.name}</p><p className="text-xs text-gray-500">{s.vendorType} · {s.state}</p></div>
                   </div>
-                ))}
+                )) : (
+                  <p className="col-span-2 text-sm text-gray-400 py-4 text-center">No vendors in the Vendor Master yet. Add one in GST → Vendor Master.</p>
+                )}
               </div>
             </div>
 
@@ -535,6 +765,110 @@ export function QuotationManagement() {
             <Button variant="secondary">Save as Draft</Button>
             <Button onClick={handleSubmitRFQ} disabled={selectedSuppliers.length === 0}>
               <Send className="w-4 h-4 mr-2"/>Send RFQ to {selectedSuppliers.length} Supplier{selectedSuppliers.length !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── RECORD QUOTE DIALOG ─────────────────────────────────────────────── */}
+      <Dialog open={!!quoteRFQ} onOpenChange={o => { if (!o) setQuoteRFQ(null); }}>
+        <DialogContent className="w-[95vw] sm:w-full max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Record Quote — {quoteRFQ?.id}</DialogTitle>
+            <DialogDescription>
+              {quoteRFQ?.item} · Qty: {quoteRFQ?.quantity} {quoteRFQ?.unit}
+            </DialogDescription>
+          </DialogHeader>
+          {quoteRFQ && (() => {
+            const eligibleVendors = quoteRFQ.invitedSupplierIds?.length
+              ? suppliers.filter(v => quoteRFQ.invitedSupplierIds!.includes(v.id))
+              : suppliers;
+            const unitPriceNum = parseFloat(quoteUnitPrice) || 0;
+            const taxablePreview = Math.round(unitPriceNum * quoteRFQ.quantity * 100) / 100;
+            return (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Supplier *</Label>
+                  <Select value={quoteVendorId} onValueChange={setQuoteVendorId}>
+                    <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                    <SelectContent>
+                      {eligibleVendors.length > 0 ? eligibleVendors.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                      )) : (
+                        <SelectItem value="none" disabled>No vendors available for this RFQ.</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Unit Price (₹) *</Label>
+                    <Input type="number" min="0" value={quoteUnitPrice} onChange={e => setQuoteUnitPrice(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Delivery (days)</Label>
+                    <Input type="number" min="0" value={quoteDeliveryDays} onChange={e => setQuoteDeliveryDays(e.target.value)} placeholder="0" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>HSN Code</Label>
+                    <Input value={quoteHsnCode} onChange={e => setQuoteHsnCode(e.target.value)} placeholder="e.g. 3402" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>GST Rate (%) *</Label>
+                    <Input type="number" min="0" value={quoteGstRate} onChange={e => setQuoteGstRate(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payment Terms</Label>
+                    <Select value={quotePaymentTerms} onValueChange={setQuotePaymentTerms}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Net 7">Net 7 Days</SelectItem>
+                        <SelectItem value="Net 15">Net 15 Days</SelectItem>
+                        <SelectItem value="Net 30">Net 30 Days</SelectItem>
+                        <SelectItem value="Net 45">Net 45 Days</SelectItem>
+                        <SelectItem value="Advance">Advance</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valid Until *</Label>
+                    <Input type="date" value={quoteValidUntil} onChange={e => setQuoteValidUntil(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea rows={2} value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)} placeholder="Bulk discount, warranty, delivery conditions…" />
+                </div>
+                {unitPriceNum > 0 && (() => {
+                  const vendor = suppliers.find(v => v.id === quoteVendorId);
+                  const rate = parseFloat(quoteGstRate) || 0;
+                  if (!vendor) return (
+                    <p className="text-xs text-gray-400 bg-gray-50 rounded p-2">Select a supplier to see the real GST breakup (CGST+SGST vs IGST depends on the vendor's state).</p>
+                  );
+                  const gst = calculateGST(taxablePreview, rate, vendor.stateCode, "B2B", RFQ_DELIVERY_CITY);
+                  const grand = Math.round((taxablePreview + gst.cgst + gst.sgst + gst.igst) * 100) / 100;
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                      <div className="flex justify-between"><span className="text-gray-500">Taxable value</span><span>₹{taxablePreview.toLocaleString("en-IN")}</span></div>
+                      {gst.igst > 0 ? (
+                        <div className="flex justify-between"><span className="text-gray-500">IGST ({rate}%)</span><span>₹{gst.igst.toLocaleString("en-IN")}</span></div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between"><span className="text-gray-500">CGST ({(rate/2)}%)</span><span>₹{gst.cgst.toLocaleString("en-IN")}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">SGST ({(rate/2)}%)</span><span>₹{gst.sgst.toLocaleString("en-IN")}</span></div>
+                        </>
+                      )}
+                      <div className="flex justify-between font-bold pt-1 border-t"><span>Total incl. GST</span><span>₹{grand.toLocaleString("en-IN")}</span></div>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuoteRFQ(null)}>Cancel</Button>
+            <Button onClick={handleSubmitQuote}>
+              <ReceiptText className="w-4 h-4 mr-2" />Record Quote
             </Button>
           </DialogFooter>
         </DialogContent>
