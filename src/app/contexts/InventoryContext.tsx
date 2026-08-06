@@ -188,7 +188,16 @@ interface InventoryContextType {
     toId: string | undefined,
     cityId: string
   ) => void;
-  procureInventory: (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number) => void;
+  procureInventory: (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number, grnContext?: {
+    poNumber?: string;
+    grnNumber?: string;
+    vendorId?: string;
+    vendorName?: string;
+    taxableValue?: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+  }) => void;
   // ✅ NEW: real FIFO stock reduction with a real, batch-accurate cost
   // returned — the function Sale-of-Product wiring calls to actually
   // reduce stock and get a real cost for the accounting entry.
@@ -1143,7 +1152,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return realCost;
   };
 
-  const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number) => {
+  const procureInventory = (itemId: string, quantity: number, supplierId: string, cityId: string, rate?: number, grnContext?: {
+    poNumber?: string;
+    grnNumber?: string;
+    vendorId?: string;
+    vendorName?: string;
+    taxableValue?: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+  }) => {
     // ✅ SAFETY GUARD: Prevent operations without cityId
     if (!cityId) {
       console.warn("[InventoryContext] Blocked procureInventory: cityId missing");
@@ -1203,9 +1221,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     emit("INVENTORY_PROCURED", {
       itemId, itemName: item.itemName,
       quantity, supplierId,
-      amount: item.unitCost * quantity,
+      // ✅ FIX: was item.unitCost (the item's pre-existing average cost,
+      // captured before this procurement's setInventory above even runs)
+      // instead of the real rate this specific procurement was actually
+      // received at — understating/overstating the auto-created vendor
+      // payable for every caller that passes a real rate.
+      amount: realRate * quantity,
       cityId,
       procuredAt: new Date().toISOString(),
+      // Only set when this procurement is a real GRN against a real PO
+      // (GRNEntry.tsx) — lets the INVENTORY_PROCURED handler in
+      // useGlobalEventHandlers.ts route to the accurate, GST-aware,
+      // PO-topped-up vendor payable instead of the generic fallback.
+      ...(grnContext ? { grnContext } : {}),
     }, "InventoryContext");
 
     // ✅ Real serial registration — procurement is the other real point

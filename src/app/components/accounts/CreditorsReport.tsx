@@ -79,8 +79,11 @@ export function CreditorsReport() {
       }
       const group = byVendor.get(key)!;
       const bucket = agingBucket(p.dueDate);
-      group.total += p.amount;
-      group.buckets[bucket] += p.amount;
+      // Real remaining balance, not the original amount — a partially
+      // paid bill owes less than it did at creation.
+      const remaining = p.amount - (p.paidAmount || 0);
+      group.total += remaining;
+      group.buckets[bucket] += remaining;
       group.bills.push(p);
     });
 
@@ -89,7 +92,7 @@ export function CreditorsReport() {
 
   const grandTotal = vendorGroups.reduce((s, g) => s + g.total, 0);
   const totalInterest = vendorGroups.reduce(
-    (s, g) => s + g.bills.reduce((bs: number, b: any) => bs + calculateOverdueInterest(b.amount, b.dueDate, interestRate), 0),
+    (s, g) => s + g.bills.reduce((bs: number, b: any) => bs + calculateOverdueInterest(b.amount - (b.paidAmount || 0), b.dueDate, interestRate), 0),
     0
   );
   const bucketTotals = (["current", "0-30", "31-60", "61-90", "90+"] as AgingBucket[]).reduce(
@@ -238,10 +241,13 @@ export function CreditorsReport() {
                               <td className="px-3 py-2">
                                 <Badge className={BUCKET_COLORS[agingBucket(b.dueDate)]}>{BUCKET_LABELS[agingBucket(b.dueDate)]}</Badge>
                               </td>
-                              <td className="px-3 py-2 text-right font-medium">₹{b.amount.toLocaleString("en-IN")}</td>
+                              <td className="px-3 py-2 text-right font-medium">
+                                ₹{(b.amount - (b.paidAmount || 0)).toLocaleString("en-IN")}
+                                {(b.paidAmount || 0) > 0 && <span className="block text-gray-400 font-normal">of ₹{b.amount.toLocaleString("en-IN")}</span>}
+                              </td>
                               <td className="px-3 py-2 text-right text-red-600">
                                 {daysOverdue(b.dueDate) > 0
-                                  ? `₹${calculateOverdueInterest(b.amount, b.dueDate, interestRate).toFixed(2)}`
+                                  ? `₹${calculateOverdueInterest(b.amount - (b.paidAmount || 0), b.dueDate, interestRate).toFixed(2)}`
                                   : "—"}
                               </td>
                               <td className="px-3 py-2 text-right">

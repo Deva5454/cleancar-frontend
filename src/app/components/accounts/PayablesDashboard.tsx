@@ -71,7 +71,11 @@ function typeBadgeClass(type: Payable["type"]) {
 function statusBadgeClass(status: Payable["status"]) {
   if (status === "Overdue")  return "bg-red-100 text-red-700";
   if (status === "Approved") return "bg-green-100 text-green-700";
+  if (status === "Partially Paid") return "bg-blue-50 text-blue-700";
   return "bg-yellow-50 text-yellow-700";
+}
+function remainingBalance(p: Payable): number {
+  return Math.round((p.amount - (p.paidAmount || 0)) * 100) / 100;
 }
 function formatDate(d: string): string {
   if (!d) return "—";
@@ -86,15 +90,25 @@ function daysUntilDue(dueDate: string): number {
 
 export default function PayablesDashboard() {
   const navigate = useNavigate();
-  const { cityId } = useCity();
+  // ✅ FIX: useCity() exposes `city`, not `cityId` — this destructure was
+  // silently pulling undefined, so the city-isolation filter below
+  // (p.cityId !== cityId) excluded every real payable regardless of city,
+  // and this screen has shown "No outstanding payables" unconditionally
+  // no matter what was actually owed.
+  const { city: cityId } = useCity();
   const { payables, markAsPaid, approvePayable } = useFinance();
 
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Overdue" | "Approved">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Overdue" | "Approved" | "Partially Paid">("All");
   const [typeFilter,   setTypeFilter]   = useState<"All" | Payable["type"]>("All");
   const [payDialog,    setPayDialog]    = useState<Payable | null>(null);
   const [payMethod,    setPayMethod]    = useState<Payable["paymentMethod"]>("Bank Transfer");
   const [payRef,       setPayRef]       = useState("");
   const [paying,       setPaying]       = useState(false);
+  // ✅ NEW: real partial-payment support — "Pay in full" pre-fills the
+  // remaining balance; switching to "Pay partial amount" lets Accounts
+  // enter less, matching what was actually cleared/agreed with the vendor.
+  const [payMode,      setPayMode]      = useState<"full" | "partial">("full");
+  const [payAmountStr, setPayAmountStr] = useState("");
 
   // Stable derived slice — no side-effects, no localStorage reads
   const activePayables = useMemo(() => {
@@ -117,14 +131,23 @@ export default function PayablesDashboard() {
   const overdueList  = useMemo(() => activePayables.filter(p => p.status === "Overdue"),  [activePayables]);
   const pendingList  = useMemo(() => activePayables.filter(p => p.status === "Pending"),  [activePayables]);
   const approvedList = useMemo(() => activePayables.filter(p => p.status === "Approved"), [activePayables]);
-  const totalOutstanding = useMemo(() => activePayables.reduce((s,p) => s+p.amount, 0), [activePayables]);
-  const totalOverdue     = useMemo(() => overdueList.reduce((s,p) => s+p.amount, 0),     [overdueList]);
+  const partialList  = useMemo(() => activePayables.filter((p: Payable) => p.status === "Partially Paid"), [activePayables]);
+  // Outstanding totals use the real remaining balance, not the original
+  // amount — a partially paid payable owes less than it did at creation.
+  const totalOutstanding = useMemo(() => activePayables.reduce((s,p) => s+remainingBalance(p), 0), [activePayables]);
+  const totalOverdue     = useMemo(() => overdueList.reduce((s,p) => s+remainingBalance(p), 0),     [overdueList]);
 
-  const openPayDialog = (p: Payable) => { setPayDialog(p); setPayMethod("Bank Transfer"); setPayRef(""); };
+  const openPayDialog = (p: Payable) => {
+    setPayDialog(p);
+    setPayMethod("Bank Transfer");
+    setPayRef("");
+    setPayMode("full");
+    setPayAmountStr(String(remainingBalance(p)));
+  };
 
   const handlePrintCheque = () => {
     if (!payDialog) return;
-    const amount = payDialog.amount;
+    const amount = payMode === "partial" ? (parseFloat(payAmountStr) || 0) : remainingBalance(payDialog);
     const amountWords = numberToWordsIndian(amount) + " Rupees Only";
     const payee = payDialog.vendorName || payDialog.description;
     const dateStr = new Date().toLocaleDateString("en-IN");
@@ -165,10 +188,15 @@ export default function PayablesDashboard() {
   const handleConfirmPayment = async () => {
     if (!payDialog) return;
     if (!payRef.trim()) { toast.error("Enter a payment reference (UTR / cheque number)"); return; }
+    const remaining = remainingBalance(payDialog);
+    const payAmount = payMode === "partial" ? (parseFloat(payAmountStr) || 0) : remaining;
+    if (payAmount <= 0) { toast.error("Enter a payment amount greater than ₹0"); return; }
+    if (payAmount > remaining + 0.01) { toast.error(`Cannot pay more than the remaining balance of ₹${remaining.toLocaleString("en-IN")}`); return; }
     setPaying(true);
     try {
-      markAsPaid(payDialog.payableId, payRef.trim(), payMethod);
-      toast.success(`₹${payDialog.amount.toLocaleString("en-IN")} marked as paid — ${payDialog.description}`);
+      markAsPaid(payDialog.payableId, payRef.trim(), payMethod, payAmount);
+      const isFull = payAmount >= remaining - 0.01;
+      toast.success(`₹${payAmount.toLocaleString("en-IN")} ${isFull ? "marked as paid" : "paid (partial)"} — ${payDialog.description}`);
       setPayDialog(null);
     } catch (err) {
       toast.error("Payment recording failed. Please try again.");
@@ -219,11 +247,12 @@ export default function PayablesDashboard() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {([
           { label: "Overdue"  as const, list: overdueList,  color: "text-red-700",    bg: "bg-red-50",    border: "border-red-200" },
           { label: "Pending"  as const, list: pendingList,  color: "text-yellow-700", bg: "bg-yellow-50", border: "border-yellow-200" },
           { label: "Approved" as const, list: approvedList, color: "text-green-700",  bg: "bg-green-50",  border: "border-green-200" },
+          { label: "Partially Paid" as const, list: partialList, color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200" },
         ]).map(({ label, list, color, bg, border }) => (
           <button key={label}
             onClick={() => setStatusFilter(statusFilter === label ? "All" : label)}
@@ -232,7 +261,7 @@ export default function PayablesDashboard() {
             <p className={`text-xs font-medium ${color}`}>{label}</p>
             <p className={`text-2xl font-bold ${color}`}>{list.length}</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              ₹{list.reduce((s,p)=>s+p.amount,0).toLocaleString("en-IN")}
+              ₹{list.reduce((s,p)=>s+remainingBalance(p),0).toLocaleString("en-IN")}
             </p>
           </button>
         ))}
@@ -298,6 +327,7 @@ export default function PayablesDashboard() {
                       <p className="font-medium text-gray-900 leading-tight">{p.description}</p>
                       {p.vendorName    && <p className="text-xs text-gray-400 mt-0.5">{p.vendorName}</p>}
                       {p.invoiceNumber && <p className="text-xs text-gray-400 font-mono">{p.invoiceNumber}</p>}
+                      {p.poNumber      && <p className="text-xs text-gray-400 font-mono">{p.poNumber}{p.grnNumbers?.length ? ` · ${p.grnNumbers.length} GRN${p.grnNumbers.length > 1 ? "s" : ""}` : ""}</p>}
                       {p.statutoryType && <p className="text-xs text-purple-500 mt-0.5">{p.statutoryType}</p>}
                     </td>
                     <td className="p-3">
@@ -319,7 +349,12 @@ export default function PayablesDashboard() {
                       ) : null}
                     </td>
                     <td className="p-3 text-right font-semibold text-gray-900">
-                      ₹{p.amount.toLocaleString("en-IN")}
+                      ₹{remainingBalance(p).toLocaleString("en-IN")}
+                      {p.status === "Partially Paid" && (
+                        <p className="text-xs font-normal text-gray-400 mt-0.5">
+                          Paid ₹{(p.paidAmount || 0).toLocaleString("en-IN")} of ₹{p.amount.toLocaleString("en-IN")}
+                        </p>
+                      )}
                     </td>
                     <td className="p-3">
                       <Badge className={`text-xs ${statusBadgeClass(p.status)}`}>{p.status}</Badge>
@@ -333,7 +368,7 @@ export default function PayablesDashboard() {
                             Approve
                           </Button>
                         )}
-                        {(p.status === "Approved" || p.status === "Overdue") && (
+                        {(p.status === "Approved" || p.status === "Overdue" || p.status === "Partially Paid") && (
                           <Button size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white text-xs flex items-center gap-1"
                             onClick={() => openPayDialog(p)}>
@@ -359,9 +394,40 @@ export default function PayablesDashboard() {
               <p className="font-medium text-gray-800">{payDialog.description}</p>
               {payDialog.vendorName && <p className="text-sm text-gray-500">{payDialog.vendorName}</p>}
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                ₹{payDialog.amount.toLocaleString("en-IN")}
+                ₹{remainingBalance(payDialog).toLocaleString("en-IN")}
+                <span className="text-sm font-normal text-gray-400 ml-1">remaining</span>
               </p>
+              {(payDialog.paidAmount || 0) > 0 && (
+                <p className="text-xs text-gray-400">
+                  Already paid ₹{(payDialog.paidAmount || 0).toLocaleString("en-IN")} of ₹{payDialog.amount.toLocaleString("en-IN")}
+                </p>
+              )}
               <p className="text-xs text-gray-400">Due: {formatDate(payDialog.dueDate)}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Payment amount</label>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <button onClick={() => { setPayMode("full"); setPayAmountStr(String(remainingBalance(payDialog))); }}
+                  className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+                    payMode === "full"
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"}`}>
+                  Pay in full
+                </button>
+                <button onClick={() => setPayMode("partial")}
+                  className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+                    payMode === "partial"
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-gray-400"}`}>
+                  Pay partial amount
+                </button>
+              </div>
+              {payMode === "partial" && (
+                <input type="number" min="0" max={remainingBalance(payDialog)} value={payAmountStr}
+                  onChange={e => setPayAmountStr(e.target.value)}
+                  placeholder={`Up to ₹${remainingBalance(payDialog).toLocaleString("en-IN")}`}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">Payment method</label>
@@ -397,7 +463,8 @@ export default function PayablesDashboard() {
                 Cancel
               </Button>
               <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                onClick={handleConfirmPayment} disabled={paying || !payRef.trim()}>
+                onClick={handleConfirmPayment}
+                disabled={paying || !payRef.trim() || (payMode === "partial" && (!parseFloat(payAmountStr) || parseFloat(payAmountStr) <= 0))}>
                 {paying ? "Recording…" : "Confirm Payment"}
               </Button>
             </div>

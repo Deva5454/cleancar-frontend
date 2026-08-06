@@ -11,7 +11,7 @@ import { useEventListener, useEvents } from "./EventSystem";
 import { DataService } from "../services/DataService";
 import { logger } from "../services/logger";
 import { useSync } from "../hooks/useSync";
-import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue, getCityStateCode, postPayableEntryForFinance, postPayableSettlementForFinance } from "../services/accountingEntryService";
+import { accountingEntryService, calculateGST, autoPostSalesEntry, generateInvoiceNumber, postSalesEntryForRevenue, getCityStateCode, postPayableEntryForFinance, postPayableSettlementForFinance, postPayableTopUpEntryForFinance } from "../services/accountingEntryService";
 import { COMPANY_GST_CONFIG } from "../services/gstComplianceService";
 
 // Types
@@ -50,6 +50,18 @@ export interface Payable {
   vendorName?: string; // REQUIRED for vendor-wise AP on balance sheet
   invoiceNumber?: string;
   invoiceDate?: string;
+  // ✅ NEW: real traceability + GST breakup for a Vendor payable sourced
+  // from a GRN against a real PO (see recordVendorPayableForGRN below and
+  // GRNEntry.tsx). poNumber identifies the PO this payable is topped up
+  // against as further partial GRNs come in; grnNumbers lists every GRN
+  // that has contributed to it, for audit trail. cgst/sgst/igst are the
+  // real tax split (already embedded in `amount`, kept separately here so
+  // Accounts can see the breakup without recomputing it).
+  poNumber?: string;
+  grnNumbers?: string[];
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
   // For Statutory Payables
   statutoryType?: "PF" | "ESIC" | "TDS" | "GST" | "PT";
   // For Travel Reimbursement Payables (type: "Travel", cross-referenced to a TravelTrip)
@@ -62,13 +74,24 @@ export interface Payable {
   // Common fields
   amount: number;
   dueDate: string;
-  status: "Pending" | "Approved" | "Paid" | "Overdue";
+  // ✅ NEW: "Partially Paid" — previously markAsPaid could only ever
+  // settle the full amount, so there was no way to represent "we've paid
+  // some of what we owe on this." See markAsPaid's paidAmount/amount
+  // param below.
+  status: "Pending" | "Approved" | "Paid" | "Overdue" | "Partially Paid";
   description: string;
   cityId: string; // ✅ REQUIRED: Multi-city isolation
   // Payment details
   paidAt?: string;
   paymentReference?: string;
   paymentMethod?: "Bank Transfer" | "UPI" | "Cash" | "Cheque";
+  // ✅ NEW: cumulative amount actually paid so far — real partial-payment
+  // support. Remaining balance owed = amount - (paidAmount ?? 0).
+  paidAmount?: number;
+  // Every individual payment against this payable, oldest first — needed
+  // once partial payments are possible so an earlier payment's reference/
+  // method isn't silently overwritten by a later one.
+  paymentHistory?: { amount: number; reference: string; method: Payable["paymentMethod"]; paidAt: string }[];
   approvedBy?: string;
   approvedAt?: string;
   createdAt: string;
@@ -122,8 +145,15 @@ interface FinanceContextType {
   payables: Payable[];
   createPayable: (payable: Omit<Payable, "payableId" | "createdAt" | "updatedAt">) => Payable;
   updatePayable: (payableId: string, updates: Partial<Payable>) => void;
-  markAsPaid: (payableId: string, paymentReference: string, paymentMethod: Payable["paymentMethod"]) => void;
+  markAsPaid: (payableId: string, paymentReference: string, paymentMethod: Payable["paymentMethod"], amount?: number) => void;
   approvePayable: (payableId: string, approvedBy: string) => void;
+  // ✅ NEW: the real GRN → Accounts payable bridge (see implementation for
+  // the full "one payable per PO, topped up" design).
+  recordVendorPayableForGRN: (params: {
+    poNumber: string; grnNumber: string; vendorId: string; vendorName: string;
+    amount: number; taxableValue: number; cgst: number; sgst: number; igst: number;
+    dueDate: string; description: string; cityId: string;
+  }) => Payable;
   getSalaryPayables: (cityId?: string) => Payable[];
   getTravelPayables: (cityId?: string) => Payable[];
   getVendorPayables: (cityId?: string) => Payable[];
@@ -647,6 +677,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // just this context's own separate ledgerEntries above. See
     // postPayableEntryForFinance's own comment for why this is needed.
     try {
+      // ✅ NEW: when this Vendor payable carries a real GST breakup (set by
+      // recordVendorPayableForGRN below), pass it through so the real
+      // ledger posts a genuine B2B/taxable accrual (real ITC-eligible
+      // input GST) instead of a NonGST one — every other payable type
+      // still omits these and keeps the original NonGST behavior.
+      const hasRealGst = (newPayable.cgst || 0) + (newPayable.sgst || 0) + (newPayable.igst || 0) > 0;
       postPayableEntryForFinance({
         payableId: newPayable.payableId,
         type: newPayable.type,
@@ -657,6 +693,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         vendorName: newPayable.vendorName,
         city: newPayable.cityId,
         cityId: newPayable.cityId,
+        ...(hasRealGst ? {
+          taxableValue: Math.round((newPayable.amount - (newPayable.cgst || 0) - (newPayable.sgst || 0) - (newPayable.igst || 0)) * 100) / 100,
+          cgst: newPayable.cgst, sgst: newPayable.sgst, igst: newPayable.igst,
+        } : {}),
       });
     } catch (e) {
       console.error("Failed to post payable to real ledger:", e);
@@ -678,17 +718,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const markAsPaid = (
     payableId: string,
     paymentReference: string,
-    paymentMethod: Payable["paymentMethod"]
+    paymentMethod: Payable["paymentMethod"],
+    // ✅ NEW: real partial-payment support. Omit to pay the full remaining
+    // balance (the original behavior). If given, only this much is paid —
+    // capped at what's actually still owed — and the payable moves to
+    // "Partially Paid" instead of "Paid" until the remainder is settled.
+    amount?: number
   ) => {
     const payable = payables.find(p => p.payableId === payableId);
+    if (!payable) return;
+    const alreadyPaid = payable.paidAmount || 0;
+    const remaining = Math.round((payable.amount - alreadyPaid) * 100) / 100;
+    const payAmount = amount != null ? Math.min(Math.max(amount, 0), remaining) : remaining;
+    if (payAmount <= 0) return;
+    const newPaidAmount = Math.round((alreadyPaid + payAmount) * 100) / 100;
+    const isFullyPaid = newPaidAmount >= payable.amount - 0.01;
+    const paidAt = new Date().toISOString();
     updatePayable(payableId, {
-      status: "Paid",
-      paidAt: new Date().toISOString(),
+      status: isFullyPaid ? "Paid" : "Partially Paid",
+      paidAt,
       paymentReference,
       paymentMethod,
+      paidAmount: newPaidAmount,
+      paymentHistory: [...(payable.paymentHistory || []), { amount: payAmount, reference: paymentReference, method: paymentMethod, paidAt }],
     });
-    // Settlement entry: DR Payable (clears liability), CR Bank
-    if (payable) {
+    // Settlement entry: DR Payable (clears liability), CR Bank — for
+    // whatever amount is actually being paid this time, not necessarily
+    // the payable's full original amount.
+    {
       const today = new Date().toISOString().split("T")[0];
       const entryBase = {
         entryDate: today,
@@ -716,15 +773,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         payable.type === "Claim" ? "Employee Claims Payable" :
         (payable.vendorName ? `AP — ${payable.vendorName}` : "Accounts Payable");
       setLedgerEntries(prev => [...prev,
-        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payable.amount },
-        { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "1000", accountName: "Bank Account", entryType: "CREDIT" as const, amount: payable.amount },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-DR`, accountCode: settlementAccountCode, accountName: settlementAccountName, entryType: "DEBIT" as const, amount: payAmount },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now() + 1}-CR`, accountCode: "1000", accountName: "Bank Account", entryType: "CREDIT" as const, amount: payAmount },
       ]);
       // Real fix: also clear the liability on accountingEntryService's real
       // ledger (see createPayable's identical fix above for why).
       try {
         postPayableSettlementForFinance({
           payableId,
-          amount: payable.amount,
+          amount: payAmount,
           description: payable.description,
           paymentReference,
           cityId: payable.cityId,
@@ -737,12 +794,106 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       // G9 FIX: fire PAYMENT_MADE so downstream modules (Supervisor, Reports) can react
       window.dispatchEvent(new CustomEvent("cc360_payment_made", {
         detail: {
-          payableId, type: payable.type, amount: payable.amount,
+          payableId, type: payable.type, amount: payAmount,
           vendorName: payable.vendorName, cityId: payable.cityId,
-          paymentMethod, paidAt: new Date().toISOString(),
+          paymentMethod, paidAt,
         }
       }));
     }
+  };
+
+  // ✅ NEW: the real GRN → Accounts payable bridge. Called (via the
+  // INVENTORY_PROCURED event handler in useGlobalEventHandlers.ts) when a
+  // GRN is recorded against a real PO in GRNEntry.tsx. One payable per PO,
+  // topped up as further partial GRNs come in against the same PO —
+  // matches "we owe this vendor for this PO, prorated to what's actually
+  // arrived so far," rather than a separate payable per delivery.
+  //
+  // The real accrual ledger entry for the FIRST GRN goes through the
+  // normal createPayable() path above. A later top-up can't reuse that —
+  // postPayableEntryForFinance refuses to post twice for the same
+  // payableId — so it posts its own incremental accrual via
+  // postPayableTopUpEntryForFinance instead, which resolves to the exact
+  // same named vendor AP ledger so settlement still clears correctly.
+  const recordVendorPayableForGRN = (params: {
+    poNumber: string;
+    grnNumber: string;
+    vendorId: string;
+    vendorName: string;
+    amount: number; // GST-inclusive amount owed for this GRN's received qty
+    taxableValue: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    dueDate: string;
+    description: string;
+    cityId: string;
+  }): Payable => {
+    const existing = payables.find(p => p.type === "Vendor" && p.poNumber === params.poNumber && p.cityId === params.cityId);
+    if (existing) {
+      const newAmount = Math.round((existing.amount + params.amount) * 100) / 100;
+      const paidAmount = existing.paidAmount || 0;
+      const newStatus: Payable["status"] =
+        paidAmount <= 0 ? "Pending" :
+        paidAmount >= newAmount - 0.01 ? "Paid" :
+        "Partially Paid";
+      updatePayable(existing.payableId, {
+        amount: newAmount,
+        cgst: Math.round(((existing.cgst || 0) + params.cgst) * 100) / 100,
+        sgst: Math.round(((existing.sgst || 0) + params.sgst) * 100) / 100,
+        igst: Math.round(((existing.igst || 0) + params.igst) * 100) / 100,
+        grnNumbers: [...(existing.grnNumbers || []), params.grnNumber],
+        status: newStatus,
+      });
+
+      const entryBase = {
+        entryDate: params.dueDate,
+        referenceType: "Expense" as const,
+        referenceId: existing.payableId,
+        cityId: params.cityId,
+        createdAt: new Date().toISOString(),
+      };
+      const vendorLedgerName = params.vendorName ? `AP — ${params.vendorName}` : "Accounts Payable";
+      setLedgerEntries(prev => [...prev,
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-VND-DR`, accountCode: "5300", accountName: "Vendor Expenses", entryType: "DEBIT" as const, amount: params.amount, description: `${params.description}${params.vendorName ? ` (${params.vendorName})` : ""}` },
+        { ...entryBase, ledgerEntryId: `LED-${Date.now()}-VND-CR`, accountCode: "2000", accountName: vendorLedgerName, entryType: "CREDIT" as const, amount: params.amount, description: vendorLedgerName },
+      ]);
+      try {
+        postPayableTopUpEntryForFinance({
+          payableId: existing.payableId,
+          grnNumber: params.grnNumber,
+          amount: params.amount,
+          taxableValue: params.taxableValue,
+          cgst: params.cgst, sgst: params.sgst, igst: params.igst,
+          dueDate: params.dueDate,
+          description: params.description,
+          vendorId: params.vendorId,
+          vendorName: params.vendorName,
+          city: params.cityId,
+          cityId: params.cityId,
+        });
+      } catch (e) {
+        console.error("Failed to post GRN top-up to real ledger:", e);
+      }
+
+      return { ...existing, amount: newAmount, grnNumbers: [...(existing.grnNumbers || []), params.grnNumber], status: newStatus };
+    }
+
+    return createPayable({
+      type: "Vendor",
+      vendorId: params.vendorId,
+      vendorName: params.vendorName,
+      poNumber: params.poNumber,
+      grnNumbers: [params.grnNumber],
+      amount: params.amount,
+      cgst: params.cgst,
+      sgst: params.sgst,
+      igst: params.igst,
+      dueDate: params.dueDate,
+      status: "Pending",
+      description: params.description,
+      cityId: params.cityId,
+    });
   };
 
   const approvePayable = (payableId: string, approvedBy: string) => {
@@ -770,7 +921,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   };
 
   const getPendingPayables = (cityId?: string): Payable[] => {
-    return payables.filter((p) => ["Pending","Approved"].includes(p.status) && (!cityId || p.cityId === cityId));
+    return payables.filter((p) => ["Pending","Approved","Partially Paid"].includes(p.status) && (!cityId || p.cityId === cityId));
   };
 
   const getOverduePayables = (cityId?: string): Payable[] => {
@@ -1237,7 +1388,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // RULE 7: Overdue payables exist
     const overduePayables = getOverduePayables(cityId);
     if (overduePayables.length > 0) {
-      const totalOverdue = overduePayables.reduce((s, p) => s + p.amount, 0);
+      const totalOverdue = overduePayables.reduce((s, p) => s + (p.amount - (p.paidAmount || 0)), 0);
       newAlerts.push({
         alertId: `ALERT-${Date.now()}-overdue`,
         cityId, type: "EXPENSE_SPIKE",
@@ -1441,6 +1592,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     updatePayable,
     markAsPaid,
     approvePayable,
+    recordVendorPayableForGRN,
     getSalaryPayables,
     getTravelPayables,
     getVendorPayables,

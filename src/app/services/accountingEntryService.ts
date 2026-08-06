@@ -843,6 +843,16 @@ export function postPayableEntryForFinance(params: {
   vendorName?: string;
   city: string;
   cityId: string;
+  // ✅ NEW: real GST breakup — only ever passed for a Vendor payable
+  // sourced from a GRN against a real PO (FinanceContext.
+  // recordVendorPayableForGRN, called from GRNEntry.tsx). Every other
+  // caller omits these and keeps the original NonGST accrual below —
+  // still no GST fabricated where none is genuinely known.
+  taxableValue?: number;
+  gstRate?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
 }): AccountingEntry | null {
   const already = accountingEntryService.getAllEntries(params.cityId)
     .some(e => e.invoiceNumber === params.payableId);
@@ -868,6 +878,7 @@ export function postPayableEntryForFinance(params: {
   if (!debitLedger || !creditLedger) return null;
 
   const entryType = params.type === "Vendor" ? "Purchase" : "Expense";
+  const hasRealGst = (params.cgst || 0) + (params.sgst || 0) + (params.igst || 0) > 0;
 
   try {
     return accountingEntryService.createEntry({
@@ -876,16 +887,85 @@ export function postPayableEntryForFinance(params: {
       vendorId: params.vendorId,
       vendorName: params.vendorName,
       invoiceNumber: params.payableId,
-      taxableValue: params.amount,
-      gstRate: 0,
-      gstEntryType: "NonGST",
-      cgst: 0, sgst: 0, igst: 0,
+      taxableValue: params.taxableValue ?? params.amount,
+      gstRate: params.gstRate ?? 0,
+      gstEntryType: hasRealGst ? "B2B" : "NonGST",
+      cgst: params.cgst ?? 0, sgst: params.sgst ?? 0, igst: params.igst ?? 0,
       totalBillValue: params.amount,
       paymentMode: "Bank",
       isRCM: false,
       debitAccount: debitLedger.id,
       creditAccount: creditLedger.id,
       narration: `${params.type} — ${params.description}`,
+      city: params.city,
+      cityId: params.cityId,
+      createdBy: "System",
+    }, params.city, { skipPayableSync: true });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * postPayableTopUpEntryForFinance — companion to postPayableEntryForFinance
+ * for the one case its "one accrual per payableId" guard can't handle: a
+ * Vendor payable created from a GRN against a PO that later receives a
+ * SECOND partial GRN against the same PO. FinanceContext tops up the
+ * existing Payable's amount rather than creating a second Payable (see
+ * FinanceContext.recordVendorPayableForGRN) — but the real ledger still
+ * needs a real accrual entry for that incremental amount. Posts under a
+ * per-GRN-unique invoiceNumber (payableId + grnNumber) so it never
+ * collides with postPayableEntryForFinance's own guard, while resolving
+ * to the exact same named vendor AP ledger, so settlement still clears
+ * the right account no matter how many top-ups were posted against it.
+ */
+export function postPayableTopUpEntryForFinance(params: {
+  payableId: string;
+  grnNumber: string;
+  amount: number; // GST-inclusive amount for this specific top-up
+  taxableValue: number;
+  gstRate?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  dueDate: string;
+  description: string;
+  vendorId?: string;
+  vendorName?: string;
+  city: string;
+  cityId: string;
+}): AccountingEntry | null {
+  const uniqueRef = `${params.payableId}::${params.grnNumber}`;
+  const already = accountingEntryService.getAllEntries(params.cityId)
+    .some(e => e.invoiceNumber === uniqueRef);
+  if (already) return null;
+
+  const ledgers = accountingEntryService.getLedgers(params.cityId);
+  const debitLedger = ledgers.find(l => l.accountHead === "direct_expenses" && l.name === "Raw Materials And Consumables");
+  const creditLedger =
+    (params.vendorName && ledgers.find(l => l.accountHead === "accounts_payable" && l.name === `AP — ${params.vendorName}`)) ||
+    ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
+  if (!debitLedger || !creditLedger) return null;
+
+  const hasRealGst = (params.cgst || 0) + (params.sgst || 0) + (params.igst || 0) > 0;
+
+  try {
+    return accountingEntryService.createEntry({
+      entryType: "Purchase",
+      date: params.dueDate,
+      vendorId: params.vendorId,
+      vendorName: params.vendorName,
+      invoiceNumber: uniqueRef,
+      taxableValue: params.taxableValue,
+      gstRate: params.gstRate ?? 0,
+      gstEntryType: hasRealGst ? "B2B" : "NonGST",
+      cgst: params.cgst ?? 0, sgst: params.sgst ?? 0, igst: params.igst ?? 0,
+      totalBillValue: params.amount,
+      paymentMode: "Bank",
+      isRCM: false,
+      debitAccount: debitLedger.id,
+      creditAccount: creditLedger.id,
+      narration: `GRN top-up (${params.grnNumber}) — ${params.description}`,
       city: params.city,
       cityId: params.cityId,
       createdBy: "System",

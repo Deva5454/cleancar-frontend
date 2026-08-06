@@ -197,12 +197,43 @@ export function GRNEntry() {
       localStorage.setItem("cleancar_grn_records", JSON.stringify([grnRecord, ...existing]));
     } catch {}
 
+    // Index of the received line within the PO's own itemsList/poRecord.items
+    // (both built from the same list, in the same order, at PO creation —
+    // see PurchaseOrders.tsx handleSubmitPO). Computed once, up front, so
+    // both the payable's GST breakup below and the PO-update block further
+    // down reference the exact same line.
+    const fullIndex = selectedPOObj ? selectedPOObj.itemsList.findIndex((it: any) => it === selectedLine) : -1;
+
+    // Real GRN → Accounts payable linkage: only for a real PO/line, prorate
+    // that line's real GST (taxableValue/cgst/sgst/igst, computed at PO
+    // creation from the item master's real GST rate) by how much of the
+    // line is actually being received right now. Falls back to a
+    // taxable-only figure (no GST fabricated) if this PO predates real
+    // per-item GST tracking (poRecord missing).
+    const poLine = selectedPOObj?.poRecord?.items?.[fullIndex];
+    const proratedFraction = selectedLine && selectedLine.quantity > 0 ? quantityReceived / selectedLine.quantity : 0;
+    const grnContext = selectedPOObj ? {
+      poNumber: selectedPOObj.poNumber,
+      grnNumber,
+      vendorId: selectedVendor,
+      vendorName: selectedVendorName,
+      taxableValue: poLine
+        ? Math.round((poLine.taxableValue || 0) * proratedFraction * 100) / 100
+        : Math.round(selectedLine.rate * quantityReceived * 100) / 100,
+      cgst: poLine ? Math.round((poLine.cgst || 0) * proratedFraction * 100) / 100 : 0,
+      sgst: poLine ? Math.round((poLine.sgst || 0) * proratedFraction * 100) / 100 : 0,
+      igst: poLine ? Math.round((poLine.igst || 0) * proratedFraction * 100) / 100 : 0,
+    } : undefined;
+
     // Real inventory update — city-filtered, matches by real itemId (not
     // fragile lowercased-name matching), and creates a real FIFO batch +
     // weighted-average cost update via the same path every other real
-    // procurement in this app goes through.
+    // procurement in this app goes through. Passing the PO line's real
+    // rate (instead of falling back to the item's stale average cost) and
+    // grnContext (routes the auto-created vendor payable to the accurate,
+    // GST-aware, PO-topped-up path instead of the generic fallback).
     if (quantityReceived > 0) {
-      procureInventory(procureItemId, quantityReceived, selectedVendor, city);
+      procureInventory(procureItemId, quantityReceived, selectedVendor, city, selectedPOObj ? selectedLine.rate : undefined, grnContext);
     }
 
     // ✅ FIX: was matched on po.po (always undefined) and wrote a status
@@ -214,7 +245,6 @@ export function GRNEntry() {
     // PurchaseOrders.tsx actually renders.
     let updatedPOs = savedPOs;
     if (selectedPOObj) {
-      const fullIndex = selectedPOObj.itemsList.findIndex((it: any) => it === selectedLine);
       updatedPOs = savedPOs.map((po: any) => {
         if (po.poNumber !== selectedPOObj.poNumber) return po;
         const newItemsList = po.itemsList.map((it: any, idx: number) =>

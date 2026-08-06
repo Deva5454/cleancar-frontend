@@ -319,16 +319,42 @@ export function useGlobalEventHandlers() {
   });
 
   // ==================== INVENTORY_PROCURED ====================
-  // Updates: FinanceContext (create vendor payable)
+  // Updates: FinanceContext (create/top-up vendor payable)
   useEventListener("INVENTORY_PROCURED", (event) => {
     try {
-      const { itemId, itemName, quantity, supplierId, amount, cityId } = event.data;
+      const { itemId, itemName, quantity, supplierId, amount, cityId, grnContext } = event.data;
+      const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      // ✅ NEW: a real GRN against a real PO (GRNEntry.tsx) carries real
+      // per-line GST — route to the accurate, PO-topped-up vendor payable
+      // instead of the generic NonGST fallback below. Every other
+      // procurement path (e.g. GeneralProcurement.tsx's ad-hoc receipts,
+      // with no PO to link to) has no grnContext and keeps today's
+      // behavior exactly as before.
+      if (grnContext?.poNumber && grnContext?.vendorId) {
+        const taxableValue = grnContext.taxableValue ?? amount;
+        const totalOwed = Math.round((taxableValue + (grnContext.cgst || 0) + (grnContext.sgst || 0) + (grnContext.igst || 0)) * 100) / 100;
+        financeContext.recordVendorPayableForGRN({
+          poNumber: grnContext.poNumber,
+          grnNumber: grnContext.grnNumber || "",
+          vendorId: grnContext.vendorId,
+          vendorName: grnContext.vendorName || "",
+          amount: totalOwed,
+          taxableValue,
+          cgst: grnContext.cgst || 0,
+          sgst: grnContext.sgst || 0,
+          igst: grnContext.igst || 0,
+          dueDate,
+          description: `GRN receipt — ${itemName} × ${quantity} (PO ${grnContext.poNumber})`,
+          cityId,
+        });
+        return;
+      }
       financeContext.createPayable({
         type: "Vendor",
         description: `Procurement — ${itemName} × ${quantity}`,
         vendorId: supplierId,
         amount,
-        dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+        dueDate,
         status: "Pending",
         cityId,
       });
