@@ -37,20 +37,15 @@ import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { accountingEntryService } from "../../services/accountingEntryService";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
-import { WASHER_ROLE, computeWasherKraScores, seedWasherKpiCatalogIfMissing } from "../../services/kraWasherPilot";
-import { SUPERVISOR_ROLE, computeSupervisorKraScores, seedSupervisorKpiCatalogIfMissing } from "../../services/kraSupervisorPilot";
-import { OM_ROLE, computeOMKraScores, seedOMKpiCatalogIfMissing } from "../../services/kraOMPilot";
-import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager, seedCityKpiCatalogIfMissing } from "../../services/kraCityPilot";
-import { CCE_ROLE, computeCCEKraScores, seedCCEKpiCatalogIfMissing, type CCEComplaintLike } from "../../services/kraCCEPilot";
-import { ACCOUNTS_ROLE, computeAccountsKraScores, seedAccountsKpiCatalogIfMissing } from "../../services/kraAccountsPilot";
-import { STORE_ROLE, computeStoreKraScores, seedStoreKpiCatalogIfMissing, readMonthEndVerifications } from "../../services/kraStorePilot";
-import { PROCUREMENT_ROLE, computeProcurementKraScores, seedProcurementKpiCatalogIfMissing } from "../../services/kraProcurementPilot";
-import { seedTSEKpiCatalogIfMissing } from "../../services/kraTSEPilot";
-import { seedTSMKpiCatalogIfMissing } from "../../services/kraTSMPilot";
-import { seedSalesHeadKpiCatalogIfMissing } from "../../services/kraSalesHeadPilot";
-import { seedSalesManagerKpiCatalogIfMissing } from "../../services/kraSalesManagerPilot";
-import { seedClusterManagerKpiCatalogIfMissing } from "../../services/kraClusterManagerPilot";
-import { seedHRKpiCatalogIfMissing } from "../../services/kraHRPilot";
+import { WASHER_ROLE, computeWasherKraScores } from "../../services/kraWasherPilot";
+import { SUPERVISOR_ROLE, computeSupervisorKraScores } from "../../services/kraSupervisorPilot";
+import { OM_ROLE, computeOMKraScores } from "../../services/kraOMPilot";
+import { CITY_ROLE, computeCityKraScores, maskKraResultForCityManager } from "../../services/kraCityPilot";
+import { CCE_ROLE, computeCCEKraScores, type CCEComplaintLike } from "../../services/kraCCEPilot";
+import { ACCOUNTS_ROLE, computeAccountsKraScores } from "../../services/kraAccountsPilot";
+import { STORE_ROLE, computeStoreKraScores, readMonthEndVerifications } from "../../services/kraStorePilot";
+import { PROCUREMENT_ROLE, computeProcurementKraScores } from "../../services/kraProcurementPilot";
+import { seedAllKraKpiCatalogs } from "../../services/kraCatalogSeeder";
 import { getActiveKraTemplate, resolveEmployeeKras, getKpiCatalog, getKpiActual, getEffectiveQuarterlyKpiValue } from "../../services/kraEngineService";
 import { getFinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -130,21 +125,9 @@ export function KraScorecardHub() {
     // KRA (an HR user typing a KPI name by hand instead would silently
     // create a MANUAL_ENTRY duplicate, disconnected from the real
     // computed formula). Idempotent — each function only inserts an
-    // entry if its code isn't already present.
-    seedWasherKpiCatalogIfMissing();
-    seedSupervisorKpiCatalogIfMissing();
-    seedOMKpiCatalogIfMissing();
-    seedCityKpiCatalogIfMissing();
-    seedCCEKpiCatalogIfMissing();
-    seedAccountsKpiCatalogIfMissing();
-    seedStoreKpiCatalogIfMissing();
-    seedProcurementKpiCatalogIfMissing();
-    seedTSEKpiCatalogIfMissing();
-    seedTSMKpiCatalogIfMissing();
-    seedSalesHeadKpiCatalogIfMissing();
-    seedSalesManagerKpiCatalogIfMissing();
-    seedClusterManagerKpiCatalogIfMissing();
-    seedHRKpiCatalogIfMissing();
+    // entry if its code isn't already present. Also called from
+    // KraAuthoringModule.tsx, since HR may open that screen first.
+    seedAllKraKpiCatalogs();
   }, []);
 
   const catalog = useMemo(() => getKpiCatalog(), [selectedRole]);

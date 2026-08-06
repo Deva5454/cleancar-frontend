@@ -13,7 +13,7 @@
  * list per role, so every quarter's KRA stays retrievable on its own.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRole } from "../../contexts/RoleContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import {
@@ -21,6 +21,8 @@ import {
   submitKraTemplateForApproval, cloneKraTemplateToNextQuarter, getKpiCatalog, upsertKpiCatalogEntry,
   type KraTemplate, type KraDefinition, type KraKpiLink, type KpiCatalogEntry,
 } from "../../services/kraEngineService";
+import { getSuggestedKrasForRole } from "../../services/kraDefaultKrasRegistry";
+import { seedAllKraKpiCatalogs } from "../../services/kraCatalogSeeder";
 import { getFinancialQuarter, listPastAndCurrentQuarters, type FinancialQuarter } from "../../services/financialQuarter";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -46,6 +48,14 @@ export function KraAuthoringModule() {
   const { currentUser } = useRole();
   const [refresh, setRefresh] = useState(0);
   const current = getFinancialQuarter();
+
+  useEffect(() => {
+    // Same real fix as KraScorecardHub.tsx — HR may open this Authoring
+    // screen before ever visiting the Scorecard, so the KPI catalog must
+    // be seeded here too, not only there.
+    seedAllKraKpiCatalogs();
+    setRefresh((r) => r + 1);
+  }, []);
 
   const roles = useMemo(() => {
     const set = new Set(
@@ -81,6 +91,12 @@ export function KraAuthoringModule() {
 
   const catalog = useMemo(() => getKpiCatalog(), [refresh]);
 
+  const suggestedKras = useMemo(() => {
+    if (!selectedRole) return [];
+    const addedCodes = new Set(kras.map((k) => k.kraCode));
+    return getSuggestedKrasForRole(selectedRole).filter((k) => !addedCodes.has(k.kraCode));
+  }, [selectedRole, kras]);
+
   const loadForEditing = (template?: KraTemplate) => {
     setEditingKras(template ? template.kras.map((k) => ({ ...k, kpis: k.kpis.map((kpi) => ({ ...kpi })) })) : []);
   };
@@ -109,30 +125,43 @@ export function KraAuthoringModule() {
     if (activeTemplate) updateKraTemplateDraft(activeTemplate.id, updated);
   };
 
-  const addKra = () => {
+  const addCustomKra = () => {
     const name = prompt("KRA name (e.g. \"Customer Retention\")");
     if (!name?.trim()) return;
     const weight = Number(prompt("Weight (% of total, e.g. 30)") || 0);
     saveDraft([...kras, { kraCode: slugify(name), name: name.trim(), weight, kpis: [] }]);
   };
+  const addSuggestedKra = (kraCode: string) => {
+    if (kraCode === "__custom__") { addCustomKra(); return; }
+    const suggestion = suggestedKras.find((k) => k.kraCode === kraCode);
+    if (!suggestion) return;
+    saveDraft([...kras, { ...suggestion, kpis: suggestion.kpis.map((kpi) => ({ ...kpi })) }]);
+  };
   const removeKra = (kraCode: string) => saveDraft(kras.filter((k) => k.kraCode !== kraCode));
   const updateKraWeight = (kraCode: string, weight: number) => saveDraft(kras.map((k) => k.kraCode === kraCode ? { ...k, weight } : k));
 
-  const addKpi = (kraCode: string) => {
-    const existingCodes = catalog.map((c) => `${c.code} — ${c.name}`).join("\n");
-    const choice = prompt(`Enter an existing KPI code, or a new KPI name to create one.\nExisting catalog:\n${existingCodes}`);
-    if (!choice?.trim()) return;
-    let entry: KpiCatalogEntry | undefined = catalog.find((c) => c.code === choice.trim());
-    if (!entry) {
-      const code = slugify(choice);
-      entry = { code, name: choice.trim(), unit: "%", direction: "higher-is-better", dataSource: "MANUAL_ENTRY", description: "Manually entered each quarter — no automatic real-data formula exists for this KPI yet." };
-      upsertKpiCatalogEntry(entry);
-      setRefresh((r) => r + 1);
-    }
-    const target = Number(prompt(`Target value for ${entry.name} this quarter (e.g. 80)`) || 0);
+  const addKpiLink = (kraCode: string, entry: KpiCatalogEntry, suggestedTarget?: number) => {
+    const target = Number(prompt(`Target value for ${entry.name} this quarter (e.g. ${suggestedTarget ?? 80})`, String(suggestedTarget ?? "")) || 0);
     const newLink: KraKpiLink = { kpiCode: entry.code, weight: 100, defaultTarget: target };
     saveDraft(kras.map((k) => k.kraCode === kraCode ? { ...k, kpis: [...k.kpis, newLink] } : k));
   };
+  const addCustomKpi = (kraCode: string) => {
+    const name = prompt("New KPI name (not in the existing catalog)");
+    if (!name?.trim()) return;
+    const code = slugify(name);
+    const entry: KpiCatalogEntry = { code, name: name.trim(), unit: "%", direction: "higher-is-better", dataSource: "MANUAL_ENTRY", description: "Manually entered each quarter — no automatic real-data formula exists for this KPI yet." };
+    upsertKpiCatalogEntry(entry);
+    setRefresh((r) => r + 1);
+    addKpiLink(kraCode, entry);
+  };
+  const addKpiFromDropdown = (kraCode: string, kpiCode: string) => {
+    if (kpiCode === "__custom__") { addCustomKpi(kraCode); return; }
+    const entry = catalog.find((c) => c.code === kpiCode);
+    if (!entry) return;
+    const suggestion = getSuggestedKrasForRole(selectedRole).find((k) => k.kraCode === kraCode)?.kpis.find((kpi) => kpi.kpiCode === kpiCode);
+    addKpiLink(kraCode, entry, suggestion?.defaultTarget);
+  };
+  const kpisInKra = (kraCode: string): Set<string> => new Set(kras.find((k) => k.kraCode === kraCode)?.kpis.map((kpi) => kpi.kpiCode) || []);
   const removeKpi = (kraCode: string, kpiCode: string) => saveDraft(kras.map((k) => k.kraCode === kraCode ? { ...k, kpis: k.kpis.filter((kpi) => kpi.kpiCode !== kpiCode) } : k));
   const updateKpiTarget = (kraCode: string, kpiCode: string, target: number) => saveDraft(kras.map((k) => k.kraCode === kraCode ? { ...k, kpis: k.kpis.map((kpi) => kpi.kpiCode === kpiCode ? { ...kpi, defaultTarget: target } : kpi) } : k));
   const updateKpiWeight = (kraCode: string, kpiCode: string, weight: number) => saveDraft(kras.map((k) => k.kraCode === kraCode ? { ...k, kpis: k.kpis.map((kpi) => kpi.kpiCode === kpiCode ? { ...kpi, weight } : kpi) } : k));
@@ -264,18 +293,30 @@ export function KraAuthoringModule() {
                     );
                   })}
                   {draftForQuarter.status === "Draft" && (
-                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => addKpi(kra.kraCode)}>
-                      <Plus className="w-3 h-3 mr-1" /> Add KPI
-                    </Button>
+                    <Select key={`add-kpi-${kra.kraCode}-${kra.kpis.length}`} onValueChange={(v) => addKpiFromDropdown(kra.kraCode, v)}>
+                      <SelectTrigger className="h-7 text-xs w-full"><SelectValue placeholder="+ Add KPI" /></SelectTrigger>
+                      <SelectContent>
+                        {catalog.filter((c) => !kpisInKra(kra.kraCode).has(c.code)).map((c) => (
+                          <SelectItem key={c.code} value={c.code}>{c.name} ({c.unit}){c.dataSource === "MANUAL_ENTRY" ? " — manual" : ""}</SelectItem>
+                        ))}
+                        <SelectItem value="__custom__">+ Custom KPI…</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
             ))}
 
             {draftForQuarter.status === "Draft" && (
-              <Button variant="outline" className="w-full" onClick={addKra}>
-                <Plus className="w-4 h-4 mr-1" /> Add KRA Group
-              </Button>
+              <Select key={`add-kra-${kras.length}`} onValueChange={addSuggestedKra}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="+ Add KRA Group" /></SelectTrigger>
+                <SelectContent>
+                  {suggestedKras.map((k) => (
+                    <SelectItem key={k.kraCode} value={k.kraCode}>{k.name} ({k.weight}% suggested)</SelectItem>
+                  ))}
+                  <SelectItem value="__custom__">+ Custom KRA…</SelectItem>
+                </SelectContent>
+              </Select>
             )}
 
             <div className={`text-sm font-medium ${Math.round(totalWeight) === 100 ? "text-green-700" : "text-amber-600"}`}>
