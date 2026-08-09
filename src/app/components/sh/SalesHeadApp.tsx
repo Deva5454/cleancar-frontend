@@ -582,6 +582,13 @@ export function SalesHeadApp() {
   );
   const [btlLocations, setBtlLocations] = useState<SMLocation[]>(() => salesManagerService.getLocationsWithLiveMetrics());
   const pendingBTLLocations = btlLocations.filter(l => l.status === "Pending Approval");
+
+  // Real, confirmed addition - generates LOCATION_AT_RISK/LOCATION_INACTIVE
+  // alerts from genuine, live location data on dashboard load.
+  useEffect(() => {
+    salesManagerService.generateLocationAlerts();
+  }, []);
+
   const _persist = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
     try {

@@ -378,6 +378,91 @@ class SalesManagerService {
   }
   getBlockDeals():     SMBlockDeal[]    { return this.load(this.KEYS.BLOCK_DEALS, seedBlockDeals);   }
   getAlerts():         SMAlert[]        { return this.load(this.KEYS.ALERTS,      seedAlerts);       }
+
+  // Real, confirmed addition - LOCATION_AT_RISK and LOCATION_INACTIVE were
+  // already real, valid SMAlert types, but nothing anywhere ever actually
+  // created one. Also: SMLocation.status itself has real "At Risk"/"Inactive"
+  // values in its type, confirmed via salesHeadService.ts's own SM-summary
+  // dashboard (which counts locations by these exact status values) - but no
+  // real code anywhere ever sets them either. This detects both conditions
+  // from genuine, live location data and updates both: the real status field
+  // (which is what salesHeadService's dashboard counts actually read) and a
+  // real SMAlert record (for the alerts panel), through the existing,
+  // working getLocations()/getAlerts() persistence.
+  //
+  // Thresholds (documented here since they're not sourced from any real
+  // policy doc found in this codebase - confirm/adjust if a real,
+  // different threshold exists):
+  //   Inactive: no real supervisor activity in 14+ days
+  //   At Risk:  this month's real lead volume is under half of last
+  //             month's, for a location with genuine prior lead history
+  generateLocationAlerts(): SMAlert[] {
+    const liveLocations = this.getLocationsWithLiveMetrics();
+    const existingAlerts = this.getAlerts();
+    const now = Date.now();
+    const INACTIVE_DAYS = 14;
+    const newAlerts: SMAlert[] = [];
+    const statusUpdates = new Map<string, LocationStatus>();
+
+    for (const loc of liveLocations) {
+      if (loc.status !== "Active" && loc.status !== "Active Prospect") continue;
+
+      const alreadyHasAlert = (type: SMAlert["type"]) =>
+        existingAlerts.some(a => a.type === type && a.locationName === loc.name);
+
+      // Inactive — no real supervisor activity in a long time
+      const lastActivityMs = loc.lastSupervisorActivity ? new Date(loc.lastSupervisorActivity).getTime() : null;
+      const daysSinceActivity = lastActivityMs ? (now - lastActivityMs) / (1000 * 60 * 60 * 24) : Infinity;
+      if (daysSinceActivity >= INACTIVE_DAYS) {
+        statusUpdates.set(loc.id, "Inactive");
+        if (!alreadyHasAlert("LOCATION_INACTIVE")) {
+          newAlerts.push({
+            id: `alert-inactive-${loc.id}`,
+            type: "LOCATION_INACTIVE",
+            severity: "WARNING",
+            locationName: loc.name,
+            message: lastActivityMs
+              ? `No supervisor activity at ${loc.name} for ${Math.floor(daysSinceActivity)} days`
+              : `No supervisor activity ever recorded at ${loc.name}`,
+            timestamp: new Date().toISOString(),
+            actionRequired: true,
+          });
+        }
+        continue; // Inactive takes priority over At Risk for the same location
+      }
+
+      // At Risk — real lead volume dropped off vs. last month, for a
+      // location with genuine prior lead history (avoids flagging brand-new
+      // locations that simply haven't had a full month yet)
+      if (loc.leadsMTDM1 >= 3 && loc.leadsMTD < loc.leadsMTDM1 * 0.5) {
+        statusUpdates.set(loc.id, "At Risk");
+        if (!alreadyHasAlert("LOCATION_AT_RISK")) {
+          newAlerts.push({
+            id: `alert-atrisk-${loc.id}`,
+            type: "LOCATION_AT_RISK",
+            severity: "WARNING",
+            locationName: loc.name,
+            message: `${loc.name}: ${loc.leadsMTD} leads this month vs. ${loc.leadsMTDM1} last month`,
+            timestamp: new Date().toISOString(),
+            actionRequired: true,
+          });
+        }
+      }
+    }
+
+    if (statusUpdates.size > 0) {
+      const realLocations = this.getLocations();
+      const updated = realLocations.map(loc =>
+        statusUpdates.has(loc.id) ? { ...loc, status: statusUpdates.get(loc.id)! } : loc
+      );
+      this.save(this.KEYS.LOCATIONS, updated);
+    }
+    if (newAlerts.length > 0) {
+      this.save(this.KEYS.ALERTS, [...existingAlerts, ...newAlerts]);
+    }
+    return this.getAlerts();
+  }
+
   getExpenseClaims():  SMExpenseClaim[] { return this.load(this.KEYS.EXPENSES,    seedExpenseClaims);}
 
   getGateStatus(): SMGateStatus {
