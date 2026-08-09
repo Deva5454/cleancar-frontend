@@ -9,6 +9,7 @@ import {
   salesManagerIncentiveEngine,
   type SMPayrollBreakdown,
 } from "./salesIncentiveEngine";
+import { btlLeadService } from "./btlLeadService";
 
 // ── Types (unchanged from v1) ─────────────────────────────────────────────────
 
@@ -350,6 +351,31 @@ class SalesManagerService {
   }
 
   getLocations():      SMLocation[]     { return this.load(this.KEYS.LOCATIONS,   seedLocations);    }
+
+  // Real, confirmed fix - leadsMTD/conversionsMTD were only ever hardcoded
+  // seed values with zero real aggregation anywhere, meaning Sales Head's
+  // dashboard showed the same frozen numbers regardless of real field
+  // activity. This overlays genuine, live-computed values on top of the
+  // real, saved location records, without writing the computed values
+  // back to storage (see comment above on why this must be a separate
+  // function from getLocations() itself).
+  getLocationsWithLiveMetrics(): SMLocation[] {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return this.getLocations().map(loc => {
+      const leads = btlLeadService.getLeadsByLocation(loc.id);
+      const leadsThisMonth = leads.filter(l => new Date(l.capturedDate) >= monthStart);
+      const conversionsThisMonth = leadsThisMonth.filter(l => l.status === "CONVERTED");
+      return {
+        ...loc,
+        leadsMTD: leadsThisMonth.length,
+        conversionsMTD: conversionsThisMonth.length,
+        conversionRatePct: leadsThisMonth.length > 0
+          ? Math.round((conversionsThisMonth.length / leadsThisMonth.length) * 100)
+          : 0,
+      };
+    });
+  }
   getBlockDeals():     SMBlockDeal[]    { return this.load(this.KEYS.BLOCK_DEALS, seedBlockDeals);   }
   getAlerts():         SMAlert[]        { return this.load(this.KEYS.ALERTS,      seedAlerts);       }
   getExpenseClaims():  SMExpenseClaim[] { return this.load(this.KEYS.EXPENSES,    seedExpenseClaims);}

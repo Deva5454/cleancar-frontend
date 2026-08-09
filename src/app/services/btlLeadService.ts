@@ -610,6 +610,16 @@ class BTLLeadService {
     return filtered;
   }
 
+  // Real, confirmed addition - locationId was already being captured on
+  // every lead submitted inside an active BTL session (see submitLead's
+  // btlContext), but nothing anywhere actually read it back out. This is
+  // the real, precise way to attribute leads to a specific location,
+  // rather than approximating via supervisorId (which can't distinguish
+  // between multiple locations the same supervisor covers).
+  getLeadsByLocation(locationId: string): BTLLead[] {
+    return this.getBTLLeadsFromMaster().filter(l => l.locationId === locationId);
+  }
+
   // ========== LEAD VALIDATION ==========
 
   validateLead(

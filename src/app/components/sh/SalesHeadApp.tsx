@@ -580,7 +580,7 @@ export function SalesHeadApp() {
     e => (e.status === "Supervisor Verification Pending" || e.status === "Exit Initiated")
       && e.verifierRole === "Sales Head"
   );
-  const [btlLocations, setBtlLocations] = useState<SMLocation[]>(() => salesManagerService.getLocations());
+  const [btlLocations, setBtlLocations] = useState<SMLocation[]>(() => salesManagerService.getLocationsWithLiveMetrics());
   const pendingBTLLocations = btlLocations.filter(l => l.status === "Pending Approval");
   const _persist = (records: any[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch {}
@@ -731,7 +731,7 @@ export function SalesHeadApp() {
           <TabsContent value="btl-approvals" className="p-4 space-y-4">
             <BTLApprovalsPanel
               locations={btlLocations}
-              onRefresh={() => setBtlLocations(salesManagerService.getLocations())}
+              onRefresh={() => setBtlLocations(salesManagerService.getLocationsWithLiveMetrics())}
             />
           </TabsContent>
 
