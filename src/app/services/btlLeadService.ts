@@ -534,7 +534,7 @@ class BTLLeadService {
       mobile: crmLead.mobile,
       source: "BTL" as const,
       ...metadata,
-      status: this.mapCRMStatusToBTL(crmLead.status)
+      status: metadata.isExpired ? "EXPIRED" : this.mapCRMStatusToBTL(crmLead.status)
     } as BTLLead;
   }
 
@@ -557,8 +557,9 @@ class BTLLeadService {
         mobile: crmLead.mobile,
         source: "BTL" as const,
         ...metadata,
-        // Map CRM status back to BTL status
-        status: this.mapCRMStatusToBTL(crmLead.status)
+        // Map CRM status back to BTL status - isExpired takes priority, since
+        // the CRM status type has no real equivalent for EXPIRED
+        status: metadata.isExpired ? "EXPIRED" : this.mapCRMStatusToBTL(crmLead.status)
       } as BTLLead;
     });
   }
@@ -910,36 +911,41 @@ class BTLLeadService {
   // ========== LEAD STATUS UPDATES ==========
 
   markInTelesales(leadId: string): { success: boolean } {
-    const lead = this.getBTLLeadById(leadId);
-    if (!lead) return { success: false };
+    const crmLead = MASTER_LEADS.find(l => l.id === leadId && l.source === "BTL");
+    if (!crmLead) return { success: false };
 
-    lead.status = "IN_TELESALES";
-    lead.telesalesContactDate = new Date();
+    crmLead.status = "In Progress"; // real, authoritative source - status is always derived from this via mapCRMStatusToBTL
+
+    const metadata = this.btlMetadata.get(leadId);
+    if (metadata) {
+      this.btlMetadata.set(leadId, { ...metadata, telesalesContactDate: new Date() });
+    }
+
     console.log("Lead status updated:", leadId, "→ IN_TELESALES");
     return { success: true };
   }
 
   markConverted(leadId: string): { success: boolean; error?: string } {
-    const lead = this.getBTLLeadById(leadId);
-    if (!lead) return { success: false, error: "Lead not found" };
+    const crmLead = MASTER_LEADS.find(l => l.id === leadId && l.source === "BTL");
+    if (!crmLead) return { success: false, error: "Lead not found" };
+    const metadata = this.btlMetadata.get(leadId);
+    if (!metadata) return { success: false, error: "Lead not found" };
 
     // Check if within 30 days
     const daysSinceCapture = Math.floor(
-      (new Date().getTime() - lead.capturedDate.getTime()) / (1000 * 60 * 60 * 24)
+      (new Date().getTime() - metadata.capturedDate.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     if (daysSinceCapture > this.MAX_CONVERSION_DAYS) {
-      lead.status = "EXPIRED";
-      lead.isExpired = true;
+      this.btlMetadata.set(leadId, { ...metadata, isExpired: true });
       console.log("⚠️ Conversion after 30 days → No incentive");
       return { success: false, error: "Conversion after 30 days - No incentive" };
     }
 
-    lead.status = "CONVERTED";
-    lead.conversionDate = new Date();
-    lead.incentive70Paid = true;
+    crmLead.status = "Converted"; // real, authoritative source
+    this.btlMetadata.set(leadId, { ...metadata, conversionDate: new Date(), incentive70Paid: true });
     console.log("Lead converted:", leadId);
-    console.log(`70% incentive (₹${lead.totalIncentive * 0.7}) paid`);
+    console.log(`70% incentive (₹${metadata.totalIncentive * 0.7}) paid`);
 
     return { success: true };
   }
@@ -961,8 +967,9 @@ class BTLLeadService {
       return { success: false, error: "90-day retention period not complete" };
     }
 
-    lead.retentionCompletedDate = new Date();
-    lead.incentive30Paid = true;
+    const metadata = this.btlMetadata.get(leadId);
+    if (!metadata) return { success: false, error: "Lead not found" };
+    this.btlMetadata.set(leadId, { ...metadata, retentionCompletedDate: new Date(), incentive30Paid: true });
     console.log("Retention complete:", leadId);
     console.log(`30% incentive (₹${lead.totalIncentive * 0.3}) paid`);
 
@@ -970,11 +977,13 @@ class BTLLeadService {
   }
 
   markDisqualified(leadId: string, reason: string): { success: boolean } {
-    const lead = this.getBTLLeadById(leadId);
-    if (!lead) return { success: false };
+    const crmLead = MASTER_LEADS.find(l => l.id === leadId && l.source === "BTL");
+    if (!crmLead) return { success: false };
+    const metadata = this.btlMetadata.get(leadId);
+    if (!metadata) return { success: false };
 
-    lead.status = "DISQUALIFIED";
-    lead.disqualificationReason = reason;
+    crmLead.status = "Lost"; // real, authoritative source - correctly maps to DISQUALIFIED
+    this.btlMetadata.set(leadId, { ...metadata, disqualificationReason: reason });
     console.log("Lead disqualified:", leadId, reason);
     return { success: true };
   }
@@ -1053,13 +1062,20 @@ class BTLLeadService {
       return { success: false, error: "Only PENDING leads can be assigned to TSE" };
     }
 
-    // Update lead assignment
-    lead.assignedToTSE = tseId;
-    lead.assignedToTSEName = tseName;
-    lead.assignedDate = new Date();
-    lead.lastActivityDate = new Date();
-    lead.lastActivityBy = tseId;
-    lead.status = "IN_TELESALES";
+    const crmLead = MASTER_LEADS.find(l => l.id === leadId && l.source === "BTL");
+    const metadata = this.btlMetadata.get(leadId);
+    if (!crmLead || !metadata) return { success: false, error: "Lead not found" };
+
+    crmLead.status = "In Progress"; // real, authoritative source - correctly maps to IN_TELESALES
+    const now = new Date();
+    this.btlMetadata.set(leadId, {
+      ...metadata,
+      assignedToTSE: tseId,
+      assignedToTSEName: tseName,
+      assignedDate: now,
+      lastActivityDate: now,
+      lastActivityBy: tseId,
+    });
 
     console.log(`📞 Lead ${leadId} assigned to TSE ${tseName}`);
 
@@ -1089,14 +1105,28 @@ class BTLLeadService {
     const lead = this.getBTLLeadById(leadId);
     if (!lead) return { success: false, error: "Lead not found" };
 
-    const oldStatus = lead.status;
-    lead.status = newStatus;
-    lead.lastActivityDate = new Date();
-    lead.lastActivityBy = updatedBy;
+    const crmLead = MASTER_LEADS.find(l => l.id === leadId && l.source === "BTL");
+    const metadata = this.btlMetadata.get(leadId);
+    if (!crmLead || !metadata) return { success: false, error: "Lead not found" };
 
-    if (newStatus === "DISQUALIFIED" && reason) {
-      lead.disqualificationReason = reason;
+    const oldStatus = lead.status;
+    // Reverse of mapCRMStatusToBTL - EXPIRED has no real CRM equivalent,
+    // so it's represented via the real isExpired flag instead, same as
+    // the rest of this file's status-mutating functions.
+    const reverseMap: Partial<Record<LeadStatus, Lead["status"]>> = {
+      "PENDING": "New",
+      "IN_TELESALES": "In Progress",
+      "CONVERTED": "Converted",
+      "DISQUALIFIED": "Lost",
+    };
+    if (newStatus !== "EXPIRED") {
+      crmLead.status = reverseMap[newStatus]!;
     }
+
+    const metadataUpdate: any = { ...metadata, lastActivityDate: new Date(), lastActivityBy: updatedBy };
+    if (newStatus === "EXPIRED") metadataUpdate.isExpired = true;
+    if (newStatus === "DISQUALIFIED" && reason) metadataUpdate.disqualificationReason = reason;
+    this.btlMetadata.set(leadId, metadataUpdate);
 
     console.log(`🔄 Lead ${leadId} status: ${oldStatus} → ${newStatus}`);
 
@@ -1139,9 +1169,10 @@ class BTLLeadService {
     const lead = this.getBTLLeadById(leadId);
     if (!lead) return { success: false, error: "Lead not found" };
 
-    lead.telesalesContactDate = new Date();
-    lead.lastActivityDate = new Date();
-    lead.lastActivityBy = tseId;
+    const metadata = this.btlMetadata.get(leadId);
+    if (!metadata) return { success: false, error: "Lead not found" };
+    const now = new Date();
+    this.btlMetadata.set(leadId, { ...metadata, telesalesContactDate: now, lastActivityDate: now, lastActivityBy: tseId });
 
     console.log(`📞 Lead ${leadId} contacted by TSE ${tseName}`);
 
