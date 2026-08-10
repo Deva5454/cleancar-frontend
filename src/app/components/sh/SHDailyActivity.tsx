@@ -112,6 +112,14 @@ export function SHDailyActivity() {
         <p className="text-sm text-gray-500">{TODAY}</p>
       </div>
 
+      {/* Real, confirmed addition - same self-reminder pattern as SM's report */}
+      {new Date().getHours() >= 17 && !report.morning.locked && (
+        <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+          <Star className="w-3.5 h-3.5 shrink-0"/>
+          <strong>It's after 5 PM and today's report hasn't been started yet.</strong> Lock in your morning priorities to get going.
+        </div>
+      )}
+
       {/* Morning */}
       <Card>
         <CardHeader>

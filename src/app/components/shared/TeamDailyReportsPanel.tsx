@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { CheckCircle2, Circle, Star } from "lucide-react";
-import { dailyReportService, type DailyReportSummary, type DailyReportType } from "../../services/dailyReportService";
+import { dailyReportService, type DailyReportSummary, type DailyReportType, type RollupResult } from "../../services/dailyReportService";
 
 export function TeamDailyReportsPanel({
   title,
@@ -22,9 +22,15 @@ export function TeamDailyReportsPanel({
   employees: { employeeId: string; name: string }[];
 }) {
   const [reports, setReports] = useState<Record<string, DailyReportSummary | null>>({});
+  const [rollups, setRollups] = useState<Record<string, RollupResult>>({});
 
   useEffect(() => {
-    setReports(dailyReportService.getReportsForEmployees(reportType, employees.map(e => e.employeeId)));
+    const ids = employees.map(e => e.employeeId);
+    setReports(dailyReportService.getReportsForEmployees(reportType, ids));
+    const rollupResults = dailyReportService.getRollupForEmployees(reportType, ids, 7);
+    const rollupMap: Record<string, RollupResult> = {};
+    rollupResults.forEach(r => { rollupMap[r.employeeId] = r; });
+    setRollups(rollupMap);
   }, [reportType, employees.map(e => e.employeeId).join(",")]);
 
   const submittedCount = Object.values(reports).filter(r => r?.submitted).length;
@@ -53,6 +59,14 @@ export function TeamDailyReportsPanel({
                     <Circle className="w-4 h-4 text-gray-300" />
                   )}
                   <span className="font-medium text-gray-900 text-sm">{name}</span>
+                  {rollups[employeeId] && (
+                    <Badge
+                      variant="outline"
+                      className={rollups[employeeId].missedDates.length >= 2 ? "text-red-600 border-red-300" : "text-gray-500"}
+                    >
+                      {rollups[employeeId].submittedDays}/{rollups[employeeId].workingDays} this week
+                    </Badge>
+                  )}
                 </div>
                 {r ? (
                   <Badge variant={r.submitted ? "default" : "outline"}>

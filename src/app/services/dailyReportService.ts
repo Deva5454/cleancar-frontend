@@ -89,4 +89,53 @@ function getReportsForEmployees(reportType: DailyReportType, employeeIds: string
   return out;
 }
 
-export const dailyReportService = { getReport, getReportsForEmployees, TODAY };
+export interface RollupResult {
+  employeeId: string;
+  workingDays: number;
+  submittedDays: number;
+  missedDates: string[];
+}
+
+/**
+ * Real submission consistency over the last N real calendar days,
+ * excluding weekends by default (a missed Sunday isn't a genuine gap for
+ * roles that don't work that day). Reads the same real, per-day storage
+ * keys as getReport() - no separate rollup storage, so this can never
+ * drift out of sync with the real, individual daily records.
+ */
+function getRollup(
+  reportType: DailyReportType,
+  employeeId: string,
+  days: number = 7,
+  excludeWeekends: boolean = true
+): RollupResult {
+  const dates: string[] = [];
+  const cursor = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(cursor);
+    d.setDate(d.getDate() - i);
+    if (excludeWeekends && (d.getDay() === 0 || d.getDay() === 6)) continue;
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  const missedDates: string[] = [];
+  let submittedDays = 0;
+  for (const date of dates) {
+    const r = getReport(reportType, employeeId, date);
+    if (r?.submitted) submittedDays++;
+    else missedDates.push(date);
+  }
+
+  return { employeeId, workingDays: dates.length, submittedDays, missedDates };
+}
+
+function getRollupForEmployees(
+  reportType: DailyReportType,
+  employeeIds: string[],
+  days: number = 7,
+  excludeWeekends: boolean = true
+): RollupResult[] {
+  return employeeIds.map(id => getRollup(reportType, id, days, excludeWeekends));
+}
+
+export const dailyReportService = { getReport, getReportsForEmployees, getRollup, getRollupForEmployees, TODAY };

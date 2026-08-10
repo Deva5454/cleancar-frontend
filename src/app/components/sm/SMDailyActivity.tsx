@@ -1540,6 +1540,16 @@ export function SMDailyActivity() {
           )}
         </div>
 
+        {/* Real, confirmed addition - self-reminder if it's late in the day
+            and nothing has been locked in yet. Previously there was no
+            signal at all if a report simply never got started. */}
+        {new Date().getHours() >= 17 && !report.morning.locked && (
+          <div className="mt-3 flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+            <Sun className="w-3.5 h-3.5 shrink-0"/>
+            <strong>It's after 5 PM and today's report hasn't been started yet.</strong> Lock in your morning priorities to get going.
+          </div>
+        )}
+
         {/* EOD mandatory warning when field is locked but EOD not done */}
         {report.field.locked && !report.evening.locked && (
           <div className="mt-3 flex items-center gap-2 p-2.5 bg-red-50 border border-red-300 rounded-lg text-xs text-red-700">
