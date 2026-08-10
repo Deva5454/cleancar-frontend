@@ -39,6 +39,7 @@ import {
 } from "../../services/salesHeadService";
 import { incentiveVisibilityService } from "../../services/incentiveVisibilityService";
 import { IncentiveStatement } from "../shared/IncentiveStatement";
+import { TeamDailyReportsPanel } from "../shared/TeamDailyReportsPanel";
 import { useRole } from "../../contexts/RoleContext";
 import { DataService } from "../../services/DataService";
 import { SalesHeadManagementView } from "./SalesHeadManagementView";
@@ -563,6 +564,7 @@ function Reports() {
 export function SalesHeadApp() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const { currentUser } = useRole();
+  const { getEmployeesByRole } = useEmployee();
   const metrics = salesHeadService.getCommandMetrics();
 
   // Exit verification — Sales Head verifies Sales Manager exits
@@ -696,6 +698,9 @@ export function SalesHeadApp() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="sm-daily-reports" className="text-xs gap-1 border-l-2 border-blue-300">
+              <CheckCircle2 className="w-3 h-3 hidden sm:block" />SM Daily Reports
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -827,6 +832,17 @@ export function SalesHeadApp() {
                 );
               })
             )}
+          </TabsContent>
+
+          <TabsContent value="sm-daily-reports" className="p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Sales Manager Daily Reports</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Real, live submission status for every Sales Manager reporting to you.</p>
+            </div>
+            <TeamDailyReportsPanel
+              title="Sales Managers"
+              employees={getEmployeesByRole("Sales Manager").map((e: any) => ({ employeeId: e.employeeId, name: e.fullName || `${e.firstName} ${e.lastName}` }))}
+            />
           </TabsContent>
         </Tabs>
       </div>

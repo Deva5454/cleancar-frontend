@@ -57,6 +57,8 @@ import { WasherGpsApprovals } from "./WasherGpsApprovals";
 import { washerGpsViolationService } from "../../services/washerGpsViolationService";
 import { DataService } from "../../services/DataService";
 import { BTLActivityVisibilityPanel } from "../shared/BTLActivityVisibilityPanel";
+import { TeamDailyReportsPanel } from "../shared/TeamDailyReportsPanel";
+import { useEmployee } from "../../contexts/EmployeeContext";
 
 type Screen =
   | "COMMAND_DASHBOARD"
@@ -74,7 +76,8 @@ type Screen =
   | "JOB_APPROVALS"
   | "BRANCH_TRANSFERS"
   | "LEADS_CONVERSION"
-  | "BTL_ACTIVITY";
+  | "BTL_ACTIVITY"
+  | "DAILY_REPORTS";
 
 export function CityManagerApp() {
   const { currentUser, currentRole } = useRole();
@@ -188,6 +191,8 @@ export function CityManagerApp() {
         return <CMLeadsConversionTab />;
       case "BTL_ACTIVITY":
         return <BTLActivityVisibilityPanel />;
+      case "DAILY_REPORTS":
+        return <CMDailyReportsTab />;
       case "EXIT_VERIFY":
         return (
           <div className="space-y-4">
@@ -311,6 +316,7 @@ export function CityManagerApp() {
             { id: "COMMAND_DASHBOARD", label: "Command Dashboard", icon: BarChart3 },
             { id: "LEADS_CONVERSION", label: "Leads & Conversion", icon: Target },
             { id: "BTL_ACTIVITY", label: "BTL Activity", icon: MapPin },
+            { id: "DAILY_REPORTS", label: "Daily Reports", icon: Target },
             { id: "INTERVENTIONS", label: "Governance", icon: AlertCircle, badge: activeInterventions },
             { id: "RETENTION", label: "Retention", icon: Users },
             { id: "EXPANSION", label: "Expansion", icon: MapPin },
@@ -1343,6 +1349,23 @@ function CMJobApprovalsTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function CMDailyReportsTab() {
+  const { getEmployeesByRole } = useEmployee();
+  const salesManagers = getEmployeesByRole("Sales Manager").map((e: any) => ({ employeeId: e.employeeId, name: e.fullName || `${e.firstName} ${e.lastName}` }));
+  const salesHeads = getEmployeesByRole("Sales Head").map((e: any) => ({ employeeId: e.employeeId, name: e.fullName || `${e.firstName} ${e.lastName}` }));
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">Daily Reports — Sales Manager & Sales Head</h2>
+        <p className="text-sm text-gray-500 mt-1">Real, live submission status city-wide.</p>
+      </div>
+      <TeamDailyReportsPanel title="Sales Managers" employees={salesManagers} />
+      <TeamDailyReportsPanel title="Sales Heads" employees={salesHeads} />
     </div>
   );
 }
