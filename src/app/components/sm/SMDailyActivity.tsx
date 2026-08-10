@@ -43,6 +43,7 @@ import {
   type VehicleType,
 } from "../../services/travelReimbursementService";
 import { useRole } from "../../contexts/RoleContext";
+import { useDailyReportReminder } from "../../hooks/useDailyReportReminder";
 import { fieldTrackingService } from "../../services/fieldTrackingService";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useCity } from "../../contexts/CityContext";
@@ -914,6 +915,7 @@ export function SMDailyActivity() {
   const { currentUser } = useRole();
   const [report, setReport] = useState<DailyReport>(() => loadReport(currentUser?.employeeId || "unknown"));
   const [openSession, setOpenSession] = useState<SessionId>("morning");
+  useDailyReportReminder(report.evening.locked);
 
   // One-time migration: patch in-memory state if loaded from old localStorage schema
   // (runs synchronously before first render via lazy init, but also guards on mount)

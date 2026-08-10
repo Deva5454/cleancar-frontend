@@ -18,6 +18,7 @@ import { Badge } from "../ui/badge";
 import { Star, Lock, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
+import { useDailyReportReminder } from "../../hooks/useDailyReportReminder";
 import { salesManagerService } from "../../services/salesManagerService";
 import { salesHeadService } from "../../services/salesHeadService";
 
@@ -84,6 +85,7 @@ export function SHDailyActivity() {
   const { currentUser } = useRole();
   const employeeId = currentUser?.employeeId || "";
   const [report, setReport] = useState<SHDailyReport>(() => loadReport(employeeId));
+  useDailyReportReminder(report.evening.locked);
 
   const update = (next: SHDailyReport) => {
     setReport(next);
