@@ -386,14 +386,36 @@ function LeadCaptureForm({ onSubmit, onCancel }: LeadCaptureFormProps) {
     }
   };
 
-  // Simulate GPS capture
+  // Real GPS capture, using the browser's actual Geolocation API - was
+  // previously "// Simulate GPS capture", hardcoding the exact same fixed
+  // coordinate for every single lead regardless of where the supervisor
+  // actually was.
+  const [gpsCapturing, setGpsCapturing] = useState(false);
   const captureGPS = () => {
-    setGpsEnabled(true);
-    setLocation({
-      lat: 21.1702,
-      lng: 72.8311,
-      address: "Captured Location (GPS)",
-    });
+    if (!navigator.geolocation) {
+      setErrors(prev => ({ ...prev, gps: "GPS is not available on this device" }));
+      return;
+    }
+    setGpsCapturing(true);
+    setErrors(prev => { const { gps, ...rest } = prev; return rest; });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGpsCapturing(false);
+        setGpsEnabled(true);
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          address: "Captured Location (GPS)",
+        });
+      },
+      (error) => {
+        setGpsCapturing(false);
+        setErrors(prev => ({ ...prev, gps: error.code === error.PERMISSION_DENIED
+          ? "GPS permission denied - please allow location access"
+          : "Could not get GPS location - please try again" }));
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   };
 
   const validate = () => {
@@ -436,7 +458,7 @@ function LeadCaptureForm({ onSubmit, onCancel }: LeadCaptureFormProps) {
       vehicleType!,
       location!,
       interestLevel!,
-      { lat: 21.1702, lng: 72.8311 }
+      { lat: location!.lat, lng: location!.lng }
     );
   };
 
@@ -523,9 +545,10 @@ function LeadCaptureForm({ onSubmit, onCancel }: LeadCaptureFormProps) {
                 location ? "border-green-500 bg-green-50 text-green-700" : ""
               }`}
               onClick={captureGPS}
+              disabled={gpsCapturing}
             >
               <Navigation className="h-4 w-4 mr-2" />
-              {location ? `✓ ${location.address}` : "Capture GPS Location"}
+              {gpsCapturing ? "Getting your location..." : location ? `✓ ${location.address}` : "Capture GPS Location"}
             </Button>
             {errors.location && <p className="text-xs text-red-600 mt-1">{errors.location}</p>}
             {errors.gps && <p className="text-xs text-red-600 mt-1">{errors.gps}</p>}

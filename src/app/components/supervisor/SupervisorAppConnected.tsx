@@ -63,6 +63,14 @@ export function SupervisorAppConnected() {
   // exit-settlement actions silently misfiled under Surat's data, never
   // visible to their own city's real HR/reporting.
   const supervisorCityId = currentUser?.cityId || "CITY-SURAT";
+  // Real, confirmed fix - was hardcoded "EDB-SUP-SUR1"/"Supervisor 1" in
+  // 51 places below. Every real supervisor's leads, notifications, and
+  // BTL activity were attributed to this one fake identity regardless of
+  // who was actually logged in - a real supervisor's data was invisible
+  // to their own real reporting, and two real supervisors on the same
+  // device would have had their data mixed together.
+  const realSupervisorId = currentUser?.employeeId || "EDB-SUP-SUR1";
+  const realSupervisorName = currentUser?.name || "Supervisor 1";
 
   // ── BTL LOCATION ASSIGNMENT NOTIFICATION ────────────────────────────────────
   // Sales Head can now assign a supervisor to a real BTL location, but
@@ -354,7 +362,7 @@ export function SupervisorAppConnected() {
             checkInTime: new Date().toTimeString().slice(0, 8),
             lateMinutes: data.status === "Late" ? 15 : 0,
             manualOverride: true,
-            overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+            overrideBy: realSupervisorId,
             overrideReason: data.reason || "",
           });
           localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
@@ -394,7 +402,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason for override (required for manager approval)" },
     ], (data) => {
       if (data.overrideType && data.reason) {
-        escalationService.requestAttendanceOverride(washerId, data.reason, "", currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.requestAttendanceOverride(washerId, data.reason, "", realSupervisorId);
         toast.success(`Override request submitted for ${washer?.name || washerId} - ${data.overrideType}. Pending manager approval.`);
       }
       setEscalationModal(null);
@@ -408,7 +416,7 @@ export function SupervisorAppConnected() {
       { key: "description", label: "Description of incident" },
     ], (data) => {
       if (data.type && data.description) {
-        escalationService.escalateVehicleDamage(washerId, data.type, "", data.description, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.escalateVehicleDamage(washerId, data.type, "", data.description, realSupervisorId);
         toast.warning(`Incident report submitted for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -750,7 +758,7 @@ export function SupervisorAppConnected() {
           const existing = JSON.parse(localStorage.getItem(key) || "[]");
           existing.push({
             id: `ALLOC-${Date.now()}`,
-            supervisorId: currentUser?.employeeId || "EDB-SUP-SUR1",
+            supervisorId: realSupervisorId,
             absentWasherId: coverPlan.absentWasher.id,
             absentWasherName: coverPlan.absentWasher.name,
             action: data.action,
@@ -768,10 +776,10 @@ export function SupervisorAppConnected() {
 
   // Field audit handlers
   const [auditWashers, setAuditWashers] = useState(() => 
-    fieldAuditService.getAuditWashers("EDB-SUP-SUR1")
+    fieldAuditService.getAuditWashers(realSupervisorId)
   );
   const [auditSummary, setAuditSummary] = useState(() => 
-    fieldAuditService.getAuditSummary("EDB-SUP-SUR1")
+    fieldAuditService.getAuditSummary(realSupervisorId)
   );
   const [auditFlow, setAuditFlow] = useState<{
     active: boolean;
@@ -872,23 +880,23 @@ export function SupervisorAppConnected() {
     setAuditResult(null);
     navigate(SCREEN_TO_PATH["audit"] ?? "/supervisor-app");
     // Refresh audit list
-    setAuditWashers(fieldAuditService.getAuditWashers("EDB-SUP-SUR1"));
-    setAuditSummary(fieldAuditService.getAuditSummary("EDB-SUP-SUR1"));
+    setAuditWashers(fieldAuditService.getAuditWashers(realSupervisorId));
+    setAuditSummary(fieldAuditService.getAuditSummary(realSupervisorId));
   };
 
   // Incentive tracker
   const [incentiveDashboard, setIncentiveDashboard] = useState(() =>
-    supervisorIncentiveService.getIncentiveDashboard("EDB-SUP-SUR1")
+    supervisorIncentiveService.getIncentiveDashboard(realSupervisorId)
   );
 
   // BTL Lead handlers
   const [leadMetrics, setLeadMetrics] = useState(() => {
-    const metrics = btlLeadService.getSupervisorMetrics("EDB-SUP-SUR1");
+    const metrics = btlLeadService.getSupervisorMetrics(realSupervisorId);
     return metrics;
   });
   const [selectedPipeline, setSelectedPipeline] = useState<{ lead: any; pipeline: any[] } | null>(null);
   const [btlLeads, setBtlLeads] = useState(() => {
-    const leads = btlLeadService.getSupervisorLeadsWithTracking("EDB-SUP-SUR1");
+    const leads = btlLeadService.getSupervisorLeadsWithTracking(realSupervisorId);
     return leads;
   });
 
@@ -900,6 +908,24 @@ export function SupervisorAppConnected() {
     interestLevel: any,
     gpsLocation: { lat: number; lng: number }
   ) => {
+    // Real, confirmed fix - find which real location this supervisor is
+    // assigned to, so the lead carries a genuine locationId. Only resolves
+    // when assigned to exactly one active location; a supervisor covering
+    // multiple locations has no real "confirm which one" UI to pick from
+    // yet, so btlContext stays undefined for that case (same as before -
+    // not a regression, just not yet solvable without new UI).
+    const myLocations = salesManagerService.getLocations().filter(
+      l => l.supervisorId === realSupervisorId && (l.status === "Active" || l.status === "Active Prospect")
+    );
+    // NOTE: smId is left empty - SMLocation has no real field tracking
+    // which Sales Manager owns/proposed it (checked the full interface),
+    // so there's nothing genuine to put here. Flagging as a separate,
+    // real gap rather than reusing the location ID, which would be
+    // incorrect, misleading data.
+    const btlContext = myLocations.length === 1
+      ? { smId: "", locationId: myLocations[0].id, btlActivityId: `BTL-${Date.now()}`, sessionId: `SESSION-${Date.now()}` }
+      : undefined;
+
     const leadData = btlLeadService.submitLead(
       name,
       mobile,
@@ -907,11 +933,12 @@ export function SupervisorAppConnected() {
       location,
       interestLevel,
       gpsLocation,
-      "EDB-SUP-SUR1",
-      "Supervisor 1"
+      realSupervisorId,
+      realSupervisorName,
+      btlContext
     );
     // Refresh leads list
-    setBtlLeads(btlLeadService.getSupervisorLeadsWithTracking("EDB-SUP-SUR1"));
+    setBtlLeads(btlLeadService.getSupervisorLeadsWithTracking(realSupervisorId));
   };
 
   const handleViewPipeline = (leadId: string) => {
@@ -928,18 +955,18 @@ export function SupervisorAppConnected() {
 
   // Lead notifications
   const [leadNotifications, setLeadNotifications] = useState(() =>
-    leadNotificationService.getNotifications("EDB-SUP-SUR1")
+    leadNotificationService.getNotifications(realSupervisorId)
   );
   const [unreadLeadNotificationsCount, setUnreadLeadNotificationsCount] = useState(() =>
-    leadNotificationService.getUnreadCount("EDB-SUP-SUR1")
+    leadNotificationService.getUnreadCount(realSupervisorId)
   );
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Subscribe to real-time lead notifications
   useEffect(() => {
-    const unsubscribe = leadNotificationService.subscribe("EDB-SUP-SUR1", (notification) => {
-      setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
-      setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("EDB-SUP-SUR1"));
+    const unsubscribe = leadNotificationService.subscribe(realSupervisorId, (notification) => {
+      setLeadNotifications(leadNotificationService.getNotifications(realSupervisorId));
+      setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount(realSupervisorId));
     });
 
     return () => unsubscribe();
@@ -947,20 +974,20 @@ export function SupervisorAppConnected() {
 
   const handleNotificationClick = (notificationId: string) => {
     leadNotificationService.markAsRead(notificationId);
-    setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
-    setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount("EDB-SUP-SUR1"));
+    setLeadNotifications(leadNotificationService.getNotifications(realSupervisorId));
+    setUnreadLeadNotificationsCount(leadNotificationService.getUnreadCount(realSupervisorId));
   };
 
   const handleMarkAllNotificationsRead = () => {
-    leadNotificationService.markAllAsRead("EDB-SUP-SUR1");
-    setLeadNotifications(leadNotificationService.getNotifications("EDB-SUP-SUR1"));
+    leadNotificationService.markAllAsRead(realSupervisorId);
+    setLeadNotifications(leadNotificationService.getNotifications(realSupervisorId));
     setUnreadLeadNotificationsCount(0);
   };
 
   // Escalation handlers
-  const [escalationIssues, setEscalationIssues] = useState(() => escalationService.getIssues("EDB-SUP-SUR1"));
+  const [escalationIssues, setEscalationIssues] = useState(() => escalationService.getIssues(realSupervisorId));
   const [escalationSummary, setEscalationSummary] = useState(() =>
-    escalationService.getEscalationSummary("EDB-SUP-SUR1")
+    escalationService.getEscalationSummary(realSupervisorId)
   );
 
   const handleManualAttendanceOverride = () => {
@@ -971,7 +998,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.reason) {
-        escalationService.requestAttendanceOverride(washer.id, data.reason, "", currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.requestAttendanceOverride(washer.id, data.reason, "", realSupervisorId);
         toast.success(`Attendance override submitted for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -984,7 +1011,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason for early checkout" },
     ], (data) => {
       if (data.reason) {
-        escalationService.forceEarlyCheckOut(washerId, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.forceEarlyCheckOut(washerId, realSupervisorId);
         toast.success(`Early checkout processed for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -1007,7 +1034,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason for pausing schedule" },
     ], (data) => {
       if (data.reason) {
-        escalationService.pauseWasherSchedule(washerId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.pauseWasherSchedule(washerId, data.reason, realSupervisorId);
         toast.success(`Schedule paused for ${washer?.name || washerId}`);
       }
       setEscalationModal(null);
@@ -1022,7 +1049,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.vehicleDetails && data.notes) {
-        escalationService.escalateVehicleDamage(washer.id, data.vehicleDetails, "", data.notes, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.escalateVehicleDamage(washer.id, data.vehicleDetails, "", data.notes, realSupervisorId);
         toast.warning(`Vehicle damage escalation submitted for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -1034,7 +1061,7 @@ export function SupervisorAppConnected() {
       { key: "situation", label: "Describe the emergency situation" },
     ], (data) => {
       if (data.situation) {
-        escalationService.triggerSOSAlert(currentUser?.employeeId || "EDB-SUP-SUR1", { lat: 21.1702, lng: 72.8311 }, data.situation);
+        escalationService.triggerSOSAlert(realSupervisorId, { lat: 21.1702, lng: 72.8311 }, data.situation);
         toast.error(`SOS Alert triggered. All managers notified.`);
       }
       setEscalationModal(null);
@@ -1047,7 +1074,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Reason / supporting details" },
     ], (data) => {
       if (data.caseType && data.reason) {
-        escalationService.requestIncentiveOverride(data.caseType, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.requestIncentiveOverride(data.caseType, data.reason, realSupervisorId);
         toast.success("Incentive override request submitted to Finance");
       }
       setEscalationModal(null);
@@ -1063,7 +1090,7 @@ export function SupervisorAppConnected() {
       const fromW = team.find(w => w.name === data.fromWasherName);
       const toW   = team.find(w => w.name === data.toWasherName);
       if (fromW && toW && data.reason) {
-        escalationService.reassignCar("JOB", fromW.id, toW.id, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.reassignCar("JOB", fromW.id, toW.id, data.reason, realSupervisorId);
         toast.success(`Car reassigned from ${fromW.name} to ${toW.name}`);
       }
       setEscalationModal(null);
@@ -1078,7 +1105,7 @@ export function SupervisorAppConnected() {
     ], (data) => {
       const washer = team.find(w => w.name === data.washerName);
       if (washer && data.batchId && data.reason) {
-        escalationService.invalidateBatch(washer.id, data.batchId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.invalidateBatch(washer.id, data.batchId, data.reason, realSupervisorId);
         toast.warning(`Batch ${data.batchId} invalidated for ${washer.name}`);
       }
       setEscalationModal(null);
@@ -1090,7 +1117,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Escalation reason" },
     ], (data) => {
       if (data.reason) {
-        escalationService.escalateToOpsManager(issueId, data.reason, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.escalateToOpsManager(issueId, data.reason, realSupervisorId);
         toast.info("Escalated to Operations Manager");
       }
       setEscalationModal(null);
@@ -1098,7 +1125,7 @@ export function SupervisorAppConnected() {
   };
 
   const handleMarkIssueInProgress = (issueId: string) => {
-    escalationService.markInProgress(issueId, "EDB-SUP-SUR1");
+    escalationService.markInProgress(issueId, realSupervisorId);
   };
 
   const handleResolveEscalationIssue = (issueId: string) => {
@@ -1106,7 +1133,7 @@ export function SupervisorAppConnected() {
       { key: "resolution", label: "Resolution notes" },
     ], (data) => {
       if (data.resolution) {
-        escalationService.resolveIssue(issueId, data.resolution, currentUser?.employeeId || "EDB-SUP-SUR1");
+        escalationService.resolveIssue(issueId, data.resolution, realSupervisorId);
         toast.success("Issue resolved");
       }
       setEscalationModal(null);
@@ -1114,8 +1141,8 @@ export function SupervisorAppConnected() {
   };
 
   // Alert system handlers
-  const [systemAlerts, setSystemAlerts] = useState(() => alertService.getAlerts("EDB-SUP-SUR1"));
-  const [alertSummary, setAlertSummary] = useState(() => alertService.getAlertSummary("EDB-SUP-SUR1"));
+  const [systemAlerts, setSystemAlerts] = useState(() => alertService.getAlerts(realSupervisorId));
+  const [alertSummary, setAlertSummary] = useState(() => alertService.getAlertSummary(realSupervisorId));
 
   const handleReassignFromAlert = (washerId?: string) => {
     // If already on cover tab, navigate away then back to force re-render
@@ -1149,7 +1176,7 @@ export function SupervisorAppConnected() {
       { key: "reason", label: "Escalation reason" },
     ], (data) => {
       if (data.reason) {
-        alertService.escalateAlert(alertId, currentUser?.employeeId || "EDB-SUP-SUR1", data.reason);
+        alertService.escalateAlert(alertId, realSupervisorId, data.reason);
         toast.info("Alert escalated to Ops Manager");
       }
       setEscalationModal(null);
@@ -1170,12 +1197,12 @@ export function SupervisorAppConnected() {
         status: "Present",
         checkInTime: new Date().toTimeString().slice(0, 8),
         manualOverride: true,
-        overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+        overrideBy: realSupervisorId,
       });
       localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
       refreshData();
     } catch (_) {}
-    alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
+    alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, realSupervisorId);
     toast.success(`${washer?.name || washerId} marked as PRESENT`);
   };
 
@@ -1197,13 +1224,13 @@ export function SupervisorAppConnected() {
             date: today,
             status: "Absent",
             manualOverride: true,
-            overrideBy: currentUser?.employeeId || "EDB-SUP-SUR1",
+            overrideBy: realSupervisorId,
             overrideReason: data.reason,
           });
           localStorage.setItem(`cleancar_${supervisorCityId}_attendance_records`, JSON.stringify(filtered));
           refreshData();
         } catch (_) {}
-        alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, currentUser?.employeeId || "EDB-SUP-SUR1");
+        alertService.markAlertActioned(`ALERT-NOCHECKIN-${washerId}`, realSupervisorId);
         toast.success(`${washerName} marked ABSENT - ${data.reason}`);
       }
       setEscalationModal(null);
@@ -1214,7 +1241,7 @@ export function SupervisorAppConnected() {
     openEscalationModal("resolve_alert", "Resolve Alert", [
       { key: "notes", label: "Resolution notes (optional)" },
     ], (data) => {
-      alertService.resolveAlert(alertId, currentUser?.employeeId || "EDB-SUP-SUR1", data.notes || undefined);
+      alertService.resolveAlert(alertId, realSupervisorId, data.notes || undefined);
       toast.success("Alert resolved");
       setEscalationModal(null);
     });
@@ -1222,17 +1249,17 @@ export function SupervisorAppConnected() {
 
   // Hierarchy visibility handlers
   const [performanceData, setPerformanceData] = useState(() =>
-    hierarchyVisibilityService.getSupervisorPerformance("EDB-SUP-SUR1")
+    hierarchyVisibilityService.getSupervisorPerformance(realSupervisorId)
   );
   const [dataVisibilityMap, setDataVisibilityMap] = useState(() =>
     hierarchyVisibilityService.getDataVisibilityMap()
   );
   const [hierarchyViews, setHierarchyViews] = useState(() => hierarchyVisibilityService.getHierarchyViews());
   const [kpiComparison, setKpiComparison] = useState(() =>
-    hierarchyVisibilityService.getKPIComparison("EDB-SUP-SUR1")
+    hierarchyVisibilityService.getKPIComparison(realSupervisorId)
   );
   const [escalationVisibility, setEscalationVisibility] = useState(() =>
-    hierarchyVisibilityService.getEscalationVisibility("EDB-SUP-SUR1")
+    hierarchyVisibilityService.getEscalationVisibility(realSupervisorId)
   );
 
   // Audit trail handlers
@@ -1261,11 +1288,11 @@ export function SupervisorAppConnected() {
   };
 
   // Daily flow handlers
-  const [dailyFlowData, setDailyFlowData] = useState(() => dailyFlowService.getDailyFlow("EDB-SUP-SUR1"));
-  const [dailyFlowSummary, setDailyFlowSummary] = useState(() => dailyFlowService.getDailyFlowSummary("EDB-SUP-SUR1"));
+  const [dailyFlowData, setDailyFlowData] = useState(() => dailyFlowService.getDailyFlow(realSupervisorId));
+  const [dailyFlowSummary, setDailyFlowSummary] = useState(() => dailyFlowService.getDailyFlowSummary(realSupervisorId));
 
   // KPI dashboard handlers
-  const [kpiDashboardData, setKpiDashboardData] = useState(() => kpiDashboardService.getKPIDashboard("EDB-SUP-SUR1"));
+  const [kpiDashboardData, setKpiDashboardData] = useState(() => kpiDashboardService.getKPIDashboard(realSupervisorId));
 
   useEffect(() => {
     const sid = currentUser?.employeeId;
@@ -1644,7 +1671,7 @@ export function SupervisorAppConnected() {
           {/* Screen 3: Field Audit */}
           <TabsContent value="audit" className="mt-0">
             {auditFlow ? (
-              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} washerGPS={(auditFlow as any).washerGPS} washerSelfieUrl={(auditFlow as any).washerSelfieUrl} packageType={(auditFlow as any).packageType || "SMART_WASH"} supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"} supervisorName={currentUser?.name || "Supervisor"} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
+              <AuditFlowScreen washerId={auditFlow.washerId} washerName={auditFlow.washerName} washerGPS={(auditFlow as any).washerGPS} washerSelfieUrl={(auditFlow as any).washerSelfieUrl} packageType={(auditFlow as any).packageType || "SMART_WASH"} supervisorId={realSupervisorId} supervisorName={currentUser?.name || "Supervisor"} onSubmit={handleSubmitAudit} onCancel={() => setAuditFlow(null)} />
             ) : (
               <FieldAuditScreen washers={auditWashers} todayTarget={auditSummary.todayTarget} completed={auditSummary.completed} onStartAudit={handleStartAudit} />
             )}
@@ -2036,7 +2063,7 @@ export function SupervisorAppConnected() {
       {showCashDeposit && (
         <div style={{position:"fixed",inset:0,zIndex:9999,background:"white",overflowY:"auto"}}>
           <CashDepositScreen
-            supervisorId={currentUser?.employeeId || "EDB-SUP-SUR1"}
+            supervisorId={realSupervisorId}
             supervisorName={currentUser?.name || "Supervisor"}
             cityId={supervisorCityId}
             onBack={() => setShowCashDeposit(false)}

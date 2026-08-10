@@ -56,6 +56,7 @@ import { CityManagerPincodeManagement } from "./CityManagerPincodeManagement";
 import { WasherGpsApprovals } from "./WasherGpsApprovals";
 import { washerGpsViolationService } from "../../services/washerGpsViolationService";
 import { DataService } from "../../services/DataService";
+import { BTLActivityVisibilityPanel } from "../shared/BTLActivityVisibilityPanel";
 
 type Screen =
   | "COMMAND_DASHBOARD"
@@ -72,7 +73,8 @@ type Screen =
   | "TEAM_OPERATIONS"
   | "JOB_APPROVALS"
   | "BRANCH_TRANSFERS"
-  | "LEADS_CONVERSION";
+  | "LEADS_CONVERSION"
+  | "BTL_ACTIVITY";
 
 export function CityManagerApp() {
   const { currentUser, currentRole } = useRole();
@@ -184,6 +186,8 @@ export function CityManagerApp() {
         return <CMBranchTransfersTab />;
       case "LEADS_CONVERSION":
         return <CMLeadsConversionTab />;
+      case "BTL_ACTIVITY":
+        return <BTLActivityVisibilityPanel />;
       case "EXIT_VERIFY":
         return (
           <div className="space-y-4">
@@ -306,6 +310,7 @@ export function CityManagerApp() {
           {[
             { id: "COMMAND_DASHBOARD", label: "Command Dashboard", icon: BarChart3 },
             { id: "LEADS_CONVERSION", label: "Leads & Conversion", icon: Target },
+            { id: "BTL_ACTIVITY", label: "BTL Activity", icon: MapPin },
             { id: "INTERVENTIONS", label: "Governance", icon: AlertCircle, badge: activeInterventions },
             { id: "RETENTION", label: "Retention", icon: Users },
             { id: "EXPANSION", label: "Expansion", icon: MapPin },
