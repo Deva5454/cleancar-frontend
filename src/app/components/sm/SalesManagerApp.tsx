@@ -216,6 +216,7 @@ function AllianceDashboard({ onTabChange }: { onTabChange: (t: string) => void }
 // ── Submit Location ───────────────────────────────────────────────────────────
 
 function SubmitLocation() {
+  const { currentUser } = useRole();
   const [form, setForm] = useState({
     name: "", type: "" as any, address: "", contactPerson: "", contactPhone: "",
     estimatedVehicles: "", proposedBTL: "", notes: "",
@@ -233,6 +234,8 @@ function SubmitLocation() {
       address: form.address,
       contactPerson: form.contactPerson,
       contactPhone: form.contactPhone,
+      createdById: currentUser?.employeeId,
+      createdByName: currentUser?.name,
     });
     setTimeout(() => {
       if (success) {

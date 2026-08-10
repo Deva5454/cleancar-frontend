@@ -33,6 +33,8 @@ export interface SMLocation {
   activationBonusStatus: "pending" | "triggered" | "paid";
   previousPayingMilestone: number;
   activityBrief?: ActivityBrief;
+  createdById?: string;   // real, confirmed addition - which Sales Manager proposed this location
+  createdByName?: string;
 }
 
 // Real, confirmed addition - closes the gap where Sales Head had no way to
@@ -269,6 +271,7 @@ class SalesManagerService {
     BLOCK_DEALS: "sm_block_deals",
     ALERTS:      "sm_alerts",
     EXPENSES:    "sm_expenses",
+    ALERT_THRESHOLDS: "sm_alert_thresholds",
   } as const;
 
   private load<T>(key: string, seed: () => T[]): T[] {
@@ -298,6 +301,7 @@ class SalesManagerService {
   addLocation(input: {
     name: string; type: LocationType; address: string;
     contactPerson: string; contactPhone: string;
+    createdById?: string; createdByName?: string;
   }): boolean {
     const locations = this.getLocations();
     const newLocation: SMLocation = {
@@ -316,6 +320,8 @@ class SalesManagerService {
       lastSupervisorActivity: "",
       activationBonusStatus: "pending",
       previousPayingMilestone: 0,
+      createdById: input.createdById,
+      createdByName: input.createdByName,
     };
     locations.push(newLocation);
     return this.save(this.KEYS.LOCATIONS, locations);
@@ -432,16 +438,35 @@ class SalesManagerService {
   // working getLocations()/getAlerts() persistence.
   //
   // Thresholds (documented here since they're not sourced from any real
-  // policy doc found in this codebase - confirm/adjust if a real,
-  // different threshold exists):
-  //   Inactive: no real supervisor activity in 14+ days
-  //   At Risk:  this month's real lead volume is under half of last
+  // policy doc found in this codebase - now a real, configurable setting
+  // (see getAlertThresholds/setAlertThresholds below) rather than a
+  // hardcoded guess with no way to adjust it without a code change.
+  //   Inactive: no real supervisor activity in N+ days (default 14)
+  //   At Risk:  this month's real lead volume is under X% of last
   //             month's, for a location with genuine prior lead history
+  //             (default 50%)
+  getAlertThresholds(): { inactiveDays: number; atRiskDropPct: number } {
+    try {
+      const raw = localStorage.getItem(this.KEYS.ALERT_THRESHOLDS);
+      if (raw) return JSON.parse(raw);
+    } catch { /* fall through to defaults */ }
+    return { inactiveDays: 14, atRiskDropPct: 50 };
+  }
+
+  setAlertThresholds(thresholds: { inactiveDays: number; atRiskDropPct: number }): boolean {
+    try {
+      localStorage.setItem(this.KEYS.ALERT_THRESHOLDS, JSON.stringify(thresholds));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   generateLocationAlerts(): SMAlert[] {
     const liveLocations = this.getLocationsWithLiveMetrics();
     const existingAlerts = this.getAlerts();
     const now = Date.now();
-    const INACTIVE_DAYS = 14;
+    const { inactiveDays: INACTIVE_DAYS, atRiskDropPct } = this.getAlertThresholds();
     const newAlerts: SMAlert[] = [];
     const statusUpdates = new Map<string, LocationStatus>();
 
@@ -475,7 +500,7 @@ class SalesManagerService {
       // At Risk — real lead volume dropped off vs. last month, for a
       // location with genuine prior lead history (avoids flagging brand-new
       // locations that simply haven't had a full month yet)
-      if (loc.leadsMTDM1 >= 3 && loc.leadsMTD < loc.leadsMTDM1 * 0.5) {
+      if (loc.leadsMTDM1 >= 3 && loc.leadsMTD < loc.leadsMTDM1 * (atRiskDropPct / 100)) {
         statusUpdates.set(loc.id, "At Risk");
         if (!alreadyHasAlert("LOCATION_AT_RISK")) {
           newAlerts.push({

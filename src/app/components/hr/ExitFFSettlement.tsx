@@ -14,6 +14,9 @@ import { BackButton } from "../ui/back-button";
 import { useRole } from "../../contexts/RoleContext";
 import { usePayroll } from "../../contexts/PayrollContext";
 import { leaveBalanceService } from "../../services/leaveBalanceService";
+import { incentiveLedgerService } from "../../services/incentiveLedger";
+import { travelReimbursementService } from "../../services/travelReimbursementService";
+import { advanceManagementService } from "../../services/advanceManagementService";
 import { useInventory } from "../../contexts/InventoryContext";
 import {
   LogOut, CheckCircle, X, Clock, DollarSign, FileText,
@@ -802,19 +805,46 @@ export function ExitFFSettlement() {
                         warnings.push(`no real inventory cost match found for: ${unmatchedItems.join(", ")} — those items' cost not included, add manually if needed`);
                       }
 
+                      // Bonus - real, approved-but-unpaid incentive ledger
+                      // entries. "Approved" means genuinely earned and
+                      // confirmed, but not yet marked "Paid" by payroll.
+                      const unpaidIncentives = incentiveLedgerService.getByEmployee(exit.employeeId).filter(i => i.status === "Approved");
+                      const bonus = unpaidIncentives.reduce((sum, i) => sum + (i.amount || 0), 0);
+                      if (unpaidIncentives.length === 0) {
+                        warnings.push("no real approved-but-unpaid incentive records found — bonus starts at ₹0");
+                      }
+
+                      // Reimbursements - real, approved-but-unpaid travel
+                      // trips. "Approved" means confirmed by the manager
+                      // chain, but not yet marked "HR Applied" (paid).
+                      const unpaidTrips = travelReimbursementService.getTripsByEmployee(exit.employeeId).filter(t => t.status === "Approved");
+                      const reimbursements = unpaidTrips.reduce((sum, t) => sum + (t.netPayableAmount || 0), 0);
+                      if (unpaidTrips.length === 0) {
+                        warnings.push("no real approved-but-unpaid travel reimbursements found — reimbursements starts at ₹0");
+                      }
+
+                      // Advance Recovery - real, genuine outstanding
+                      // balance across both long-term (EMI) and
+                      // short-term salary advances.
+                      const advanceSummary = advanceManagementService.getEmployeeSummary(exit.employeeId);
+                      const advanceRecovery = advanceSummary.totalOutstanding;
+                      if (advanceRecovery === 0) {
+                        warnings.push("no real outstanding advance balance found — advance recovery starts at ₹0");
+                      }
+
                       setFFForm({
                         pendingSalary,
                         leaveEncashment,
-                        bonus: 0,
-                        reimbursements: 0,
+                        bonus,
+                        reimbursements,
                         noticePeriodRecovery,
                         equipmentDamage,
-                        advanceRecovery: 0,
+                        advanceRecovery,
                       });
                       if (warnings.length > 0) {
                         toast.warning(`F&F pre-filled with real data where available. ${warnings.join("; ")}.`);
                       } else {
-                        toast.success("F&F pre-filled from real payroll, leave, notice period, and equipment data. Review and adjust before submitting.");
+                        toast.success("F&F pre-filled from real payroll, leave, notice period, equipment, incentive, reimbursement, and advance data. Review and adjust before submitting.");
                       }
                       setSelectedExit(exit);
                     }}

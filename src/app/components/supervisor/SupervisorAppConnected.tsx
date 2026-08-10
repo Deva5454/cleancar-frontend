@@ -917,13 +917,10 @@ export function SupervisorAppConnected() {
     const myLocations = salesManagerService.getLocations().filter(
       l => l.supervisorId === realSupervisorId && (l.status === "Active" || l.status === "Active Prospect")
     );
-    // NOTE: smId is left empty - SMLocation has no real field tracking
-    // which Sales Manager owns/proposed it (checked the full interface),
-    // so there's nothing genuine to put here. Flagging as a separate,
-    // real gap rather than reusing the location ID, which would be
-    // incorrect, misleading data.
+    // Real, confirmed fix - smId now uses the real createdById field,
+    // which SMLocation genuinely tracks since the Activity Brief work.
     const btlContext = myLocations.length === 1
-      ? { smId: "", locationId: myLocations[0].id, btlActivityId: `BTL-${Date.now()}`, sessionId: `SESSION-${Date.now()}` }
+      ? { smId: myLocations[0].createdById || "", locationId: myLocations[0].id, btlActivityId: `BTL-${Date.now()}`, sessionId: `SESSION-${Date.now()}` }
       : undefined;
 
     const leadData = btlLeadService.submitLead(

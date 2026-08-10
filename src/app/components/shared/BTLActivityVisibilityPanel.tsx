@@ -15,18 +15,35 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { AlertTriangle, MapPin, TrendingDown, TrendingUp } from "lucide-react";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { AlertTriangle, MapPin, Settings, TrendingDown, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
 import { salesManagerService, type SMLocation, type SMAlert } from "../../services/salesManagerService";
 
 export function BTLActivityVisibilityPanel() {
   const [locations, setLocations] = useState<SMLocation[]>([]);
   const [alerts, setAlerts] = useState<SMAlert[]>([]);
+  const [thresholds, setThresholds] = useState(() => salesManagerService.getAlertThresholds());
+  const [editingThresholds, setEditingThresholds] = useState(false);
+  const [thresholdForm, setThresholdForm] = useState(thresholds);
 
   useEffect(() => {
     salesManagerService.generateLocationAlerts();
     setLocations(salesManagerService.getLocationsWithLiveMetrics());
     setAlerts(salesManagerService.getAlerts().filter(a => a.actionRequired));
   }, []);
+
+  const saveThresholds = () => {
+    const success = salesManagerService.setAlertThresholds(thresholdForm);
+    if (success) {
+      setThresholds(thresholdForm);
+      setEditingThresholds(false);
+      toast.success("Alert thresholds updated.");
+    } else {
+      toast.error("Could not save thresholds — storage is full.");
+    }
+  };
 
   const activeLocations = locations.filter(l => l.status === "Active" || l.status === "Active Prospect");
   const totalLeadsMTD = activeLocations.reduce((sum, l) => sum + l.leadsMTD, 0);
@@ -79,6 +96,47 @@ export function BTLActivityVisibilityPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Real, configurable alert thresholds - previously hardcoded with
+          no way to adjust without a code change */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Settings className="w-4 h-4 text-gray-500" />
+              Alert Thresholds
+            </span>
+            {!editingThresholds && (
+              <Button size="sm" variant="outline" onClick={() => { setThresholdForm(thresholds); setEditingThresholds(true); }}>
+                Edit
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {editingThresholds ? (
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">Inactive after (days)</label>
+                <Input type="number" min={1} className="w-28" value={thresholdForm.inactiveDays}
+                  onChange={e => setThresholdForm({ ...thresholdForm, inactiveDays: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">At Risk if leads drop below (%)</label>
+                <Input type="number" min={1} max={99} className="w-28" value={thresholdForm.atRiskDropPct}
+                  onChange={e => setThresholdForm({ ...thresholdForm, atRiskDropPct: Number(e.target.value) })} />
+              </div>
+              <Button size="sm" onClick={saveThresholds}>Save</Button>
+              <Button size="sm" variant="outline" onClick={() => setEditingThresholds(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">
+              A location is flagged <strong>Inactive</strong> after <strong>{thresholds.inactiveDays} days</strong> without supervisor activity,
+              and <strong>At Risk</strong> if this month's leads fall below <strong>{thresholds.atRiskDropPct}%</strong> of last month's.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Real alerts */}
       {alerts.length > 0 && (
