@@ -337,14 +337,35 @@ export function ExitFFSettlement() {
       paymentMode,
       paymentReference: paymentRef,
     });
-    // Lock employee in exitWorkflowService if a matching workflow exists
+    // Real, confirmed fix - moveToNextStage() only ever advances exactly
+    // one stage per call. This previously called it once and
+    // unconditionally claimed "Employee status locked as Exited," even
+    // when the real workflow was still multiple stages behind - meaning
+    // employeeMasterService never genuinely got told the employee had
+    // exited, despite disbursement completing for real. Now loops until
+    // the real stage genuinely reaches Exited.
+    let reachedExited = true;
     if (exit?.employeeId) {
       const wf = exitWorkflowService.getByEmployee(exit.employeeId);
       if (wf && wf.currentStage !== "Exited") {
-        exitWorkflowService.moveToNextStage(wf.exitWorkflowId, currentUser?.name ?? "", "F&F disbursed");
+        let current = wf;
+        let guard = 0;
+        while (current.currentStage !== "Exited" && guard < 10) {
+          const result = exitWorkflowService.moveToNextStage(current.exitWorkflowId, currentUser?.name ?? "", "F&F disbursed");
+          if (!result.success) { reachedExited = false; break; }
+          const refreshed = exitWorkflowService.getById(current.exitWorkflowId);
+          if (!refreshed) { reachedExited = false; break; }
+          current = refreshed;
+          guard++;
+        }
+        if (current.currentStage !== "Exited") reachedExited = false;
       }
     }
-    toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nEmployee status locked as Exited.`);
+    if (reachedExited) {
+      toast.success(`✅ F&F Settlement disbursed!\n\nMode: ${paymentMode}\nReference: ${paymentRef}\n\nEmployee status locked as Exited.`);
+    } else {
+      toast.warning(`F&F Settlement disbursed (Mode: ${paymentMode}, Reference: ${paymentRef}), but the employee's exit workflow could not be fully advanced to Exited - check the Exit Management screen for this employee.`);
+    }
   };
 
   // Role-aware access banner
