@@ -88,6 +88,10 @@ const returnableMaterials: Omit<MaterialItem, "id" | "condition">[] = [
 export function ExitFFSettlement() {
   const { currentRole, currentUser } = useRole();
   const { getPayrollByEmployee } = usePayroll();
+  // Real, confirmed fix - was hardcoded "CITY-SURAT" in 3 places below,
+  // meaning any exit settlement processed outside Surat would be
+  // silently misfiled under Surat's storage key.
+  const realCityId = currentUser?.cityId || "CITY-SURAT";
 
   // Helper: safely extract a name string from a value that might be an object
   const safeName = (v: any): string => {
@@ -151,7 +155,7 @@ export function ExitFFSettlement() {
           employeeName: wf.employeeName,
           empCode: wf.employeeId,
           designation: wf.roleId ?? "",
-          cityId: wf.cityId ?? "CITY-SURAT",
+          cityId: wf.cityId ?? realCityId,
           verifierRole: (wf as any).verifierRole ?? getMaterialVerifierRole(wf.roleId ?? ""),
           resignationDate: wf.initiatedDate,
           lastWorkingDate: wf.lastWorkingDate,
@@ -180,7 +184,7 @@ export function ExitFFSettlement() {
       // Try DataService first (city-namespaced)
       const stored = DataService.get<any>("EXIT_SETTLEMENTS");
       const base = stored.length > 0 ? stored : (() => {
-        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
+        const raw = localStorage.getItem(`cleancar_${realCityId}_exit_settlements`);
         return raw ? JSON.parse(raw) : [];
       })();
       // Cross-reference with exitWorkflowService to catch exits initiated
@@ -215,7 +219,7 @@ export function ExitFFSettlement() {
   const persistExits = (records: ExitRecord[]) => {
     try { DataService.setAll("EXIT_SETTLEMENTS", records); } catch { /* quota guard */ }
     try {
-      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(records));
+      localStorage.setItem(`cleancar_${realCityId}_exit_settlements`, JSON.stringify(records));
       localStorage.setItem("cleancar_exit_settlements", JSON.stringify(records));
     } catch { /* quota guard */ }
   };
