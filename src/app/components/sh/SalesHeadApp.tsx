@@ -40,6 +40,7 @@ import {
 import { incentiveVisibilityService } from "../../services/incentiveVisibilityService";
 import { IncentiveStatement } from "../shared/IncentiveStatement";
 import { TeamDailyReportsPanel } from "../shared/TeamDailyReportsPanel";
+import { SHDailyActivity } from "./SHDailyActivity";
 import { useRole } from "../../contexts/RoleContext";
 import { DataService } from "../../services/DataService";
 import { SalesHeadManagementView } from "./SalesHeadManagementView";
@@ -701,6 +702,9 @@ export function SalesHeadApp() {
             <TabsTrigger value="sm-daily-reports" className="text-xs gap-1 border-l-2 border-blue-300">
               <CheckCircle2 className="w-3 h-3 hidden sm:block" />SM Daily Reports
             </TabsTrigger>
+            <TabsTrigger value="my-daily-report" className="text-xs gap-1 border-l-2 border-blue-300">
+              <CheckCircle2 className="w-3 h-3 hidden sm:block" />My Daily Report
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -841,8 +845,13 @@ export function SalesHeadApp() {
             </div>
             <TeamDailyReportsPanel
               title="Sales Managers"
+              reportType="SM_DAILY_REPORT"
               employees={getEmployeesByRole("Sales Manager").map((e: any) => ({ employeeId: e.employeeId, name: e.fullName || `${e.firstName} ${e.lastName}` }))}
             />
+          </TabsContent>
+
+          <TabsContent value="my-daily-report" className="p-0">
+            <SHDailyActivity />
           </TabsContent>
         </Tabs>
       </div>

@@ -1364,8 +1364,8 @@ function CMDailyReportsTab() {
         <h2 className="text-xl font-semibold text-gray-900">Daily Reports — Sales Manager & Sales Head</h2>
         <p className="text-sm text-gray-500 mt-1">Real, live submission status city-wide.</p>
       </div>
-      <TeamDailyReportsPanel title="Sales Managers" employees={salesManagers} />
-      <TeamDailyReportsPanel title="Sales Heads" employees={salesHeads} />
+      <TeamDailyReportsPanel title="Sales Managers" reportType="SM_DAILY_REPORT" employees={salesManagers} />
+      <TeamDailyReportsPanel title="Sales Heads" reportType="SH_DAILY_REPORT" employees={salesHeads} />
     </div>
   );
 }

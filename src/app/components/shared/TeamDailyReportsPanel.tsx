@@ -10,20 +10,22 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { CheckCircle2, Circle, Star } from "lucide-react";
-import { dailyReportService, type DailyReportSummary } from "../../services/dailyReportService";
+import { dailyReportService, type DailyReportSummary, type DailyReportType } from "../../services/dailyReportService";
 
 export function TeamDailyReportsPanel({
   title,
+  reportType,
   employees,
 }: {
   title: string;
+  reportType: DailyReportType;
   employees: { employeeId: string; name: string }[];
 }) {
   const [reports, setReports] = useState<Record<string, DailyReportSummary | null>>({});
 
   useEffect(() => {
-    setReports(dailyReportService.getReportsForEmployees(employees.map(e => e.employeeId)));
-  }, [employees.map(e => e.employeeId).join(",")]);
+    setReports(dailyReportService.getReportsForEmployees(reportType, employees.map(e => e.employeeId)));
+  }, [reportType, employees.map(e => e.employeeId).join(",")]);
 
   const submittedCount = Object.values(reports).filter(r => r?.submitted).length;
 
@@ -62,9 +64,19 @@ export function TeamDailyReportsPanel({
               </div>
               {r && (
                 <div className="mt-2 pt-2 border-t grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 text-xs text-gray-600">
-                  <div><span className="text-gray-400">Leads:</span> {r.totalLeads}</div>
-                  <div><span className="text-gray-400">Conversions:</span> {r.totalConversions}</div>
-                  <div><span className="text-gray-400">KM:</span> {r.totalKm}</div>
+                  {reportType === "SM_DAILY_REPORT" ? (
+                    <>
+                      <div><span className="text-gray-400">Leads:</span> {r.totalLeads ?? 0}</div>
+                      <div><span className="text-gray-400">Conversions:</span> {r.totalConversions ?? 0}</div>
+                      <div><span className="text-gray-400">KM:</span> {r.totalKm ?? 0}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-400">BTL Approvals:</span> {r.btlApprovalsToday ?? 0}</div>
+                      <div><span className="text-gray-400">Coaching Sessions:</span> {r.coachingSessionsHeld ?? 0}</div>
+                      <div><span className="text-gray-400">Escalations Resolved:</span> {r.escalationsResolved ?? 0}</div>
+                    </>
+                  )}
                   {r.dayRating && (
                     <div className="flex items-center gap-1">
                       <span className="text-gray-400">Day:</span>

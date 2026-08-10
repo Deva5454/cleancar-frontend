@@ -16,9 +16,16 @@ export interface DailyReportSummary {
   fieldLocked: boolean;
   eveningLocked: boolean;
   priorityForDay: string;
-  totalLeads: number;
-  totalConversions: number;
-  totalKm: number;
+  // Sales Manager's own real fields
+  totalLeads?: number;
+  totalConversions?: number;
+  totalKm?: number;
+  // Sales Head's own real fields
+  btlApprovalsToday?: number;
+  coachingSessionsHeld?: number;
+  escalationsResolved?: number;
+  fieldNotes?: string;
+  // Shared evening section, both roles
   dayRating?: 1 | 2 | 3 | 4 | 5;
   biggestWin: string;
   biggestBlock: string;
@@ -29,8 +36,10 @@ export interface DailyReportSummary {
 
 const TODAY = new Date().toISOString().split("T")[0];
 
-function storageKeyFor(employeeId: string, date: string): string {
-  return `SM_DAILY_REPORT_${employeeId}_${date}`;
+export type DailyReportType = "SM_DAILY_REPORT" | "SH_DAILY_REPORT";
+
+function storageKeyFor(reportType: DailyReportType, employeeId: string, date: string): string {
+  return `${reportType}_${employeeId}_${date}`;
 }
 
 /**
@@ -40,9 +49,9 @@ function storageKeyFor(employeeId: string, date: string): string {
  * does (that's the right behavior for someone about to fill a report in,
  * wrong for someone just viewing whether it was submitted).
  */
-function getReport(employeeId: string, date: string = TODAY): DailyReportSummary | null {
+function getReport(reportType: DailyReportType, employeeId: string, date: string = TODAY): DailyReportSummary | null {
   try {
-    const raw = localStorage.getItem(storageKeyFor(employeeId, date));
+    const raw = localStorage.getItem(storageKeyFor(reportType, employeeId, date));
     if (!raw) return null;
     const r = JSON.parse(raw);
     if (!r || typeof r !== "object") return null;
@@ -54,9 +63,13 @@ function getReport(employeeId: string, date: string = TODAY): DailyReportSummary
       fieldLocked: !!r.field?.locked,
       eveningLocked: !!r.evening?.locked,
       priorityForDay: r.morning?.priorityForDay || "",
-      totalLeads: r.field?.totalLeads || 0,
-      totalConversions: r.field?.totalConversions || 0,
-      totalKm: r.field?.totalKm || 0,
+      totalLeads: r.field?.totalLeads,
+      totalConversions: r.field?.totalConversions,
+      totalKm: r.field?.totalKm,
+      btlApprovalsToday: r.field?.btlApprovalsToday,
+      coachingSessionsHeld: r.field?.coachingSessionsHeld,
+      escalationsResolved: r.field?.escalationsResolved,
+      fieldNotes: r.field?.notes,
       dayRating: r.evening?.dayRating,
       biggestWin: r.evening?.biggestWin || "",
       biggestBlock: r.evening?.biggestBlock || "",
@@ -70,9 +83,9 @@ function getReport(employeeId: string, date: string = TODAY): DailyReportSummary
 }
 
 /** Reports for a whole team, for a given date - null entries mean genuinely not submitted. */
-function getReportsForEmployees(employeeIds: string[], date: string = TODAY): Record<string, DailyReportSummary | null> {
+function getReportsForEmployees(reportType: DailyReportType, employeeIds: string[], date: string = TODAY): Record<string, DailyReportSummary | null> {
   const out: Record<string, DailyReportSummary | null> = {};
-  for (const id of employeeIds) out[id] = getReport(id, date);
+  for (const id of employeeIds) out[id] = getReport(reportType, id, date);
   return out;
 }
 
