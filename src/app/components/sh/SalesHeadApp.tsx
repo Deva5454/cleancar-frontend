@@ -19,6 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import {
   LayoutDashboard, Users, ListChecks, UserCircle,
   ClipboardList, Award, BarChart3,
@@ -27,7 +29,7 @@ import {
   RefreshCw, ChevronRight, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
-import { salesManagerService, type SMLocation } from "../../services/salesManagerService";
+import { salesManagerService, type SMLocation, type ActivityBrief } from "../../services/salesManagerService";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useEvents } from "../../contexts/EventSystem";
 import {
@@ -835,6 +837,7 @@ export function SalesHeadApp() {
 function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; onRefresh: () => void }) {
   const { getEmployeesByRole } = useEmployee();
   const { emit, subscribe } = useEvents();
+  const { currentUser } = useRole();
   const supervisors = getEmployeesByRole("Supervisor");
   const pending = locations.filter(l => l.status === "Pending Approval");
   const needsSupervisor = locations.filter(l => l.status === "Active Prospect" && !l.supervisorId);
@@ -849,6 +852,43 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
   }, [subscribe]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [pickedSupervisorId, setPickedSupervisorId] = useState("");
+
+  // Real, confirmed addition - activity brief form state
+  const [briefingId, setBriefingId] = useState<string | null>(null);
+  const emptyBrief: Omit<ActivityBrief, "briefedAt" | "briefedBy"> = {
+    startTime: "", proposedEndTime: "", setupRequirements: "",
+    electricityProvided: "Unconfirmed", waterProvided: "Unconfirmed",
+    expectedCars: 0, packageToPromote: "", materialsToBring: "",
+    parkingNotes: "", specialInstructions: "",
+  };
+  const [briefForm, setBriefForm] = useState<Omit<ActivityBrief, "briefedAt" | "briefedBy">>(emptyBrief);
+
+  const handleOpenBrief = (loc: SMLocation) => {
+    setBriefingId(loc.id);
+    setBriefForm(loc.activityBrief ? {
+      startTime: loc.activityBrief.startTime,
+      proposedEndTime: loc.activityBrief.proposedEndTime,
+      setupRequirements: loc.activityBrief.setupRequirements,
+      electricityProvided: loc.activityBrief.electricityProvided,
+      waterProvided: loc.activityBrief.waterProvided,
+      expectedCars: loc.activityBrief.expectedCars,
+      packageToPromote: loc.activityBrief.packageToPromote,
+      materialsToBring: loc.activityBrief.materialsToBring,
+      parkingNotes: loc.activityBrief.parkingNotes,
+      specialInstructions: loc.activityBrief.specialInstructions,
+    } : emptyBrief);
+  };
+
+  const handleSaveBrief = (loc: SMLocation) => {
+    const success = salesManagerService.setActivityBrief(loc.id, briefForm, currentUser?.name || "Sales Head");
+    if (!success) {
+      toast.error("Could not save the brief — storage is full. Please contact support or clear old data, then try again.");
+      return;
+    }
+    toast.success(`Activity brief saved for ${loc.name}. ${loc.supervisorName || "The supervisor"} will need to re-confirm.`);
+    setBriefingId(null);
+    onRefresh();
+  };
 
   const handleApprove = (loc: SMLocation) => {
     const success = salesManagerService.approveLocation(loc.id);
@@ -988,6 +1028,11 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
                         Reassign
                       </Button>
                     )}
+                    {briefingId !== loc.id && (
+                      <Button size="sm" variant={loc.activityBrief ? "outline" : "default"} onClick={() => handleOpenBrief(loc)}>
+                        {loc.activityBrief ? "Edit Brief" : "Set Activity Brief"}
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {assigningId === loc.id && (
@@ -1004,6 +1049,78 @@ function BTLApprovalsPanel({ locations, onRefresh }: { locations: SMLocation[]; 
                     </select>
                     <Button size="sm" disabled={!pickedSupervisorId} onClick={() => handleAssign(loc)}>Confirm Reassignment</Button>
                     <Button size="sm" variant="outline" onClick={() => setAssigningId(null)}>Cancel</Button>
+                  </div>
+                )}
+                {!loc.activityBrief && briefingId !== loc.id && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    ⚠ No activity brief set yet — the supervisor only sees the location name and address.
+                  </p>
+                )}
+                {briefingId === loc.id && (
+                  <div className="mt-3 pt-3 border-t space-y-3">
+                    <p className="text-sm font-medium text-gray-900">Activity Brief for {loc.name}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Start Time</label>
+                        <Input value={briefForm.startTime} onChange={e => setBriefForm({ ...briefForm, startTime: e.target.value })} placeholder="e.g. 10:00 AM" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Proposed End Time</label>
+                        <Input value={briefForm.proposedEndTime} onChange={e => setBriefForm({ ...briefForm, proposedEndTime: e.target.value })} placeholder="e.g. 1:00 PM" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Electricity Provided</label>
+                        <select
+                          className="border rounded-lg px-2 py-1.5 text-sm w-full"
+                          value={briefForm.electricityProvided}
+                          onChange={e => setBriefForm({ ...briefForm, electricityProvided: e.target.value as any })}
+                        >
+                          <option value="Unconfirmed">Unconfirmed</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Water Provided</label>
+                        <select
+                          className="border rounded-lg px-2 py-1.5 text-sm w-full"
+                          value={briefForm.waterProvided}
+                          onChange={e => setBriefForm({ ...briefForm, waterProvided: e.target.value as any })}
+                        >
+                          <option value="Unconfirmed">Unconfirmed</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Expected Cars for Demo</label>
+                        <Input type="number" min={0} value={briefForm.expectedCars} onChange={e => setBriefForm({ ...briefForm, expectedCars: Number(e.target.value) })} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600 block mb-1">Package to Promote</label>
+                        <Input value={briefForm.packageToPromote} onChange={e => setBriefForm({ ...briefForm, packageToPromote: e.target.value })} placeholder="e.g. ELITE H + Add-ons" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">Set Up Requirements</label>
+                      <Textarea value={briefForm.setupRequirements} onChange={e => setBriefForm({ ...briefForm, setupRequirements: e.target.value })} placeholder="e.g. 1 banner, 1 table, 2 standees" rows={2} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">Materials to Bring</label>
+                      <Textarea value={briefForm.materialsToBring} onChange={e => setBriefForm({ ...briefForm, materialsToBring: e.target.value })} placeholder="e.g. shampoo, wax, microfiber cloths — extra vs. a normal job day" rows={2} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">Parking / Vehicle Access Notes</label>
+                      <Textarea value={briefForm.parkingNotes} onChange={e => setBriefForm({ ...briefForm, parkingNotes: e.target.value })} placeholder="e.g. wash bay behind Block C, max 3 cars at a time" rows={2} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 block mb-1">Special Instructions</label>
+                      <Textarea value={briefForm.specialInstructions} onChange={e => setBriefForm({ ...briefForm, specialInstructions: e.target.value })} placeholder="e.g. no loudspeaker after 7pm, security needs ID card" rows={2} />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleSaveBrief(loc)}>Save Brief</Button>
+                      <Button size="sm" variant="outline" onClick={() => setBriefingId(null)}>Cancel</Button>
+                    </div>
                   </div>
                 )}
               </Card>

@@ -1717,19 +1717,51 @@ export function SupervisorAppConnected() {
                 </p>
                 <div className="space-y-2">
                   {myBtlLocations.map(loc => (
-                    <div key={loc.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{loc.name} <span className="text-xs text-gray-500">({loc.type})</span></p>
-                        <p className="text-xs text-gray-500">{loc.address}</p>
+                    <div key={loc.id} className="bg-white rounded-lg px-3 py-2 border border-amber-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{loc.name} <span className="text-xs text-gray-500">({loc.type})</span></p>
+                          <p className="text-xs text-gray-500">{loc.address}</p>
+                          {loc.contactPerson && (
+                            <p className="text-xs text-gray-500">Contact: {loc.contactPerson}{loc.contactPhone ? ` · ${loc.contactPhone}` : ""}</p>
+                          )}
+                        </div>
+                        {loc.supervisorAcknowledged ? (
+                          <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1 whitespace-nowrap">
+                            Confirmed
+                          </span>
+                        ) : (
+                          <Button size="sm" onClick={() => handleAcknowledgeLocation(loc)}>
+                            Confirm Receipt
+                          </Button>
+                        )}
                       </div>
-                      {loc.supervisorAcknowledged ? (
-                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-1">
-                          Confirmed
-                        </span>
+                      {loc.activityBrief ? (
+                        <div className="mt-2 pt-2 border-t border-amber-100 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-700">
+                          <div><span className="text-gray-500">Time:</span> {loc.activityBrief.startTime} – {loc.activityBrief.proposedEndTime}</div>
+                          <div><span className="text-gray-500">Expected cars:</span> {loc.activityBrief.expectedCars}</div>
+                          <div><span className="text-gray-500">Electricity:</span> {loc.activityBrief.electricityProvided}</div>
+                          <div><span className="text-gray-500">Water:</span> {loc.activityBrief.waterProvided}</div>
+                          {loc.activityBrief.packageToPromote && (
+                            <div className="col-span-2"><span className="text-gray-500">Promote:</span> {loc.activityBrief.packageToPromote}</div>
+                          )}
+                          {loc.activityBrief.setupRequirements && (
+                            <div className="col-span-2"><span className="text-gray-500">Set up:</span> {loc.activityBrief.setupRequirements}</div>
+                          )}
+                          {loc.activityBrief.materialsToBring && (
+                            <div className="col-span-2"><span className="text-gray-500">Bring:</span> {loc.activityBrief.materialsToBring}</div>
+                          )}
+                          {loc.activityBrief.parkingNotes && (
+                            <div className="col-span-2"><span className="text-gray-500">Parking:</span> {loc.activityBrief.parkingNotes}</div>
+                          )}
+                          {loc.activityBrief.specialInstructions && (
+                            <div className="col-span-2"><span className="text-gray-500">Note:</span> {loc.activityBrief.specialInstructions}</div>
+                          )}
+                        </div>
                       ) : (
-                        <Button size="sm" onClick={() => handleAcknowledgeLocation(loc)}>
-                          Confirm Receipt
-                        </Button>
+                        <p className="text-xs text-amber-700 mt-2 pt-2 border-t border-amber-100">
+                          No activity brief from Sales Head yet — check with them before starting.
+                        </p>
                       )}
                     </div>
                   ))}

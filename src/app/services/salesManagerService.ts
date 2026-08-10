@@ -32,6 +32,29 @@ export interface SMLocation {
   lastSupervisorActivity: string;
   activationBonusStatus: "pending" | "triggered" | "paid";
   previousPayingMilestone: number;
+  activityBrief?: ActivityBrief;
+}
+
+// Real, confirmed addition - closes the gap where Sales Head had no way to
+// communicate any operational detail to the Supervisor beyond a bare
+// location name/type/address. Fields 1-6 below are the explicitly
+// requested ones; the rest were added after reviewing this session's real
+// material-management and BTL execution flows, where the same gap would
+// otherwise resurface (a supervisor with no idea what stock to bring, or
+// whether cars can even be parked/washed on site).
+export interface ActivityBrief {
+  startTime: string;            // e.g. "10:00 AM"
+  proposedEndTime: string;      // e.g. "1:00 PM"
+  setupRequirements: string;    // e.g. "1 banner, 1 table, 2 standees"
+  electricityProvided: "Yes" | "No" | "Unconfirmed";
+  waterProvided: "Yes" | "No" | "Unconfirmed";
+  expectedCars: number;
+  packageToPromote: string;     // which package/service to actually demo - e.g. "ELITE H + Add-ons"
+  materialsToBring: string;     // consumables/equipment the supervisor's team should carry - ties to the real Material Management stock system
+  parkingNotes: string;         // can vehicles actually be washed on site - where, how many bays
+  specialInstructions: string;  // noise/security/timing restrictions, anything else
+  briefedBy: string;            // Sales Head name, set automatically
+  briefedAt: string;            // ISO timestamp, set automatically
 }
 
 export interface SMBlockDeal {
@@ -346,6 +369,24 @@ class SalesManagerService {
       ...locations[idx],
       supervisorAcknowledged: true,
       supervisorAcknowledgedAt: new Date().toISOString(),
+    };
+    return this.save(this.KEYS.LOCATIONS, locations);
+  }
+
+  // Real, confirmed addition - lets Sales Head set or update the activity
+  // brief for a location. Setting/changing the brief after a supervisor has
+  // already acknowledged the assignment resets their acknowledgment, so
+  // "Confirm Receipt" always means confirming the *current* brief, not a
+  // stale one.
+  setActivityBrief(locationId: string, brief: Omit<ActivityBrief, "briefedAt" | "briefedBy">, briefedBy: string): boolean {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === locationId);
+    if (idx < 0) return false;
+    locations[idx] = {
+      ...locations[idx],
+      activityBrief: { ...brief, briefedBy, briefedAt: new Date().toISOString() },
+      supervisorAcknowledged: false,
+      supervisorAcknowledgedAt: undefined,
     };
     return this.save(this.KEYS.LOCATIONS, locations);
   }
