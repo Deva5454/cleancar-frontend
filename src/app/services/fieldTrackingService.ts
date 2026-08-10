@@ -168,7 +168,7 @@ export interface DailyAttendance {
   employeeName: string;
   role: string;
   date: string;
-  status: "Present" | "Late" | "Half Day" | "Absent" | "Weekend" | "Holiday";
+  status: "Present" | "Late" | "Half Day" | "Absent" | "Weekend" | "Holiday" | "Worked Week Off";
   checkInTime: string | null;
   checkOutTime: string | null;
   lateMinutes: number;
@@ -190,7 +190,9 @@ export function calcAttendance(
   role: string
 ): DailyAttendance {
   const dayOfWeek = new Date(date).getDay();
-  if (dayOfWeek === 0) { // Sunday
+  const isWeekOff = dayOfWeek === 0; // Sunday
+
+  if (isWeekOff && !session) {
     return { employeeId, employeeName, role, date, status: "Weekend", checkInTime: null, checkOutTime: null, lateMinutes: 0, earlyLeaveMinutes: 0, totalHoursWorked: 0, requiredHours: REQUIRED_HOURS, gpsLat: null, gpsLng: null };
   }
   if (!session) {
@@ -200,7 +202,7 @@ export function calcAttendance(
   const checkIn = new Date(session.checkInTime);
   const scheduledCheckIn = new Date(checkIn);
   scheduledCheckIn.setHours(FIELD_HOURS.CHECK_IN_HOUR, 0, 0, 0);
-  const lateMinutes = Math.max(0, Math.round((checkIn.getTime() - scheduledCheckIn.getTime()) / 60000));
+  const lateMinutes = isWeekOff ? 0 : Math.max(0, Math.round((checkIn.getTime() - scheduledCheckIn.getTime()) / 60000));
 
   let totalHoursWorked = 0;
   let earlyLeaveMinutes = 0;
@@ -209,11 +211,19 @@ export function calcAttendance(
     totalHoursWorked = Math.max(0, (checkOut.getTime() - checkIn.getTime()) / 3600000);
     const scheduledCheckOut = new Date(checkOut);
     scheduledCheckOut.setHours(FIELD_HOURS.SUGGESTED_CHECKOUT, 0, 0, 0);
-    earlyLeaveMinutes = Math.max(0, Math.round((scheduledCheckOut.getTime() - checkOut.getTime()) / 60000));
+    earlyLeaveMinutes = isWeekOff ? 0 : Math.max(0, Math.round((scheduledCheckOut.getTime() - checkOut.getTime()) / 60000));
   }
 
+  // Real, confirmed fix - a genuine Sunday check-in was previously
+  // silently discarded entirely (the old code returned "Weekend" with
+  // hardcoded nulls before ever looking at whether a real session
+  // existed). Now genuinely computes real hours from the real session,
+  // and flags it distinctly rather than mislabeling it as a normal
+  // working day - this is what real comp-off eligibility should read.
   const status: DailyAttendance["status"] =
-    !session.checkOutTime && totalHoursWorked === 0 ? "Present" // still checked in
+    isWeekOff
+      ? "Worked Week Off"
+      : !session.checkOutTime && totalHoursWorked === 0 ? "Present" // still checked in
       : totalHoursWorked > 0 && totalHoursWorked < REQUIRED_HOURS * 0.5 ? "Half Day"
       : lateMinutes > 30 ? "Late"
       : "Present";

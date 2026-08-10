@@ -636,6 +636,7 @@ export function SuperAdminFieldTracker() {
       Absent:   "bg-red-100 text-red-800",
       Weekend:  "bg-slate-100 text-slate-400",
       Holiday:  "bg-purple-100 text-purple-800",
+      "Worked Week Off": "bg-blue-100 text-blue-800",
     };
 
     const summary = {
@@ -781,7 +782,7 @@ export function SuperAdminFieldTracker() {
                           return (
                             <td key={d} className="px-3 py-3 text-center">
                               <div className={`inline-flex flex-col items-center px-2 py-1 rounded-lg text-xs font-bold ${statusColor[rec.status] || "bg-slate-100"}`}>
-                                <span>{rec.status === "Present" ? "P" : rec.status === "Late" ? "L" : rec.status === "Half Day" ? "H" : rec.status === "Absent" ? "A" : rec.status === "Weekend" ? "—" : "H"}</span>
+                                <span>{rec.status === "Present" ? "P" : rec.status === "Late" ? "L" : rec.status === "Half Day" ? "H" : rec.status === "Absent" ? "A" : rec.status === "Weekend" ? "—" : rec.status === "Worked Week Off" ? "W" : "H"}</span>
                                 {rec.checkInTime && rec.status !== "Weekend" && (
                                   <span className="font-normal text-[10px] mt-0.5">{fmtTime(rec.checkInTime)}</span>
                                 )}
