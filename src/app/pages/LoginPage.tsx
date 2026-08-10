@@ -154,10 +154,15 @@ export function LoginPage() {
   };
 
   const handleResetPassword = () => {
-    if (!newPassword || newPassword.length < 6) { setForgotError("Password must be at least 6 characters."); return; }
+    if (!newPassword || newPassword.length < 8) { setForgotError("Password must be at least 8 characters."); return; }
+    if (!/[0-9]/.test(newPassword)) { setForgotError("Password must contain at least one number."); return; }
     if (newPassword !== confirmPassword) { setForgotError("Passwords do not match."); return; }
     try {
-      authService.resetPassword(forgotMobile, forgotOTP, newPassword);
+      const result = authService.resetPassword(forgotMobile, forgotOTP, newPassword);
+      if (!result.success) {
+        setForgotError(result.error || "Failed to reset password. Please try again.");
+        return;
+      }
       toast.success("Password reset successfully! Please log in with your new password.");
       setView("login");
       setForgotMobile(""); setForgotOTP(""); setNewPassword(""); setConfirmPassword("");
@@ -308,7 +313,7 @@ export function LoginPage() {
                   <Label className="text-sm font-medium text-gray-700">New Password</Label>
                   <div className="relative mt-1">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input type={showNew ? "text" : "password"} placeholder="Min 6 characters"
+                    <Input type={showNew ? "text" : "password"} placeholder="Min 8 characters, at least 1 number"
                       value={newPassword} onChange={e => setNewPassword(e.target.value)} className="pl-10 pr-10" />
                     <button type="button" onClick={() => setShowNew(!showNew)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">

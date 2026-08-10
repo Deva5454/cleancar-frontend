@@ -326,8 +326,8 @@ class AuthServiceClass {
   }
 
   // ── RESET PASSWORD (simple wrapper for LoginPage) ─────────
-  resetPassword(loginMobile: string, otp: string, newPassword: string): void {
-    this.resetPasswordWithOTP(loginMobile, otp, newPassword, newPassword);
+  resetPassword(loginMobile: string, otp: string, newPassword: string): { success: boolean; error?: string } {
+    return this.resetPasswordWithOTP(loginMobile, otp, newPassword, newPassword);
   }
 }
 
