@@ -13,6 +13,8 @@ import { Textarea } from "../ui/textarea";
 import { BackButton } from "../ui/back-button";
 import { useRole } from "../../contexts/RoleContext";
 import { usePayroll } from "../../contexts/PayrollContext";
+import { leaveBalanceService } from "../../services/leaveBalanceService";
+import { useInventory } from "../../contexts/InventoryContext";
 import {
   LogOut, CheckCircle, X, Clock, DollarSign, FileText,
   AlertCircle, User, Package, Shield, Calendar, Bell
@@ -88,6 +90,7 @@ const returnableMaterials: Omit<MaterialItem, "id" | "condition">[] = [
 export function ExitFFSettlement() {
   const { currentRole, currentUser } = useRole();
   const { getPayrollByEmployee } = usePayroll();
+  const { inventory } = useInventory();
   // Real, confirmed fix - was hardcoded "CITY-SURAT" in 3 places below,
   // meaning any exit settlement processed outside Surat would be
   // silently misfiled under Surat's storage key.
@@ -717,23 +720,101 @@ export function ExitFFSettlement() {
                     size="sm" 
                     className="bg-purple-600 hover:bg-purple-700"
                     onClick={() => {
-                      // Pre-fill pending salary from the employee's real most
-                      // recent payroll run, instead of leaving HR to type in
-                      // a number from memory. Still fully editable — this is
-                      // a starting point, not a locked figure.
+                      // Real F&F auto-calculation - all 4 components below
+                      // compute from genuine, existing data (payroll,
+                      // leave balance, notice period, material condition).
+                      // Every field stays fully editable - these are
+                      // real starting points, not locked figures.
                       const history = getPayrollByEmployee(exit.employeeId);
-                      const mostRecent = history.slice().sort((a: { month: string }, b: { month: string }) => b.month.localeCompare(a.month))[0];
+                      const mostRecent = history.slice().sort((a: { month: string; period?: { endDate: string } }, b: { month: string }) => b.month.localeCompare(a.month))[0] as any;
+
+                      let pendingSalary = 0;
+                      let leaveEncashment = 0;
+                      let noticePeriodRecovery = 0;
+                      let equipmentDamage = 0;
+                      const warnings: string[] = [];
+
+                      if (mostRecent) {
+                        const daysInMonth = new Date(
+                          parseInt(mostRecent.month.split("-")[0]),
+                          parseInt(mostRecent.month.split("-")[1]),
+                          0
+                        ).getDate();
+                        const perDayRate = (mostRecent.netSalary || 0) / daysInMonth;
+
+                        // Pending salary - real, prorated days between the
+                        // last real payroll period's end date and the real
+                        // last working date, not the full last salary.
+                        if (mostRecent.period?.endDate && exit.lastWorkingDate) {
+                          const unpaidDays = Math.max(0, Math.round(
+                            (new Date(exit.lastWorkingDate).getTime() - new Date(mostRecent.period.endDate).getTime()) / 86400000
+                          ));
+                          pendingSalary = Math.round(perDayRate * unpaidDays);
+                        } else {
+                          warnings.push("no real payroll period end date found — pending salary starts at ₹0");
+                        }
+
+                        // Leave encashment - real PL balance only. Confirmed
+                        // via the real leave policy: PL is the only leave
+                        // type with encashment enabled, and only for
+                        // confirmed employees (not probation).
+                        const leaveBalance = leaveBalanceService.getEmployeeBalance(exit.employeeId);
+                        if (leaveBalance && leaveBalance.employeeStatus === "Confirmed") {
+                          const plAvailable = leaveBalance.balances.PL?.available || 0;
+                          leaveEncashment = Math.round(perDayRate * plAvailable);
+                        } else if (leaveBalance) {
+                          warnings.push(`${leaveBalance.employeeStatus} employees are not eligible for leave encashment per policy — leave encashment starts at ₹0`);
+                        } else {
+                          warnings.push("no real leave balance record found — leave encashment starts at ₹0");
+                        }
+
+                        // Notice period recovery - real required notice
+                        // days (from the real exit workflow) vs. real days
+                        // actually served.
+                        const workflow = exitWorkflowService.getByEmployee(exit.employeeId);
+                        if (workflow?.initiatedDate && workflow?.lastWorkingDate) {
+                          const daysServed = Math.round(
+                            (new Date(workflow.lastWorkingDate).getTime() - new Date(workflow.initiatedDate).getTime()) / 86400000
+                          );
+                          const shortfallDays = Math.max(0, (workflow.noticePeriodDays || 0) - daysServed);
+                          noticePeriodRecovery = Math.round(perDayRate * shortfallDays);
+                        } else {
+                          warnings.push("no real exit workflow record found — notice period recovery starts at ₹0");
+                        }
+                      } else {
+                        warnings.push("no real payroll history found for this employee — pending salary, leave encashment, and notice period recovery all start at ₹0");
+                      }
+
+                      // Equipment damage - real material condition data,
+                      // matched to real inventory unit costs by item name.
+                      const unmatchedItems: string[] = [];
+                      for (const m of exit.materials) {
+                        if (m.condition === "Minor Damage" || m.condition === "Major Damage" || m.condition === "Missing") {
+                          const invItem = inventory.find((i: any) => i.itemName === m.name);
+                          if (invItem) {
+                            equipmentDamage += invItem.unitCost || 0;
+                          } else {
+                            unmatchedItems.push(m.name);
+                          }
+                        }
+                      }
+                      if (unmatchedItems.length > 0) {
+                        warnings.push(`no real inventory cost match found for: ${unmatchedItems.join(", ")} — those items' cost not included, add manually if needed`);
+                      }
+
                       setFFForm({
-                        pendingSalary: mostRecent?.netSalary || 0,
-                        leaveEncashment: 0,
+                        pendingSalary,
+                        leaveEncashment,
                         bonus: 0,
                         reimbursements: 0,
-                        noticePeriodRecovery: 0,
-                        equipmentDamage: 0,
+                        noticePeriodRecovery,
+                        equipmentDamage,
                         advanceRecovery: 0,
                       });
-                      if (!mostRecent) {
-                        toast.warning("No payroll history found for this employee — pending salary starts at ₹0, enter manually.");
+                      if (warnings.length > 0) {
+                        toast.warning(`F&F pre-filled with real data where available. ${warnings.join("; ")}.`);
+                      } else {
+                        toast.success("F&F pre-filled from real payroll, leave, notice period, and equipment data. Review and adjust before submitting.");
                       }
                       setSelectedExit(exit);
                     }}
