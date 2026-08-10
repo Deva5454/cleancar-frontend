@@ -193,8 +193,8 @@ export function EmployeeOnboarding() {
   const selectedOfferStatus = selectedEmployee ? getLatestOfferStatus(selectedEmployee.tempId) : "No Offer";
 
   // Credentials management handlers
-  const handleGenerateResetOTP = (employeeId: string) => {
-    const result = authService.initiatePasswordReset(employeeId, "HR_ADMIN");
+  const handleGenerateResetOTP = async (employeeId: string) => {
+    const result = await authService.initiatePasswordReset(employeeId, "HR_ADMIN");
     if (result.success && result.otp) {
       setGeneratedOTP(result.otp);
       setOtpMobile(result.maskedMobile || "");

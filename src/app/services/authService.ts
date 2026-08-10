@@ -4,6 +4,7 @@
  */
 
 import { employeeDatabaseService } from "./employeeDatabaseService";
+import { sendWhatsApp } from "./whatsappService";
 
 /**
  * Real, previously-missing conversion - employee.workLocation on a real
@@ -222,9 +223,9 @@ class AuthServiceClass {
 
   // ── FORGOT PASSWORD — HR triggers OTP ────────────────────────
 
-  initiatePasswordReset(employeeId: string, triggeredByHR: string): {
+  async initiatePasswordReset(employeeId: string, triggeredByHR: string): Promise<{
     success: boolean; otp?: string; maskedMobile?: string; error?: string;
-  } {
+  }> {
     const employee = employeeDatabaseService.getAll().find((e: any) => e.id === employeeId);
     if (!employee) return { success: false, error: "Employee not found" };
 
@@ -240,7 +241,11 @@ class AuthServiceClass {
     const mobile = employee.loginMobile || employee.mobile || "";
     const maskedMobile = mobile.slice(0, 5) + "XXXXX";
 
-    // In production: call WhatsApp API to send OTP to employee's mobile
+    // Real, confirmed addition - genuinely attempts delivery via the
+    // existing Interakt integration, same as the self-service path.
+    // Requires VITE_INTERAKT_API_KEY and an approved "otp_verification"
+    // template before this genuinely sends - see whatsappService.ts.
+    await sendWhatsApp(mobile, `Your CleanCar 360 password reset OTP is ${otp}. Valid for 15 minutes.`, "otp_verification", { background: true });
     console.log(`[AuthService] OTP for ${employee.fullName}: ${otp} (expires: ${expiry})`);
 
     return { success: true, otp, maskedMobile };

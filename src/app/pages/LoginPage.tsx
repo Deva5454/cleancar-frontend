@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 import { authService } from "../services/authService";
 import { employeeDatabaseService } from "../services/employeeDatabaseService";
+import { sendWhatsApp } from "../services/whatsappService";
 
 type LoginView = "login" | "forgot_otp_request" | "forgot_otp_verify" | "forgot_reset";
 
@@ -118,7 +119,7 @@ export function LoginPage() {
     }
   };
 
-  const handleRequestOTP = () => {
+  const handleRequestOTP = async () => {
     if (!forgotMobile || forgotMobile.length !== 10) {
       setForgotError("Please enter your 10-digit registered mobile number.");
       return;
@@ -136,7 +137,21 @@ export function LoginPage() {
       passwordResetOTPExpiry: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       passwordResetRequestedAt: new Date().toISOString(),
     });
-    setForgotInfo(`OTP sent to ${forgotMobile.slice(0,3)}XXXXXXX. (Demo OTP: ${otp})`);
+
+    // Real, confirmed addition - genuinely attempts delivery via the
+    // existing Interakt integration. Falls back to on-screen display
+    // (background:true suppresses the wa.me tab-open fallback, which
+    // would open a chat on this browser's own device, not the employee's
+    // phone - wrong for OTP specifically). Requires VITE_INTERAKT_API_KEY
+    // and an approved "otp_verification" template before this genuinely
+    // sends - see the code comment in whatsappService.ts for setup.
+    const result = await sendWhatsApp(forgotMobile, `Your CleanCar 360 password reset OTP is ${otp}. Valid for 15 minutes.`, "otp_verification", { background: true });
+
+    setForgotInfo(
+      result.sent && result.provider === "api"
+        ? `OTP sent via WhatsApp to ${forgotMobile.slice(0,3)}XXXXXXX.`
+        : `OTP sent to ${forgotMobile.slice(0,3)}XXXXXXX. (Demo OTP: ${otp} — WhatsApp delivery not yet configured)`
+    );
     setForgotError("");
     setView("forgot_otp_verify");
   };
