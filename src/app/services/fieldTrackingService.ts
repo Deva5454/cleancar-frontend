@@ -467,6 +467,35 @@ class FieldTrackingService {
       console.warn("[FieldTracker] Travel auto-submit skipped:", e);
     }
 
+    // ── Auto-grant comp-off for genuine week-off work ────────────────────────
+    // Scoped to Sales Manager/Sales Head specifically - confirmed they use a
+    // fixed-Sunday week-off model with zero real roster slots in
+    // shiftRosterService, so holidayPayService's existing, roster-dependent
+    // checkHolidayWork() would silently never grant anything for them.
+    // Calling grantCompOff() directly here bypasses that roster check, which
+    // genuinely doesn't apply to their simpler model. Requires 4+ real hours
+    // worked (this file's own existing half-day threshold) so a brief,
+    // incidental Sunday check-in doesn't earn a full comp-off day.
+    try {
+      const isWeekOff = new Date(updated.date).getDay() === 0;
+      const isEligibleRole = updated.role === "Sales Manager" || updated.role === "Sales Head";
+      if (isWeekOff && isEligibleRole && updated.checkOutTime) {
+        const hoursWorked = (new Date(updated.checkOutTime).getTime() - new Date(updated.checkInTime).getTime()) / 3600000;
+        if (hoursWorked >= REQUIRED_HOURS * 0.5) {
+          import("./holidayPayService").then(({ grantCompOff, getAllCompOffCredits }) => {
+            const alreadyGranted = getAllCompOffCredits().some(
+              c => c.employeeId === updated.employeeId && c.earnedForDate === updated.date
+            );
+            if (alreadyGranted) return;
+            const credit = grantCompOff(updated.employeeId, updated.employeeName, updated.date);
+            console.log(`[FieldTracker] Comp-off auto-granted for week-off work: ${credit.id} (earned for ${updated.date}, expires ${credit.expiresAt})`);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[FieldTracker] Comp-off auto-grant skipped:", e);
+    }
+
     this.state.isCheckedIn = false;
     this.state.session = updated;
     this.state.watcherId = null;
