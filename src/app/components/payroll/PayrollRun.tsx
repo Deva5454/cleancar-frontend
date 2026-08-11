@@ -250,17 +250,6 @@ export function PayrollRun() {
         const empCityId = emp.cityId || currentCityId;
         const state = detectStateFromCity(CITIES[empCityId as keyof typeof CITIES]?.name || "surat");
 
-        const verifiedDeduction = investmentDeclarationService.getVerifiedDeductionTotal(emp.employeeId, financialYear);
-        const compliance = calculateStatutoryDeductions(
-          state,
-          {
-            basic: components.basic, hra: components.hra, conveyance: components.conveyance,
-            medicalAllowance: components.medical, specialAllowance: components.specialAllowance, otherAllowances: 0,
-          },
-          components.annualCTC,
-          verifiedDeduction
-        );
-
         const daysPresent = computeDaysPresent(emp.employeeId, monthStr);
 
         // Approved unpaid leave (UL/LWP) this month, same source used by
@@ -276,9 +265,6 @@ export function PayrollRun() {
             const to = new Date(l.toDate || l.fromDate);
             return total + Math.ceil((to.getTime() - from.getTime()) / 86400000) + 1;
           }, 0);
-
-        const totalDeductions = compliance.deductions.pf.employee + compliance.deductions.esi.employee
-          + compliance.deductions.pt.amount + compliance.deductions.tds.monthly;
 
         const daysWorked = Math.max(0, daysPresent - unpaidLeaveDays);
         // Real, confirmed policy: calendar-day method — gross ÷ actual
@@ -300,6 +286,36 @@ export function PayrollRun() {
         const payableDays = Math.max(0, daysInMonth - absentDays);
         const attendanceFactor = hasAttendanceData ? payableDays / daysInMonth : 1;
         const adjustedGross = hasAttendanceData ? Math.round(components.monthlyGross * attendanceFactor) : components.monthlyGross;
+
+        // Real, confirmed fix: PF/ESI/PT were previously computed on the
+        // full, un-prorated basic/HRA/conveyance/medical/special
+        // allowance every month, regardless of attendanceFactor above —
+        // meaning an employee absent for a chunk of the month still had
+        // PF/ESI/PT deducted as if they'd earned full wages that month.
+        // Real EPFO/ESI/PT practice bases these on wages actually earned/
+        // payable for the period, not the full fixed contractual figure.
+        // Now prorated by the same attendanceFactor as the gross salary
+        // itself, so every statutory deduction stays consistent with the
+        // same calendar-day attendance basis. TDS is deliberately NOT
+        // prorated here — annualCTC below stays the full, un-prorated
+        // figure, since TDS is this month's installment of an annual tax
+        // estimate, not a wages-earned-this-month calculation.
+        const verifiedDeduction = investmentDeclarationService.getVerifiedDeductionTotal(emp.employeeId, financialYear);
+        const compliance = calculateStatutoryDeductions(
+          state,
+          {
+            basic: Math.round(components.basic * attendanceFactor),
+            hra: Math.round(components.hra * attendanceFactor),
+            conveyance: Math.round(components.conveyance * attendanceFactor),
+            medicalAllowance: Math.round(components.medical * attendanceFactor),
+            specialAllowance: Math.round(components.specialAllowance * attendanceFactor),
+            otherAllowances: 0,
+          },
+          components.annualCTC,
+          verifiedDeduction
+        );
+        const totalDeductions = compliance.deductions.pf.employee + compliance.deductions.esi.employee
+          + compliance.deductions.pt.amount + compliance.deductions.tds.monthly;
 
         // Real, confirmed policy: working a real public holiday pays 2x
         // the real per-day rate (gross ÷ actual calendar days this

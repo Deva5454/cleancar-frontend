@@ -220,6 +220,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Advances", path: "/advance/hr-management", icon: Banknote, module: "hr", match: "prefix" },
       { label: "Travel Reimbursement", path: "/travel",        icon: Car,        module: "hr", match: "prefix" },
       { label: "Duty Roster", path: "/hr/duty-roster",        icon: Calendar,   module: "hr", match: "prefix" },
+      { label: "Holiday Management", path: "/hr/holiday-management", icon: Calendar, module: "hr", match: "prefix" },
       { label: "Attendance Regularization", path: "/attendance/regularization", icon: Clock, module: "hr", match: "prefix" },
       { label: "Comp Off", path: "/attendance/comp-off", icon: Gift, module: "hr", match: "prefix" },
       { label: "KRA Scorecard", path: "/incentives/kra-scorecard", icon: Target, module: "hr", match: "prefix" },
