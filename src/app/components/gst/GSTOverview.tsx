@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, RefreshCw, LayoutDashboard, ShieldCheck, AlertCircle, CheckCircle2, TrendingUp, FileText } from "lucide-react";
 import { gstComplianceService, type GSTTransaction, type TransactionStatus } from "../../services/gstComplianceService";
+import { getGSTTransactionsFromEntries } from "../../services/accountingEntryService";
 import { useCity } from "../../contexts/CityContext";
 
 export function GSTOverview() {
@@ -17,7 +18,15 @@ export function GSTOverview() {
   const [selectedMonth, setSelectedMonth] = useState(4);
   const [selectedYear, setSelectedYear] = useState(2026);
 
-  const transactions = useMemo(() => gstComplianceService.getTransactions(city), [city]);
+  // Real fix (CA observation — "Output Tax Liability is 0"): this only
+  // ever read gstComplianceService's own manually-entered transactions,
+  // so real GST from actual Sales revenue (posted via recordRevenue)
+  // never reached this screen. Same merge already used by
+  // GSTR1Module/GSTR3BModule/GSTFilingModule.
+  const transactions = useMemo(() => [
+    ...getGSTTransactionsFromEntries(city),
+    ...gstComplianceService.getTransactions(city),
+  ], [city]);
   const monthTransactions = useMemo(() =>
     transactions.filter(t => t.month === selectedMonth && t.year === selectedYear),
     [transactions, selectedMonth, selectedYear]

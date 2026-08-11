@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Activity, Download, AlertTriangle, TrendingUp } from "lucide-react";
 import { showExportMenu } from "../../utils/gstExportUtils";
 import { gstComplianceService, type GSTTransaction, COMPANY_GST_CONFIG } from "../../services/gstComplianceService";
+import { getGSTTransactionsFromEntries } from "../../services/accountingEntryService";
 
 interface GSTINData {
   gstin: string;
@@ -39,8 +40,16 @@ export function GSTMonitoringModule() {
   // cannot see another city's data no matter what's requested here. This
   // reads each monitored city's real storage directly so all three
   // genuinely contribute to the comparison below.
+  // Real fix (CA observation — "Output Tax Liability is 0"): merges in
+  // real GST from actual Sales revenue (posted via recordRevenue) for
+  // each monitored city, same as GSTR1Module/GSTR3BModule/GSTFilingModule
+  // already do — this screen previously only ever saw manually-entered
+  // transactions.
   const allTransactions = useMemo(
-    () => MONITORED_CITIES.flatMap(cityId => gstComplianceService.getTransactionsForCity(cityId)),
+    () => MONITORED_CITIES.flatMap(cityId => [
+      ...getGSTTransactionsFromEntries(cityId),
+      ...gstComplianceService.getTransactionsForCity(cityId),
+    ]),
     []
   );
 

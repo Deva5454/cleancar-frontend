@@ -1077,8 +1077,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return mrrData.filter(item => item.cityId === cityId);
   };
 
+  // Real fix (CA observation): recordRevenue() is the only path that keeps
+  // this "revenues" state and the real Sales AccountingEntry records in
+  // sync — it writes to both. A Sales entry created any other way (the
+  // manual "Sales" tab in Accounting Entry, or the demo seeder) never
+  // reaches "revenues", so it was fully counted in Sales Summary/GST
+  // reports while being permanently invisible on this Analytics Total
+  // Revenue card. Merges in any real Sales entry not already represented
+  // here (matched by invoiceNumber, since recordRevenue's own Sales
+  // posting carries the same invoiceNumber as its Revenue record) instead
+  // of requiring every future manual sale to remember to call recordRevenue.
   const getRevenueByCity = useCallback((cityId: string): Revenue[] => {
-    return revenues.filter(item => item.cityId === cityId);
+    const cityRevenues = revenues.filter(item => item.cityId === cityId);
+    const coveredInvoiceNumbers = new Set(cityRevenues.map(r => r.invoiceNumber).filter(Boolean));
+    const manualSalesEntries = accountingEntryService.getAllEntries(cityId)
+      .filter(e => e.entryType === "Sales" && !coveredInvoiceNumbers.has(e.invoiceNumber));
+    const syntheticFromManualSales: Revenue[] = manualSalesEntries.map(e => ({
+      revenueId: `SYNTH-${e.id}`,
+      customerId: e.vendorId || e.vendorName || "unknown",
+      customerName: e.vendorName,
+      type: "One-Time",
+      amount: e.totalBillValue,
+      receivedDate: e.date,
+      paymentMethod: e.paymentMode === "Cash" ? "Cash" : "Bank Transfer",
+      invoiceNumber: e.invoiceNumber,
+      status: "Received",
+      cityId,
+      createdAt: e.createdAt,
+      source: "accounting-entry",
+    }));
+    return [...cityRevenues, ...syntheticFromManualSales];
   }, [revenues]);
 
   const getPayablesByCity = useCallback((cityId: string): Payable[] => {
