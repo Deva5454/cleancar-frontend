@@ -143,6 +143,9 @@ class TrackedInventoryService {
     if (unit.status === "Retired") {
       return { success: false, error: { type: "RETIRED", message: `${unitId} has been retired and can no longer be moved` } };
     }
+    if (unit.status === "Scrapped") {
+      return { success: false, error: { type: "SCRAPPED", message: `${unitId} has been scrapped and can no longer be moved` } };
+    }
     if (unit.isLocked) {
       return { success: false, error: { type: "LOCKED", message: `${unitId} is locked by another process` } };
     }
@@ -192,6 +195,52 @@ class TrackedInventoryService {
     return true;
   }
 
+  /**
+   * Real, confirmed addition - a distinct scrap action for anything
+   * genuinely beyond repair or use, separate from ordinary retirement
+   * (e.g. a usage-count threshold reached naturally). Both permanently
+   * remove the item from circulation, but the real reason is different -
+   * this keeps that distinction in the data, not just in a free-text
+   * note, so real reporting can separate "reached end of life" from
+   * "damaged/unusable."
+   */
+  scrapUnit(unitId: string, reason: string, scrappedBy: string, scrappedByName: string): { success: boolean; error?: string } {
+    const units = this.getUnits();
+    const idx = units.findIndex(u => u.id === unitId);
+    if (idx < 0) return { success: false, error: `No item found with barcode ${unitId}` };
+    if (units[idx].status === "Retired" || units[idx].status === "Scrapped") {
+      return { success: false, error: `${unitId} has already exited circulation (${units[idx].status})` };
+    }
+    const wasServingUnit = units[idx].currentUnitCode;
+    const wasServingSlot = units[idx].currentSlot;
+    units[idx] = { ...units[idx], status: "Scrapped", currentUnitCode: undefined, currentSlot: undefined, updatedAt: new Date().toISOString() };
+    this.saveUnits(units);
+
+    // If this part was actively serving in a pressure washer unit's slot,
+    // real, confirmed requirement - the slot needs to know it's now
+    // empty, not silently pointing at a scrapped, unusable part.
+    if (wasServingUnit && wasServingSlot) {
+      const pwUnits = this.getPressureWasherUnits();
+      const pwIdx = pwUnits.findIndex(u => u.unitCode === wasServingUnit);
+      if (pwIdx >= 0) {
+        const { [wasServingSlot]: _removed, ...remainingSlots } = pwUnits[pwIdx].slots;
+        pwUnits[pwIdx] = { ...pwUnits[pwIdx], slots: remainingSlots, updatedAt: new Date().toISOString() };
+        DataService.setAll("PRESSURE_WASHER_UNITS", pwUnits, this.cityId);
+      }
+    }
+
+    const events = this.getMovementEvents();
+    events.push({
+      id: `MOV-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      unitId, cityId: this.cityId,
+      fromLocation: units[idx].currentLocation, toLocation: units[idx].currentLocation,
+      scannedBy: scrappedBy, scannedByName: scrappedByName,
+      timestamp: new Date().toISOString(), notes: `Scrapped: ${reason}`,
+    });
+    DataService.setAll("TRACKED_MOVEMENT_EVENTS", events, this.cityId);
+    return { success: true };
+  }
+
   // ── Live aggregate rollup - replaces separately-maintained counts ────────
   // The count IS the real, current units at a location - nothing to keep
   // in sync, since there's no separate number stored anywhere.
@@ -231,7 +280,7 @@ class TrackedInventoryService {
       this.saveUnits(units);
       slots[slot] = id;
     }
-    const pwUnit: PressureWasherUnit = { unitCode, cityId: this.cityId, slots, createdAt: now, updatedAt: now };
+    const pwUnit: PressureWasherUnit = { unitCode, cityId: this.cityId, slotCount, slots, createdAt: now, updatedAt: now };
     const pwUnits = this.getPressureWasherUnits();
     pwUnits.push(pwUnit);
     DataService.setAll("PRESSURE_WASHER_UNITS", pwUnits, this.cityId);
@@ -256,6 +305,9 @@ class TrackedInventoryService {
     const replacementPart = units[replacementIdx];
     if (replacementPart.status === "Retired") {
       return { success: false, error: `${replacementPartId} has been retired and cannot be used as a replacement` };
+    }
+    if (replacementPart.status === "Scrapped") {
+      return { success: false, error: `${replacementPartId} has been scrapped and cannot be used as a replacement` };
     }
     if (replacementPart.currentUnitCode && replacementPart.currentUnitCode !== unitCode) {
       return { success: false, error: `${replacementPartId} is already serving in unit ${replacementPart.currentUnitCode}, slot ${replacementPart.currentSlot} - remove it from there first` };

@@ -15,10 +15,13 @@ import { getBranchesForCity } from "../../config/branchStores";
 import { BarcodeScanner } from "../cloth-tracking/BarcodeScanner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { ArrowRight, ScanLine } from "lucide-react";
+import { Input } from "../ui/input";
+import { ArrowRight, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trackedInventoryService } from "../../services/trackedInventoryService";
 import type { TrackedUnitLocation } from "../../types/trackedInventory";
+
+type Destination = TrackedUnitLocation | "Scrap";
 
 export function TrackedInventoryScanMovement() {
   const { city } = useCity();
@@ -29,8 +32,9 @@ export function TrackedInventoryScanMovement() {
   const supervisors = getEmployeesByRole("Supervisor");
   const washers = getEmployeesByRole(["Car Washer Full Time", "Car Washer Part Time"]);
 
-  const [toLocation, setToLocation] = useState<TrackedUnitLocation>("Branch");
+  const [toLocation, setToLocation] = useState<Destination>("Branch");
   const [toLocationId, setToLocationId] = useState("");
+  const [scrapReason, setScrapReason] = useState("");
   const [recentScans, setRecentScans] = useState<{ id: string; from: string; to: string; time: string }[]>([]);
 
   useEffect(() => {
@@ -38,6 +42,27 @@ export function TrackedInventoryScanMovement() {
   }, [toLocation, city]);
 
   const handleScan = (barcode: string) => {
+    if (toLocation === "Scrap") {
+      if (!scrapReason.trim()) {
+        toast.error("Enter a real reason before scrapping — beyond repair, unusable, lost, etc.");
+        return;
+      }
+      const result = trackedInventoryService.scrapUnit(
+        barcode, scrapReason.trim(),
+        currentUser?.employeeId || "unknown", currentUser?.name || "Unknown",
+      );
+      if (!result.success) {
+        toast.error(result.error || "Scrap failed.");
+        return;
+      }
+      toast.success(`${barcode.slice(-8)} scrapped — permanently removed from circulation.`);
+      setRecentScans(prev => [
+        { id: barcode, from: "—", to: "Scrapped", time: new Date().toLocaleTimeString() },
+        ...prev.slice(0, 9),
+      ]);
+      return;
+    }
+
     if ((toLocation === "Branch" || toLocation === "Supervisor" || toLocation === "Washer") && !toLocationId) {
       toast.error(`Select which ${toLocation.toLowerCase()} this is going to before scanning.`);
       return;
@@ -72,7 +97,7 @@ export function TrackedInventoryScanMovement() {
       <Card>
         <CardHeader><CardTitle className="text-base">Where is this going?</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {(["Kim", "Branch", "Supervisor", "Washer"] as TrackedUnitLocation[]).map(loc => (
               <button
                 key={loc}
@@ -82,7 +107,21 @@ export function TrackedInventoryScanMovement() {
                 {loc}
               </button>
             ))}
+            <button
+              onClick={() => setToLocation("Scrap")}
+              className={`border rounded-lg p-2 text-sm font-medium flex items-center justify-center gap-1 ${toLocation === "Scrap" ? "border-red-500 bg-red-50 text-red-700" : "text-gray-600"}`}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Scrap
+            </button>
           </div>
+
+          {toLocation === "Scrap" && (
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">Reason (required) — beyond repair, unusable, lost, etc.</label>
+              <Input value={scrapReason} onChange={e => setScrapReason(e.target.value)} placeholder="e.g. Bristles worn out, cracked, unrepairable" />
+              <p className="text-xs text-red-600 mt-1">This permanently removes the item from circulation — it can never be scanned back in.</p>
+            </div>
+          )}
 
           {toLocation === "Branch" && (
             <select className="border rounded-lg px-2 py-1.5 text-sm w-full" value={toLocationId} onChange={e => setToLocationId(e.target.value)}>
@@ -108,7 +147,7 @@ export function TrackedInventoryScanMovement() {
       <Card>
         <CardHeader><CardTitle className="text-base">Scan Barcode</CardTitle></CardHeader>
         <CardContent>
-          <BarcodeScanner onScan={handleScan} placeholder="Scan item barcode" />
+          <BarcodeScanner onScan={handleScan} placeholder={toLocation === "Scrap" ? "Scan item to scrap" : "Scan item barcode"} />
         </CardContent>
       </Card>
 

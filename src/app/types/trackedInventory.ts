@@ -48,7 +48,7 @@ export interface TrackedItemType {
 
 export type TrackedUnitLocation = "Kim" | "Branch" | "Supervisor" | "Washer";
 
-export type TrackedUnitStatus = "Active" | "Issued" | "UnderRepair" | "Retired";
+export type TrackedUnitStatus = "Active" | "Issued" | "UnderRepair" | "Retired" | "Scrapped";
 
 /**
  * One real, individually-barcoded physical item. This is the
@@ -106,7 +106,8 @@ export interface PressureWasherUnit {
   unitCode: string;                 // e.g. "AA1"
   cityId: string;
   currentLocationId?: string;       // travels with the washer/vehicle, not the Kim->Branch chain - confirmed
-  slots: Record<number, string>;    // slot number -> real part barcode (TrackedUnit id)
+  slotCount: number;                // real, total number of slots this unit has, set at registration - needed so an empty slot (after a scrap) still shows up, rather than silently vanishing from the slots map
+  slots: Record<number, string>;    // slot number -> real part barcode (TrackedUnit id) - only occupied slots are keys here
   createdAt: string;
   updatedAt: string;
 }
@@ -114,5 +115,5 @@ export interface PressureWasherUnit {
 export interface ScanResult {
   success: boolean;
   unit?: TrackedUnit;
-  error?: { type: "NOT_FOUND" | "LOCKED" | "RETIRED" | "INVALID_TRANSITION"; message: string };
+  error?: { type: "NOT_FOUND" | "LOCKED" | "RETIRED" | "SCRAPPED" | "INVALID_TRANSITION"; message: string };
 }

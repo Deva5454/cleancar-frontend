@@ -39,6 +39,8 @@ export function PressureWasherUnits() {
   // Detail / swap
   const [selectedUnitCode, setSelectedUnitCode] = useState<string | null>(null);
   const [swapSlot, setSwapSlot] = useState<number | null>(null);
+  const [scrappingSlot, setScrappingSlot] = useState<number | null>(null);
+  const [scrapReason, setScrapReason] = useState("");
 
   useEffect(() => {
     const types = trackedInventoryService.getActiveItemTypes().filter(t => t.isComposite);
@@ -77,6 +79,25 @@ export function PressureWasherUnits() {
     }
     toast.success(`Slot ${swapSlot} of ${selectedUnitCode} now served by ${barcode}. Old part moved to repair, still tracked.`);
     setSwapSlot(null);
+    setRefreshTick(t => t + 1);
+  };
+
+  const handleScrapPart = (partId: string) => {
+    if (!scrapReason.trim()) {
+      toast.error("Enter a real reason before scrapping — beyond repair, unusable, lost, etc.");
+      return;
+    }
+    const result = trackedInventoryService.scrapUnit(
+      partId, scrapReason.trim(),
+      currentUser?.employeeId || "unknown", currentUser?.name || "Unknown"
+    );
+    if (!result.success) {
+      toast.error(result.error || "Scrap failed.");
+      return;
+    }
+    toast.success(`${partId} scrapped — permanently removed from circulation. The slot is now open for a replacement.`);
+    setScrappingSlot(null);
+    setScrapReason("");
     setRefreshTick(t => t + 1);
   };
 
@@ -143,7 +164,7 @@ export function PressureWasherUnits() {
                 className={`border rounded-lg p-3 text-left ${selectedUnitCode === u.unitCode ? "border-blue-500 bg-blue-50" : ""}`}
               >
                 <p className="font-semibold text-sm">{u.unitCode}</p>
-                <p className="text-xs text-gray-500">{Object.keys(u.slots).length} parts</p>
+                <p className="text-xs text-gray-500">{Object.keys(u.slots).length}/{u.slotCount} parts</p>
               </button>
             ))}
             {units.length === 0 && <p className="text-sm text-gray-400 col-span-4">No units registered yet.</p>}
@@ -155,22 +176,49 @@ export function PressureWasherUnits() {
         <Card>
           <CardHeader><CardTitle className="text-base">{selectedUnit.unitCode} — Current Parts</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {Object.entries(selectedUnit.slots).map(([slot, partId]) => {
+            {Array.from({ length: selectedUnit.slotCount }, (_, i) => i + 1).map(slot => {
+              const partId = selectedUnit.slots[slot];
+              if (!partId) {
+                return (
+                  <div key={slot} className="border border-dashed rounded-lg p-2 flex items-center justify-between">
+                    <p className="text-sm text-gray-400">Slot {slot}: Empty — needs a replacement part</p>
+                    <Button size="sm" variant="outline" onClick={() => setSwapSlot(slot)}>Fill Slot</Button>
+                  </div>
+                );
+              }
               const part = getPartDetail(partId);
               const isForeign = part?.originalUnitCode && part.originalUnitCode !== selectedUnit.unitCode;
               return (
-                <div key={slot} className="border rounded-lg p-2 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Slot {slot}: <span className="font-mono">{partId}</span></p>
-                    {isForeign && (
-                      <Badge variant="destructive" className="text-xs mt-1">
-                        Originally from {part!.originalUnitCode} — replaced part
-                      </Badge>
-                    )}
+                <div key={slot} className="border rounded-lg p-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Slot {slot}: <span className="font-mono">{partId}</span></p>
+                      {isForeign && (
+                        <Badge variant="destructive" className="text-xs mt-1">
+                          Originally from {part!.originalUnitCode} — replaced part
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSwapSlot(Number(slot))}>
+                        Mark Damaged / Swap
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => { setScrappingSlot(Number(slot)); setScrapReason(""); }}>
+                        Scrap
+                      </Button>
+                    </div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setSwapSlot(Number(slot))}>
-                    Mark Damaged / Swap
-                  </Button>
+                  {scrappingSlot === Number(slot) && (
+                    <div className="mt-2 pt-2 border-t space-y-2">
+                      <label className="text-xs text-gray-600 block">Reason (required) — beyond repair, unusable, lost, etc.</label>
+                      <Input value={scrapReason} onChange={e => setScrapReason(e.target.value)} placeholder="e.g. Cracked housing, unrepairable" />
+                      <p className="text-xs text-red-600">This permanently removes {partId} from circulation and opens this slot for a real replacement.</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="destructive" onClick={() => handleScrapPart(partId)}>Confirm Scrap</Button>
+                        <Button size="sm" variant="outline" onClick={() => setScrappingSlot(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
