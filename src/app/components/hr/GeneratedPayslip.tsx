@@ -230,8 +230,6 @@ export function GeneratedPayslip({ data, month, year, currentRole: currentRolePr
     } catch { return null; }
   })();
 
-  const WORKING_DAYS = 26; // Standard working days per month
-
   if (!empRecord || (!empRecord.baseSalary && !empRecord.grossSalary)) {
     return (
       <div className="border-2 border-red-400 rounded-lg p-6 bg-red-50 text-center m-4">
@@ -249,9 +247,14 @@ export function GeneratedPayslip({ data, month, year, currentRole: currentRolePr
 
   const baseSalary: number = empRecord.baseSalary || empRecord.grossSalary || empRecord.ctc || 0;
   const calendarDays = data.summary.totalDays; // Calendar days (30/31) for basic proration
-  
-  // ✅ FIXED: Attendance deduction uses WORKING days (26) as per 24/9 pay policy
-  const perDayRateForDeduction = baseSalary / WORKING_DAYS;
+
+  // Calendar-day method, same basis as basic salary's own proration below
+  // and as PayrollRun.tsx/PayrollContext.tsx's payroll generation — was a
+  // fixed 26-working-day divisor ("per 24/9 pay policy"), now consistent
+  // with the rest of the system: gross ÷ actual calendar days in the
+  // month, so weekly offs/public holidays are implicitly paid the same
+  // way everywhere else in the app.
+  const perDayRateForDeduction = baseSalary / calendarDays;
   const attendanceDeductionAmount = Math.round(data.adjustment.daysDeducted * perDayRateForDeduction);
   
   // Fixed Earnings Calculation — basic prorated on calendar days (matches screen)
