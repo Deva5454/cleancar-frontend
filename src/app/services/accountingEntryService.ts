@@ -873,7 +873,11 @@ export function postPayableEntryForFinance(params: {
     params.type === "Salary"    ? ledgers.find(l => l.accountHead === "salary_payable") :
     params.type === "Statutory" ? ledgers.find(l => l.accountHead === "statutory_payable") :
     params.type === "Travel" || params.type === "Claim" ? ledgers.find(l => l.accountHead === "other_liabilities" && l.name === "Employee Reimbursements") :
-    (params.vendorName && ledgers.find(l => l.accountHead === "accounts_payable" && l.name === `AP — ${params.vendorName}`)) ||
+    // Real fix (CA observation): auto-create this vendor's own AP ledger
+    // instead of falling back to the one shared, generic "Accounts
+    // Payable" ledger — so this payable shows by vendor name on the
+    // Balance Sheet instead of pooling anonymously.
+    params.vendorName ? accountingEntryService.getOrCreateVendorLedger(params.vendorId || params.vendorName, params.vendorName, params.cityId, params.city) :
     ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
   if (!debitLedger || !creditLedger) return null;
 
@@ -943,7 +947,7 @@ export function postPayableTopUpEntryForFinance(params: {
   const ledgers = accountingEntryService.getLedgers(params.cityId);
   const debitLedger = ledgers.find(l => l.accountHead === "direct_expenses" && l.name === "Raw Materials And Consumables");
   const creditLedger =
-    (params.vendorName && ledgers.find(l => l.accountHead === "accounts_payable" && l.name === `AP — ${params.vendorName}`)) ||
+    params.vendorName ? accountingEntryService.getOrCreateVendorLedger(params.vendorId || params.vendorName, params.vendorName, params.cityId, params.city) :
     ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
   if (!debitLedger || !creditLedger) return null;
 
@@ -1599,7 +1603,19 @@ class AccountingEntryService {
     // which (via postPayableEntryForFinance) calls back into createEntry()
     // for THIS exact accrual, re-firing the event forever. Only entries
     // NOT already originating from a real Payable should ever reach here.
-    if (!options?.skipPayableSync && ["Expense", "Purchase", "AssetPurchase"].includes(entry.entryType) && entry.totalBillValue > 0) {
+    //
+    // ✅ FIX (CA observation — "1 entry shows as 2"): this used to fire for
+    // EVERY Expense/Purchase/AssetPurchase entry regardless of payment
+    // mode — including ones paid immediately by Bank/Cash/PettyCash,
+    // which already credit a real cash/bank ledger directly. Each of
+    // those still spawned an extra "Pending" Payable for the same amount,
+    // double-counting a transaction that was never actually outstanding.
+    // Only entries that genuinely credit a real accounts-payable ledger
+    // (vendor's own AP ledger, or the generic one) represent a real,
+    // unsettled payable — gate on that instead of entry type alone.
+    const creditLedgerForPayableCheck = this.getLedgers(entry.cityId).find(l => l.id === entry.creditAccount);
+    const isGenuinelyOutstanding = creditLedgerForPayableCheck?.accountHead === "accounts_payable";
+    if (!options?.skipPayableSync && isGenuinelyOutstanding && ["Expense", "Purchase", "AssetPurchase"].includes(entry.entryType) && entry.totalBillValue > 0) {
       try {
         window.dispatchEvent(new CustomEvent("cc360_accounting_entry_created", {
           detail: {
@@ -2137,6 +2153,32 @@ class AccountingEntryService {
       city, cityId, isSystem: false,
       status: "Active", createdAt: new Date().toISOString(),
       customerId, customerName, subscriptionPlan,
+    };
+    this.saveLedger(ledger);
+    return ledger;
+  }
+
+  // Real fix (CA observation): a vendor payable used to fall back to one
+  // shared, generic "Accounts Payable" ledger for any vendor unless a
+  // ledger literally named `AP — {vendorName}` had been hand-seeded (only
+  // 5 demo vendors had one) — so real payables posted correctly in total
+  // but pooled anonymously, never showing by vendor name on the Balance
+  // Sheet. This creates that vendor's own ledger on first use instead of
+  // requiring it to be pre-seeded.
+  getOrCreateVendorLedger(vendorId: string, vendorName: string, cityId: string, city: string, gstin?: string): LedgerMaster {
+    const ledgerName = `AP — ${vendorName}`;
+    const existing = this.getLedgers(cityId).find(l => l.accountHead === "accounts_payable" && l.name === ledgerName);
+    if (existing) return existing;
+    const ledger: LedgerMaster = {
+      id: `VENDOR-LEDGER-${vendorId}`,
+      name: ledgerName,
+      accountHead: "accounts_payable",
+      accountHeadLabel: "Accounts Payable",
+      nature: "liability", type: "vendor",
+      openingBalance: 0, openingBalanceType: "Cr",
+      city, cityId, isSystem: false,
+      status: "Active", createdAt: new Date().toISOString(),
+      gstin,
     };
     this.saveLedger(ledger);
     return ledger;

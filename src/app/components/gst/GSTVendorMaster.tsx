@@ -3,8 +3,9 @@ import { toast } from "sonner";
 import { Building2, Plus, Search, Download, X, Check, AlertCircle, Edit2, Ban, CheckCircle, Upload, Shield, Calendar, FileText, Clock } from "lucide-react";
 import { gstComplianceService, type GSTVendor, type VendorRiskLevel, type LegalEntityType, type TDSOverride, type VendorDocument, TDS_ENTITY_CONFIG } from "../../services/gstComplianceService";
 import { useRole } from "../../contexts/RoleContext";
+import { useCity } from "../../contexts/CityContext";
 import { showExportMenu } from "../../utils/gstExportUtils";
-import { GST_STATE_OPTIONS, GST_STATES } from "../../services/accountingEntryService";
+import { GST_STATE_OPTIONS, GST_STATES, accountingEntryService } from "../../services/accountingEntryService";
 
 // Legal entity types
 const LEGAL_ENTITY_TYPES: LegalEntityType[] = [
@@ -52,6 +53,7 @@ const MANAGER_ROLES = ["Super Admin", "Admin", "Accounts", "City Manager", "Clus
 
 export function GSTVendorMaster() {
   const { currentRole, currentUser } = useRole();
+  const { city: cityId, cityInfo } = useCity();
   const isManager = MANAGER_ROLES.includes(currentRole || "");
   const [vendors, setVendors] = useState<GSTVendor[]>(gstComplianceService.getVendors());
   const [searchTerm, setSearchTerm] = useState("");
@@ -94,6 +96,13 @@ export function GSTVendorMaster() {
 
   const handleSaveVendor = (vendor: GSTVendor) => {
     gstComplianceService.saveVendor(vendor);
+    // Real fix (CA observation): a vendor added here had no linked ledger
+    // until one happened to be hand-seeded — so screens that look up a
+    // vendor's own ledger (e.g. Accounting Entry's credit-account
+    // auto-fill) silently found nothing and fell back to a generic
+    // account instead of this vendor's name. Every vendor now gets a
+    // real linked AP ledger the moment they're saved.
+    accountingEntryService.getOrCreateVendorLedger(vendor.id, vendor.name, cityId, cityInfo.displayName, vendor.gstin);
     setVendors(gstComplianceService.getVendors());
     setShowAddForm(false);
     setEditingVendor(null);

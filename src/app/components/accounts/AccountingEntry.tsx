@@ -141,21 +141,6 @@ export function AccountingEntry() {
     }
   }, [activeTab, selectedPackageCode, city]);
 
-  // Auto-fill debit/credit accounts based on payment mode and expense account
-  useEffect(() => {
-    if (expenseAccount) {
-      // Always resolve to ledger ID — find or create a ledger for this account head
-      const allLedgers = accountingEntryService.getLedgers(city);
-      const matching = allLedgers.find(l => l.accountHead === expenseAccount);
-      if (matching) {
-        setDebitAccount(matching.id);
-      } else {
-        // Fallback: use account head as debit if no ledger exists for it
-        setDebitAccount(expenseAccount);
-      }
-    }
-  }, [expenseAccount, city]);
-
   // Auto-fill credit account based on payment mode using actual ledger IDs
   useEffect(() => {
     const allLedgers = accountingEntryService.getLedgers(city);
@@ -739,21 +724,31 @@ export function AccountingEntry() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Expense / Account Head</label>
+                {/* Real fix (CA observation): this used to list only coarse
+                    chart-of-account heads (e.g. "Indirect Expenses") — the
+                    CA needed to pick a real, named expense ledger (e.g.
+                    "Professional Fees", "Rent Expense"). Now lists real
+                    expense-nature ledgers and sets the debit account
+                    directly from the selection, instead of guessing "first
+                    ledger under this head" afterwards. */}
                 <select
-                  value={expenseAccount}
-                  onChange={(e) => setExpenseAccount(e.target.value)}
+                  value={debitAccount}
+                  onChange={(e) => {
+                    const ledgerId = e.target.value;
+                    setDebitAccount(ledgerId);
+                    const ledger = accountingEntryService.getLedgers(city).find(l => l.id === ledgerId);
+                    if (ledger) setExpenseAccount(ledger.accountHead);
+                  }}
                   className="w-full border rounded px-3 py-2"
                 >
-                  <option value="">Select Account Head</option>
-                  {["asset", "liability", "income", "expense"].map((nature) => (
-                    <optgroup key={nature} label={nature.toUpperCase()}>
-                      {CHART_OF_ACCOUNTS_HEADS.filter((h) => h.nature === nature).map((h) => (
-                        <option key={h.value} value={h.value}>
-                          {h.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
+                  <option value="">Select expense account...</option>
+                  {accountingEntryService.getLedgers(city)
+                    .filter((l) => l.nature === "expense")
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
                 </select>
               </div>
               {gstEntryType !== "NonGST" && (

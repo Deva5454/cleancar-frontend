@@ -18,6 +18,11 @@ export function ItemMasterScreen() {
   const [items, setItems] = useState<ItemMaster[]>([]);
   const [showPanel, setShowPanel] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMaster | null>(null);
+  // Real fix (CA observation): Create had no loading/disabled guard — a
+  // slow or double click fired handleSubmit twice, each generating its
+  // own Date.now()-based id and creating two separate item records for
+  // the same intended item.
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Omit<ItemMaster, "id"|"createdAt">>({
     itemName: "",
     hsnCode: "",
@@ -110,12 +115,14 @@ export function ItemMasterScreen() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const ledger = expenseLedgers.find(l => l.id === formData.defaultExpenseLedgerId);
     if (!ledger) {
       toast.info("Please select a default expense ledger");
       return;
     }
 
+    setIsSubmitting(true);
     const item: ItemMaster = {
       ...formData,
       id: editingItem?.id || `ITEM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -125,6 +132,7 @@ export function ItemMasterScreen() {
     accountingEntryService.saveItem(item);
     setShowPanel(false);
     setItems(accountingEntryService.getItems());
+    setIsSubmitting(false);
   };
 
   const activeItems = items.filter(i => i.status === "Active");
@@ -357,9 +365,10 @@ export function ItemMasterScreen() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingItem ? "Update" : "Create"}
+                  {isSubmitting ? "Saving..." : editingItem ? "Update" : "Create"}
                 </button>
               </div>
             </form>
