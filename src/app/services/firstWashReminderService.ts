@@ -150,8 +150,8 @@ export function recordFirstWashDate(subscriptionId: string, washDate: string): v
       const sub = subs[idx];
       const firstWash = new Date(washDate);
       const validityDays =
-        sub.packageType === "PACK_4" ? 30 :
-        sub.packageType === "PACK_2" ? 20 :
+        sub.frequency === "Pack of 4" ? 30 :
+        sub.frequency === "Pack of 2" ? 20 :
         sub.frequency === "1 time in 10 days" ? 15 :
         sub.frequency === "2 times in 20 days" ? 20 :
         sub.frequency === "4 times in 30 days" ? 30 :

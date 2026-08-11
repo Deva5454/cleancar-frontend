@@ -1153,7 +1153,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
             const allSubs2: any[] = DataService.get<any>("SUBSCRIPTIONS", job.cityId) || [];
             const sub = allSubs2.find((s:any) => s.subscriptionId === job.subscriptionId);
             const isMonthly = sub && (sub.frequency === "Daily" || sub.frequency === "Alternate Days" || sub.frequency === "Weekly");
-            const isPack = sub && (sub.packageType === "PACK_2" || sub.packageType === "PACK_4");
+            const isPack = sub && (sub.frequency === "Pack of 2" || sub.frequency === "Pack of 4");
             const isOneTime = !sub || sub.packageType === "ONE_TIME" || sub.frequency === "One-Time";
 
             const visitsLeft = isPack
