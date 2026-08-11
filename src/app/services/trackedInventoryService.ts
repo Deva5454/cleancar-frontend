@@ -253,6 +253,13 @@ class TrackedInventoryService {
     const units = this.getUnits();
     const replacementIdx = units.findIndex(u => u.id === replacementPartId);
     if (replacementIdx < 0) return { success: false, error: `No part found with barcode ${replacementPartId}` };
+    const replacementPart = units[replacementIdx];
+    if (replacementPart.status === "Retired") {
+      return { success: false, error: `${replacementPartId} has been retired and cannot be used as a replacement` };
+    }
+    if (replacementPart.currentUnitCode && replacementPart.currentUnitCode !== unitCode) {
+      return { success: false, error: `${replacementPartId} is already serving in unit ${replacementPart.currentUnitCode}, slot ${replacementPart.currentSlot} - remove it from there first` };
+    }
 
     const now = new Date().toISOString();
 
