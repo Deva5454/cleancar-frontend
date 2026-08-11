@@ -42,6 +42,16 @@ export interface TrackedItemType {
   retirementThreshold?: number;    // only meaningful when retirementRule is "usage-count"
   isComposite: boolean;            // true only for Pressure Washer Unit definitions - see PressureWasherUnit below
   active: boolean;                 // superadmin can retire a type without deleting its history
+  // Real, confirmed approval workflow - Procurement Manager can propose a
+  // new type, but it stays genuinely unusable (never returned by
+  // getActiveItemTypes) until a Super Admin approves it.
+  approvalStatus: "Approved" | "Pending" | "Rejected";
+  proposedBy?: string;              // real employeeId of whoever proposed it, if not a Super Admin's own direct creation
+  proposedByName?: string;
+  reviewedBy?: string;              // real Super Admin employeeId who approved/rejected
+  reviewedByName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }

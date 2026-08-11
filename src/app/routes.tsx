@@ -71,6 +71,7 @@ const InventoryStore = lazy(() => import("./components/modules/InventoryStore"))
 import { MaterialRequisition } from "./components/inventory/MaterialRequisition";
 const WasherIssuances = lazy(() => import("./components/inventory/WasherIssuances"));
 const TrackedInventoryReceiveStock = lazy(() => import("./components/inventory/TrackedInventoryReceiveStock"));
+const ProposeItemType = lazy(() => import("./components/inventory/ProposeItemType"));
 const TrackedInventoryScanMovement = lazy(() => import("./components/inventory/TrackedInventoryScanMovement"));
 const PressureWasherUnits = lazy(() => import("./components/inventory/PressureWasherUnits"));
 import { WasherStockLedger } from "./components/inventory/WasherStockLedger";
@@ -413,6 +414,7 @@ export const router = createBrowserRouter([
       { path: "inventory/requisition", element: <MaterialRequisition /> },
       { path: "inventory/washer-issuances", element: <WasherIssuances /> },
       { path: "inventory/receive-stock", element: <TrackedInventoryReceiveStock /> },
+      { path: "inventory/propose-item-type", element: <ProposeItemType /> },
       { path: "inventory/scan-movement", element: <TrackedInventoryScanMovement /> },
       { path: "inventory/pressure-washer-units", element: <PressureWasherUnits /> },
       { path: "inventory/washer-stock-ledger", element: <WasherStockLedger /> },

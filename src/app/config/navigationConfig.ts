@@ -353,6 +353,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Requisitions", path: "/inventory/requisition", icon: ClipboardList, module: "inventory", match: "prefix" },
       { label: "Issuances", path: "/inventory/washer-issuances", icon: Users, module: "inventory", match: "prefix" },
       { label: "Receive Stock at Kim", path: "/inventory/receive-stock", icon: PackagePlus, module: "inventory", match: "prefix" },
+      { label: "Propose Item Type", path: "/inventory/propose-item-type", icon: Tag, module: "inventory", match: "prefix" },
       { label: "Scan to Move", path: "/inventory/scan-movement", icon: ScanLine, module: "inventory", match: "prefix" },
       { label: "Pressure Washer Units", path: "/inventory/pressure-washer-units", icon: Wrench, module: "inventory", match: "prefix" },
       { label: "Stock Ledger", path: "/inventory/washer-stock-ledger", icon: BookUser, module: "inventory", match: "prefix" },

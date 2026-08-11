@@ -21,16 +21,25 @@ class TrackedInventoryService {
     return DataService.get<TrackedItemType>("TRACKED_ITEM_TYPES", this.cityId);
   }
 
+  // Real, confirmed fix - only genuinely approved, active types are usable
+  // for real stock receipt/movement. A Pending or Rejected type must
+  // never show up here, or the approval requirement would be meaningless.
   getActiveItemTypes(): TrackedItemType[] {
-    return this.getItemTypes().filter(t => t.active);
+    return this.getItemTypes().filter(t => t.active && t.approvalStatus === "Approved");
   }
 
-  createItemType(input: Omit<TrackedItemType, "id" | "cityId" | "createdAt" | "updatedAt">): TrackedItemType {
+  getPendingItemTypes(): TrackedItemType[] {
+    return this.getItemTypes().filter(t => t.approvalStatus === "Pending");
+  }
+
+  /** Super Admin's own, direct creation - auto-approved, since they are the real approver. */
+  createItemType(input: Omit<TrackedItemType, "id" | "cityId" | "createdAt" | "updatedAt" | "approvalStatus" | "proposedBy" | "proposedByName" | "reviewedBy" | "reviewedByName" | "reviewedAt" | "rejectionReason">): TrackedItemType {
     const now = new Date().toISOString();
     const type: TrackedItemType = {
       ...input,
       id: `TYPE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       cityId: this.cityId,
+      approvalStatus: "Approved",
       createdAt: now,
       updatedAt: now,
     };
@@ -38,6 +47,60 @@ class TrackedInventoryService {
     types.push(type);
     DataService.setAll("TRACKED_ITEM_TYPES", types, this.cityId);
     return type;
+  }
+
+  /**
+   * Real, confirmed addition - Procurement Manager can propose a new
+   * item type, but it starts genuinely unusable (active: false,
+   * Pending) until a real Super Admin reviews it.
+   */
+  proposeItemType(
+    input: Omit<TrackedItemType, "id" | "cityId" | "createdAt" | "updatedAt" | "active" | "approvalStatus" | "proposedBy" | "proposedByName" | "reviewedBy" | "reviewedByName" | "reviewedAt" | "rejectionReason">,
+    proposedBy: string,
+    proposedByName: string
+  ): TrackedItemType {
+    const now = new Date().toISOString();
+    const type: TrackedItemType = {
+      ...input,
+      id: `TYPE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      cityId: this.cityId,
+      active: false,
+      approvalStatus: "Pending",
+      proposedBy, proposedByName,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const types = this.getItemTypes();
+    types.push(type);
+    DataService.setAll("TRACKED_ITEM_TYPES", types, this.cityId);
+    return type;
+  }
+
+  approveItemType(typeId: string, reviewedBy: string, reviewedByName: string): boolean {
+    const types = this.getItemTypes();
+    const idx = types.findIndex(t => t.id === typeId);
+    if (idx < 0) return false;
+    types[idx] = {
+      ...types[idx], active: true, approvalStatus: "Approved",
+      reviewedBy, reviewedByName, reviewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    DataService.setAll("TRACKED_ITEM_TYPES", types, this.cityId);
+    return true;
+  }
+
+  rejectItemType(typeId: string, reviewedBy: string, reviewedByName: string, reason: string): boolean {
+    const types = this.getItemTypes();
+    const idx = types.findIndex(t => t.id === typeId);
+    if (idx < 0) return false;
+    types[idx] = {
+      ...types[idx], active: false, approvalStatus: "Rejected",
+      reviewedBy, reviewedByName, reviewedAt: new Date().toISOString(),
+      rejectionReason: reason,
+      updatedAt: new Date().toISOString(),
+    };
+    DataService.setAll("TRACKED_ITEM_TYPES", types, this.cityId);
+    return true;
   }
 
   updateItemType(typeId: string, updates: Partial<Omit<TrackedItemType, "id" | "cityId" | "createdAt">>): boolean {

@@ -12,9 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Plus } from "lucide-react";
+import { Plus, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { trackedInventoryService } from "../../services/trackedInventoryService";
+import { useRole } from "../../contexts/RoleContext";
 import type { TrackedItemType, ItemCategory, TrackingMode, RetirementRule } from "../../types/trackedInventory";
 
 const emptyForm = {
@@ -30,10 +31,13 @@ const emptyForm = {
 };
 
 export function TrackedItemTypeManagement() {
+  const { currentUser } = useRole();
   const [types, setTypes] = useState<TrackedItemType[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     setTypes(trackedInventoryService.getItemTypes());
@@ -74,6 +78,26 @@ export function TrackedItemTypeManagement() {
     refresh();
   };
 
+  const pendingTypes = types.filter(t => t.approvalStatus === "Pending");
+
+  const handleApprove = (t: TrackedItemType) => {
+    trackedInventoryService.approveItemType(t.id, currentUser?.employeeId || "unknown", currentUser?.name || "Unknown");
+    toast.success(`${t.name} approved — now available for real stock receipt.`);
+    refresh();
+  };
+
+  const handleReject = (t: TrackedItemType) => {
+    if (!rejectReason.trim()) {
+      toast.error("Enter a real reason for rejecting this proposal.");
+      return;
+    }
+    trackedInventoryService.rejectItemType(t.id, currentUser?.employeeId || "unknown", currentUser?.name || "Unknown", rejectReason.trim());
+    toast.success(`${t.name} rejected.`);
+    setRejectingId(null);
+    setRejectReason("");
+    refresh();
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
@@ -88,6 +112,46 @@ export function TrackedItemTypeManagement() {
           Add Item Type
         </Button>
       </div>
+
+      {pendingTypes.length > 0 && (
+        <Card className="border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Pending Approval</span>
+              <Badge variant="outline">{pendingTypes.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingTypes.map(t => (
+              <div key={t.id} className="border rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{t.name} <span className="text-xs text-gray-500">({t.category})</span></p>
+                    <p className="text-xs text-gray-500">Prefix: {t.barcodePrefix} · Proposed by {t.proposedByName || "Unknown"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleApprove(t)}>
+                      <Check className="w-3.5 h-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => { setRejectingId(t.id); setRejectReason(""); }}>
+                      <X className="w-3.5 h-3.5 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+                {rejectingId === t.id && (
+                  <div className="mt-2 pt-2 border-t space-y-2">
+                    <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Real reason for rejecting this proposal" />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="destructive" onClick={() => handleReject(t)}>Confirm Reject</Button>
+                      <Button size="sm" variant="outline" onClick={() => setRejectingId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {showForm && (
         <Card>
@@ -193,7 +257,9 @@ export function TrackedItemTypeManagement() {
                       {t.retirementRule === "usage-count" ? `After ${t.retirementThreshold} uses` : t.retirementRule}
                     </td>
                     <td className="py-2 pr-3">
-                      <Badge variant={t.active ? "default" : "outline"}>{t.active ? "Active" : "Inactive"}</Badge>
+                      <Badge variant={t.approvalStatus === "Approved" ? "default" : t.approvalStatus === "Pending" ? "outline" : "destructive"}>
+                        {t.approvalStatus === "Approved" ? (t.active ? "Active" : "Inactive") : t.approvalStatus}
+                      </Badge>
                     </td>
                     <td className="py-2 pr-3">
                       <Button size="sm" variant="outline" onClick={() => handleOpenEdit(t)}>Edit</Button>
