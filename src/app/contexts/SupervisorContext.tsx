@@ -13,7 +13,7 @@ import { useEvents, useEventListener } from "./EventSystem";
 import { useJobs } from "./JobContext";
 import { supervisorDataService } from "../services/supervisorDataService";
 
-// Daily unit target per washer — single source of truth for this number across the module
+// Daily unit target per washer ï¿½ single source of truth for this number across the module
 export const UNITS_TARGET_PER_WASHER = 20;
 import type {
   WasherTeamMember,
@@ -102,7 +102,13 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
   // IMPORTANT: All hooks must be called BEFORE any conditional returns (Rules of Hooks)
   const { employees, attendanceRecords } = useEmployeeData();
   const { emit } = useEvents();
-  const { getAssignedByCity, getCompletedByCity, getUnassignedByCity, jobs, assignJobToWasher } = useJobs() as any;
+  // Real fix: this used to destructure "jobs", a property that never
+  // existed on JobContext's real exported value (only "allJobs" does) â€”
+  // the "as any" cast hid the mismatch, so "jobs" was silently undefined
+  // everywhere below, and every screen reading it via useSupervisor()
+  // (e.g. SupervisorAppConnected.tsx's "Unassigned Jobs Today" panel)
+  // always saw an empty list regardless of how many real jobs existed.
+  const { getAssignedByCity, getCompletedByCity, getUnassignedByCity, allJobs, assignJobToWasher } = useJobs() as any;
 
   // State - ALL useState hooks must be declared before any conditional returns
   const [summary, setSummary] = useState<TeamSummary>({
@@ -245,7 +251,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
           clothIssueDaysAgo > 7 ? "IN_USE" : "FRESH";
 
         // Units from jobs context
-        const todayJobs = (jobs || []).filter((j: any) =>
+        const todayJobs = (allJobs || []).filter((j: any) =>
           j.washerId === emp.employeeId && j.scheduledDate === today
         );
         const completedJobs = todayJobs.filter((j: any) => j.status === "Completed");
@@ -339,7 +345,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
                 }
               }
             } catch (_) {}
-            // No audit record — seed a default "completed 2 days ago" so dashboard
+            // No audit record ï¿½ seed a default "completed 2 days ago" so dashboard
             // does not show all 6 as pending on a fresh browser
             try {
               const defaultAudit = [{
@@ -358,7 +364,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
               }];
               localStorage.setItem(`SUPERVISOR_AUDITS_${emp.employeeId}`, JSON.stringify(defaultAudit));
             } catch (_) {}
-            return "COMPLETED" as const; // seeded default — shows as completed
+            return "COMPLETED" as const; // seeded default ï¿½ shows as completed
           })(),
           clothBatchId: `CLT-${emp.employeeId}`,
           clothBatchStatus,
@@ -471,7 +477,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
             actionUrl: `/supervisor-app/cloth`,
           });
         }
-        const todayJobsForWasher = (jobs || []).filter((j: any) =>
+        const todayJobsForWasher = (allJobs || []).filter((j: any) =>
           j.washerId === m.id && j.scheduledDate === today2 && j.status !== "Completed"
         );
         if ((m.status === "CHECKED_IN" || m.status === "LATE") && m.unitsCompleted < 10) {
@@ -680,7 +686,7 @@ export function SupervisorProvider({ children }: SupervisorProviderProps) {
     shiftFocusAreas,
     isLoading,
     error,
-    jobs,
+    jobs: allJobs,
     assignJobToWasher,
   }),
   [summary, team, alerts, unreadAlertsCount, auditTasks, clothBatches, schedule, leads, incentive, issues]); // eslint-disable-line react-hooks/exhaustive-deps

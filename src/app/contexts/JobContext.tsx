@@ -14,6 +14,15 @@ import { markOfferCompleted } from "../services/complimentary2WService";
 import { createUpsellTask, createPackUpsellTask } from "../services/tatTrackingService";
 import { sendBookingConfirmed, sendWasherArrived, sendWashCompleted, sendRatingRequest, sendPackVisitLow, sendBeforeAfterPhotos, sendPackPurchaseConfirmed } from "../services/whatsappService";
 import { isPrepaidSubscriptionVisit } from "../lib/subscriptionPaymentStatus";
+import { CITIES } from "./CityContext";
+
+// Real fix: the daily job seeder below used to only ever read/write
+// "cleancar_CITY-SURAT_..." keys, so a Mumbai/Ahmedabad subscription's
+// first wash (created at booking) was the only job it ever got — the
+// nightly seeder never looked outside Surat's storage bucket. Now
+// derived from the real, shared city registry so every real city gets
+// its jobs generated the same way.
+const SCHEDULER_CITY_IDS = Object.keys(CITIES) as (keyof typeof CITIES)[];
 
 // Types
 export interface Job {
@@ -572,21 +581,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
           tomorrow.setDate(tomorrow.getDate() + 1);
           const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
-          const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
-            .filter((s: any) => s.status === "Active");
-          const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
-          // Real, confirmed policy - jobs are generated every day,
-          // including Sundays/holidays, with no day-of-week exception
-          // for monthly subscriptions. Real washer availability (both
-          // attendance and real duty-roster awareness) is handled by
-          // the real, existing SupervisorJobQueue screen at the point
-          // the supervisor actually assigns a washer - confirmed that
-          // screen's jobRoutingService.isWasherEligibleForJob() already
-          // checks the real shiftRosterService, so duplicating an
-          // availability check here would only risk a second,
-          // inconsistent version.
-          const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
-
           const PKG_MAP: Record<string, string> = {
             Basic: "EXPRESS_WASH", SHINE: "EXPRESS_WASH",
             Standard: "SMART_WASH", PROTECT: "SMART_WASH",
@@ -595,81 +589,115 @@ export function JobProvider({ children }: { children: ReactNode }) {
           };
           const SLOTS = ["05:00 AM","05:30 AM","06:00 AM","06:30 AM","07:00 AM","07:30 AM","08:00 AM","08:30 AM"];
 
-          const existingSubIds = new Set(
-            existingJobs
-              .filter((j: any) => j.scheduledDate === tomorrowStr)
-              .map((j: any) => j.subscriptionId)
-          );
+          // Real fix: loops every real city instead of only ever reading/
+          // writing Surat's bucket — each city's subscriptions, customers,
+          // and jobs live in their own real, DataService-namespaced key,
+          // same convention as the rest of this app.
+          let totalNewJobs = 0;
+          const allNewJobsThisRun: any[] = [];
+          for (const cityId of SCHEDULER_CITY_IDS) {
+            const cityName = CITIES[cityId].displayName;
+            const activeSubs: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_subscriptions`) || "[]")
+              .filter((s: any) => s.status === "Active");
+            const customers: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_customers`) || "[]");
+            // Real, confirmed policy - jobs are generated every day,
+            // including Sundays/holidays, with no day-of-week exception
+            // for monthly subscriptions. Real washer availability (both
+            // attendance and real duty-roster awareness) is handled by
+            // the real, existing SupervisorJobQueue screen at the point
+            // the supervisor actually assigns a washer - confirmed that
+            // screen's jobRoutingService.isWasherEligibleForJob() already
+            // checks the real shiftRosterService, so duplicating an
+            // availability check here would only risk a second,
+            // inconsistent version.
+            const existingJobs: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_jobs`) || "[]");
 
-          const slotIdxByPin: Record<string, number> = {};
-          const newJobs: any[] = [];
-          activeSubs.forEach((sub: any, i: number) => {
-            if (existingSubIds.has(sub.subscriptionId)) return; // already have tomorrow's job
-            const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
-            const pin = (cust.pinCode || "395001").replace("PIN-", "");
+            const existingSubIds = new Set(
+              existingJobs
+                .filter((j: any) => j.scheduledDate === tomorrowStr)
+                .map((j: any) => j.subscriptionId)
+            );
 
-            const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
-            const slotIdx = (slotIdxByPin[pin] || 0) % SLOTS.length;
-            slotIdxByPin[pin] = (slotIdxByPin[pin] || 0) + 1;
+            const slotIdxByPin: Record<string, number> = {};
+            const newJobs: any[] = [];
+            activeSubs.forEach((sub: any, i: number) => {
+              if (existingSubIds.has(sub.subscriptionId)) return; // already have tomorrow's job
+              const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
+              const pin = (cust.pinCode || "395001").replace("PIN-", "");
 
-            newJobs.push({
-              jobId: `JOB-${tomorrowStr}-${String(i).padStart(4, "0")}`,
-              customerId: sub.customerId,
-              subscriptionId: sub.subscriptionId,
-              scheduledDate: tomorrowStr,
-              timeSlot: SLOTS[slotIdx],
-              status: "Unassigned", // Real, confirmed requirement - routes to supervisor, matching the established pattern for every other real job-creation path in this app
-              jobType: "Regular",
-              packageName: pkgType,
-              packageType: pkgType,
-              customerName: `${cust.firstName || ""} ${cust.lastName || ""}`.trim() || sub.customerId,
-              vehicleDetails: {
-                category: sub.serviceDetails?.vehicleType || "Sedan",
-                color: cust.vehicleColor || "White",
-                brand: cust.vehicleBrand || "Maruti",
-                registration: cust.vehicleReg || `GJ05${String(i).padStart(4, "0")}`,
-              },
-              location: {
-                addressLine1: cust.address || "Surat",
-                area: cust.area || "Adajan",
-                city: "Surat",
-                pinCode: pin,
-              },
-              serviceDetails: { addOns: sub.serviceDetails?.addOns || [], specialInstructions: "" },
-              subscriptionStartDate: sub.startDate || "2026-01-01",
-              cityId: "CITY-SURAT",
-              city: "Surat",
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
-          });
+              const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
+              const slotIdx = (slotIdxByPin[pin] || 0) % SLOTS.length;
+              slotIdxByPin[pin] = (slotIdxByPin[pin] || 0) + 1;
 
-          if (newJobs.length > 0) {
-            localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existingJobs, ...newJobs]));
-            localStorage.setItem(seedKey, "1");
-            console.info(`[Scheduler] Generated ${newJobs.length} jobs for ${tomorrowStr}`);
-            // Real fix: previously this wrote directly to storage without
-            // ever updating React's allJobs state. The next unrelated state
-            // change would then save the stale, seeder-unaware array right
-            // back over this real work, silently undoing it.
-            setAllJobs([...existingJobs, ...newJobs]);
-
-            // ── Supervisor bell notification ──────────────────────────────
-            try {
-              const supNotifKey = "SUPERVISOR_JOB_NOTIFICATIONS";
-              const supNotifs = JSON.parse(localStorage.getItem(supNotifKey) || "[]");
-              supNotifs.unshift({
-                id: `NOTIF-JOBS-${tomorrowStr}`,
-                type: "JOBS_SEEDED",
-                title: `${newJobs.length} jobs need washer assignment for tomorrow`,
-                body: `${tomorrowStr} — ${newJobs.length} active subscription job(s) created and awaiting washer assignment`,
-                date: tomorrowStr,
-                jobCount: newJobs.length,
-                read: false,
+              newJobs.push({
+                jobId: `JOB-${tomorrowStr}-${cityId}-${String(i).padStart(4, "0")}`,
+                customerId: sub.customerId,
+                subscriptionId: sub.subscriptionId,
+                scheduledDate: tomorrowStr,
+                timeSlot: SLOTS[slotIdx],
+                status: "Unassigned", // Real, confirmed requirement - routes to supervisor, matching the established pattern for every other real job-creation path in this app
+                jobType: "Regular",
+                packageName: pkgType,
+                packageType: pkgType,
+                customerName: `${cust.firstName || ""} ${cust.lastName || ""}`.trim() || sub.customerId,
+                vehicleDetails: {
+                  category: sub.serviceDetails?.vehicleType || "Sedan",
+                  color: cust.vehicleColor || "White",
+                  brand: cust.vehicleBrand || "Maruti",
+                  registration: cust.vehicleReg || `GJ05${String(i).padStart(4, "0")}`,
+                },
+                location: {
+                  addressLine1: cust.address || cityName,
+                  area: cust.area || "Adajan",
+                  city: cityName,
+                  pinCode: pin,
+                },
+                serviceDetails: { addOns: sub.serviceDetails?.addOns || [], specialInstructions: "" },
+                subscriptionStartDate: sub.startDate || "2026-01-01",
+                cityId,
+                city: cityName,
                 createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
               });
-              localStorage.setItem(supNotifKey, JSON.stringify(supNotifs.slice(0, 30)));
-            } catch(_) {}
+            });
+
+            if (newJobs.length > 0) {
+              localStorage.setItem(`cleancar_${cityId}_jobs`, JSON.stringify([...existingJobs, ...newJobs]));
+              console.info(`[Scheduler] Generated ${newJobs.length} jobs for ${cityId} on ${tomorrowStr}`);
+              allNewJobsThisRun.push(...newJobs);
+              totalNewJobs += newJobs.length;
+
+              // ── Supervisor bell notification (per city) ──────────────────
+              try {
+                const supNotifKey = "SUPERVISOR_JOB_NOTIFICATIONS";
+                const supNotifs = JSON.parse(localStorage.getItem(supNotifKey) || "[]");
+                supNotifs.unshift({
+                  id: `NOTIF-JOBS-${cityId}-${tomorrowStr}`,
+                  type: "JOBS_SEEDED",
+                  cityId,
+                  title: `${newJobs.length} jobs need washer assignment for tomorrow`,
+                  body: `${tomorrowStr} — ${newJobs.length} active subscription job(s) created in ${cityName} and awaiting washer assignment`,
+                  date: tomorrowStr,
+                  jobCount: newJobs.length,
+                  read: false,
+                  createdAt: new Date().toISOString(),
+                });
+                localStorage.setItem(supNotifKey, JSON.stringify(supNotifs.slice(0, 30)));
+              } catch(_) {}
+            }
+          }
+
+          localStorage.setItem(seedKey, "1");
+          if (totalNewJobs > 0) {
+            console.info(`[Scheduler] Generated ${totalNewJobs} jobs total across all cities for ${tomorrowStr}`);
+            // Real fix: previously this wrote directly to storage without
+            // ever updating React's allJobs state (and, before this fix,
+            // replaced the WHOLE allJobs state with just one city's jobs —
+            // which would have silently dropped every other city's jobs
+            // from memory the moment this ran a second city). Appending via
+            // the functional updater form instead keeps every city's real
+            // jobs in state regardless of how many cities this run touched.
+            setAllJobs((prev) => [...prev, ...allNewJobsThisRun]);
           }
         }
       } catch(e) { console.warn("[Scheduler] Job seeder error:", e); }
@@ -722,66 +750,84 @@ export function JobProvider({ children }: { children: ReactNode }) {
         const todayCatchUp = new Date().toISOString().split("T")[0];
         const catchUpKey = `cc360_catchup_seeded_${todayCatchUp}`;
         if (localStorage.getItem(catchUpKey)) return;
-        const allJobsToday = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]")
-          .filter((j: any) => j.scheduledDate === todayCatchUp);
-        if (allJobsToday.length > 0) return; // Jobs exist — no catch-up needed
-
-        const activeSubs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_subscriptions") || "[]")
-          .filter((s: any) => s.status === "Active");
-        const customers: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_customers") || "[]");
-        const existingJobs: any[] = JSON.parse(localStorage.getItem("cleancar_CITY-SURAT_jobs") || "[]");
-        const existingSubIds = new Set(existingJobs.filter((j: any) => j.scheduledDate === todayCatchUp).map((j: any) => j.subscriptionId));
 
         const PKG_MAP: Record<string, string> = {
           Basic:"EXPRESS_WASH",SHINE:"EXPRESS_WASH",Standard:"SMART_WASH",PROTECT:"SMART_WASH",
           Premium:"ELITE_WASH",ELITE:"ELITE_WASH",EXPRESS_WASH:"EXPRESS_WASH",SMART_WASH:"SMART_WASH",ELITE_WASH:"ELITE_WASH",
         };
         const SLOTS = ["05:00 AM","05:30 AM","06:00 AM","06:30 AM","07:00 AM","07:30 AM","08:00 AM","08:30 AM"];
-        const slotIdxByPinCatchUp: Record<string, number> = {};
-        const catchUpJobs: any[] = [];
 
-        activeSubs.forEach((sub: any, i: number) => {
-          if (existingSubIds.has(sub.subscriptionId)) return;
-          const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
-          const pin = (cust.pinCode || "395001").replace("PIN-","");
-          const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
-          const slotIdx = (slotIdxByPinCatchUp[pin] || 0) % SLOTS.length;
-          slotIdxByPinCatchUp[pin] = (slotIdxByPinCatchUp[pin] || 0) + 1;
-          catchUpJobs.push({
-            jobId: `JOB-CATCHUP-${todayCatchUp}-${String(i).padStart(4,"0")}`,
-            customerId: sub.customerId, subscriptionId: sub.subscriptionId,
-            scheduledDate: todayCatchUp,
-            timeSlot: SLOTS[slotIdx],
-            status: "Unassigned", jobType: "Regular", // Real, confirmed requirement - routes to supervisor
-            packageName: pkgType, packageType: pkgType,
-            customerName: `${cust.firstName||""} ${cust.lastName||""}`.trim() || sub.customerId,
-            vehicleDetails: { category: sub.serviceDetails?.vehicleType||"Sedan", color:"White", brand:"Maruti", registration: cust.vehicleReg||`GJ05${String(i).padStart(4,"0")}` },
-            location: { addressLine1: cust.address||"Surat", area: cust.area||"Adajan", city:"Surat", pinCode: pin },
-            serviceDetails: { addOns: sub.serviceDetails?.addOns||[], specialInstructions:"" },
-            subscriptionStartDate: sub.startDate||"2026-01-01",
-            cityId:"CITY-SURAT", city:"Surat",
-            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        // Real fix: same city-loop fix as the nightly seeder above — this
+        // previously only ever checked/seeded Surat's bucket, so a missed
+        // 9 PM run in any other city was never caught up.
+        let totalCatchUpJobs = 0;
+        const allCatchUpJobsThisRun: any[] = [];
+        for (const cityId of SCHEDULER_CITY_IDS) {
+          const cityName = CITIES[cityId].displayName;
+          const jobsTodayThisCity = JSON.parse(localStorage.getItem(`cleancar_${cityId}_jobs`) || "[]")
+            .filter((j: any) => j.scheduledDate === todayCatchUp);
+          if (jobsTodayThisCity.length > 0) continue; // this city's jobs exist — no catch-up needed here
+
+          const activeSubs: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_subscriptions`) || "[]")
+            .filter((s: any) => s.status === "Active");
+          const customers: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_customers`) || "[]");
+          const existingJobs: any[] = JSON.parse(localStorage.getItem(`cleancar_${cityId}_jobs`) || "[]");
+          const existingSubIds = new Set(existingJobs.filter((j: any) => j.scheduledDate === todayCatchUp).map((j: any) => j.subscriptionId));
+
+          const slotIdxByPinCatchUp: Record<string, number> = {};
+          const catchUpJobs: any[] = [];
+
+          activeSubs.forEach((sub: any, i: number) => {
+            if (existingSubIds.has(sub.subscriptionId)) return;
+            const cust = customers.find((c: any) => c.customerId === sub.customerId) || {};
+            const pin = (cust.pinCode || "395001").replace("PIN-","");
+            const pkgType = PKG_MAP[sub.packageType || sub.packageName || ""] || "EXPRESS_WASH";
+            const slotIdx = (slotIdxByPinCatchUp[pin] || 0) % SLOTS.length;
+            slotIdxByPinCatchUp[pin] = (slotIdxByPinCatchUp[pin] || 0) + 1;
+            catchUpJobs.push({
+              jobId: `JOB-CATCHUP-${todayCatchUp}-${cityId}-${String(i).padStart(4,"0")}`,
+              customerId: sub.customerId, subscriptionId: sub.subscriptionId,
+              scheduledDate: todayCatchUp,
+              timeSlot: SLOTS[slotIdx],
+              status: "Unassigned", jobType: "Regular", // Real, confirmed requirement - routes to supervisor
+              packageName: pkgType, packageType: pkgType,
+              customerName: `${cust.firstName||""} ${cust.lastName||""}`.trim() || sub.customerId,
+              vehicleDetails: { category: sub.serviceDetails?.vehicleType||"Sedan", color:"White", brand:"Maruti", registration: cust.vehicleReg||`GJ05${String(i).padStart(4,"0")}` },
+              location: { addressLine1: cust.address||cityName, area: cust.area||"Adajan", city:cityName, pinCode: pin },
+              serviceDetails: { addOns: sub.serviceDetails?.addOns||[], specialInstructions:"" },
+              subscriptionStartDate: sub.startDate||"2026-01-01",
+              cityId, city:cityName,
+              createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            });
           });
-        });
 
-        if (catchUpJobs.length > 0) {
-          localStorage.setItem("cleancar_CITY-SURAT_jobs", JSON.stringify([...existingJobs, ...catchUpJobs]));
-          localStorage.setItem(catchUpKey, "1");
-          console.info(`[Catch-up Seeder] Generated ${catchUpJobs.length} jobs for ${todayCatchUp}`);
+          if (catchUpJobs.length > 0) {
+            localStorage.setItem(`cleancar_${cityId}_jobs`, JSON.stringify([...existingJobs, ...catchUpJobs]));
+            console.info(`[Catch-up Seeder] Generated ${catchUpJobs.length} jobs for ${cityId} on ${todayCatchUp}`);
+            allCatchUpJobsThisRun.push(...catchUpJobs);
+            totalCatchUpJobs += catchUpJobs.length;
+
+            // Supervisor notification (per city)
+            try {
+              const supNotifs = JSON.parse(localStorage.getItem("SUPERVISOR_JOB_NOTIFICATIONS")||"[]");
+              supNotifs.unshift({ id:`NOTIF-CATCHUP-${cityId}-${todayCatchUp}`, type:"JOBS_SEEDED", cityId,
+                title:`${catchUpJobs.length} jobs need washer assignment for today (catch-up)`,
+                body:`${todayCatchUp} — Jobs generated on app open for ${cityName} (missed 9 PM schedule), awaiting washer assignment`,
+                date: todayCatchUp, jobCount: catchUpJobs.length, read: false, createdAt: new Date().toISOString() });
+              localStorage.setItem("SUPERVISOR_JOB_NOTIFICATIONS", JSON.stringify(supNotifs.slice(0,30)));
+            } catch(_) {}
+          }
+        }
+
+        localStorage.setItem(catchUpKey, "1");
+        if (totalCatchUpJobs > 0) {
+          console.info(`[Catch-up Seeder] Generated ${totalCatchUpJobs} jobs total across all cities for ${todayCatchUp}`);
           // Real fix: same real gap as the nightly seeder above - sync
-          // React state immediately so a later, unrelated save can't
-          // silently overwrite these real catch-up jobs with a stale array.
-          setAllJobs([...existingJobs, ...catchUpJobs]);
-
-          // Supervisor notification
-          try {
-            const supNotifs = JSON.parse(localStorage.getItem("SUPERVISOR_JOB_NOTIFICATIONS")||"[]");
-            supNotifs.unshift({ id:`NOTIF-CATCHUP-${todayCatchUp}`, type:"JOBS_SEEDED",
-              title:`${catchUpJobs.length} jobs need washer assignment for today (catch-up)`,
-              body:`${todayCatchUp} — Jobs generated on app open (missed 9 PM schedule), awaiting washer assignment`,
-              date: todayCatchUp, jobCount: catchUpJobs.length, read: false, createdAt: new Date().toISOString() });
-            localStorage.setItem("SUPERVISOR_JOB_NOTIFICATIONS", JSON.stringify(supNotifs.slice(0,30)));
-          } catch(_) {}
+          // React state immediately (via the functional updater, so this
+          // never wipes out other cities' jobs already in state) so a
+          // later, unrelated save can't silently overwrite these real
+          // catch-up jobs with a stale array.
+          setAllJobs((prev) => [...prev, ...allCatchUpJobsThisRun]);
         }
       } catch(e) { console.warn("[Catch-up Seeder] Error:", e); }
     }, 5000); // Run 5 seconds after mount
