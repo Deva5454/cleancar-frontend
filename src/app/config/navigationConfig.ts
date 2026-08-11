@@ -371,6 +371,7 @@ export const NAV_CONFIG: NavItem[] = [
     children: [
       { label: "City Management", path: "/admin/city-management", icon: MapPin, module: "admin", match: "prefix" },
       { label: "BTL Activity", path: "/admin/btl-activity", icon: MapPin, module: "admin", match: "prefix" },
+      { label: "Tracked Item Types", path: "/admin/tracked-item-types", icon: Tag, module: "admin", match: "prefix" },
       { label: "Business Rules", path: "/admin/business-rules", icon: Settings, module: "admin", match: "prefix" },
       { label: "Shift Management", path: "/admin/shift-management", icon: Clock, module: "admin", match: "prefix" },
       { label: "Fraud Alerts", path: "/admin/fraud-alerts", icon: AlertCircle, module: "admin", match: "prefix" },

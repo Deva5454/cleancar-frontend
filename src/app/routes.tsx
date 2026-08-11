@@ -274,6 +274,7 @@ const RolePermissionManager = lazy(() => import("./components/admin/RolePermissi
 const IncentiveVisibilityAdmin = lazy(() => import("./components/admin/IncentiveVisibilityAdmin")); // Super Admin incentive screen control
 const SuperAdminFieldTracker = lazy(() => import("./components/admin/SuperAdminFieldTracker"));
 const SuperAdminBTLActivity = lazy(() => import("./components/admin/SuperAdminBTLActivity"));
+const TrackedItemTypeManagement = lazy(() => import("./components/admin/TrackedItemTypeManagement"));
 import { RoleSuggestionsPage } from "./components/hr/RoleSuggestionsPage"; // MC-12
 const HRIntelligenceDashboard = lazy(() => import("./components/hr/HRIntelligenceDashboard"));
 const AccountsPayrollProcessing = lazy(() => import("./components/accounts/AccountsPayrollProcessing"));
@@ -512,6 +513,7 @@ export const router = createBrowserRouter([
       { path: "admin/incentive-visibility", element: <IncentiveVisibilityAdmin /> }, // Super Admin: show/hide incentive tab per role/employee
       { path: "admin/field-tracker", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminFieldTracker /></Suspense></ErrorBoundary> },
       { path: "admin/btl-activity", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><SuperAdminBTLActivity /></Suspense></ErrorBoundary> },
+      { path: "admin/tracked-item-types", element: <ErrorBoundary><Suspense fallback={<PageLoader />}><TrackedItemTypeManagement /></Suspense></ErrorBoundary> },
       { path: "hr/role-suggestions", element: <RoleSuggestionsPage /> }, // MC-12
       { path: "hr/intelligence-dashboard", element: <HRIntelligenceDashboard /> },
       { path: "store-manager", element: <StoreManagerModule /> },

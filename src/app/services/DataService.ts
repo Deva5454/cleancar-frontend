@@ -143,6 +143,11 @@ const STORAGE_KEYS = {
   CLOTH_TRACKING:           "cloth_tracking",
   CLOTH_ITEMS:              "cloth_items",
   CLOTH_EXCHANGES:          "cloth_exchanges",
+  // ── Unified Tracked Inventory Engine ──
+  TRACKED_ITEM_TYPES:       "tracked_item_types",
+  TRACKED_UNITS:            "tracked_units",
+  TRACKED_MOVEMENT_EVENTS:  "tracked_movement_events",
+  PRESSURE_WASHER_UNITS:    "pressure_washer_units",
   // ── Plan Management persistence ──
   PLAN_TIERS:               "plan_tiers",
   PLAN_ADDONS:              "plan_addons",
