@@ -259,7 +259,34 @@ export function FinanceTransactions() {
         notes: `${wi.items?.[0]?.name || ""} — ${wi.paymentMethod || ""}`,
       }));
 
-    const all = [...fromEntries, ...fromRevenues, ...fromWeb];
+    // 4. Refund journals — approveRefund()/markRefundPaid() post real,
+    // reversing entries via createJournal(), never accountingEntryService.
+    // createEntry(). Since fromEntries above only ever reads
+    // getAllEntries() (AccountingEntry records), an approved refund was
+    // structurally invisible here — Total Refunds always showed 0, and
+    // Net Revenue never actually netted anything out as a result, even
+    // though the formula itself was always correct.
+    const journals: any[] = accountingEntryService.getAllJournals(city);
+    const fromRefunds: FinanceTransaction[] = journals
+      .filter((j: any) => j.narration?.startsWith("Refund approved"))
+      .map((j: any) => ({
+        id: j.id,
+        date: j.date,
+        type: "REFUND" as TransactionType,
+        source: "manualEntry" as TransactionSource,
+        description: j.narration,
+        referenceId: j.voucherNumber,
+        amount: (j.lines || []).reduce((s: number, l: any) => s + (l.debit || 0), 0),
+        accountDebit: "Sales Returns & Allowances",
+        accountCredit: "Accounts Receivable",
+        status: (j.status === "Posted" || j.status === "POSTED") ? "POSTED" : "PENDING",
+        city: cityName,
+        cluster: "",
+        postedBy: j.createdBy || "System",
+        notes: j.narration,
+      }));
+
+    const all = [...fromEntries, ...fromRevenues, ...fromWeb, ...fromRefunds];
     // Sort newest first
     all.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 

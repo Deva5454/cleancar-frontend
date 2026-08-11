@@ -39,8 +39,14 @@ export function ProfitLossReport({ filters }: ProfitLossReportProps) {
     const ledgers = accountingEntryService.getLedgers(city);
 
     // Define income and expense groups
+    // Real fix (CA observation — "revenue is not net revenue"): a real,
+    // dedicated contra-revenue ledger ("Sales Returns & Allowances",
+    // accountHead sales_returns_allowances) already exists and is posted
+    // to by approveRefund() whenever a refund is approved — but this
+    // group never included that head, so an approved refund never
+    // reduced Sales here even though the ledger entry genuinely existed.
     const INCOME_GROUPS = [
-      { key: "sales", label: "Sales", heads: ["sales_subscription", "sales_service", "sales_renewal"] },
+      { key: "sales", label: "Sales", heads: ["sales_subscription", "sales_service", "sales_renewal", "sales_returns_allowances"] },
       { key: "other_income", label: "Other Income", heads: ["other_income"] },
     ];
     const EXPENSE_GROUPS = [
