@@ -38,6 +38,7 @@ import { DataService } from "../../services/DataService";
 import { accountingEntryService } from "../../services/accountingEntryService";
 import { useCity } from "../../contexts/CityContext";
 import { useRole } from "../../contexts/RoleContext";
+import { useFinance, type Payable } from "../../contexts/FinanceContext";
 
 // Vendor Payment records live under one DataService key, two shapes:
 //  - override records (id = a real gstComplianceService Purchase-transaction id):
@@ -82,6 +83,14 @@ const PAYMENT_MODE_LABELS: Record<string, string> = {
 export function VendorPayment() {
   const { city, cityInfo } = useCity();
   const { currentRole } = useRole();
+  // Real fix (CA observation): a vendor paid through Payables
+  // Dashboard/Supplier Payments (FinanceContext.markAsPaid) never
+  // reached this screen at all — this screen's rows come entirely from
+  // GST Purchase transactions plus its own separate VENDOR_PAYMENT_STATUS
+  // overlay, with no connection to FinanceContext.payables. Matched by
+  // invoiceNumber (same signal FinanceContext.markAsPaid itself keys
+  // off) so a payment made on either screen shows as Paid on both.
+  const { getPayablesByCity } = useFinance();
   const savedVendors = gstComplianceService.getVendors();
   const getVendorName = (vendorId: string) =>
     savedVendors.find(v => v.id === vendorId)?.name || vendorId;
@@ -94,20 +103,28 @@ export function VendorPayment() {
     const overridesById = Object.fromEntries(
       allRecords.filter(r => !r.manual).map(r => [r.id, r])
     );
+    const paidPayablesByInvoice: Record<string, Payable> = Object.fromEntries(
+      getPayablesByCity(city)
+        .filter((p: Payable) => p.status === "Paid" && p.invoiceNumber)
+        .map((p: Payable) => [p.invoiceNumber!.trim().toLowerCase(), p])
+    );
     const derived = gstComplianceService.getVendors().flatMap(v =>
       gstComplianceService.getTransactions()
         .filter(t => t.partyId === v.id && t.transactionType === "Purchase")
-        .map(t => ({
-          id: t.id,
-          vendor: v.name,
-          invoice: t.invoiceNumber,
-          amount: t.invoiceTotal,
-          grn: "Complete",
-          status: overridesById[t.id]?.status || "Pending Approval",
-          paymentRef: overridesById[t.id]?.paymentRef,
-          date: t.invoiceDate,
-          paymentMode: "Bank Transfer",
-        }))
+        .map(t => {
+          const paidElsewhere = paidPayablesByInvoice[t.invoiceNumber?.trim().toLowerCase() || ""];
+          return {
+            id: t.id,
+            vendor: v.name,
+            invoice: t.invoiceNumber,
+            amount: t.invoiceTotal,
+            grn: "Complete",
+            status: paidElsewhere ? "Paid" : (overridesById[t.id]?.status || "Pending Approval"),
+            paymentRef: paidElsewhere ? paidElsewhere.paymentReference : overridesById[t.id]?.paymentRef,
+            date: t.invoiceDate,
+            paymentMode: "Bank Transfer",
+          };
+        })
     );
     const manual = allRecords.filter(r => r.manual).map(r => ({
       id: r.id,

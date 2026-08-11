@@ -494,15 +494,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         window.dispatchEvent(new CustomEvent("cc360_mrr_remove", { detail: data }));
       }
     });
+    // Real fix (CA observation — "no payments reflected... whereas there
+    // are door step cash collected"): doorstepPaymentService.recordCash()/
+    // recordUPI() only ever wrote to their own DOORSTEP_PAYMENTS store —
+    // never recordRevenue() — so genuinely new revenue collected at the
+    // door (isPaymentRequired() only fires for jobs with no payment
+    // recorded anywhere yet, so this can't double-count an existing sale)
+    // never reached the Payments screen, Analytics, GST, or Sales
+    // Summary. Same bridge pattern as handleAccountingEntry above.
+    const handleDoorstepPayment = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d?.amount || !d?.cityId || !d?.customerId) return;
+      try {
+        recordRevenue({
+          customerId: d.customerId,
+          customerName: d.customerName,
+          jobId: d.jobId,
+          type: "One-Time",
+          amount: d.amount,
+          receivedDate: d.receivedDate || new Date().toISOString().split("T")[0],
+          paymentMethod: d.paymentMethod === "UPI" ? "UPI" : "Cash",
+          invoiceNumber: d.invoiceNumber,
+          status: "Received",
+          cityId: d.cityId,
+        });
+      } catch { /* non-critical */ }
+    };
     window.addEventListener("cc360_mrr_add", handleMRRAdd);
     window.addEventListener("cc360_mrr_remove", handleMRRRemove);
     window.addEventListener("cc360_accounting_entry_created", handleAccountingEntry);
+    window.addEventListener("cc360_doorstep_payment_collected", handleDoorstepPayment);
     return () => {
       window.removeEventListener("cc360_payroll_approved", handlePayrollApproved);
     unsubPayroll(); unsubSubscriptionCancelled();
       window.removeEventListener("cc360_mrr_add", handleMRRAdd);
       window.removeEventListener("cc360_mrr_remove", handleMRRRemove);
       window.removeEventListener("cc360_accounting_entry_created", handleAccountingEntry);
+      window.removeEventListener("cc360_doorstep_payment_collected", handleDoorstepPayment);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -170,6 +170,7 @@ class DoorstepPaymentService {
     this.save(payment);
     this._addToRegister(payment);
     this._updateJobPaymentStatus(params.jobId, "Collected", "UPI", payment.paymentId, params.cityId);
+    this._notifyRevenue(payment, "UPI");
     console.log(`[DoorstepPayment] UPI collected ₹${params.amount} for job ${params.jobId} UTR:****${params.utrLast4}`);
     return payment;
   }
@@ -204,8 +205,34 @@ class DoorstepPaymentService {
     this.save(payment);
     this._addToRegister(payment);
     this._updateJobPaymentStatus(params.jobId, "Collected", "Cash", payment.paymentId, params.cityId);
+    this._notifyRevenue(payment, "Cash");
     console.log(`[DoorstepPayment] Cash collected ₹${params.cashAmount} for job ${params.jobId}`);
     return payment;
+  }
+
+  // Real fix (CA observation — "no payments reflected... whereas there are
+  // door step cash collected"): recordUPI/recordCash only ever wrote to
+  // this service's own DOORSTEP_PAYMENTS/SHIFT_CASH_REGISTERS keys — never
+  // recordRevenue(), so this genuinely new revenue (isPaymentRequired()
+  // only calls these for jobs with no payment recorded anywhere yet) never
+  // reached the Payments screen, Analytics, GST, or Sales Summary. Fires a
+  // real window event FinanceContext listens for, same bridge pattern
+  // already used for cc360_accounting_entry_created.
+  private _notifyRevenue(payment: DoorstepPayment, paymentMethod: "Cash" | "UPI") {
+    try {
+      window.dispatchEvent(new CustomEvent("cc360_doorstep_payment_collected", {
+        detail: {
+          jobId: payment.jobId,
+          customerId: payment.customerId,
+          customerName: payment.customerName,
+          amount: payment.amount,
+          paymentMethod,
+          receivedDate: (payment.collectedAt || payment.createdAt).split("T")[0],
+          invoiceNumber: payment.paymentId,
+          cityId: payment.cityId,
+        }
+      }));
+    } catch { /* non-critical — Finance will pick this up on next reconciliation pass */ }
   }
 
   // ── Payment Link (no TSE needed) ────────────────────────────────────────────
