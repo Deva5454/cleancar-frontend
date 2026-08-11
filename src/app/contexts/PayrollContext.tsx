@@ -221,15 +221,28 @@ export function PayrollProvider({ children }: { children: ReactNode }) {
       : computeDaysPresent(payroll.employeeId, payroll.month);
 
     // Standard working days for the month (26 = industry standard, excluding Sundays)
+    // — used only to measure how many of the real working days were
+    // actually missed, not as the pay divisor (see calendar-day method
+    // below).
     const totalWorkingDays = payroll.totalDays ?? 26;
 
-    // Prorate gross salary if daysWorked < totalWorkingDays (LOP / attendance deduction)
+    // Real, confirmed policy: calendar-day method — gross ÷ actual
+    // calendar days in the month × payable days. Weekly offs and public
+    // holidays are implicitly paid: they're never counted as absence
+    // because totalWorkingDays only measures missed *working* days, and
+    // that absence count is then applied against the full calendar
+    // month (derived from payroll.month, "YYYY-MM") rather than against
+    // totalWorkingDays itself — so the per-day cost of an absence no
+    // longer fluctuates with how many Sundays/holidays a given month
+    // happens to have.
     // Guard: if no attendance data exists (computedDaysWorked = 0) keep full salary
     //        to avoid accidentally zeroing pay on first use before attendance is recorded
     const hasAttendanceData = computedDaysWorked > 0;
-    const attendanceFactor = (hasAttendanceData && computedDaysWorked < totalWorkingDays)
-      ? computedDaysWorked / totalWorkingDays
-      : 1;
+    const [payrollYear, payrollMonthNum] = payroll.month.split("-").map(Number);
+    const daysInMonth = new Date(payrollYear, payrollMonthNum, 0).getDate();
+    const absentDays = hasAttendanceData ? Math.max(0, totalWorkingDays - computedDaysWorked) : 0;
+    const payableDays = Math.max(0, daysInMonth - absentDays);
+    const attendanceFactor = hasAttendanceData ? payableDays / daysInMonth : 1;
 
     const adjustedGross = hasAttendanceData
       ? Math.round(payroll.grossSalary * attendanceFactor)

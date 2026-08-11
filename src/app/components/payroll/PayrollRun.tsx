@@ -281,16 +281,29 @@ export function PayrollRun() {
           + compliance.deductions.pt.amount + compliance.deductions.tds.monthly;
 
         const daysWorked = Math.max(0, daysPresent - unpaidLeaveDays);
-        // Mirrors processPayroll()'s own attendance-proration formula exactly,
-        // so the netSalary stored here stays consistent with the grossSalary
-        // processPayroll will compute internally — not double-prorated, not
-        // silently inconsistent between the two fields.
+        // Real, confirmed policy: calendar-day method — gross ÷ actual
+        // calendar days in the month × payable days. Weekly offs and
+        // public holidays are implicitly paid: they're never counted as
+        // absence because totalWorkingDays (the real Sundays/holidays-
+        // excluded count) is used only to measure how many of the real
+        // working days were actually missed, not as the pay divisor.
+        // That absence count is then applied against the full calendar
+        // month, so a missed working day costs the same fraction of
+        // gross regardless of how many Sundays/holidays fall in that
+        // particular month. Mirrors processPayroll()'s own formula
+        // exactly, so the netSalary stored here stays consistent with
+        // the grossSalary processPayroll will compute internally — not
+        // double-prorated, not silently inconsistent between the two
+        // fields.
         const hasAttendanceData = daysWorked > 0;
-        const attendanceFactor = (hasAttendanceData && daysWorked < totalWorkingDays) ? daysWorked / totalWorkingDays : 1;
+        const absentDays = hasAttendanceData ? Math.max(0, totalWorkingDays - daysWorked) : 0;
+        const payableDays = Math.max(0, daysInMonth - absentDays);
+        const attendanceFactor = hasAttendanceData ? payableDays / daysInMonth : 1;
         const adjustedGross = hasAttendanceData ? Math.round(components.monthlyGross * attendanceFactor) : components.monthlyGross;
 
         // Real, confirmed policy: working a real public holiday pays 2x
-        // the real per-day rate (gross ÷ real working days this month).
+        // the real per-day rate (gross ÷ actual calendar days this
+        // month, same calendar-day basis as the proration above).
         // If that same date was also this employee's genuine day off per
         // the real duty roster, they additionally earn one real comp-off.
         // Real approved incentive for this exact payroll period — previously
@@ -308,7 +321,7 @@ export function PayrollRun() {
           empIncentive.currentPeriod?.startDate?.slice(0, 7) === monthStr
         ) ? empIncentive.calculatedAmount : 0;
 
-        const perDayRate = totalWorkingDays > 0 ? components.monthlyGross / totalWorkingDays : 0;
+        const perDayRate = daysInMonth > 0 ? components.monthlyGross / daysInMonth : 0;
         let holidayPay = 0;
         publicHolidays
           .filter((h: any) => h.date >= periodStart && h.date <= periodEnd)
