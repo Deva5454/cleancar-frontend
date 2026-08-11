@@ -70,6 +70,8 @@ const ComplaintManagement = lazy(() => import("./components/modules/ComplaintMan
 const InventoryStore = lazy(() => import("./components/modules/InventoryStore"));
 import { MaterialRequisition } from "./components/inventory/MaterialRequisition";
 const WasherIssuances = lazy(() => import("./components/inventory/WasherIssuances"));
+const TrackedInventoryReceiveStock = lazy(() => import("./components/inventory/TrackedInventoryReceiveStock"));
+const TrackedInventoryScanMovement = lazy(() => import("./components/inventory/TrackedInventoryScanMovement"));
 import { WasherStockLedger } from "./components/inventory/WasherStockLedger";
 const MonthEndVerification = lazy(() => import("./components/inventory/MonthEndVerification"));
 import { MyStock } from "./components/washer/MyStock";
@@ -409,6 +411,8 @@ export const router = createBrowserRouter([
       { path: "inventory", element: <InventoryStore /> },
       { path: "inventory/requisition", element: <MaterialRequisition /> },
       { path: "inventory/washer-issuances", element: <WasherIssuances /> },
+      { path: "inventory/receive-stock", element: <TrackedInventoryReceiveStock /> },
+      { path: "inventory/scan-movement", element: <TrackedInventoryScanMovement /> },
       { path: "inventory/washer-stock-ledger", element: <WasherStockLedger /> },
       { path: "inventory/month-end-verification", element: <MonthEndVerification /> },
       { path: "inventory/my-stock", element: <MyStock /> },
