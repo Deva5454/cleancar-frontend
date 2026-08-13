@@ -179,12 +179,22 @@ class ExitWorkflowServiceClass {
       });
 
       // Audit log
-      auditLogService.logAction({
-        action: "INITIATE_EXIT",
-        entityType: "EXIT_WORKFLOW",
+      // ✅ FIX (QA finding — blocker): auditLogService never exposed a
+      // "logAction" method, only "log" — every call here threw, which
+      // aborted the whole function before it could report success, even
+      // though the workflow record itself had already been created above.
+      // Shaped to auditLogService's real AuditLogEntry fields instead of
+      // the ad-hoc {action, entityType: "EXIT_WORKFLOW", details} shape
+      // that method never accepted.
+      auditLogService.log({
+        eventType: "Exit Initiated",
+        severity: "Info",
+        entityType: "Employee",
         entityId: exitWorkflowId,
+        action: "INITIATE_EXIT",
+        description: `Exit initiated for ${employee.name} (${request.employeeId})`,
         performedBy: request.initiatedBy,
-        details: {
+        metadata: {
           employeeId: request.employeeId,
           resignationType: request.resignationType,
           lastWorkingDate: request.lastWorkingDate,
@@ -272,12 +282,20 @@ class ExitWorkflowServiceClass {
       this.update(exitWorkflowId, workflow);
 
       // Audit log
-      auditLogService.logAction({
-        action: "EXIT_STAGE_CHANGE",
-        entityType: "EXIT_WORKFLOW",
+      // ✅ FIX (QA finding — blocker): same wrong-method-name bug as
+      // initiateExit() above — this threw on every single stage advance
+      // (Initiated → Notice Period → Clearance → F&F Settlement →
+      // Exited), which is why no exit could ever progress past
+      // "Initiated" through the real UI.
+      auditLogService.log({
+        eventType: nextStage === "Exited" ? "Exit Completed" : "State Transition",
+        severity: "Info",
+        entityType: "Employee",
         entityId: exitWorkflowId,
+        action: "EXIT_STAGE_CHANGE",
+        description: `${workflow.employeeName} moved from ${stageOrder[currentIndex]} to ${nextStage}`,
         performedBy: completedBy,
-        details: {
+        metadata: {
           employeeId: workflow.employeeId,
           fromStage: stageOrder[currentIndex],
           toStage: nextStage,
