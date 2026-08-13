@@ -114,6 +114,14 @@ export interface StockTransaction {
   quantityReceived?: number;
   damagedQuantity?: number;
   damageNotes?: string;
+  // Real, previously-missing field — for a washer's own replenishment
+  // request (fromLocation "Branch"), the specific supervisor who must
+  // approve it before Branch can fulfill it. There is no pre-stocked
+  // "supervisor buffer" this kind of request draws from — the
+  // supervisor is the required approval gate, Branch is the real
+  // source, captured explicitly here since fromId now names the
+  // branch, not the supervisor.
+  approverSupervisorId?: string;
 }
 
 /**
@@ -167,7 +175,12 @@ interface InventoryContextType {
     transaction: Omit<StockTransaction, "transactionId" | "createdAt">
   ) => StockTransaction;
   approveTransaction: (transactionId: string, approvedBy: string) => void;
+  rejectTransaction: (transactionId: string, rejectedBy: string, reason?: string) => void;
   completeTransaction: (transactionId: string) => void;
+  // Real washer-originated replenishment requests waiting on a
+  // specific supervisor's approval — not any Store Manager, the exact
+  // supervisor recorded on the request at creation time.
+  getWasherRequestsPendingSupervisorApproval: (supervisorId: string, cityId?: string) => StockTransaction[];
 
   // Stock Operations
   issueInventory: (
@@ -353,6 +366,7 @@ interface InventoryContextType {
   addPressureWasherPart: (partName: string, cityId: string) => void;
   getWasherStock: (washerId: string, cityId: string) => InventoryItem[];
   getPendingTransactions: (cityId?: string) => StockTransaction[];
+  getActionableTransactions: (cityId?: string) => StockTransaction[];
 
   // Equipment Serial Registry
   equipmentUnits: EquipmentUnit[];
@@ -624,6 +638,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       prev.map((txn) =>
         txn.transactionId === transactionId
           ? { ...txn, status: "Approved", approvedBy }
+          : txn
+      )
+    );
+  };
+
+  const rejectTransaction = (transactionId: string, rejectedBy: string, reason?: string) => {
+    setStockTransactions((prev) =>
+      prev.map((txn) =>
+        txn.transactionId === transactionId
+          ? { ...txn, status: "Rejected", approvedBy: rejectedBy, reason: reason || txn.reason }
           : txn
       )
     );
@@ -2235,6 +2259,29 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  // Real fix — Pending-only was too narrow for any screen that needs to
+  // keep showing a request through to fulfillment: the moment
+  // approveTransaction() flips status to "Approved" (or
+  // fulfillRequestQuantity() flips it to "Partially Fulfilled"),
+  // getPendingTransactions() above stops returning it at all, making
+  // the still-owed remainder invisible and unreachable for whoever's
+  // meant to fulfill or track it next.
+  const getActionableTransactions = (cityId?: string): StockTransaction[] => {
+    return stockTransactions.filter(t =>
+      (t.status === "Pending" || t.status === "Approved" || t.status === "Partially Fulfilled") &&
+      (!cityId || t.cityId === cityId)
+    );
+  };
+
+  const getWasherRequestsPendingSupervisorApproval = (supervisorId: string, cityId?: string): StockTransaction[] => {
+    if (!supervisorId) return [];
+    return stockTransactions.filter(t =>
+      t.status === "Pending" &&
+      t.approverSupervisorId === supervisorId &&
+      (!cityId || t.cityId === cityId)
+    );
+  };
+
   const getEquipmentUnits = (cityId: string, itemId?: string): EquipmentUnit[] => {
     return equipmentUnits.filter(u => u.cityId === cityId && (!itemId || u.itemId === itemId));
   };
@@ -2262,7 +2309,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         stockTransactions,
         createTransaction,
         approveTransaction,
+        rejectTransaction,
         completeTransaction,
+        getWasherRequestsPendingSupervisorApproval,
         issueInventory,
         transferInventory,
         procureInventory,
@@ -2292,6 +2341,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         addPressureWasherPart,
         getWasherStock,
         getPendingTransactions,
+        getActionableTransactions,
         equipmentUnits,
         getEquipmentUnits,
         getEquipmentUnitHistory,

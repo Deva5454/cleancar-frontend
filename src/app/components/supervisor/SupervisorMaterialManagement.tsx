@@ -46,7 +46,8 @@ import { toast } from "sonner";
 export function SupervisorMaterialManagement() {
   const {
     inventory, getSupervisorStock, getWasherStock, transferInventory,
-    reportBrokenEquipment, createTransaction, getPendingTransactions,
+    reportBrokenEquipment, createTransaction, getActionableTransactions,
+    getWasherRequestsPendingSupervisorApproval, approveTransaction, rejectTransaction,
   } = useInventory();
   const { city } = useCity();
   const { currentUser } = useRole();
@@ -57,7 +58,7 @@ export function SupervisorMaterialManagement() {
   const supervisorId = currentUser?.employeeId || "";
   const supervisorName = currentUser?.name || "Supervisor";
 
-  const [activeTab, setActiveTab] = useState<"buffer" | "washers" | "refills">("buffer");
+  const [activeTab, setActiveTab] = useState<"buffer" | "washers" | "approvals" | "refills">("buffer");
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   const [showRefillModal, setShowRefillModal] = useState(false);
@@ -85,9 +86,15 @@ export function SupervisorMaterialManagement() {
   // Central/Branch, using the same real MRF mechanism Material
   // Requisition already reads from — so a request made here shows up
   // in the same real place a Store Manager already fulfills from.
-  const myRefillRequests = getPendingTransactions(city).filter(
+  const myRefillRequests = getActionableTransactions(city).filter(
     (t: any) => t.toLocation === "Supervisor" && t.toId === supervisorId
   );
+
+  // Real washer replenishment requests waiting on this specific
+  // supervisor's approval — there is no pre-stocked "supervisor
+  // buffer" these draw from; the real source is the Branch Store,
+  // fulfilled by the Store Manager once approved here.
+  const pendingWasherApprovals = getWasherRequestsPendingSupervisorApproval(supervisorId, city);
 
   const selectedItem = bufferStock.find((i: any) => i.itemId === selectedItemId);
 
@@ -146,6 +153,18 @@ export function SupervisorMaterialManagement() {
     setShowRefillModal(false);
   };
 
+  const handleApproveWasherRequest = (transactionId: string) => {
+    approveTransaction(transactionId, supervisorName);
+    toast.success("Approved — Store Manager can now fulfill it from Branch stock");
+  };
+
+  const handleRejectWasherRequest = (transactionId: string) => {
+    const reason = window.prompt("Reason for rejecting this request:");
+    if (!reason) return;
+    rejectTransaction(transactionId, supervisorName, reason);
+    toast.success("Request rejected");
+  };
+
   if (!supervisorId) {
     return (
       <div className="p-6 text-center text-sm text-gray-500">
@@ -200,12 +219,16 @@ export function SupervisorMaterialManagement() {
 
       <div className="px-4 py-4">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="buffer">
               Buffer Stock
               {lowStockItems.length > 0 && <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">{lowStockItems.length}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="washers">Washers</TabsTrigger>
+            <TabsTrigger value="approvals">
+              Approvals
+              {pendingWasherApprovals.length > 0 && <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">{pendingWasherApprovals.length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="refills">
               Refills
               {myRefillRequests.length > 0 && <Badge variant="outline" className="ml-2 h-5 px-1.5 text-xs bg-blue-100">{myRefillRequests.length}</Badge>}
@@ -366,7 +389,55 @@ export function SupervisorMaterialManagement() {
             )}
           </TabsContent>
 
-          {/* TAB 3: REFILLS */}
+          {/* TAB 3: APPROVALS — washer replenishment requests waiting on
+              this specific supervisor, sourced from the real Branch
+              Store, not a supervisor buffer. */}
+          <TabsContent value="approvals" className="space-y-3">
+            <Card className="border-2 border-orange-200 bg-orange-50">
+              <CardContent className="p-3">
+                <p className="text-sm text-orange-900 font-semibold">Washer requests waiting on your approval — once approved, the Store Manager fulfills it from Branch stock</p>
+              </CardContent>
+            </Card>
+
+            {pendingWasherApprovals.length === 0 ? (
+              <Card className="border-2 border-gray-200">
+                <CardContent className="p-6 text-center text-gray-500">
+                  <p className="text-sm">No requests pending your approval</p>
+                </CardContent>
+              </Card>
+            ) : (
+              pendingWasherApprovals.map((request: any) => {
+                const item = inventory.find((i: any) => i.itemId === request.itemId);
+                const washer = myWashers.find((w: any) => (w.employeeId || w.id) === request.toId);
+                return (
+                  <Card key={request.transactionId} className="border-2 border-orange-200">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-gray-900">{item?.itemName || request.itemId}</p>
+                          <p className="text-xs text-gray-600">
+                            {washer?.fullName || `${washer?.firstName ?? ""} ${washer?.lastName ?? ""}`.trim() || request.toId} · Requested {request.quantityRequested ?? request.quantity} {item?.unit || ""}
+                          </p>
+                          {request.reason && <p className="text-xs text-gray-500 italic">"{request.reason}"</p>}
+                        </div>
+                        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 shrink-0">Pending</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveWasherRequest(request.transactionId)}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => handleRejectWasherRequest(request.transactionId)}>
+                          Reject
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </TabsContent>
+
+          {/* TAB 4: REFILLS */}
           <TabsContent value="refills" className="space-y-3">
             <Card className="border-2 border-blue-200 bg-blue-50">
               <CardContent className="p-3">

@@ -22,6 +22,7 @@ import { useRole } from "../../contexts/RoleContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { EmptyBottleReturnPanel } from "../shared/EmptyBottleReturnPanel";
 import { clothTrackingService } from "../../services/clothTrackingService";
+import { getBranchesForCity } from "../../config/branchStores";
 
 const COLOR_DOT_CLASSES: Record<string, string> = {
   Yellow: "bg-yellow-400", Blue: "bg-blue-500", Black: "bg-gray-800", Green: "bg-emerald-500",
@@ -57,12 +58,12 @@ export function MyStockContent({ showBackButton = true }: { showBackButton?: boo
   const { getEmployeeById } = useEmployee();
   const washerId = currentUser?.employeeId || "";
   const cityId = currentUser?.cityId || "";
-  // The washer's real reporting supervisor, so a replenishment request
-  // can actually name who it's owed from (STK-DEF-04). Without this, a
-  // request could be created with no fromId at all and could never be
-  // fulfilled — fulfillRequestQuantity would always look up an
-  // empty-string supervisor bucket and find nothing.
+  // The washer's real reporting supervisor — there is no pre-stocked
+  // "supervisor buffer" a replenishment request draws from; the
+  // supervisor is the required approval gate, and the real source of
+  // the material is the Branch Store (see handleRequestReplenishment).
   const supervisorId = washerId ? getEmployeeById(washerId)?.reportingManagerId : undefined;
+  const branch = cityId ? getBranchesForCity(cityId)[0] : undefined;
 
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -193,19 +194,24 @@ export function MyStockContent({ showBackButton = true }: { showBackButton?: boo
       toast.error("Enter a real quantity you need");
       return;
     }
-    // Without a real fromId, this request could never actually be
-    // fulfilled — the fulfilling supervisor's own stock was never
-    // checked, an empty-string bucket was. Refuse up front with an
-    // actionable message rather than silently creating a request
-    // that's guaranteed to fail later (STK-DEF-04).
+    // Refuse up front with an actionable message rather than silently
+    // creating a request that's guaranteed to fail later — a real
+    // supervisor to approve it, and a real Branch Store to fulfill it
+    // from, are both required (STK-DEF-04).
     if (!supervisorId) {
       toast.error("You don't have a reporting supervisor on record — contact HR/Admin before requesting replenishment");
       return;
     }
+    if (!branch) {
+      toast.error("No real Branch Store is configured for your city — contact Admin before requesting replenishment");
+      return;
+    }
     // Real request - creates a genuine Pending transaction, the same
     // real record type MaterialRequisition.tsx already reads from for
-    // its pending MRF list. A supervisor or store manager approving it
-    // there is what actually moves stock - this only requests it. The
+    // its pending MRF list. There is no pre-stocked "supervisor
+    // buffer" this draws from - the real source is the Branch Store;
+    // your supervisor is the required approval gate before Branch can
+    // fulfill it (approverSupervisorId), not the stock source. The
     // quantity here is a real, specific number the washer asked for -
     // not an auto-calculated guess - so a partial fulfillment later
     // has a real number to track a genuine shortfall against.
@@ -215,16 +221,17 @@ export function MyStockContent({ showBackButton = true }: { showBackButton?: boo
       quantity: qty,
       quantityRequested: qty,
       quantityFulfilled: 0,
-      fromLocation: "Supervisor",
-      fromId: supervisorId,
+      fromLocation: "Branch",
+      fromId: branch.id,
       toLocation: "Washer",
       toId: washerId,
+      approverSupervisorId: supervisorId,
       status: "Pending",
       requestedBy: currentUser?.name || washerId,
       cityId,
       reason: notes || undefined,
     });
-    toast.success(`Requested ${qty} ${selectedItem.unit} of ${selectedItem.material} — sent to your Supervisor`);
+    toast.success(`Requested ${qty} ${selectedItem.unit} of ${selectedItem.material} — sent to your Supervisor for approval`);
     setShowRequestDialog(false);
     setSelectedItem(null);
     setRequestedQty("");

@@ -13,6 +13,7 @@ import {
 } from "../ui/dialog";
 import { Plus, FileText, Package, CheckCircle } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
 import { mockMRFs } from "../../lib/materialRequisition";
@@ -20,10 +21,11 @@ import type { PurchaseRequest } from "../../lib/materialRequisition";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 import { useEmployee } from "../../contexts/EmployeeContext";
+import { purchaseRequestService } from "../../services/purchaseRequestService";
 
 export function MaterialRequisition() {
   const { currentRole, currentUser } = useRole();
-  const { stockTransactions, getPendingTransactions, procureInventory,
+  const { stockTransactions, getActionableTransactions, procureInventory,
           getCentralStock, inventory, createTransaction, approveTransaction, fulfillRequestQuantity } = useInventory();
   const { city, cityInfo } = useCity();
   const { employees } = useEmployee();
@@ -33,6 +35,7 @@ export function MaterialRequisition() {
   const [mrfQuantity, setMrfQuantity] = useState("");
   const [fulfillingId, setFulfillingId] = useState<string | null>(null);
   const [fulfillQty, setFulfillQty] = useState("");
+  const [shortOnBranchStockId, setShortOnBranchStockId] = useState<string | null>(null);
 
   const handleCreateMRF = () => {
     if (!mrfItemId || !mrfQuantity) {
@@ -85,6 +88,7 @@ export function MaterialRequisition() {
       toast.success(remaining > 0 ? `Issued ${qty} — ${remaining} still owed on this request` : `Issued ${qty} — request fully complete`);
       setFulfillingId(null);
       setFulfillQty("");
+      setShortOnBranchStockId(null);
     } else {
       const guidance = fromLocation === "Supervisor"
         ? " — request more from Branch first, then try again"
@@ -92,11 +96,15 @@ export function MaterialRequisition() {
         ? " — request more from Central first, then try again"
         : "";
       toast.error(`Not enough real stock to issue that amount right now${guidance}`);
+      setShortOnBranchStockId(fromLocation === "Branch" ? transactionId : null);
     }
   };
 
-  // Derive MRFs from pending stock transactions
-  const liveMRFs = getPendingTransactions(city).map((t: any) => {
+  // Derive MRFs from real stock transactions still in progress (Pending,
+  // Approved, or Partially Fulfilled — not just Pending, or a request
+  // vanishes from this list the moment it's approved, before it's
+  // actually been fulfilled).
+  const liveMRFs = getActionableTransactions(city).map((t: any) => {
     const item = inventory.find((i: any) => i.itemId === t.itemId && i.cityId === city);
     const requested = t.quantityRequested ?? t.quantity;
     const fulfilled = t.quantityFulfilled || 0;
@@ -113,6 +121,11 @@ export function MaterialRequisition() {
       createdAt: t.createdAt,
       type: t.type,
       fromLocation: t.fromLocation,
+      // Real washer-originated requests must be approved by this exact
+      // supervisor (on their own Material Management screen), not by
+      // Store Manager here — there is no pre-stocked supervisor buffer
+      // this could be approved-and-drawn-from directly.
+      approverSupervisorId: t.approverSupervisorId,
     };
   });
 
@@ -131,15 +144,14 @@ export function MaterialRequisition() {
   const canCreateMRF = ["Supervisor", "Operations Manager", "Store Manager"].includes(currentRole);
   const canApproveMRF = ["Store Manager"].includes(currentRole);
   const canCreatePR = ["Store Manager"].includes(currentRole);
-  const canApprovePR = ["Super Admin", "Admin"].includes(currentRole);
+  const canApprovePR = ["Procurement Manager", "Super Admin", "Admin"].includes(currentRole);
 
-  // Real fix: previously this whole section only ever showed one
-  // hardcoded example, clearly labeled as fake. Now reads real,
-  // persisted purchase requests, and both real actions below (create,
-  // approve) genuinely create and update them.
-  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>(() => {
-    try { return JSON.parse(localStorage.getItem("cleancar_purchase_requests") || "[]"); } catch { return []; }
-  });
+  // Real, shared source — the same purchaseRequestService StoreRequisitions
+  // and Procurement's own Material Requisitions screen now read/write
+  // through too, so a request raised on any of the three shows up
+  // identically everywhere, instead of each screen keeping its own
+  // disconnected copy.
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>(() => purchaseRequestService.getAll());
   const [showNewPR, setShowNewPR] = useState(false);
   const [prItems, setPrItems] = useState([{ itemName: "", quantity: "", unit: "", estimatedCost: "", vendorSuggestion: "" }]);
   const [prPriority, setPrPriority] = useState<"High" | "Medium" | "Low">("Medium");
@@ -160,18 +172,12 @@ export function MaterialRequisition() {
       itemName: i.itemName.trim(), quantity: parseFloat(i.quantity), unit: i.unit.trim() || "Pcs",
       estimatedCost: Math.max(0, parseFloat(i.estimatedCost) || 0), vendorSuggestion: i.vendorSuggestion.trim() || undefined,
     }));
-    const newPR: PurchaseRequest = {
-      id: `PR-${new Date().getFullYear()}-${String(purchaseRequests.length + 1).padStart(3, "0")}-${Date.now().toString().slice(-4)}`,
+    const newPR = purchaseRequestService.create({
       requestedBy: currentUser?.name || currentRole,
-      dateRequested: new Date().toISOString().split("T")[0],
       priority: prPriority,
-      status: "Pending",
       items,
-      totalEstimatedCost: items.reduce((s, i) => s + i.estimatedCost, 0),
-    };
-    const updated = [newPR, ...purchaseRequests];
-    setPurchaseRequests(updated);
-    localStorage.setItem("cleancar_purchase_requests", JSON.stringify(updated));
+    });
+    setPurchaseRequests(purchaseRequestService.getAll());
     toast.success(`${newPR.id} submitted`);
     setShowNewPR(false);
     setPrItems([{ itemName: "", quantity: "", unit: "", estimatedCost: "", vendorSuggestion: "" }]);
@@ -179,30 +185,14 @@ export function MaterialRequisition() {
   };
 
   const handleApprovePR = (pr: PurchaseRequest) => {
-    // Real approval - genuinely creates a real Purchase Order in the
-    // same real system Procurement and GRN already read from, not a
-    // separate, disconnected record.
-    const existingPOs = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
-    const poNumber = `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-    const newPO = {
-      id: Date.now(),
-      po: poNumber,
-      vendor: pr.items[0]?.vendorSuggestion || "Multiple Vendors",
-      items: pr.items.length,
-      amount: pr.totalEstimatedCost,
-      status: "Pending Procurement Review",
-      date: new Date().toISOString().split("T")[0],
-    };
-    localStorage.setItem("cleancar_purchase_orders", JSON.stringify([...existingPOs, newPO]));
-
-    const updated = purchaseRequests.map((r) =>
-      r.id === pr.id
-        ? { ...r, status: "PO Issued" as const, approvedByAdmin: currentUser?.name || currentRole, poNumber, poIssuedOn: new Date().toISOString().split("T")[0] }
-        : r
-    );
+    const result = purchaseRequestService.approveAndIssuePO(pr.id, currentUser?.name || currentRole);
+    if (!result) {
+      toast.error("Could not approve — it may have already been actioned");
+      return;
+    }
+    const updated = purchaseRequestService.getAll();
     setPurchaseRequests(updated);
-    localStorage.setItem("cleancar_purchase_requests", JSON.stringify(updated));
-    toast.success(`${poNumber} created from ${pr.id}`);
+    toast.success(`${result.poNumber} created from ${pr.id}`);
   };
 
   return (
@@ -258,11 +248,14 @@ export function MaterialRequisition() {
                       Date: {new Date(mrf.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  {canApproveMRF && mrf.status === "Pending" && (
+                  {canApproveMRF && mrf.status === "Pending" && !mrf.approverSupervisorId && (
                     <Button size="sm" onClick={() => handleApproveMRF(mrf.id)}>
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Approve
                     </Button>
+                  )}
+                  {mrf.status === "Pending" && mrf.approverSupervisorId && (
+                    <p className="text-xs text-gray-400 italic">Awaiting the requester's supervisor to approve first</p>
                   )}
                   {canApproveMRF && (mrf.status === "Approved" || mrf.status === "Partially Fulfilled") && fulfillingId !== mrf.id && (
                     <Button size="sm" variant="outline" onClick={() => { setFulfillingId(mrf.id); setFulfillQty(String(mrf.quantityOwed)); }}>
@@ -300,6 +293,14 @@ export function MaterialRequisition() {
                     />
                     <Button size="sm" onClick={() => handleFulfillQuantity(mrf.id, mrf.quantityOwed, mrf.fromLocation)}>Confirm Issue</Button>
                     <Button size="sm" variant="ghost" onClick={() => { setFulfillingId(null); setFulfillQty(""); }}>Cancel</Button>
+                  </div>
+                )}
+                {shortOnBranchStockId === mrf.id && (
+                  <div className="mt-2 text-xs text-amber-700">
+                    Branch doesn't have enough real stock for this.{" "}
+                    <Link to="/store-manager/branch-transfer" className="underline font-medium">
+                      Request more from Central (Kim) →
+                    </Link>
                   </div>
                 )}
               </div>

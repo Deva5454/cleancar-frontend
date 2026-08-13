@@ -22,21 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { Plus, FileText, ShoppingCart, FileCheck, X, Trash2, AlertTriangle, CheckCircle, XCircle, Edit, Filter } from "lucide-react";
+import { Plus, FileText, ShoppingCart, FileCheck, Trash2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "../../contexts/RoleContext";
-
-// Mock inventory items for dropdown
-const inventoryItems = [
-  { name: "Car Wash Shampoo 5L", type: "Chemical", unit: "Liters", currentStock: 45, reorderLevel: 50 },
-  { name: "Microfiber Towel Premium", type: "Consumable", unit: "Pieces", currentStock: 120, reorderLevel: 100 },
-  { name: "Foam Gun", type: "Equipment", unit: "Pieces", currentStock: 8, reorderLevel: 10 },
-  { name: "Wheel Cleaner 1L", type: "Chemical", unit: "Liters", currentStock: 25, reorderLevel: 30 },
-  { name: "Interior Cleaner 5L", type: "Chemical", unit: "Liters", currentStock: 18, reorderLevel: 25 },
-  { name: "Wax Coating 1L", type: "Chemical", unit: "Liters", currentStock: 12, reorderLevel: 20 },
-  { name: "Sponge Heavy Duty", type: "Consumable", unit: "Pieces", currentStock: 85, reorderLevel: 100 },
-  { name: "Brush Soft Bristle", type: "Consumable", unit: "Pieces", currentStock: 40, reorderLevel: 50 },
-];
+import { useCity } from "../../contexts/CityContext";
+import { useInventory } from "../../contexts/InventoryContext";
+import { purchaseRequestService } from "../../services/purchaseRequestService";
+import type { PurchaseRequest } from "../../lib/materialRequisition";
 
 const zones = [
   "395001 — Ring Road",
@@ -49,8 +41,10 @@ const zones = [
   "395008 — Dumas Road",
 ];
 
-interface RequisitionItem {
-  itemType: string;
+type Urgency = "Routine" | "Urgent" | "Emergency";
+
+interface RequisitionItemForm {
+  itemId: string;
   itemName: string;
   unit: string;
   quantity: number;
@@ -59,117 +53,71 @@ interface RequisitionItem {
   justification: string;
 }
 
+/**
+ * Procurement's own view of raised requisitions — real, previously-
+ * disconnected screen (mock inventory dropdown, its own separate
+ * localStorage key, and an approval action that only ever showed a
+ * toast without persisting anything) now built on the same real
+ * purchaseRequestService the Inventory module's Material Requisition
+ * screen and Store's own requisition screen share.
+ */
 export function MaterialRequisitions() {
   const { currentRole, currentUser } = useRole();
+  const { city } = useCity();
+  const { inventory } = useInventory();
   const navigate = useNavigate();
-  const stored = localStorage.getItem("cleancar_material_requisitions");
-  const [requisitions, setRequisitions] = useState(stored ? JSON.parse(stored) : []);
+
+  const [requisitions, setRequisitions] = useState<PurchaseRequest[]>(() => purchaseRequestService.getAll());
   const [showRaiseDialog, setShowRaiseDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
-  const [selectedRequisition, setSelectedRequisition] = useState<any>(null);
+  const [selectedRequisition, setSelectedRequisition] = useState<PurchaseRequest | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
-  const [filterUrgency, setFilterUrgency] = useState("all");
 
   // Form state
-  const [urgency, setUrgency] = useState("Routine");
+  const [urgency, setUrgency] = useState<Urgency>("Routine");
   const [requiredBy, setRequiredBy] = useState("");
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
   const [reason, setReason] = useState("");
-  const [items, setItems] = useState<RequisitionItem[]>([
-    { itemType: "Chemical", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }
+  const [items, setItems] = useState<RequisitionItemForm[]>([
+    { itemId: "", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }
   ]);
 
-  // Approval form state
-  const [approvalAction, setApprovalAction] = useState<"approve" | "modify" | "reject">("approve");
-  const [approvalReason, setApprovalReason] = useState("");
-  const [modifiedItems, setModifiedItems] = useState<any[]>([]);
+  const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve");
+  const [rejectReason, setRejectReason] = useState("");
 
   const canRaiseRequisition = ["Supervisor", "Store Manager", "Operations Manager", "Procurement Manager", "Admin", "Super Admin"].includes(currentRole);
-  const canApproveRequisition = ["Operations Manager", "Procurement Manager", "Admin", "Super Admin"].includes(currentRole);
+  // Real approver set — matches the same three roles that can approve on
+  // Inventory's Material Requisition screen and Store's own requisition
+  // screen, so approval authority means the same thing everywhere this
+  // shared pipeline appears.
+  const canApproveRequisition = ["Procurement Manager", "Admin", "Super Admin"].includes(currentRole);
+
+  const realItems = inventory.filter((i: any) => i.cityId === city);
 
   const handleAddItem = () => {
-    setItems([...items, { itemType: "Chemical", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }]);
+    setItems([...items, { itemId: "", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }]);
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleItemChange = (index: number, field: string, value: any) => {
+  const handleItemChange = (index: number, field: keyof RequisitionItemForm, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
 
-    // Auto-populate unit, current stock, and reorder level when item is selected
-    if (field === "itemName") {
-      const selectedItem = inventoryItems.find(item => item.name === value);
-      if (selectedItem) {
-        newItems[index].unit = selectedItem.unit;
-        newItems[index].currentStock = selectedItem.currentStock;
-        newItems[index].reorderLevel = selectedItem.reorderLevel;
-        newItems[index].itemType = selectedItem.type;
+    if (field === "itemId") {
+      const real = realItems.find((i: any) => i.itemId === value);
+      if (real) {
+        newItems[index].itemName = real.itemName;
+        newItems[index].unit = real.unit;
+        newItems[index].currentStock = real.centralStock || 0;
+        newItems[index].reorderLevel = real.reorderLevel;
       }
     }
 
     setItems(newItems);
-  };
-
-  const handleSubmitRequisition = () => {
-    // Validation
-    if (!requiredBy) {
-      toast.error("Please select required by date");
-      return;
-    }
-    if (selectedZones.length === 0) {
-      toast.error("Please select at least one zone");
-      return;
-    }
-    if (!reason.trim()) {
-      toast.error("Please enter justification");
-      return;
-    }
-    if (items.some(item => !item.itemName || item.quantity <= 0)) {
-      toast.error("Please complete all item details");
-      return;
-    }
-
-    // Create new requisition
-    const newId = `MR-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-    const newRequisition = {
-      id: newId,
-      date: new Date().toISOString().split('T')[0],
-      raisedBy: currentUser.name,
-      raisedByRole: currentRole,
-      zone: selectedZones,
-      urgency: urgency,
-      items: items.length,
-      status: currentRole === "Procurement Manager" ? "Approved" : "Pending Approval",
-      requiredBy: requiredBy,
-      daysRemaining: Math.ceil((new Date(requiredBy).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-      reason: reason,
-      pmDirect: currentRole === "Procurement Manager",
-      itemsList: items
-    };
-
-    const updatedRequisitions = [newRequisition, ...requisitions];
-    setRequisitions(updatedRequisitions);
-    localStorage.setItem("cleancar_material_requisitions", JSON.stringify(updatedRequisitions));
-
-    // Auto-approve if PM raises the requisition (PM Direct - allowed as domain expert)
-    if (currentRole === "Procurement Manager") {
-      toast.success("Material Requisition created and auto-approved (PM Direct - Domain Authority)", {
-        description: `${newId} created. No escalation needed - PM has final authority.`
-      });
-    } else {
-      // Follow hierarchy: Supervisor/Store Manager → Operations Manager → Procurement Manager
-      const approver = currentRole === "Supervisor" || currentRole === "Store Manager" ? "Operations Manager" : "Procurement Manager";
-      toast.success(`Material Requisition submitted for approval`, {
-        description: `Next Level: ${approver} (Following hierarchy: ${currentRole} → ${approver})`
-      });
-    }
-
-    setShowRaiseDialog(false);
-    resetForm();
   };
 
   const resetForm = () => {
@@ -177,99 +125,117 @@ export function MaterialRequisitions() {
     setRequiredBy("");
     setSelectedZones([]);
     setReason("");
-    setItems([{ itemType: "Chemical", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }]);
+    setItems([{ itemId: "", itemName: "", unit: "", quantity: 0, currentStock: 0, reorderLevel: 0, justification: "" }]);
   };
 
-  const handleViewDetail = (req: any) => {
+  const handleSubmitRequisition = () => {
+    if (!requiredBy) { toast.error("Please select required by date"); return; }
+    if (selectedZones.length === 0) { toast.error("Please select at least one zone"); return; }
+    if (!reason.trim()) { toast.error("Please enter justification"); return; }
+    if (items.some((item) => !item.itemId || item.quantity <= 0)) { toast.error("Please complete all item details"); return; }
+
+    const priority = urgency === "Routine" ? "Medium" : "High";
+    const remarks = [
+      `[${urgency}]`,
+      `Zones: ${selectedZones.map((z) => z.split(" — ")[0]).join(", ")}`,
+      `Required by: ${requiredBy}`,
+      `Reason: ${reason}`,
+    ].join(" · ");
+
+    const pr = purchaseRequestService.create({
+      requestedBy: currentUser.name,
+      priority,
+      items: items.map((i) => ({
+        itemName: i.itemName, quantity: i.quantity, unit: i.unit, estimatedCost: 0,
+        vendorSuggestion: i.justification || undefined,
+      })),
+      remarks,
+    });
+
+    // Domain-authority fast path — if the person raising it is themselves
+    // a real approver, it doesn't need to wait on anyone else.
+    if (canApproveRequisition) {
+      const result = purchaseRequestService.approveAndIssuePO(pr.id, currentUser.name);
+      setRequisitions(purchaseRequestService.getAll());
+      toast.success(`${pr.id} created and auto-approved`, {
+        description: result ? `${result.poNumber} created — no escalation needed.` : undefined,
+      });
+    } else {
+      setRequisitions(purchaseRequestService.getAll());
+      toast.success(`${pr.id} submitted for approval`, {
+        description: "A Procurement Manager, Admin, or Super Admin will review it.",
+      });
+    }
+
+    setShowRaiseDialog(false);
+    resetForm();
+  };
+
+  const handleViewDetail = (req: PurchaseRequest) => {
     setSelectedRequisition(req);
     setShowDetailDialog(true);
   };
 
-  const handleApprove = (req: any) => {
+  const handleOpenApproval = (req: PurchaseRequest) => {
     setSelectedRequisition(req);
-    setModifiedItems(req.itemsList);
     setApprovalAction("approve");
-    setApprovalReason("");
+    setRejectReason("");
     setShowApprovalDialog(true);
   };
 
   const handleSubmitApproval = () => {
-    if (approvalAction === "reject" && !approvalReason.trim()) {
+    if (!selectedRequisition) return;
+    if (approvalAction === "reject" && !rejectReason.trim()) {
       toast.error("Please enter a reason for rejection");
-      return;
-    }
-    if (approvalAction === "modify" && !approvalReason.trim()) {
-      toast.error("Please enter a reason for modification");
       return;
     }
 
     if (approvalAction === "approve") {
-      const nextLevel = currentRole === "Operations Manager" ? "Procurement Manager" : "Processing";
-      toast.success("Requisition approved successfully", {
-        description: `${selectedRequisition.id} approved. Next Level: ${nextLevel}`
-      });
-    } else if (approvalAction === "modify") {
-      toast.success("Requisition approved with modifications", {
-        description: `Modified quantities approved. Requester will be notified.`
-      });
+      const result = purchaseRequestService.approveAndIssuePO(selectedRequisition.id, currentUser.name);
+      if (!result) {
+        toast.error("Could not approve — it may have already been actioned");
+        return;
+      }
+      setRequisitions(purchaseRequestService.getAll());
+      toast.success("Requisition approved", { description: `${selectedRequisition.id} approved — ${result.poNumber} created.` });
     } else {
-      toast.error("Requisition rejected", {
-        description: `${selectedRequisition.raisedBy} will be notified with rejection reason`
-      });
+      purchaseRequestService.reject(selectedRequisition.id, currentUser.name, rejectReason.trim());
+      setRequisitions(purchaseRequestService.getAll());
+      toast.error("Requisition rejected", { description: `${selectedRequisition.requestedBy} will be notified with the rejection reason.` });
     }
 
     setShowApprovalDialog(false);
   };
 
-  const handleConvertToPO = (req: any) => {
-    // Navigate to /procurement with purchase-orders tab active and MR data pre-filled
+  const handleConvertToPO = (req: PurchaseRequest) => {
     navigate("/procurement", {
       state: {
         tab: "purchase-orders",
-        prefill: {
-          mrRef: req.id,
-          items: req.itemsList ?? [],
-          urgency: req.urgency,
-          zone: req.zone,
-          reason: req.reason,
-        },
+        prefill: { mrRef: req.id, items: req.items, reason: req.remarks },
       },
     });
-    toast.success(`MR ${req.id} — opening PO creation form`);
+    toast.success(`${req.id} — opening PO creation form`);
   };
 
-  const handleSendForQuotation = (req: any) => {
-    // Navigate to /procurement with quotations tab active and MR data pre-filled
+  const handleSendForQuotation = (req: PurchaseRequest) => {
     navigate("/procurement", {
       state: {
         tab: "quotations",
-        prefill: {
-          mrRef: req.id,
-          items: req.itemsList ?? [],
-          category: req.itemsList?.[0]?.itemType ?? "General",
-        },
+        prefill: { mrRef: req.id, items: req.items },
       },
     });
-    toast.success(`MR ${req.id} — opening RFQ creation form`);
+    toast.success(`${req.id} — opening RFQ creation form`);
   };
 
-  const getUrgencyBadgeVariant = (urgency: string) => {
-    if (urgency === "Emergency") return "destructive";
-    if (urgency === "Urgent") return "default";
-    return "outline";
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    if (status === "Approved") return "default";
-    if (status === "Pending Approval") return "secondary";
-    if (status === "Fully Ordered") return "outline";
+  const getStatusBadgeVariant = (status: PurchaseRequest["status"]) => {
+    if (status === "PO Issued") return "default";
+    if (status === "Pending") return "secondary";
     if (status === "Rejected") return "destructive";
     return "secondary";
   };
 
-  const filteredRequisitions = requisitions.filter((req: any) => {
+  const filteredRequisitions = requisitions.filter((req) => {
     if (filterStatus !== "all" && req.status !== filterStatus) return false;
-    if (filterUrgency !== "all" && req.urgency !== filterUrgency) return false;
     return true;
   });
 
@@ -280,10 +246,7 @@ export function MaterialRequisitions() {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Material Requisitions</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Manage purchase requisitions from supervisors and operations
-          </p>
-          <p className="text-xs font-semibold text-blue-700 mt-1">
-            📋 Approval Hierarchy: Supervisor/Store Manager → Operations Manager → Procurement Manager
+            Requisitions raised by Supervisors, Store Managers, and Operations — same real pipeline Inventory and Store raise into
           </p>
         </div>
         {canRaiseRequisition && (
@@ -295,35 +258,18 @@ export function MaterialRequisitions() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="w-48">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Pending Approval">Pending Approval</SelectItem>
-              <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Partially Ordered">Partially Ordered</SelectItem>
-              <SelectItem value="Fully Ordered">Fully Ordered</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-48">
-          <Select value={filterUrgency} onValueChange={setFilterUrgency}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Urgency" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Urgencies</SelectItem>
-              <SelectItem value="Routine">Routine</SelectItem>
-              <SelectItem value="Urgent">Urgent</SelectItem>
-              <SelectItem value="Emergency">Emergency</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="w-48">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger>
+            <SelectValue placeholder="Filter by Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="Pending">Pending</SelectItem>
+            <SelectItem value="PO Issued">PO Issued</SelectItem>
+            <SelectItem value="Rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Requisitions Table */}
@@ -332,79 +278,47 @@ export function MaterialRequisitions() {
           <CardTitle className="text-base">Requisition List</CardTitle>
         </CardHeader>
         <CardContent>
+          {filteredRequisitions.length === 0 ? (
+            <p className="text-sm text-gray-400 italic py-6 text-center">No requisitions yet.</p>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>MR Number</TableHead>
+                <TableHead>PR Number</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Raised By</TableHead>
-                <TableHead>Zone(s)</TableHead>
-                <TableHead>Urgency</TableHead>
                 <TableHead className="text-center">Items</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Required By</TableHead>
-                <TableHead>Days Rem.</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRequisitions.map((req) => (
-                <TableRow key={req.id} className={req.daysRemaining < 0 ? "opacity-60" : ""}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {req.id}
-                      {req.pmDirect && (
-                        <Badge variant="outline" className="text-xs">PM Direct</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{req.date}</TableCell>
+                <TableRow key={req.id}>
+                  <TableCell className="font-medium">{req.id}</TableCell>
+                  <TableCell>{req.dateRequested}</TableCell>
                   <TableCell>
-                    <div>
-                      <p className="font-medium text-sm">{req.raisedBy}</p>
-                      <p className="text-xs text-gray-500">{req.raisedByRole}</p>
-                    </div>
+                    <p className="font-medium text-sm">{req.requestedBy}</p>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {req.zone.slice(0, 2).map((z, idx) => (
-                        <code key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {z.split(" — ")[0]}
-                        </code>
-                      ))}
-                      {req.zone.length > 2 && (
-                        <span className="text-xs text-gray-500">+{req.zone.length - 2}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getUrgencyBadgeVariant(req.urgency)}>
-                      {req.urgency}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">{req.items}</TableCell>
+                  <TableCell className="text-center">{req.items.length}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(req.status)}>
                       {req.status}
                     </Badge>
-                  </TableCell>
-                  <TableCell>{req.requiredBy}</TableCell>
-                  <TableCell className={req.daysRemaining <= 2 && req.daysRemaining >= 0 ? "text-red-600 font-bold" : req.daysRemaining < 0 ? "text-gray-400" : ""}>
-                    {req.daysRemaining < 0 ? `${Math.abs(req.daysRemaining)}d overdue` : `${req.daysRemaining}d`}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
                       <Button variant="ghost" size="sm" onClick={() => handleViewDetail(req)}>
                         <FileText className="w-4 h-4" />
                       </Button>
-                      {canApproveRequisition && req.status === "Pending Approval" && (
-                        <Button variant="ghost" size="sm" onClick={() => handleApprove(req)}>
+                      {canApproveRequisition && req.status === "Pending" && (
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenApproval(req)}>
                           <CheckCircle className="w-4 h-4 text-green-600" />
                         </Button>
                       )}
-                      {currentRole === "Procurement Manager" && req.status === "Approved" && (
+                      {req.status === "PO Issued" && (
                         <>
-                          <Button variant="ghost" size="sm" onClick={() => handleConvertToPO(req)} title="Convert to PO">
+                          <Button variant="ghost" size="sm" onClick={() => handleConvertToPO(req)} title="Open Purchase Order">
                             <ShoppingCart className="w-4 h-4 text-teal-600" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleSendForQuotation(req)} title="Send for Quotation">
@@ -418,6 +332,7 @@ export function MaterialRequisitions() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -432,10 +347,9 @@ export function MaterialRequisitions() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Urgency */}
             <div>
               <Label>Urgency Level *</Label>
-              <Select value={urgency} onValueChange={setUrgency}>
+              <Select value={urgency} onValueChange={(v) => setUrgency(v as Urgency)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -449,13 +363,12 @@ export function MaterialRequisitions() {
                 <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
                   <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
                   <p className="text-sm text-red-800">
-                    Emergency requisitions trigger immediate notification to Procurement Manager and require same-day action.
+                    Emergency requisitions should be followed up directly with Procurement for same-day action.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Required By Date */}
             <div>
               <Label htmlFor="requiredBy">Required By Date *</Label>
               <Input
@@ -467,7 +380,6 @@ export function MaterialRequisitions() {
               />
             </div>
 
-            {/* PIN Code Zones */}
             <div>
               <Label>PIN Code Zone(s) *</Label>
               <div className="grid grid-cols-2 gap-2 mt-2 max-h-32 overflow-y-auto border rounded-md p-2">
@@ -477,11 +389,8 @@ export function MaterialRequisitions() {
                       type="checkbox"
                       checked={selectedZones.includes(zone)}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedZones([...selectedZones, zone]);
-                        } else {
-                          setSelectedZones(selectedZones.filter(z => z !== zone));
-                        }
+                        if (e.target.checked) setSelectedZones([...selectedZones, zone]);
+                        else setSelectedZones(selectedZones.filter(z => z !== zone));
                       }}
                       className="rounded"
                     />
@@ -491,7 +400,6 @@ export function MaterialRequisitions() {
               </div>
             </div>
 
-            {/* Reason / Justification */}
             <div>
               <Label htmlFor="reason">Reason / Justification *</Label>
               <Textarea
@@ -503,7 +411,6 @@ export function MaterialRequisitions() {
               />
             </div>
 
-            {/* Items */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>Items Required *</Label>
@@ -527,24 +434,24 @@ export function MaterialRequisitions() {
                         <Trash2 className="w-4 h-4 text-red-600" />
                       </Button>
                     )}
-                    
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs">Item Name *</Label>
                         <Select
-                          value={item.itemName}
-                          onValueChange={(value) => handleItemChange(index, "itemName", value)}
+                          value={item.itemId}
+                          onValueChange={(value) => handleItemChange(index, "itemId", value)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select item" />
                           </SelectTrigger>
                           <SelectContent>
-                            {inventoryItems.map((inv) => (
-                              <SelectItem key={inv.name} value={inv.name}>
+                            {realItems.map((inv: any) => (
+                              <SelectItem key={inv.itemId} value={inv.itemId}>
                                 <div className="flex items-center justify-between w-full">
-                                  <span>{inv.name}</span>
+                                  <span>{inv.itemName}</span>
                                   <span className="text-xs text-gray-500 ml-4">
-                                    Stock: {inv.currentStock} / Reorder: {inv.reorderLevel}
+                                    Stock: {inv.centralStock || 0} / Reorder: {inv.reorderLevel}
                                   </span>
                                 </div>
                               </SelectItem>
@@ -628,37 +535,31 @@ export function MaterialRequisitions() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Raised By</p>
-                  <p className="font-medium">{selectedRequisition.raisedBy} ({selectedRequisition.raisedByRole})</p>
+                  <p className="font-medium">{selectedRequisition.requestedBy}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Date</p>
-                  <p className="font-medium">{selectedRequisition.date}</p>
+                  <p className="font-medium">{selectedRequisition.dateRequested}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Required By</p>
-                  <p className="font-medium">{selectedRequisition.requiredBy}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Urgency</p>
-                  <Badge variant={getUrgencyBadgeVariant(selectedRequisition.urgency)}>
-                    {selectedRequisition.urgency}
+                  <p className="text-sm text-gray-500">Priority</p>
+                  <Badge variant={selectedRequisition.priority === "High" ? "destructive" : "outline"}>
+                    {selectedRequisition.priority}
                   </Badge>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Zone(s)</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {selectedRequisition.zone.map((z: string, idx: number) => (
-                      <Badge key={idx} variant="outline">{z}</Badge>
-                    ))}
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <Badge variant={getStatusBadgeVariant(selectedRequisition.status)}>{selectedRequisition.status}</Badge>
+                </div>
+                {selectedRequisition.remarks && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-500">Details</p>
+                    <p className="text-sm mt-1">{selectedRequisition.remarks}</p>
                   </div>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Reason</p>
-                  <p className="text-sm mt-1">{selectedRequisition.reason}</p>
-                </div>
+                )}
               </div>
 
-              {selectedRequisition.itemsList.length > 0 && (
+              {selectedRequisition.items.length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-2">Items Requested</p>
                   <Table>
@@ -666,28 +567,15 @@ export function MaterialRequisitions() {
                       <TableRow>
                         <TableHead>Item</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
-                        <TableHead className="text-right">Current Stock</TableHead>
-                        <TableHead>Justification</TableHead>
+                        <TableHead>Notes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedRequisition.itemsList.map((item: any, idx: number) => (
+                      {selectedRequisition.items.map((item, idx) => (
                         <TableRow key={idx}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-sm">{item.itemName}</p>
-                              <p className="text-xs text-gray-500">{item.itemType}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.quantity} {item.unit}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className={item.currentStock < item.reorderLevel ? "text-red-600 font-medium" : ""}>
-                              {item.currentStock}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">{item.justification || "—"}</TableCell>
+                          <TableCell className="font-medium text-sm">{item.itemName}</TableCell>
+                          <TableCell className="text-right">{item.quantity} {item.unit}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{item.vendorSuggestion || "—"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -707,37 +595,31 @@ export function MaterialRequisitions() {
 
       {/* Approval Dialog */}
       <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Approve Requisition - {selectedRequisition?.id}</DialogTitle>
+            <DialogTitle>Review Requisition - {selectedRequisition?.id}</DialogTitle>
             <DialogDescription>
-              Review and approve, modify, or reject this material requisition
+              Approve (creates a real draft Purchase Order) or reject this requisition
             </DialogDescription>
           </DialogHeader>
 
           {selectedRequisition && (
             <div className="space-y-4">
-              {/* Requisition Info */}
-              <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-md">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-md">
                 <div>
                   <p className="text-xs text-gray-500">Raised By</p>
-                  <p className="text-sm font-medium">{selectedRequisition.raisedBy}</p>
+                  <p className="text-sm font-medium">{selectedRequisition.requestedBy}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Required By</p>
-                  <p className="text-sm font-medium">{selectedRequisition.requiredBy}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Urgency</p>
-                  <Badge variant={getUrgencyBadgeVariant(selectedRequisition.urgency)}>
-                    {selectedRequisition.urgency}
+                  <p className="text-xs text-gray-500">Priority</p>
+                  <Badge variant={selectedRequisition.priority === "High" ? "destructive" : "outline"}>
+                    {selectedRequisition.priority}
                   </Badge>
                 </div>
               </div>
 
-              {/* Approval Action */}
               <div>
-                <Label>Approval Action *</Label>
+                <Label>Action *</Label>
                 <Select value={approvalAction} onValueChange={(value: any) => setApprovalAction(value)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -746,13 +628,7 @@ export function MaterialRequisitions() {
                     <SelectItem value="approve">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-600" />
-                        Approve All Items
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="modify">
-                      <div className="flex items-center gap-2">
-                        <Edit className="w-4 h-4 text-blue-600" />
-                        Approve with Modifications
+                        Approve — Create Purchase Order
                       </div>
                     </SelectItem>
                     <SelectItem value="reject">
@@ -765,23 +641,19 @@ export function MaterialRequisitions() {
                 </Select>
               </div>
 
-              {/* Reason (required for modify/reject) */}
-              {(approvalAction === "modify" || approvalAction === "reject") && (
+              {approvalAction === "reject" && (
                 <div>
-                  <Label htmlFor="approvalReason">
-                    {approvalAction === "modify" ? "Reason for Modification" : "Reason for Rejection"} *
-                  </Label>
+                  <Label htmlFor="rejectReason">Reason for Rejection *</Label>
                   <Textarea
-                    id="approvalReason"
-                    value={approvalReason}
-                    onChange={(e) => setApprovalReason(e.target.value)}
-                    placeholder={approvalAction === "modify" ? "Explain why quantities are being adjusted..." : "Explain why this requisition is being rejected..."}
+                    id="rejectReason"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Explain why this requisition is being rejected..."
                     rows={3}
                   />
                 </div>
               )}
 
-              {/* Items - editable if modify */}
               <div>
                 <Label>Items</Label>
                 <Table>
@@ -789,38 +661,13 @@ export function MaterialRequisitions() {
                     <TableRow>
                       <TableHead>Item</TableHead>
                       <TableHead className="text-right">Requested Qty</TableHead>
-                      {approvalAction === "modify" && <TableHead className="text-right">Approved Qty</TableHead>}
-                      <TableHead className="text-right">Current Stock</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {modifiedItems.map((item: any, idx: number) => (
+                    {selectedRequisition.items.map((item, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{item.itemName}</p>
-                            <p className="text-xs text-gray-500">{item.itemType}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.quantity} {item.unit}
-                        </TableCell>
-                        {approvalAction === "modify" && (
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              className="w-24 ml-auto"
-                              defaultValue={item.quantity}
-                              min="0"
-                              max={item.quantity}
-                            />
-                          </TableCell>
-                        )}
-                        <TableCell className="text-right">
-                          <span className={item.currentStock < item.reorderLevel ? "text-red-600 font-medium" : ""}>
-                            {item.currentStock}
-                          </span>
-                        </TableCell>
+                        <TableCell className="font-medium text-sm">{item.itemName}</TableCell>
+                        <TableCell className="text-right">{item.quantity} {item.unit}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -837,7 +684,7 @@ export function MaterialRequisitions() {
               onClick={handleSubmitApproval}
               variant={approvalAction === "reject" ? "destructive" : "default"}
             >
-              {approvalAction === "approve" ? "Approve" : approvalAction === "modify" ? "Approve with Modifications" : "Reject"}
+              {approvalAction === "approve" ? "Approve" : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
