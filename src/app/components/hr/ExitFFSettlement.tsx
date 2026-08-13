@@ -18,6 +18,8 @@ import { incentiveLedgerService } from "../../services/incentiveLedger";
 import { travelReimbursementService } from "../../services/travelReimbursementService";
 import { advanceManagementService } from "../../services/advanceManagementService";
 import { useInventory } from "../../contexts/InventoryContext";
+import { useFinance } from "../../contexts/FinanceContext";
+import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import {
   LogOut, CheckCircle, X, Clock, DollarSign, FileText,
   AlertCircle, User, Package, Shield, Calendar, Bell
@@ -37,6 +39,7 @@ type FFCalculation = {
   leaveEncashment: number;
   bonus: number;
   reimbursements: number;
+  gratuity: number;
   totalEarnings: number;
   noticePeriodRecovery: number;
   equipmentDamage: number;
@@ -75,25 +78,15 @@ type ExitRecord = {
   paymentMode?: string;
   paymentReference?: string;
   accountsProcessedBy?: string;
+  /** Real Finance payable created on Super Admin approval — what Accounts actually pays against. */
+  financePayableId?: string;
 };
-
-const returnableMaterials: Omit<MaterialItem, "id" | "condition">[] = [
-  { name: "Car Washing Equipment Set" },
-  { name: "Vacuum Cleaner" },
-  { name: "Pressure Washer" },
-  { name: "Company Uniform (2 sets)" },
-  { name: "ID Card" },
-  { name: "Access Card/Keys" },
-  { name: "Mobile Phone (if issued)" },
-  { name: "Tablet (if issued)" },
-  { name: "Tool Kit" },
-  { name: "Safety Equipment" },
-];
 
 export function ExitFFSettlement() {
   const { currentRole, currentUser } = useRole();
   const { getPayrollByEmployee } = usePayroll();
   const { inventory } = useInventory();
+  const { createPayable, markAsPaid } = useFinance();
   // Real, confirmed fix - was hardcoded "CITY-SURAT" in 3 places below,
   // meaning any exit settlement processed outside Surat would be
   // silently misfiled under Surat's storage key.
@@ -114,11 +107,30 @@ export function ExitFFSettlement() {
     hrVerifiedBy:          safeName(r.hrVerifiedBy),
     superAdminApprovedBy:  safeName(r.superAdminApprovedBy),
     accountsProcessedBy:   safeName(r.accountsProcessedBy),
-    materials: Array.isArray(r.materials) ? r.materials.map((m: any) => ({
-      ...m,
-      verifiedBy: safeName(m.verifiedBy),
-    })) : r.materials,
+    // materials is intentionally NOT sanitized/kept from raw storage here —
+    // materialsFromWorkflow() below always overrides it with the real,
+    // single-source list from exitWorkflowService.clearanceItems.
   });
+
+  /**
+   * The one real material-return checklist for an employee, read live from
+   * exitWorkflowService.clearanceItems — not a separately-maintained copy.
+   * Used both to build/refresh every ExitRecord's `materials` field and to
+   * gate Supervisor completion, so this screen and HR's Exit Management
+   * screen can never see two different answers to "did they return this?"
+   */
+  const materialsFromWorkflow = (employeeId: string): MaterialItem[] => {
+    const wf = exitWorkflowService.getByEmployee(employeeId);
+    if (!wf) return [];
+    return wf.clearanceItems.map(ci => ({
+      id: ci.item,
+      name: ci.item,
+      condition: ci.condition ?? (ci.status === "Pending" ? "Pending" : "Good"),
+      comments: ci.notes,
+      verifiedBy: safeName(ci.verifiedBy),
+      verifiedOn: ci.returnedDate,
+    }));
+  };
 
   /**
    * Cross-reference ExitSettlement records against exitWorkflowService.
@@ -154,6 +166,11 @@ export function ExitFFSettlement() {
           // Already have a settlement record — just sync the status if workflow is ahead
           return;
         }
+        // Still waiting on the reporting manager, or was rejected — no real
+        // exit is in progress yet, so nothing for F&F/clearance to show.
+        if (wf.currentStage === "Pending Manager Approval" || wf.currentStage === "Rejected") {
+          return;
+        }
         // Workflow exists but no settlement record — create one
         newFromWorkflows.push({
           id: `EXT-WF-${wf.exitWorkflowId}`,
@@ -168,14 +185,7 @@ export function ExitFFSettlement() {
           noticePeriod: wf.noticePeriodDays,
           reasonForLeaving: wf.exitReason,
           status: stageToStatus[wf.currentStage] ?? "Exit Initiated",
-          materials: (wf.clearanceItems ?? []).map((ci: any, idx: number) => ({
-            id: `m${idx + 1}`,
-            name: ci.item,
-            condition: ci.status === "Returned" ? "Good"
-              : ci.status === "Not Applicable" ? "Good"
-              : "Pending",
-            comments: ci.notes ?? "",
-          })),
+          materials: materialsFromWorkflow(wf.employeeId),
         });
       });
 
@@ -194,8 +204,13 @@ export function ExitFFSettlement() {
         return raw ? JSON.parse(raw) : [];
       })();
       // Cross-reference with exitWorkflowService to catch exits initiated
-      // via ExitManagement that may not yet have a settlement record
-      return syncWithWorkflowService(base.map(sanitizeRecord));
+      // via ExitManagement that may not yet have a settlement record, then
+      // override every record's materials with the real, live checklist —
+      // heals any stale/independent materials list a record may have been
+      // saved with before this screen and exitWorkflowService shared one
+      // source of truth for it.
+      return syncWithWorkflowService(base.map(sanitizeRecord))
+        .map((r: ExitRecord) => ({ ...r, materials: materialsFromWorkflow(r.employeeId) }));
     } catch { /* ignore */ }
     return [];
   })());
@@ -205,6 +220,7 @@ export function ExitFFSettlement() {
     leaveEncashment: 0,
     bonus: 0,
     reimbursements: 0,
+    gratuity: 0,
     noticePeriodRecovery: 0,
     equipmentDamage: 0,
     advanceRecovery: 0
@@ -238,27 +254,43 @@ export function ExitFFSettlement() {
     return updated;
   };
 
-  // Supervisor material verification
+  // Supervisor material verification — writes through to
+  // exitWorkflowService.clearanceItems (the one real checklist), not a
+  // separate local copy, so HR's Exit Management screen sees the same
+  // condition/return status immediately.
   const handleMaterialVerification = (exitId: string, materialId: string, condition: MaterialItem['condition']) => {
     const comments = condition !== "Good" ? prompt(`Enter comments for ${condition}:`) || "" : "";
     const exit = exitRecords.find(e => e.id === exitId);
     if (!exit) return;
-    const matName = exit.materials.find(m => m.id === materialId)?.name ?? "";
-    updateExit(exitId, {
-      materials: exit.materials.map(mat =>
-        mat.id === materialId
-          ? { ...mat, condition, comments, verifiedBy: currentUser?.name ?? "", verifiedOn: new Date().toISOString().split('T')[0] }
-          : mat
-      ),
-    });
-    toast.success(`✅ Material "${matName}" marked as: ${condition}`);
+    const wf = exitWorkflowService.getByEmployee(exit.employeeId);
+    if (!wf) { toast.error("No exit workflow found for this employee — cannot verify materials."); return; }
+    // "Pending" un-verifies the item (back to not-yet-checked) — every
+    // other condition means verification is complete for this item.
+    const updatedClearance = wf.clearanceItems.map(ci =>
+      ci.item === materialId
+        ? condition === "Pending"
+          ? { ...ci, status: "Pending" as const, condition: undefined, notes: comments, verifiedBy: currentUser?.name ?? "" }
+          : {
+              ...ci,
+              status: "Returned" as const,
+              condition,
+              notes: comments,
+              verifiedBy: currentUser?.name ?? "",
+              returnedDate: new Date().toISOString().split('T')[0],
+            }
+        : ci
+    );
+    exitWorkflowService.updateClearance(wf.exitWorkflowId, updatedClearance);
+    updateExit(exitId, { materials: materialsFromWorkflow(exit.employeeId) });
+    toast.success(`✅ Material "${materialId}" marked as: ${condition}`);
   };
 
   // Supervisor completes verification
   const handleSupervisorComplete = (exitId: string) => {
     const exit = exitRecords.find(e => e.id === exitId);
     if (!exit) return;
-    const pendingItems = exit.materials.filter(m => m.condition === "Pending");
+    const wf = exitWorkflowService.getByEmployee(exit.employeeId);
+    const pendingItems = (wf?.clearanceItems ?? []).filter(ci => ci.status === "Pending");
     if (pendingItems.length > 0) {
       toast.info(`❌ Please verify all ${pendingItems.length} pending items before completing!`);
       return;
@@ -267,6 +299,7 @@ export function ExitFFSettlement() {
       status: "Supervisor Verified",
       supervisorVerifiedBy: currentUser?.name ?? "",
       supervisorVerifiedOn: new Date().toISOString().split('T')[0],
+      materials: materialsFromWorkflow(exit.employeeId),
     });
     toast.success(`✅ Material return verification completed!\n\nAll items verified successfully.\nStatus updated to: Supervisor Verified\n\nNext: Awaiting HR verification`);
   };
@@ -284,7 +317,7 @@ export function ExitFFSettlement() {
   // Calculate F&F
   const calculateFF = () => {
     const totalEarnings = (ffForm.pendingSalary || 0) + (ffForm.leaveEncashment || 0) +
-                          (ffForm.bonus || 0) + (ffForm.reimbursements || 0);
+                          (ffForm.bonus || 0) + (ffForm.reimbursements || 0) + (ffForm.gratuity || 0);
     const totalDeductions = (ffForm.noticePeriodRecovery || 0) + (ffForm.equipmentDamage || 0) +
                             (ffForm.advanceRecovery || 0);
     const netAmount = totalEarnings - totalDeductions;
@@ -302,14 +335,42 @@ export function ExitFFSettlement() {
     toast.success(`✅ F&F Settlement calculated!\n\nNet Amount: ₹${(calculation?.netAmount ?? 0).toLocaleString()}\n\nStatus: Awaiting Super Admin Approval`);
   };
 
-  // Super Admin Approval
+  // Super Admin Approval — this is also where a real Finance payable gets
+  // created, so "processed for disbursement to Accounts" means something
+  // real: Accounts pays this through the normal Payables screen, not
+  // through prompts on this screen that never touched the ledger.
   const handleSuperAdminApproval = (exitId: string) => {
+    const exit = exitRecords.find(e => e.id === exitId);
+    const netAmount = exit?.ffCalculation?.netAmount ?? 0;
+    let financePayableId: string | undefined;
+    if (exit && netAmount > 0) {
+      const payable = createPayable({
+        type: "Salary",
+        employeeId: exit.employeeId,
+        employeeName: exit.employeeName,
+        grossSalary: exit.ffCalculation?.totalEarnings,
+        netSalaryPayable: netAmount,
+        amount: netAmount,
+        dueDate: new Date().toISOString().split('T')[0],
+        status: "Approved",
+        description: `Full & Final Settlement — ${exit.employeeName} (${exit.empCode})`,
+        cityId: exit.cityId || realCityId,
+        approvedBy: currentUser?.name,
+        approvedAt: new Date().toISOString(),
+      });
+      financePayableId = payable.payableId;
+    }
     updateExit(exitId, {
       status: "Super Admin Approved",
       superAdminApprovedBy: currentUser?.name ?? "",
       superAdminApprovedOn: new Date().toISOString().split('T')[0],
+      ...(financePayableId ? { financePayableId } : {}),
     });
-    toast.success(`✅ F&F Settlement approved by Super Admin!\n\nStatus: Super Admin Approved\n\nNext: Sent to Accounts for disbursement`);
+    toast.success(
+      financePayableId
+        ? `✅ F&F Settlement approved — a real ₹${netAmount.toLocaleString()} payable has been created for Accounts.\n\nNext: Accounts processes disbursement.`
+        : `✅ F&F Settlement approved — net amount is ₹${netAmount.toLocaleString()}, so no payable was created; nothing owed to the employee.`
+    );
   };
 
   // Accounts Processing
@@ -327,9 +388,15 @@ export function ExitFFSettlement() {
   };
 
   const handleDisburse = (exitId: string) => {
-    const paymentMode = prompt("Enter payment mode (Bank Transfer/Cheque/Cash):");
+    const paymentModeInput = prompt("Enter payment mode (Bank Transfer/UPI/Cheque/Cash):");
     const paymentRef = prompt("Enter payment reference number:");
-    if (!paymentMode || !paymentRef) return;
+    if (!paymentModeInput || !paymentRef) return;
+    const normalized = paymentModeInput.trim().toLowerCase();
+    const paymentMode =
+      normalized.includes("upi") ? "UPI" :
+      normalized.includes("cheque") || normalized.includes("check") ? "Cheque" :
+      normalized.includes("cash") ? "Cash" :
+      "Bank Transfer" as const;
     const exit = exitRecords.find(e => e.id === exitId);
     updateExit(exitId, {
       status: "Disbursed",
@@ -337,6 +404,13 @@ export function ExitFFSettlement() {
       paymentMode,
       paymentReference: paymentRef,
     });
+    // Real settlement — clears the real payable created at Super Admin
+    // approval and posts the real "Dr liability, Cr Bank" ledger entry, so
+    // "disbursed" now reflects an actual, ledger-visible payment instead
+    // of only flipping local status fields on this screen.
+    if (exit?.financePayableId) {
+      markAsPaid(exit.financePayableId, paymentRef, paymentMode);
+    }
     // Real, confirmed fix - moveToNextStage() only ever advances exactly
     // one stage per call. This previously called it once and
     // unconditionally claimed "Employee status locked as Exited," even
@@ -526,6 +600,15 @@ export function ExitFFSettlement() {
                     type="number"
                     value={ffForm.reimbursements || 0}
                     onChange={(e) => setFFForm({ ...ffForm, reimbursements: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label>Gratuity (5+ yrs service)</Label>
+                  <Input
+                    type="number"
+                    value={ffForm.gratuity || 0}
+                    onChange={(e) => setFFForm({ ...ffForm, gratuity: parseFloat(e.target.value) || 0 })}
                     placeholder="0"
                   />
                 </div>
@@ -826,6 +909,32 @@ export function ExitFFSettlement() {
                         warnings.push(`no real inventory cost match found for: ${unmatchedItems.join(", ")} — those items' cost not included, add manually if needed`);
                       }
 
+                      // Gratuity — Payment of Gratuity Act, 1972: (15/26) x
+                      // last drawn basic salary x completed years of
+                      // service, only for employees with 5+ years of
+                      // continuous service. Years >= 6 months into the
+                      // final year round up to the next full year, per the
+                      // Act. Last drawn basic comes from the same real
+                      // payroll record pending salary above already reads.
+                      let gratuity = 0;
+                      const empRecord = employeeDatabaseService.getById(exit.employeeId);
+                      if (!empRecord?.dateOfJoining) {
+                        warnings.push("no real date of joining found — gratuity starts at ₹0");
+                      } else if (!mostRecent?.baseSalary) {
+                        warnings.push("no real payroll record with a basic salary found — gratuity starts at ₹0");
+                      } else {
+                        const joining = new Date(empRecord.dateOfJoining);
+                        const lastDay = new Date(exit.lastWorkingDate);
+                        const totalMonths = (lastDay.getFullYear() - joining.getFullYear()) * 12 + (lastDay.getMonth() - joining.getMonth());
+                        let completedYears = Math.floor(totalMonths / 12);
+                        if (totalMonths % 12 >= 6) completedYears += 1;
+                        if (completedYears >= 5) {
+                          gratuity = Math.round((15 / 26) * mostRecent.baseSalary * completedYears);
+                        } else {
+                          warnings.push(`${completedYears} completed year(s) of service — gratuity requires 5+ years, so starts at ₹0`);
+                        }
+                      }
+
                       // Bonus - real, approved-but-unpaid incentive ledger
                       // entries. "Approved" means genuinely earned and
                       // confirmed, but not yet marked "Paid" by payroll.
@@ -858,6 +967,7 @@ export function ExitFFSettlement() {
                         leaveEncashment,
                         bonus,
                         reimbursements,
+                        gratuity,
                         noticePeriodRecovery,
                         equipmentDamage,
                         advanceRecovery,
@@ -896,6 +1006,10 @@ export function ExitFFSettlement() {
                     <div className="flex justify-between">
                       <span>Reimbursements:</span>
                       <span>₹{(exit?.ffCalculation?.reimbursements ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Gratuity:</span>
+                      <span>₹{(exit?.ffCalculation?.gratuity ?? 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between font-medium text-green-600 border-t pt-2">
                       <span>Total Earnings:</span>

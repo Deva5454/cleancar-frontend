@@ -20,6 +20,10 @@ import { DataService } from "../../services/DataService";
 import { getMaterialVerifierRole } from "../../lib/roleConfig";
 import { toast } from "sonner";
 
+const EQUIPMENT_CLEARANCE_ITEMS = new Set([
+  "Car Washing Equipment Set", "Vacuum Cleaner", "Pressure Washer", "Tool Kit", "Safety Equipment",
+]);
+
 const STATUS_COLOR: Record<string, string> = {
   "Pending Manager Approval": "bg-purple-100 text-purple-800",
   "Initiated":      "bg-gray-100 text-gray-800",
@@ -85,48 +89,18 @@ export function ExitManagement() {
       return;
     }
 
-    // Also create an ExitSettlement record so it appears in ExitFFSettlement page
+    // ✅ FIX (two-disconnected-checklists): this used to also hand-roll a
+    // separate EXIT_SETTLEMENTS stub record with its own independent
+    // 10-item materials list — a second copy of the clearance checklist
+    // that could silently drift from exitWorkflowService's real one (see
+    // ExitManagement's clearanceItems above). ExitFFSettlement.tsx's own
+    // syncWithWorkflowService already creates a settlement record for any
+    // workflow that doesn't have one yet, sourcing materials live from
+    // exitWorkflowService.clearanceItems — so nothing further to write here.
     const emp = allEmployees.find((e: any) => e.id === form.employeeId || e.employeeId === form.employeeId);
-    const newSettlement = {
-      id: `EXT-${Date.now()}`,
-      employeeId: form.employeeId,
-      employeeName: emp ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim() || emp.fullName || form.employeeId : form.employeeId,
-      empCode: emp?.employeeCode ?? emp?.empCode ?? form.employeeId,
-      designation: form.designation,
-      cityId: emp?.cityId ?? "CITY-SURAT",
-      verifierRole,
-      resignationDate: new Date().toISOString().split("T")[0],
-      lastWorkingDate: form.lastWorkingDate,
-      noticePeriod: form.noticePeriodDays,
-      reasonForLeaving: form.exitReason,
-      status: "Supervisor Verification Pending",
-      materials: [
-        { id:"m1",  name:"Car Washing Equipment Set",  condition:"Pending" },
-        { id:"m2",  name:"Vacuum Cleaner",             condition:"Pending" },
-        { id:"m3",  name:"Pressure Washer",            condition:"Pending" },
-        { id:"m4",  name:"Company Uniform (2 sets)",   condition:"Pending" },
-        { id:"m5",  name:"ID Card",                    condition:"Pending" },
-        { id:"m6",  name:"Access Card/Keys",           condition:"Pending" },
-        { id:"m7",  name:"Mobile Phone (if issued)",   condition:"Pending" },
-        { id:"m8",  name:"Tablet (if issued)",         condition:"Pending" },
-        { id:"m9",  name:"Tool Kit",                   condition:"Pending" },
-        { id:"m10", name:"Safety Equipment",           condition:"Pending" },
-      ],
-    };
-    try {
-      const existing = (() => {
-        const stored = DataService.get<any>("EXIT_SETTLEMENTS");
-        if (stored.length > 0) return stored;
-        const raw = localStorage.getItem("cleancar_CITY-SURAT_exit_settlements");
-        return raw ? JSON.parse(raw) : [];
-      })();
-      const updated = [...existing, newSettlement];
-      DataService.setAll("EXIT_SETTLEMENTS", updated);
-      localStorage.setItem("cleancar_CITY-SURAT_exit_settlements", JSON.stringify(updated));
-      localStorage.setItem("cleancar_exit_settlements", JSON.stringify(updated));
-    } catch { /* quota guard */ }
+    const employeeName = emp ? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim() || emp.fullName || form.employeeId : form.employeeId;
 
-    toast.success(`✅ Exit initiated for ${newSettlement.employeeName} · Verifier: ${verifierRole}`);
+    toast.success(`✅ Exit initiated for ${employeeName} · Verifier: ${verifierRole}`);
     setShowForm(false);
     setForm({ employeeId: "", designation: "", exitReason: "", resignationType: "Termination", noticePeriodDays: 30, lastWorkingDate: "" });
     reload();
@@ -150,16 +124,21 @@ export function ExitManagement() {
 
     // ✅ FIX (HR-DEF-02): previously this only updated a separate,
     // disconnected clearance record — the employee's real washerStock in
-    // InventoryContext was never touched, so HR could mark "Uniforms" or
-    // "Equipment" Returned while the real inventory record still showed
+    // InventoryContext was never touched, so HR could mark a uniform or
+    // equipment item Returned while the real inventory record still showed
     // them holding it, with nothing to catch the mismatch. Marking these
-    // two real, inventory-backed items Returned now genuinely writes off
-    // every real matching item still in the employee's real stock — at
-    // exit, "returned" means nothing real should be left with them.
-    if (status === "Returned" && (item === "Uniforms" || item === "Equipment")) {
+    // real, inventory-backed items Returned now genuinely writes off every
+    // real matching item still in the employee's real stock — at exit,
+    // "returned" means nothing real should be left with them. Matched by
+    // keyword rather than an exact name so it still works now that the
+    // checklist carries the real, specific item names (e.g. "Company
+    // Uniform (2 sets)", "Tool Kit") instead of generic "Uniforms"/"Equipment".
+    const isUniformItem = item.toLowerCase().includes("uniform");
+    const isEquipmentItem = EQUIPMENT_CLEARANCE_ITEMS.has(item);
+    if (status === "Returned" && (isUniformItem || isEquipmentItem)) {
       const realStock = getWasherStock(wf.employeeId, wf.cityId);
       const matching = realStock.filter((i: any) =>
-        item === "Uniforms" ? i.itemName.toLowerCase().includes("uniform") : i.category === "Equipment"
+        isUniformItem ? i.itemName.toLowerCase().includes("uniform") : i.category === "Equipment"
       );
       let correctedCount = 0;
       matching.forEach((i: any) => {

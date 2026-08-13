@@ -68,11 +68,16 @@ export interface ExitWorkflow {
     notes?: string;
   }[];
 
-  // Clearance
+  // Clearance — the single, real material-return checklist. Both HR's
+  // clearance gate (ExitManagement) and the Supervisor's material
+  // verification (ExitFFSettlement) read and write this same array, so
+  // "returned" and "damaged" can never disagree between the two screens.
   clearanceItems: {
     item: string;
     status: "Pending" | "Returned" | "Not Applicable";
+    condition?: "Good" | "Minor Damage" | "Major Damage" | "Missing";
     returnedDate?: string;
+    verifiedBy?: string;
     notes?: string;
   }[];
 
@@ -752,16 +757,23 @@ class ExitWorkflowServiceClass {
   }
 
   /**
-   * Get default clearance items
+   * Get default clearance items — the real, specific returnable-item list
+   * (previously duplicated, less specifically, as a second independent
+   * checklist on the EXIT_SETTLEMENTS record; that copy is gone now, this
+   * is the one real list both HR and the verifying Supervisor use).
    */
   private getDefaultClearanceItems(): ExitWorkflow["clearanceItems"] {
     return [
+      { item: "Car Washing Equipment Set", status: "Pending" },
+      { item: "Vacuum Cleaner", status: "Pending" },
+      { item: "Pressure Washer", status: "Pending" },
+      { item: "Company Uniform (2 sets)", status: "Pending" },
       { item: "ID Card", status: "Pending" },
-      { item: "Laptop", status: "Not Applicable" },
-      { item: "Mobile Device", status: "Not Applicable" },
-      { item: "Access Cards", status: "Pending" },
-      { item: "Uniforms", status: "Pending" },
-      { item: "Equipment", status: "Pending" },
+      { item: "Access Card/Keys", status: "Pending" },
+      { item: "Mobile Phone (if issued)", status: "Pending" },
+      { item: "Tablet (if issued)", status: "Pending" },
+      { item: "Tool Kit", status: "Pending" },
+      { item: "Safety Equipment", status: "Pending" },
       { item: "Documents", status: "Pending" },
     ];
   }
