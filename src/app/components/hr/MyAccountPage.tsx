@@ -15,11 +15,12 @@ import { Textarea } from "../ui/textarea";
 import {
   User, FileText, Calendar, Clock, Phone,
   CheckCircle, AlertTriangle, Building2, Mail,
-  Briefcase, MapPin, Shield, Download, Bell, Car, Receipt, Landmark,
+  Briefcase, MapPin, Shield, Download, Bell, Car, Receipt, Landmark, LogOut, XCircle,
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { useApprovals } from "../../contexts/AppProvider";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
+import { exitWorkflowService, ExitWorkflow } from "../../services/exitWorkflowService";
 import { TravelEmployeeView } from "../travel/TravelEmployeeView";
 import { ClaimEmployeeView } from "../claims/ClaimEmployeeView";
 import { InvestmentDeclarationView } from "./InvestmentDeclarationView";
@@ -47,7 +48,7 @@ const roleBadgeColor: Record<string, string> = {
   "Marketing Agency":       "bg-slate-100 text-slate-800",
 };
 
-const ACCOUNT_TABS = ["profile", "leave", "payslip", "travel", "claims", "tax", "mobile"] as const;
+const ACCOUNT_TABS = ["profile", "leave", "payslip", "travel", "claims", "tax", "mobile", "resign"] as const;
 
 export function MyAccountPage() {
   const { currentUser, currentRole } = useRole();
@@ -73,6 +74,58 @@ export function MyAccountPage() {
   const [mobileReason, setMobileReason]       = useState("");
   const [mobileError, setMobileError]         = useState("");
   const [mobileSubmitted, setMobileSubmitted] = useState(false);
+
+  // Resignation self-service + reporting-manager approval state
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [resignReason, setResignReason] = useState("");
+  const myExitWorkflow: ExitWorkflow | null = currentUser.employeeId
+    ? exitWorkflowService.getByEmployee(currentUser.employeeId)
+    : null;
+  const myActiveExit = myExitWorkflow && !myExitWorkflow.completedAt ? myExitWorkflow : null;
+  const myRejectedExit = myExitWorkflow && myExitWorkflow.currentStage === "Rejected" ? myExitWorkflow : null;
+  const noticePreview = currentUser.employeeId ? exitWorkflowService.deriveNoticePeriod(currentUser.employeeId) : null;
+  const pendingApprovals: ExitWorkflow[] = currentUser.employeeId
+    ? exitWorkflowService.getPendingApprovalsForManager(currentUser.employeeId)
+    : [];
+
+  const handleSubmitResignation = () => {
+    if (!currentUser.employeeId) { toast.error("Could not identify your employee record."); return; }
+    if (!resignReason.trim()) { toast.error("Please provide a reason for leaving."); return; }
+    const result = exitWorkflowService.requestResignation({
+      employeeId: currentUser.employeeId,
+      exitReason: resignReason.trim(),
+      requestedBy: displayName,
+    });
+    if (!result.success) {
+      toast.error(result.errors?.join(", ") ?? "Failed to submit resignation.");
+      return;
+    }
+    toast.success(`Resignation submitted — pending approval from ${result.exitWorkflow?.reportingManagerName || "your reporting manager"}.`);
+    setResignReason("");
+    setRefreshKey(k => k + 1);
+  };
+
+  const handleApproveResignation = (wf: ExitWorkflow) => {
+    const result = exitWorkflowService.approveResignation(wf.exitWorkflowId, currentUser.name);
+    if (!result.success) {
+      toast.error(result.errors?.join(", ") ?? "Failed to approve.");
+      return;
+    }
+    toast.success(`Approved — ${wf.employeeName}'s notice period (${wf.noticePeriodDays} days) starts today.`);
+    setRefreshKey(k => k + 1);
+  };
+
+  const handleRejectResignation = (wf: ExitWorkflow) => {
+    const reason = window.prompt(`Reason for rejecting ${wf.employeeName}'s resignation:`);
+    if (!reason) return;
+    const result = exitWorkflowService.rejectResignation(wf.exitWorkflowId, currentUser.name, reason);
+    if (!result.success) {
+      toast.error(result.errors?.join(", ") ?? "Failed to reject.");
+      return;
+    }
+    toast.success(`Rejected ${wf.employeeName}'s resignation.`);
+    setRefreshKey(k => k + 1);
+  };
 
   const existingMobileRequest = approvals.find(
     a => a.type === "Mobile Number Change" &&
@@ -136,9 +189,44 @@ export function MyAccountPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs — 7 tabs now including Travel, Claims, and Tax Declaration */}
+      {/* Reporting-manager approval queue — visible whenever this logged-in
+          user is the real reporting manager of someone with a resignation
+          pending approval, regardless of which tab is active. */}
+      {pendingApprovals.length > 0 && (
+        <Card className="border-orange-300 bg-orange-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-orange-900">
+              <LogOut className="w-4 h-4" />Resignations Awaiting Your Approval ({pendingApprovals.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingApprovals.map(wf => (
+              <div key={wf.exitWorkflowId} className="bg-white border border-orange-200 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-sm text-gray-900">{wf.employeeName}</p>
+                  <span className="text-xs text-gray-400">{wf.employeeId}</span>
+                </div>
+                <p className="text-xs text-gray-600">Reason: {wf.exitReason}</p>
+                <p className="text-xs text-gray-600">
+                  Notice period (policy-derived): <strong>{wf.noticePeriodDays} days</strong>
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveResignation(wf)}>
+                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" />Approve
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleRejectResignation(wf)}>
+                    <XCircle className="w-3.5 h-3.5 mr-1.5" />Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabs — 8 tabs now including Travel, Claims, Tax Declaration, and Resign */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-8 h-auto">
           <TabsTrigger value="profile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <User className="w-4 h-4" /><span>Profile</span>
           </TabsTrigger>
@@ -159,6 +247,9 @@ export function MyAccountPage() {
           </TabsTrigger>
           <TabsTrigger value="mobile" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
             <Phone className="w-4 h-4" /><span>Mobile</span>
+          </TabsTrigger>
+          <TabsTrigger value="resign" className="flex flex-col sm:flex-row items-center gap-1 py-2 text-xs sm:text-sm">
+            <LogOut className="w-4 h-4" /><span>Resign</span>
           </TabsTrigger>
         </TabsList>
 
@@ -368,6 +459,94 @@ export function MyAccountPage() {
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     Submit Change Request
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* RESIGN — employee self-service exit initiation. This is the
+            real entry point for a voluntary exit: submitting here starts
+            "Pending Manager Approval"; the notice-period counter itself
+            only starts once the real reporting manager approves it. */}
+        <TabsContent value="resign" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <LogOut className="w-4 h-4 text-blue-600" />Resignation
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {myActiveExit ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-medium text-gray-900">Current Status</p>
+                      <Badge className="bg-blue-100 text-blue-800 border-0">{myActiveExit.currentStage}</Badge>
+                    </div>
+                    <p className="text-sm text-gray-600">Reason: {myActiveExit.exitReason}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Notice period: <strong>{myActiveExit.noticePeriodDays} days</strong>
+                      {myActiveExit.currentStage === "Pending Manager Approval"
+                        ? " (starts counting once your manager approves)"
+                        : ` — last working day ${myActiveExit.lastWorkingDate}`}
+                    </p>
+                    {myActiveExit.currentStage === "Pending Manager Approval" && (
+                      <p className="text-xs text-orange-700 mt-2 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />Awaiting approval from {myActiveExit.reportingManagerName || "your reporting manager"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Stage History</p>
+                    <div className="space-y-1">
+                      {myActiveExit.stageHistory.map((h, i) => (
+                        <div key={i} className="flex items-center gap-3 text-sm">
+                          <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                          <span className="font-medium">{h.stage}</span>
+                          <span className="text-gray-400 ml-auto">{h.completedAt.split("T")[0]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myRejectedExit && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
+                      <p className="font-medium text-red-800">Your previous resignation was rejected</p>
+                      <p className="text-red-700 mt-1">
+                        By {myRejectedExit.rejectedBy} on {myRejectedExit.rejectedAt?.split("T")[0]}: {myRejectedExit.rejectionReason}
+                      </p>
+                    </div>
+                  )}
+                  {noticePreview && (
+                    <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+                      Based on your role ({noticePreview.tier}), your required notice period is{" "}
+                      <strong>{noticePreview.days} days</strong>. This starts counting once your reporting manager approves.
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="resign-reason">Reason for Leaving</Label>
+                    <Textarea
+                      id="resign-reason"
+                      placeholder="Please share your reason for resigning..."
+                      value={resignReason}
+                      onChange={e => setResignReason(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 flex gap-2">
+                    <Bell className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>This will be sent to your reporting manager for approval before your notice period begins.</span>
+                  </div>
+                  <Button
+                    onClick={handleSubmitResignation}
+                    disabled={!resignReason.trim()}
+                    className="w-full bg-red-600 hover:bg-red-700"
+                  >
+                    Submit Resignation
                   </Button>
                 </div>
               )}

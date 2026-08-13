@@ -21,11 +21,13 @@ import { getMaterialVerifierRole } from "../../lib/roleConfig";
 import { toast } from "sonner";
 
 const STATUS_COLOR: Record<string, string> = {
+  "Pending Manager Approval": "bg-purple-100 text-purple-800",
   "Initiated":      "bg-gray-100 text-gray-800",
   "Notice Period":  "bg-yellow-100 text-yellow-800",
   "Clearance":      "bg-orange-100 text-orange-800",
   "F&F Settlement": "bg-blue-100 text-blue-800",
   "Exited":         "bg-green-100 text-green-800",
+  "Rejected":       "bg-red-100 text-red-800",
 };
 
 export function ExitManagement() {
@@ -43,7 +45,7 @@ export function ExitManagement() {
     employeeId: "",
     designation: "",
     exitReason: "",
-    resignationType: "Voluntary" as ExitWorkflow["resignationType"],
+    resignationType: "Termination" as ExitWorkflow["resignationType"],
     noticePeriodDays: 30,
     lastWorkingDate: "",
   });
@@ -126,7 +128,7 @@ export function ExitManagement() {
 
     toast.success(`✅ Exit initiated for ${newSettlement.employeeName} · Verifier: ${verifierRole}`);
     setShowForm(false);
-    setForm({ employeeId: "", designation: "", exitReason: "", resignationType: "Voluntary", noticePeriodDays: 30, lastWorkingDate: "" });
+    setForm({ employeeId: "", designation: "", exitReason: "", resignationType: "Termination", noticePeriodDays: 30, lastWorkingDate: "" });
     reload();
   };
 
@@ -251,11 +253,14 @@ export function ExitManagement() {
                   value={form.resignationType}
                   onChange={e => setForm(f => ({ ...f, resignationType: e.target.value as any }))}
                 >
-                  <option>Voluntary</option>
                   <option>Termination</option>
                   <option>Retirement</option>
                   <option>Abscond</option>
                 </select>
+                <p className="text-xs text-gray-400">
+                  Voluntary resignations aren't initiated here — the employee submits them via My Account → Resign,
+                  then their reporting manager approves.
+                </p>
               </div>
               <div className="space-y-1">
                 <Label>Last Working Date *</Label>
@@ -295,8 +300,8 @@ export function ExitManagement() {
       )}
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {["Initiated","Notice Period","Clearance","F&F Settlement"].map(stage => (
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {["Pending Manager Approval","Initiated","Notice Period","Clearance","F&F Settlement"].map(stage => (
           <Card key={stage}>
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold">{workflows.filter(w => w.currentStage === stage).length}</p>
@@ -320,7 +325,7 @@ export function ExitManagement() {
       ) : (
         <div className="space-y-3">
           {workflows.map(wf => (
-            <Card key={wf.exitWorkflowId} className={wf.currentStage === "Exited" ? "opacity-70" : ""}>
+            <Card key={wf.exitWorkflowId} className={wf.currentStage === "Exited" || wf.currentStage === "Rejected" ? "opacity-70" : ""}>
               <CardContent className="p-4">
                 {/* Top row */}
                 <div className="flex items-start justify-between gap-3">
@@ -446,8 +451,18 @@ export function ExitManagement() {
                   </div>
                 )}
 
+                {/* Pending manager approval — HR can only watch, not advance it */}
+                {wf.currentStage === "Pending Manager Approval" && (
+                  <div className="mt-4 pt-3 border-t">
+                    <p className="text-xs text-purple-700 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      Awaiting approval from {wf.reportingManagerName || "the employee's reporting manager"} — nothing for HR to do yet.
+                    </p>
+                  </div>
+                )}
+
                 {/* Action buttons */}
-                {wf.currentStage !== "Exited" && isHR && (
+                {wf.currentStage !== "Exited" && wf.currentStage !== "Pending Manager Approval" && wf.currentStage !== "Rejected" && isHR && (
                   <div className="flex gap-2 mt-4 pt-3 border-t">
                     <Button
                       size="sm"
