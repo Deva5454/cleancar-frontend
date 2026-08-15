@@ -7,8 +7,8 @@ import {
   FileText, Wrench, TrendingDown, Plus, Eye, CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { MaterialRequisitionDrawer } from "./MaterialRequisitionDrawer";
-import { GRNCreationDialog } from "./GRNCreationDialog";
 import { useInventory } from "../../contexts/InventoryContext";
 import { useCity } from "../../contexts/CityContext";
 
@@ -19,8 +19,6 @@ export function StoreDashboard() {
 
   const [mrDrawerOpen, setMrDrawerOpen]       = useState(false);
   const [selectedItemForMR, setSelectedItemForMR] = useState<any>(null);
-  const [grnDialogOpen, setGrnDialogOpen]     = useState(false);
-  const [selectedPOForGRN, setSelectedPOForGRN] = useState<any>(null);
 
   // ── Derived data from live InventoryContext ──────────────────────────────
 
@@ -87,7 +85,6 @@ export function StoreDashboard() {
   // Handlers
   const handleRaiseMR = (item: any) => { setSelectedItemForMR(item); setMrDrawerOpen(true); };
   const handleViewStockHistory = (item: any) => toast.info(`Opening ledger for ${item.itemName}`);
-  const handleCreateGRN = (po: any) => { setSelectedPOForGRN(po); setGrnDialogOpen(true); };
   const handleProcessIssuance = (req: any) =>
     toast.success("Issuance queued", { description: `Request from ${req.requestingSupervisor} queued for processing` });
   const handleMarkDispatched = (ret: any) =>
@@ -236,9 +233,11 @@ export function StoreDashboard() {
                     ))}
                   </div>
                 )}
-                <Button size="sm" variant="outline" className="w-full mt-3" onClick={() => handleCreateGRN(null)}>
-                  <FileText className="w-4 h-4 mr-2" />Create New GRN
-                </Button>
+                <Link to="/store-manager/grn-entry">
+                  <Button size="sm" variant="outline" className="w-full mt-3">
+                    <FileText className="w-4 h-4 mr-2" />Create New GRN
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           );
@@ -348,11 +347,6 @@ export function StoreDashboard() {
         open={mrDrawerOpen}
         onClose={() => { setMrDrawerOpen(false); setSelectedItemForMR(null); }}
         prefilledItem={selectedItemForMR}
-      />
-      <GRNCreationDialog
-        open={grnDialogOpen}
-        onClose={() => { setGrnDialogOpen(false); setSelectedPOForGRN(null); }}
-        linkedPO={selectedPOForGRN}
       />
     </div>
   );

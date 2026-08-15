@@ -2,326 +2,135 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Textarea } from "../ui/textarea";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "../ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "../ui/select";
-import { Plus, Package, CheckCircle, AlertTriangle, Camera } from "lucide-react";
-import { toast } from "sonner";
-import { DataService } from "../../services/DataService";
+import { Truck, FileText, CheckCircle, XCircle, Clock, PackagePlus } from "lucide-react";
+import { Link } from "react-router-dom";
 
-// Load approved POs from localStorage to use as pendingPOs
-function loadPendingPOs() {
-  try {
-    const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
-    const approved = pos.filter((p: any) => p.status === "Approved");
-    if (approved.length > 0) return approved;
-  } catch {}
-  // Fallback seed
-  return [
-    { poNumber:"PO-2026-0245", supplier:"ChemClean Industries", items:5 },
-    { poNumber:"PO-2026-0244", supplier:"AutoCare Solutions",   items:3 },
-    { poNumber:"PO-2026-0241", supplier:"CarCare Supplies",     items:4 },
-  ];
-}
-
-// Load seeded GRNs from localStorage
-function loadGRNs() {
+// ✅ FIX: this screen used to fake the entire GRN-creation flow — a
+// hardcoded fallback PO list when none existed, and a "Create GRN"
+// action that always recorded totalAccepted: 50 regardless of what
+// was actually on the PO, then flipped the PO straight to "Delivered"
+// with no partial-receipt handling — never calling procureInventory,
+// so no real stock was ever credited. This is now a real read view of
+// actual GRN records (the same "cleancar_grn_records" GRN Entry
+// writes to), with "Create GRN" pointing at the one screen that
+// genuinely receives against a PO and updates real central stock.
+const loadGRNs = (): any[] => {
   try {
     const raw = localStorage.getItem("cleancar_grn_records");
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
-}
+};
 
 export function GoodsReceipt() {
-  const [showGRNDialog, setShowGRNDialog] = useState(false);
-  const [selectedPO, setSelectedPO] = useState("");
-  const [grns, setGrns] = useState(loadGRNs);
-  const pendingPOs = loadPendingPOs();
+  const [grns] = useState<any[]>(loadGRNs);
 
-  const handleCreateGRN = () => { setShowGRNDialog(true); };
-
-  const handleSubmitGRN = () => {
-    if (!selectedPO) { toast.error("Select a Purchase Order"); return; }
-    const po = pendingPOs.find(p => p.poNumber === selectedPO);
-    const grnNumber = `GRN-${new Date().getFullYear()}-${String(Math.floor(Math.random()*900)+100).padStart(3,"0")}`;
-    const newGRN = {
-      grnNumber, poNumber: selectedPO,
-      supplier: po?.supplier ?? "Unknown",
-      items: po?.items ?? 1,
-      status: "Completed",
-      date: new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }),
-      batchesCreated: po?.items ?? 1,
-      totalAccepted: 50, totalRejected: 0,
-      createdAt: new Date().toISOString(),
-    };
-    // Save to GRN records
-    try {
-      const existing = JSON.parse(localStorage.getItem("cleancar_grn_records") || "[]");
-      localStorage.setItem("cleancar_grn_records", JSON.stringify([newGRN, ...existing]));
-    } catch {}
-    // Update PO status to Delivered
-    try {
-      const pos = JSON.parse(localStorage.getItem("cleancar_purchase_orders") || "[]");
-      const updated = pos.map((p: any) => p.poNumber === selectedPO ? { ...p, status: "Delivered" } : p);
-      localStorage.setItem("cleancar_purchase_orders", JSON.stringify(updated));
-    } catch {}
-    setGrns(prev => [newGRN, ...prev]);
-    toast.success(`GRN ${grnNumber} created — stock updated`);
-    setShowGRNDialog(false);
-    setSelectedPO("");
+  const statusColor: Record<string, string> = {
+    "Accepted":           "bg-green-100 text-green-800",
+    "Partially Accepted": "bg-yellow-100 text-yellow-800",
+    "Rejected":           "bg-red-100 text-red-800",
+    "Pending":            "bg-gray-100 text-gray-700",
   };
 
-  const handleViewGRN = (grnNumber: string) => {
-    toast.info(`Opening ${grnNumber} details...`);
-  };
+  const statusIcon = (s: string) =>
+    s === "Accepted" ? <CheckCircle className="w-3.5 h-3.5" /> :
+    s === "Rejected"  ? <XCircle     className="w-3.5 h-3.5" /> :
+                        <Clock       className="w-3.5 h-3.5" />;
 
-  const handleQualityCheck = (grnNumber: string) => {
-    toast.info(`Opening quality check for ${grnNumber}...`);
-  };
+  const totalAccepted = grns.reduce((s, g) => s + (g.totalAccepted ?? 0), 0);
+  const totalRejected = grns.reduce((s, g) => s + (g.totalRejected ?? 0), 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold">Goods Receipt Notes (GRN)</h2>
-          <p className="text-sm text-gray-500 mt-1">Record incoming deliveries with quality checks and batch creation</p>
+          <p className="text-sm text-gray-500 mt-1">History of received deliveries against Purchase Orders</p>
         </div>
-        <Button onClick={handleCreateGRN}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create GRN
-        </Button>
+        <div className="flex gap-2">
+          <Link to="/store-manager/grn-entry">
+            <Button size="sm">
+              <Truck className="w-4 h-4 mr-2" />
+              Record GRN against a PO
+            </Button>
+          </Link>
+          <Link to="/store-manager/procurement">
+            <Button size="sm" variant="outline">
+              <PackagePlus className="w-4 h-4 mr-2" />
+              Receive without a PO
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">1</p>
-            <p className="text-xs text-gray-500">Pending QC</p>
+            <p className="text-2xl font-bold text-gray-900">{grns.length}</p>
+            <p className="text-xs text-gray-500">Total GRNs</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">2</p>
-            <p className="text-xs text-gray-500">Completed</p>
+            <p className="text-2xl font-bold text-green-700">{totalAccepted}</p>
+            <p className="text-xs text-gray-500">Units Accepted</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">9</p>
-            <p className="text-xs text-gray-500">Batches Created</p>
+            <p className="text-2xl font-bold text-red-600">{totalRejected}</p>
+            <p className="text-xs text-gray-500">Units Rejected</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recent GRNs</CardTitle>
+          <CardTitle className="text-base">GRN Records</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {grns.map((grn) => (
-              <div key={grn.grnNumber} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4 flex-1">
-                  <Package className="w-5 h-5 text-blue-600" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{grn.grnNumber}</p>
-                      <Badge variant={grn.status === "Pending QC" ? "destructive" : "outline"}>
-                        {grn.status}
-                      </Badge>
+          {grns.length === 0 ? (
+            <div className="text-center py-10">
+              <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 font-medium">No GRN records yet</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Use <strong>Record GRN against a PO</strong> or <strong>Receive without a PO</strong> above to record your first delivery
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {grns.map((grn: any) => (
+                <div key={grn.grnNumber} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4 flex-1">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{grn.grnNumber}</p>
+                        <Badge className={`flex items-center gap-1 ${statusColor[grn.status] ?? statusColor["Pending"]}`}>
+                          {statusIcon(grn.status ?? "Pending")}
+                          {grn.status ?? "Pending"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                        <span>{grn.supplierName ?? "Unknown supplier"}</span>
+                        <span>•</span>
+                        <span>Challan: {grn.challanNumber ?? "—"}</span>
+                        <span>•</span>
+                        <span>{grn.items?.length ?? 0} items</span>
+                        <span>•</span>
+                        <span>{grn.grnDate ?? "—"}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                      <span>{grn.supplier ?? grn.supplierName ?? "Unknown supplier"}</span>
-                      <span>•</span>
-                      <span>PO: {grn.poNumber ?? "—"}</span>
-                      <span>•</span>
-                      <span>{Array.isArray(grn.items) ? grn.items.length : grn.items} items</span>
-                      <span>•</span>
-                      <span>{grn.date ?? grn.grnDate}</span>
-                    </div>
-                    {grn.batchesCreated && (
-                      <p className="text-xs text-green-600 mt-1">✓ {grn.batchesCreated} batches created</p>
-                    )}
+                  </div>
+                  <div className="text-right text-xs text-gray-500">
+                    <p>Accepted: <span className="font-medium text-green-700">{grn.totalAccepted ?? 0}</span></p>
+                    <p>Rejected: <span className="font-medium text-red-600">{grn.totalRejected ?? 0}</span></p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {grn.status === "Pending QC" && (
-                    <Button size="sm" variant="default" onClick={() => handleQualityCheck(grn.grnNumber)}>
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Quality Check
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => handleViewGRN(grn.grnNumber)}>
-                    View
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Create GRN Dialog */}
-      <Dialog open={showGRNDialog} onOpenChange={setShowGRNDialog}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Goods Receipt Note (GRN)</DialogTitle>
-            <DialogDescription>
-              Record incoming delivery against a Purchase Order with quality verification
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-4">
-            {/* PO Selection */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900">Purchase Order Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <Label>Select Purchase Order *</Label>
-                  <Select value={selectedPO} onValueChange={setSelectedPO}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select PO" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pendingPOs.map((po) => (
-                        <SelectItem key={po.poNumber} value={po.poNumber}>
-                          {po.poNumber} - {po.supplier} ({po.items} items)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>GRN Date *</Label>
-                  <Input type="date" defaultValue={new Date().toISOString().split('T')[0]} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Delivery Challan Number</Label>
-                  <Input placeholder="Enter challan number" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Transporter Name</Label>
-                  <Input placeholder="Enter transporter name" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vehicle Number</Label>
-                  <Input placeholder="GJ-XX-XXXX-XXXX" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Invoice Number</Label>
-                  <Input placeholder="Supplier invoice number" />
-                </div>
-              </div>
-            </div>
-
-            {/* Item Details */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900">Item Receipt Details</h3>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-5 gap-2 text-xs font-medium text-gray-500 pb-2 border-b">
-                      <div>Item Name</div>
-                      <div>Ordered Qty</div>
-                      <div>Received Qty</div>
-                      <div>Quality Status</div>
-                      <div>Batch/Serial</div>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                      <div className="text-sm">Car Wash Shampoo 5L</div>
-                      <div className="text-sm text-gray-600">100 Liters</div>
-                      <div>
-                        <Input type="number" defaultValue="100" className="h-8" />
-                      </div>
-                      <div>
-                        <Select defaultValue="ok">
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ok">OK - Accept</SelectItem>
-                            <SelectItem value="damaged">Damaged</SelectItem>
-                            <SelectItem value="shortfall">Shortfall</SelectItem>
-                            <SelectItem value="reject">Reject</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Input placeholder="Batch/Serial" className="h-8" />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quality Check */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900">Quality Verification</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <Label>Overall Quality Status *</Label>
-                  <Select defaultValue="approved">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="approved">Approved - All Items OK</SelectItem>
-                      <SelectItem value="partial">Partial Acceptance</SelectItem>
-                      <SelectItem value="rejected">Rejected - Return to Supplier</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Verified By *</Label>
-                  <Input placeholder="Enter name" defaultValue="Store Manager" />
-                </div>
-                <div className="space-y-2 col-span-2">
-                  <Label>Quality Remarks</Label>
-                  <Textarea rows={3} placeholder="Add any quality observations or remarks..." />
-                </div>
-              </div>
-            </div>
-
-            {/* Photos */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Camera className="w-5 h-5" />
-                Delivery Photos (Optional)
-              </h3>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Click to capture or upload photos of delivered items</p>
-                <Button variant="outline" size="sm" className="mt-2">
-                  Add Photos
-                </Button>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label>Internal Notes</Label>
-              <Textarea rows={2} placeholder="Add any additional notes about this delivery..." />
-            </div>
-          </div>
-
-          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowGRNDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmitGRN}>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Create GRN & Update Stock
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

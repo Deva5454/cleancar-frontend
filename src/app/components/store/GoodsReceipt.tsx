@@ -2,139 +2,29 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { Plus, Truck, FileText, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Truck, FileText, CheckCircle, XCircle, Clock, PackagePlus } from "lucide-react";
+import { Link } from "react-router-dom";
 import { seedMaterialReceiveImport } from "../../services/materialReceiveImportSeed";
-import { GRNCreationDialog } from "./GRNCreationDialog";
 
-// ── Historic seed data ────────────────────────────────────────────────────────
-const HISTORIC_GRNS = [
-  {
-    grnNumber: "GRN-202605-001",
-    grnDate: "2026-05-03",
-    challanNumber: "DC-2026-0421",
-    vehicleNumber: "GJ-05-AB-1234",
-    deliveryPerson: "Ramesh Delivery",
-    supplierName: "Hindustan Unilever Ltd",
-    status: "Accepted",
-    totalAccepted: 150,
-    totalRejected: 0,
-    createdAt: "2026-05-03T10:30:00.000Z",
-    items: [
-      { id: 1, itemName: "Car Wash Shampoo 5L",     receivedThisDelivery: 100, acceptedQuantity: 100, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf A1" },
-      { id: 2, itemName: "Microfiber Towel Premium", receivedThisDelivery: 50,  acceptedQuantity: 50,  rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf B2" },
-    ],
-  },
-  {
-    grnNumber: "GRN-202605-002",
-    grnDate: "2026-05-11",
-    challanNumber: "DC-2026-0498",
-    vehicleNumber: "GJ-05-CD-5678",
-    deliveryPerson: "Sunil Transport",
-    supplierName: "3M India Ltd",
-    status: "Partially Accepted",
-    totalAccepted: 80,
-    totalRejected: 20,
-    createdAt: "2026-05-11T14:00:00.000Z",
-    items: [
-      { id: 1, itemName: "Polish Compound 1kg",   receivedThisDelivery: 60, acceptedQuantity: 60, rejectedQuantity: 0,  condition: "Good",    storageLocation: "Shelf C1" },
-      { id: 2, itemName: "Wax Applicator Pads",   receivedThisDelivery: 40, acceptedQuantity: 20, rejectedQuantity: 20, condition: "Damaged", storageLocation: "Shelf C2", comments: "20 pads torn on edges" },
-    ],
-  },
-  {
-    grnNumber: "GRN-202605-003",
-    grnDate: "2026-05-19",
-    challanNumber: "DC-2026-0561",
-    vehicleNumber: "GJ-06-EF-9012",
-    deliveryPerson: "Krishna Logistics",
-    supplierName: "Pidilite Industries",
-    status: "Accepted",
-    totalAccepted: 200,
-    totalRejected: 0,
-    createdAt: "2026-05-19T09:15:00.000Z",
-    items: [
-      { id: 1, itemName: "Tyre Dressing 500ml",   receivedThisDelivery: 120, acceptedQuantity: 120, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf D1" },
-      { id: 2, itemName: "Dashboard Polish 250ml", receivedThisDelivery: 80,  acceptedQuantity: 80,  rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf D2" },
-    ],
-  },
-  {
-    grnNumber: "GRN-202606-001",
-    grnDate: "2026-06-02",
-    challanNumber: "DC-2026-0612",
-    vehicleNumber: "GJ-05-GH-3456",
-    deliveryPerson: "Ramesh Delivery",
-    supplierName: "Hindustan Unilever Ltd",
-    status: "Accepted",
-    totalAccepted: 300,
-    totalRejected: 0,
-    createdAt: "2026-06-02T11:00:00.000Z",
-    items: [
-      { id: 1, itemName: "Car Wash Shampoo 5L",     receivedThisDelivery: 150, acceptedQuantity: 150, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf A1" },
-      { id: 2, itemName: "Interior Cleaner Spray",  receivedThisDelivery: 100, acceptedQuantity: 100, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf A3" },
-      { id: 3, itemName: "Glass Cleaner 500ml",     receivedThisDelivery: 50,  acceptedQuantity: 50,  rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf A4" },
-    ],
-  },
-  {
-    grnNumber: "GRN-202606-002",
-    grnDate: "2026-06-14",
-    challanNumber: "DC-2026-0689",
-    vehicleNumber: "GJ-06-IJ-7890",
-    deliveryPerson: "Sunil Transport",
-    supplierName: "Scotch-Brite (3M)",
-    status: "Accepted",
-    totalAccepted: 240,
-    totalRejected: 0,
-    createdAt: "2026-06-14T13:30:00.000Z",
-    items: [
-      { id: 1, itemName: "Scrub Pads (pack of 10)",  receivedThisDelivery: 120, acceptedQuantity: 120, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf B1" },
-      { id: 2, itemName: "Foam Applicator Sponge",   receivedThisDelivery: 120, acceptedQuantity: 120, rejectedQuantity: 0, condition: "Good", storageLocation: "Shelf B3" },
-    ],
-  },
-  {
-    grnNumber: "GRN-202606-003",
-    grnDate: "2026-06-20",
-    challanNumber: "DC-2026-0731",
-    vehicleNumber: "GJ-05-KL-2345",
-    deliveryPerson: "Krishna Logistics",
-    supplierName: "Bosch India",
-    status: "Partially Accepted",
-    totalAccepted: 8,
-    totalRejected: 2,
-    createdAt: "2026-06-20T10:00:00.000Z",
-    items: [
-      { id: 1, itemName: "Pressure Washer Nozzle",  receivedThisDelivery: 6,  acceptedQuantity: 6,  rejectedQuantity: 0, condition: "Good",          storageLocation: "Equipment Rack 1" },
-      { id: 2, itemName: "Foam Cannon Attachment",  receivedThisDelivery: 4,  acceptedQuantity: 2,  rejectedQuantity: 2, condition: "Short Expiry",   storageLocation: "Equipment Rack 2", comments: "2 units seal cracked" },
-    ],
-  },
-];
-
-// Seed historic data if not already seeded
-const seedGRNs = () => {
-  try {
-    const existing = localStorage.getItem("cleancar_grn_records");
-    if (!existing) {
-      localStorage.setItem("cleancar_grn_records", JSON.stringify(HISTORIC_GRNS));
-    }
-  } catch { /* ignore */ }
-};
-
+// ✅ FIX: this screen used to seed 6 fabricated demo GRN records
+// (fictional suppliers, invented shelf locations) into the same
+// "cleancar_grn_records" key that GRN Entry writes real receipts to,
+// and its own "Create GRN" dialog updated centralStock by matching
+// item names case-insensitively instead of by real item/PO linkage —
+// a second, divergent way to credit stock alongside GRN Entry's real
+// PO-linked path and General Procurement's real walk-in path. This is
+// now a real read view of actual GRN records, with both "Create GRN"
+// actions pointing at the one real screen for each case.
 const loadGRNs = (): any[] => {
-  seedGRNs();
   seedMaterialReceiveImport();
   try {
     const raw = localStorage.getItem("cleancar_grn_records");
-    return raw ? JSON.parse(raw) : HISTORIC_GRNS;
-  } catch { return HISTORIC_GRNS; }
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 };
 
-// ── Component ─────────────────────────────────────────────────────────────────
 export function GoodsReceipt() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [grns, setGrns] = useState<any[]>(loadGRNs);
-
-  const handleClose = () => {
-    setDialogOpen(false);
-    setGrns(loadGRNs());
-  };
+  const [grns] = useState<any[]>(loadGRNs);
 
   const statusColor: Record<string, string> = {
     "Accepted":           "bg-green-100 text-green-800",
@@ -155,17 +45,27 @@ export function GoodsReceipt() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Goods Receipt (GRN)</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Receive materials and equipment — create GRN records
+            History of received deliveries
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create GRN
-        </Button>
+        <div className="flex gap-2">
+          <Link to="/store-manager/grn-entry">
+            <Button size="sm">
+              <Truck className="w-4 h-4 mr-2" />
+              Record GRN against a PO
+            </Button>
+          </Link>
+          <Link to="/store-manager/procurement">
+            <Button size="sm" variant="outline">
+              <PackagePlus className="w-4 h-4 mr-2" />
+              Receive without a PO
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats strip */}
@@ -198,7 +98,7 @@ export function GoodsReceipt() {
               <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-gray-500 font-medium">No GRN records yet</p>
               <p className="text-xs text-gray-400 mt-1">
-                Click <strong>Create GRN</strong> to receive your first delivery
+                Use <strong>Record GRN against a PO</strong> or <strong>Receive without a PO</strong> above to record your first delivery
               </p>
             </div>
           ) : (
@@ -213,7 +113,7 @@ export function GoodsReceipt() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900">{grn.grnNumber}</p>
                       <p className="text-xs text-gray-500 truncate">
-                        {grn.supplierName ?? "—"} · {grn.challanNumber} · {grn.grnDate}
+                        {grn.supplierName ?? "—"} · {grn.challanNumber ?? "—"} · {grn.grnDate ?? "—"}
                       </p>
                       <p className="text-xs text-gray-400">
                         {grn.items?.length ?? 0} item{(grn.items?.length ?? 0) !== 1 ? "s" : ""}
@@ -248,12 +148,6 @@ export function GoodsReceipt() {
           )}
         </CardContent>
       </Card>
-
-      {/* GRN Creation Dialog */}
-      <GRNCreationDialog
-        open={dialogOpen}
-        onClose={handleClose}
-      />
     </div>
   );
 }
