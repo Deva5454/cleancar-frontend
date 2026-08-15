@@ -256,16 +256,26 @@ export function useAttendance() {
     // This handles edge cases where a component renders before AttendanceProvider
     // mounts (e.g. during bootstrap or lazy-load race conditions).
     console.warn("[useAttendance] Called outside AttendanceProvider — returning empty fallback");
+    // Field names below must track AttendanceContextType exactly — this
+    // previously drifted (getAttendanceByEmployeeId/deleteAttendanceRecord/
+    // getTodayAttendance that don't exist on the real interface, missing
+    // getAttendanceByDateRange/getPresentCount, and a getMonthlyAttendanceSummary
+    // shape that didn't match MonthlyAttendanceSummary) — a landmine for any
+    // component that destructures a real method this fallback was missing.
     return {
       attendanceRecords: [],
-      addAttendanceRecord: () => ({ attendanceId: "", employeeId: "", date: "", status: "Present" as const, createdAt: "" }),
+      addAttendanceRecord: () => ({ attendanceId: "", employeeId: "", cityId: "", date: "", status: "Present" as const, createdAt: "" }),
       updateAttendance: () => null,
-      deleteAttendanceRecord: () => {},
-      getAttendanceByEmployeeId: () => [],
+      deleteAttendance: () => {},
+      getAttendanceByEmployee: () => [],
       getAttendanceForDate: () => [],
       getAttendanceForMonth: () => [],
-      getTodayAttendance: () => undefined,
-      getMonthlyAttendanceSummary: () => ({ present: 0, absent: 0, late: 0, halfDay: 0, leave: 0, holiday: 0, total: 0 }),
+      getAttendanceByDateRange: () => [],
+      getMonthlyAttendanceSummary: () => ({
+        employeeId: "", month: "", totalDays: 0, presentDays: 0, absentDays: 0,
+        lateDays: 0, leaveDays: 0, weekOffDays: 0, totalHoursWorked: 0, attendancePercentage: 0,
+      }),
+      getPresentCount: () => 0,
       computeDaysPresent: () => 0,
       getAbsentCount: () => 0,
       getLateCount: () => 0,

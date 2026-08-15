@@ -38,13 +38,20 @@ import { Textarea } from "../ui/textarea";
 // Nested lazy-within-lazy caused "Cannot access 'y' before initialization" (React useState TDZ).
 import { GeneratedPayslip } from "./GeneratedPayslip";
 import { useEmployeeData } from "../../hooks/useEmployeeData";
+import { useHRData, type AttendanceRecord as HRAttendanceRecord } from "../../contexts/HRDataContext";
+import { computeAttendanceReport, type CanonicalCode } from "../../utils/attendanceReportCore";
+import { generateIllustrativeMonth } from "../../utils/generateIllustrativeAttendance";
+import type { EmployeeAttendanceRecord } from "../../services/seedAttendanceData";
+import type { PublicHoliday } from "../../contexts/OrgContext";
 
 // ==================== INTERFACES ====================
 
 interface AttendanceRecord {
   date: string; // DD-MM-YYYY format
   day: string; // Mon, Tue, etc.
-  attendanceType: "P" | "A" | "WOFF" | "PH" | "PL" | "CSL" | "HPL" | "COFF" | "LWP";
+  // Same vocabulary as attendanceReportCore.ts's CanonicalCode — the real
+  // engine this screen's data now flows through (see the useEffect below).
+  attendanceType: CanonicalCode;
   inTime: string | null; // HH:MM format or null
   outTime: string | null; // HH:MM format or null
   workingHours: number; // Calculated
@@ -105,6 +112,11 @@ interface EmployeeAttendanceDrillDownProps {
   employeeName: string;
   month: number; // 1-12
   year: number;
+}
+
+function toDDMMYYYY(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}-${m}-${y}`;
 }
 
 // ==================== MOCK DATA GENERATOR ====================
@@ -283,62 +295,108 @@ export function EmployeeAttendanceDrillDown({
   year,
 }: EmployeeAttendanceDrillDownProps) {
   const [data, setData] = useState<EmployeeAttendanceData | null>(null);
-  // PHASE 2: Migrated to useEmployeeData (dual-read from EmployeeContext + HRDataContext)
-  const { getEmployeeById, getAttendanceByEmployee, getMonthlyAttendanceSummary, publicHolidays } = useEmployeeData();
+  const { getEmployeeById, publicHolidays } = useEmployeeData();
+  // Real attendance source of truth (ATTENDANCE_RECORDS) — the same pattern
+  // already used by PayrollLineReviewModal/AttendanceReportPanel, run
+  // through the same computeAttendanceReport() engine those screens use.
+  // AttendanceContext and HRDataContext both wrap this same storage key
+  // under two separately-declared (but structurally identical) local
+  // AttendanceRecord types; this screen now standardizes on HRDataContext's,
+  // same as the other two real attendance screens.
+  const { getAttendanceByEmployeeId } = useHRData();
 
   useEffect(() => {
     if (isOpen) {
-      // Try to load real attendance data from context
       const employee = getEmployeeById(employeeId);
-      const attendanceRecords = getAttendanceByEmployee(employeeId, month, year);
-      const summary = getMonthlyAttendanceSummary(employeeId, month, year);
+      const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+      const realRecords = (getAttendanceByEmployeeId(employeeId) as HRAttendanceRecord[]).filter((r) => r.date.startsWith(monthPrefix));
 
-      // If no real data exists, generate mock data for demonstration
-      if (attendanceRecords.length === 0 || !summary) {
-        const attendanceData = generateMockAttendanceData(employeeId, employeeName, month, year);
-        setData(attendanceData);
-      } else {
-        // Use real data from context
-        const daysInMonth = new Date(year, month, 0).getDate();
-        setData({
-          employeeCode: employee?.employeeCode || employeeId,
-          employeeName: employee?.personalInfo.fullName || employeeName,
-          department: employee?.employmentInfo.department || "Operations",
-          fromDate: `01-${String(month).padStart(2, "0")}-${year}`,
-          toDate: `${daysInMonth}-${String(month).padStart(2, "0")}-${year}`,
-          reportDate: new Date().toLocaleDateString("en-GB"),
-          records: attendanceRecords,
-          summary: {
-            totalDays: summary.totalDays,
-            payDays: summary.paidDays,
-            weeklyOff: summary.weeklyOff,
-            publicHoliday: summary.publicHolidays,
-            presentDays: summary.presentDays,
-            absentDays: summary.absentDays,
-            leaveWithSalary: summary.leaveWithSalary,
-            leaveWithoutPay: summary.leaveWithoutPay,
-          },
-          adjustment: {
-            lateComingCount: summary.lateComingCount,
-            autoLogoutCount: summary.autoLogoutCount,
-            attendanceDeduction: summary.attendanceDeduction,
-            daysDeducted: summary.daysDeducted,
-          },
-          leaveAdjustment: {
-            fullCSL: summary.leaveAdjustment.casualLeave,
-            halfCSL: 0,
-            fullPL: summary.leaveAdjustment.privilegedLeave,
-            halfHPL: summary.leaveAdjustment.halfDayLeave,
-            fullCOFF: summary.leaveAdjustment.compOff,
-            halfCOFF: 0,
-            publicHoliday: summary.publicHolidays,
-            fullLWP: summary.leaveAdjustment.lwp,
-            halfLWP: 0,
-          },
-        });
-      }
+      // No real punches on file for this employee/month yet → illustrative
+      // month (same fallback PayrollLineReviewModal uses), clearly not real data.
+      const dailyAttendance = realRecords.length > 0
+        ? realRecords.map((r) => ({
+            date: r.date,
+            status: r.status === "Present" ? "P" : r.status === "Absent" ? "A" : r.status === "Half Day" ? "H" : r.status === "Week Off" ? "WOFF" : r.status === "Leave" ? "CSL" : "P",
+            checkIn: r.checkInTime,
+            checkOut: r.checkOutTime,
+            lateMinutes: r.lateMinutes,
+          }))
+        : generateIllustrativeMonth(employeeId, year, month);
+
+      const attendanceRecord: EmployeeAttendanceRecord = {
+        employeeId,
+        employeeName: employee?.fullName || employeeName,
+        empCode: employee?.employeeId || employeeId,
+        role: employee?.designation || employee?.role || "Car Washer Full Time",
+        dailyAttendance,
+        graceUsageCount: 0,
+        hasGhosting: false,
+      };
+
+      const report = computeAttendanceReport(attendanceRecord);
+
+      const records: AttendanceRecord[] = report.displayRows.map((r) => {
+        const [hh, mm] = r.workingHours.split(":").map(Number);
+        const holiday = (publicHolidays as PublicHoliday[]).find((h) => h.date === r.date);
+        return {
+          date: toDDMMYYYY(r.date),
+          day: r.day,
+          attendanceType: r.code,
+          inTime: r.checkIn || null,
+          outTime: r.checkOut || null,
+          workingHours: hh + mm / 60,
+          lateComingCount: r.lateCount ? 1 : 0,
+          autoLogoutCount: r.autoLogoutCount ? 1 : 0,
+          isSunday: r.day === "Sun",
+          isPublicHoliday: r.code === "PH",
+          publicHolidayName: holiday?.name,
+        };
+      });
+
+      // Same "0.5 day per late-coming / auto-logout instance" rule the
+      // mock generator below uses — computeAttendanceReport doesn't derive
+      // this itself (its own attendanceDeduction is a money figure), so it's
+      // kept here to stay identical for both real and illustrative data.
+      const attendanceDeduction = report.lateComingCount * 0.5 + report.autoLogoutCount * 0.5;
+
+      setData({
+        employeeCode: employee?.employeeId || employeeId,
+        employeeName: employee?.fullName || employeeName,
+        department: employee?.department || "Operations",
+        fromDate: toDDMMYYYY(report.fromDate),
+        toDate: toDDMMYYYY(report.toDate),
+        reportDate: new Date().toLocaleDateString("en-GB"),
+        records,
+        summary: {
+          totalDays: report.totalDays,
+          payDays: report.paidDays,
+          weeklyOff: report.weeklyOff,
+          publicHoliday: report.publicHoliday,
+          presentDays: report.presentDays,
+          absentDays: report.absentDays,
+          leaveWithSalary: report.leaveWithSalary,
+          leaveWithoutPay: report.leaveWithoutPay,
+        },
+        adjustment: {
+          lateComingCount: report.lateComingCount,
+          autoLogoutCount: report.autoLogoutCount,
+          attendanceDeduction,
+          daysDeducted: attendanceDeduction,
+        },
+        leaveAdjustment: {
+          fullCSL: report.typeCounts.fullCSL,
+          halfCSL: report.typeCounts.halfCSL,
+          fullPL: report.typeCounts.fullPL,
+          halfHPL: report.typeCounts.halfHPL,
+          fullCOFF: report.typeCounts.fullCOFF,
+          halfCOFF: report.typeCounts.halfCOFF,
+          publicHoliday: report.typeCounts.publicHoliday,
+          fullLWP: report.typeCounts.fullLWP,
+          halfLWP: report.typeCounts.halfLWP,
+        },
+      });
     }
-  }, [isOpen, employeeId, employeeName, month, year, getEmployeeById, getAttendanceByEmployee, getMonthlyAttendanceSummary]);
+  }, [isOpen, employeeId, employeeName, month, year, getEmployeeById, getAttendanceByEmployeeId, publicHolidays]);
 
   if (!isOpen) return null;
 

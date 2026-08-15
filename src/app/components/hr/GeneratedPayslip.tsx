@@ -161,6 +161,41 @@ export function GeneratedPayslip({ data, month, year, currentRole: currentRolePr
       return saved ? (JSON.parse(saved).used ?? 0) : 0;
     } catch { return 0; }
   })();
+  // ✅ FIXED: Salary lookup from DataService("EMPLOYEES") — canonical key for all employee data
+  // Falls back to EMPLOYEE_DATABASE_RECORDS (employeeDatabaseService writes here on Supabase load)
+  // Legacy keys cc360_hrdata_employees / cleancar_employees are dead on fresh installs
+  // (Declared here, above its first use in employeeTenureMonths/isFullTime below — it used to sit
+  // further down as a `const`, which is a TDZ ReferenceError on every render, not just some renders.)
+  const empRecord = (() => {
+    try {
+      const matchId = (e: any) =>
+        e.employeeId === data.employeeCode ||
+        e.employeeId === data.employeeId ||
+        e.empCode    === data.employeeCode ||
+        e.id         === data.employeeCode;
+
+      // Source 1: EmployeeContext / HRDataContext canonical key
+      const fromMain: any[] = DataService.get("EMPLOYEES");
+      const foundMain = fromMain.find(matchId);
+      if (foundMain) return foundMain;
+
+      // Source 2: employeeDatabaseService (Supabase-loaded slim records)
+      const fromDb: any[] = DataService.get("EMPLOYEE_DATABASE_RECORDS");
+      const foundDb = fromDb.find(matchId);
+      if (foundDb) return foundDb;
+
+      // Source 3: Legacy keys — for users who haven't refreshed since migration
+      const legacy1 = localStorage.getItem("cc360_hrdata_employees");
+      const legacy2 = localStorage.getItem("cleancar_employees");
+      const raw = legacy1 || legacy2;
+      if (raw) {
+        const all: any[] = JSON.parse(raw);
+        return all.find(matchId) || null;
+      }
+      return null;
+    } catch { return null; }
+  })();
+
   const employeeTenureMonths: number = (() => {
     if (!empRecord?.joiningDate) return 12;
     const j = new Date(empRecord.joiningDate);
@@ -195,39 +230,6 @@ export function GeneratedPayslip({ data, month, year, currentRole: currentRolePr
       allowedDeductionTypes: ["attendance", "late_coming", "miss_punch"],
       blockedDeductionTypes: ["epf", "esic", "pt", "tds", "loan", "advance"],
     };
-  })();
-
-  // ✅ FIXED: Salary lookup from DataService("EMPLOYEES") — canonical key for all employee data
-  // Falls back to EMPLOYEE_DATABASE_RECORDS (employeeDatabaseService writes here on Supabase load)
-  // Legacy keys cc360_hrdata_employees / cleancar_employees are dead on fresh installs
-  const empRecord = (() => {
-    try {
-      const matchId = (e: any) =>
-        e.employeeId === data.employeeCode ||
-        e.employeeId === data.employeeId ||
-        e.empCode    === data.employeeCode ||
-        e.id         === data.employeeCode;
-
-      // Source 1: EmployeeContext / HRDataContext canonical key
-      const fromMain: any[] = DataService.get("EMPLOYEES");
-      const foundMain = fromMain.find(matchId);
-      if (foundMain) return foundMain;
-
-      // Source 2: employeeDatabaseService (Supabase-loaded slim records)
-      const fromDb: any[] = DataService.get("EMPLOYEE_DATABASE_RECORDS");
-      const foundDb = fromDb.find(matchId);
-      if (foundDb) return foundDb;
-
-      // Source 3: Legacy keys — for users who haven't refreshed since migration
-      const legacy1 = localStorage.getItem("cc360_hrdata_employees");
-      const legacy2 = localStorage.getItem("cleancar_employees");
-      const raw = legacy1 || legacy2;
-      if (raw) {
-        const all: any[] = JSON.parse(raw);
-        return all.find(matchId) || null;
-      }
-      return null;
-    } catch { return null; }
   })();
 
   if (!empRecord || (!empRecord.baseSalary && !empRecord.grossSalary)) {

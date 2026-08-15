@@ -1,9 +1,10 @@
 /**
  * Illustrative Attendance Generator
  *
- * Used when an employee has no real attendance records in ATTENDANCE_RECORDS
- * (the real store — see HRDataContext.getAttendanceByEmployeeId — which is
- * never actually populated for real employees anywhere in the app today).
+ * Used when an employee has no real attendance records yet in ATTENDANCE_RECORDS
+ * for the requested month (the real store — see HRDataContext.getAttendanceByEmployeeId
+ * — which real check-ins do populate today, e.g. washer and TSE/TSM check-ins,
+ * just not for every employee/month yet).
  * Generates a plausible day-by-day month: mostly Present, Sundays as
  * Weekly Off, and a small number of late-arrival / half-day / leave days,
  * using a deterministic seed (from the employee ID) so the same employee
