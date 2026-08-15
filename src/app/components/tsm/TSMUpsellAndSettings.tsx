@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import { Phone, CheckCircle, Clock, Package, UserX, UserCheck, RefreshCw } from "lucide-react";
 import { DataService } from "../../services/DataService";
 import { tsmAbsenceService } from "../../services/tsmAbsenceService";
+import { telecallerShiftService, DEFAULT_WEEKLY_SHIFT } from "../../services/telecallerShiftService";
 import { useRole } from "../../contexts/RoleContext";
 
 interface RetentionTask { taskId:string; type:string; customerId:string; customerName:string; customerPhone:string; jobId?:string; subscriptionId?:string; packageName?:string; planLabel?:string; followUpDate:string; status:"PENDING"|"CALLED"|"CONVERTED"|"NOT_INTERESTED"|"NO_ANSWER"; notes?:string; cityId:string; createdAt:string; }
@@ -119,27 +120,42 @@ export function UpsellTasksPanel({cityId}:{cityId:string}){
   </div>);
 }
 
+const DAY_LABELS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
 export function TSMSettingsPanel(){
   const {currentUser}=useRole();
-  const tsmId=currentUser?.id||"";
+  const tsmId=currentUser?.employeeId||currentUser?.id||"";
+  const tsmName=currentUser?.name||"TSM";
   const [isAbsent,setIsAbsent]=useState(()=>tsmAbsenceService.isAbsentToday(tsmId));
+  // ✅ FIX: this called tsmAbsenceService.markPresent()/markAbsent(), neither
+  // of which exist on the service (only setAbsence() does) — clicking this
+  // button threw a runtime error every time. Now calls the real method.
   const toggle=()=>{
-    if(isAbsent){tsmAbsenceService.markPresent(tsmId);setIsAbsent(false);}
-    else{tsmAbsenceService.markAbsent(tsmId,"Manual — TSM marked self absent");setIsAbsent(true);}
+    tsmAbsenceService.setAbsence(tsmId,tsmName,!isAbsent,tsmName);
+    setIsAbsent(!isAbsent);
   };
+  // ✅ FIX: "Your Working Hours" used to show a fixed, fake Mon–Fri
+  // 10:30–18:30 for every TSM regardless of their real configured shift —
+  // now reads the same real weekly roster the Shift Roster tab writes to.
+  const weekly=tsmId?telecallerShiftService.getShift(tsmId):DEFAULT_WEEKLY_SHIFT;
   return(<div className="space-y-4 max-w-lg">
     <div><h2 className="text-xl font-bold text-gray-900">TSM Settings</h2><p className="text-sm text-gray-500">Manage your availability</p></div>
     <Card className={isAbsent?"border-red-200 bg-red-50/30":"border-green-200 bg-green-50/30"}>
       <CardHeader><CardTitle className="text-base flex items-center gap-2">{isAbsent?<UserX className="w-5 h-5 text-red-600"/>:<UserCheck className="w-5 h-5 text-green-600"/>}Availability Status</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div><p className="font-medium text-gray-900">{isAbsent?"🔴 You are marked ABSENT today":"🟢 You are marked PRESENT today"}</p>
-        <p className="text-sm text-gray-500 mt-0.5">{isAbsent?"All bookings routing to Admin and Super Admin.":"You are primary handler for working hours (10:30 AM – 6:30 PM)."}</p></div>
+        <p className="text-sm text-gray-500 mt-0.5">{isAbsent?"All bookings routing to Admin and Super Admin.":"You are primary handler while checked in during your scheduled shift."}</p></div>
         <Button onClick={toggle} className={isAbsent?"bg-green-600 hover:bg-green-700":"bg-red-600 hover:bg-red-700"}>{isAbsent?"✅ Mark Myself Present":"❌ Mark Myself Absent"}</Button>
-        <p className="text-xs text-gray-400">System auto-marks absent if no check-in by 10:30 AM.</p>
+        <p className="text-xs text-gray-400">Leads only reach you once you've actually checked in — see Check In on My Account.</p>
       </CardContent>
     </Card>
-    <Card><CardContent className="p-4 space-y-2"><h3 className="font-medium text-gray-900">Your Working Hours</h3>
-      <div className="text-sm text-gray-600 space-y-1"><p>📅 Mon–Fri: 10:30 AM – 6:30 PM</p><p>🌙 After 6:30 PM: Admin / Super Admin handle</p><p>🗓️ Weekends: Admin / Super Admin handle</p><p>📞 IVR: <strong>080 48 79 45 45</strong></p></div>
+    <Card><CardContent className="p-4 space-y-2"><h3 className="font-medium text-gray-900">Your Weekly Shift Roster</h3>
+      <div className="text-sm text-gray-600 space-y-1">
+        {weekly.map((day,i)=>(
+          <p key={i}>📅 {DAY_LABELS[i]}: {day.isWeekOff?"Week off":`${day.startTime} – ${day.endTime}`}</p>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 pt-1">Set by your TSM/Admin under Shift Roster.</p>
     </CardContent></Card>
   </div>);
 }

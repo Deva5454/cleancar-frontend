@@ -4,6 +4,7 @@ import { useEmployee } from "../../contexts/EmployeeContext";
 import { useCity } from "../../contexts/CityContext";
 import { useCustomers } from "../../contexts/CustomerContext";
 import { telecallerShiftService } from "../../services/telecallerShiftService";
+import { telecallerAttendanceService } from "../../services/telecallerAttendanceService";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -127,10 +128,12 @@ export function LeadAssignmentEngine() {
       id: e.id,
       name: e.fullName,
       // ✅ FIX: was a hardcoded "available" for every TSE regardless of
-      // time or shift — now reflects the real weekly shift roster
-      // (Shift Roster tab), so this screen only shows someone as
-      // available when they're genuinely on shift right now.
-      status: (telecallerShiftService.isOnDutyNow(e.id) ? "available" : "inactive") as ExecutiveStatus,
+      // time or shift. The roster alone isn't enough either — it only
+      // says someone is scheduled, not that they're actually present —
+      // so this now requires both: on shift per the real weekly roster
+      // AND genuinely checked in (and not checked out) today.
+      status: (telecallerShiftService.isOnDutyNow(e.id) && telecallerAttendanceService.isCheckedInNow(e.id, city)
+        ? "available" : "inactive") as ExecutiveStatus,
       leadsToday: cityLeads.filter(l => l.assignedTo === e.id).length,
       dailyCapacity: 25,
       lastAssigned: cityLeads.filter(l => l.assignedTo === e.id && l.assignedAt).sort((a, b) =>

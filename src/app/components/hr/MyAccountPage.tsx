@@ -19,8 +19,11 @@ import {
 } from "lucide-react";
 import { useRole } from "../../contexts/RoleContext";
 import { useApprovals } from "../../contexts/AppProvider";
+import { useCity } from "../../contexts/CityContext";
+import { useAttendance, type AttendanceRecord } from "../../contexts/AttendanceContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { exitWorkflowService, ExitWorkflow } from "../../services/exitWorkflowService";
+import { telecallerShiftService } from "../../services/telecallerShiftService";
 import { TravelEmployeeView } from "../travel/TravelEmployeeView";
 import { ClaimEmployeeView } from "../claims/ClaimEmployeeView";
 import { InvestmentDeclarationView } from "./InvestmentDeclarationView";
@@ -53,6 +56,8 @@ const ACCOUNT_TABS = ["profile", "leave", "payslip", "travel", "claims", "tax", 
 export function MyAccountPage() {
   const { currentUser, currentRole } = useRole();
   const { addApproval, approvals } = useApprovals();
+  const { city: cityId } = useCity();
+  const { addAttendanceRecord, updateAttendance, attendanceRecords } = useAttendance();
   const [searchParams] = useSearchParams();
   // Real fix: a ?tab=tax (or any other tab) link always landed on Profile —
   // this component never read the query param at all.
@@ -87,6 +92,49 @@ export function MyAccountPage() {
   const pendingApprovals: ExitWorkflow[] = currentUser.employeeId
     ? exitWorkflowService.getPendingApprovalsForManager(currentUser.employeeId)
     : [];
+
+  // Check-in / Check-out — real presence for TSE/TSM, gating live lead
+  // assignment (see telecallerAttendanceService / organizationHierarchyService).
+  // A configured shift schedule alone only says someone is *supposed* to be
+  // on duty; this is the record of whether they actually showed up.
+  const isTelecaller = currentRole === "TSE" || currentRole === "TSM";
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const myTodayAttendance: AttendanceRecord | undefined = currentUser.employeeId
+    ? attendanceRecords.find(r => r.employeeId === currentUser.employeeId && r.date === todayISO)
+    : undefined;
+
+  const handleCheckIn = () => {
+    if (!currentUser.employeeId) { toast.error("Could not identify your employee record."); return; }
+    const now = new Date();
+    const weekly = telecallerShiftService.getShift(currentUser.employeeId);
+    const day = weekly[now.getDay()];
+    let status: AttendanceRecord["status"] = "Present";
+    let lateMinutes = 0;
+    if (!day.isWeekOff) {
+      const [sh, sm] = day.startTime.split(":").map(Number);
+      const scheduledStart = new Date(now);
+      scheduledStart.setHours(sh, sm, 0, 0);
+      const diffMin = Math.round((now.getTime() - scheduledStart.getTime()) / 60000);
+      if (diffMin > 10) { status = "Late"; lateMinutes = diffMin - 10; }
+    }
+    addAttendanceRecord({
+      employeeId: currentUser.employeeId,
+      cityId,
+      date: todayISO,
+      checkInTime: now.toTimeString().slice(0, 8),
+      status,
+      lateMinutes,
+    });
+    toast.success(status === "Late" ? `Checked in — ${lateMinutes} min late` : "Checked in");
+  };
+
+  const handleCheckOut = () => {
+    if (!myTodayAttendance) return;
+    updateAttendance(myTodayAttendance.attendanceId, {
+      checkOutTime: new Date().toTimeString().slice(0, 8),
+    });
+    toast.success("Checked out");
+  };
 
   const handleSubmitResignation = () => {
     if (!currentUser.employeeId) { toast.error("Could not identify your employee record."); return; }
@@ -188,6 +236,43 @@ export function MyAccountPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Check In / Check Out — real presence for telecallers. This is what
+          gates live lead assignment, not just the configured shift roster. */}
+      {isTelecaller && (
+        <Card className={myTodayAttendance?.checkInTime && !myTodayAttendance?.checkOutTime
+          ? "border-green-300 bg-green-50" : "border-gray-200"}>
+          <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <Clock className={`w-5 h-5 ${myTodayAttendance?.checkInTime && !myTodayAttendance?.checkOutTime ? "text-green-600" : "text-gray-400"}`} />
+              <div>
+                {!myTodayAttendance?.checkInTime && (
+                  <p className="text-sm font-medium text-gray-900">Not checked in today</p>
+                )}
+                {myTodayAttendance?.checkInTime && !myTodayAttendance?.checkOutTime && (
+                  <p className="text-sm font-medium text-green-800">
+                    Checked in at {myTodayAttendance.checkInTime.slice(0, 5)}
+                    {myTodayAttendance.status === "Late" && myTodayAttendance.lateMinutes
+                      ? ` — ${myTodayAttendance.lateMinutes} min late` : ""}
+                  </p>
+                )}
+                {myTodayAttendance?.checkOutTime && (
+                  <p className="text-sm font-medium text-gray-600">
+                    Checked out at {myTodayAttendance.checkOutTime.slice(0, 5)} — done for today
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">Only checked-in telecallers on shift receive new leads.</p>
+              </div>
+            </div>
+            {!myTodayAttendance?.checkInTime && (
+              <Button size="sm" onClick={handleCheckIn}>Check In</Button>
+            )}
+            {myTodayAttendance?.checkInTime && !myTodayAttendance?.checkOutTime && (
+              <Button size="sm" variant="outline" onClick={handleCheckOut}>Check Out</Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reporting-manager approval queue — visible whenever this logged-in
           user is the real reporting manager of someone with a resignation

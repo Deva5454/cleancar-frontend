@@ -27,6 +27,7 @@ import { DataService } from './DataService';
 import { leadAssignmentEngine } from './ai/leadAssignmentEngine';
 import { employeeDatabaseService } from './employeeDatabaseService';
 import { telecallerShiftService } from './telecallerShiftService';
+import { telecallerAttendanceService } from './telecallerAttendanceService';
 
 class OrganizationHierarchyService {
   // ==================== DYNAMIC CONFIGURATION (DataService-backed) ====================
@@ -1302,10 +1303,18 @@ class OrganizationHierarchyService {
           new Date(b.assignedAt || b.createdAt || 0).getTime() - new Date(a.assignedAt || a.createdAt || 0).getTime()
         )[0];
 
+        // ✅ FIX: eligibility used to be schedule-only (isOnDutyNow) — the
+        // roster saying someone is *supposed* to be on shift is not the
+        // same as them actually being present. Real presence now requires
+        // BOTH: within their scheduled shift window AND genuinely
+        // checked in (and not yet checked out) today.
+        const onShift   = telecallerShiftService.isOnDutyNow(emp.id);
+        const checkedIn = telecallerAttendanceService.isCheckedInNow(emp.id, cityId);
+
         return {
           tseId: emp.id,
           tseName: emp.fullName,
-          status: (telecallerShiftService.isOnDutyNow(emp.id) ? 'ACTIVE' : 'OFFLINE') as 'ACTIVE' | 'OFFLINE',
+          status: (onShift && checkedIn ? 'ACTIVE' : 'OFFLINE') as 'ACTIVE' | 'OFFLINE',
           conversionRate,
           crmComplianceScore: 100, // no real CRM-compliance signal tracked in this app yet — neutral, not invented
           callsMadeToday: 0,
