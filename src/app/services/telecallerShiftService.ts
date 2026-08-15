@@ -17,6 +17,26 @@
 
 import { DataService } from "./DataService";
 
+/**
+ * Which roles get a real weekly shift + check-in presence tracked at all.
+ * The underlying service/storage below is already generic — keyed purely
+ * by employeeId, no role logic baked in — so extending shift-aware
+ * presence to another role (e.g. Supervisor, CCE) is just adding it here;
+ * every consumer (Shift Roster admin screen, the Check In/Out card on My
+ * Account) reads this single list instead of its own hardcoded check.
+ *
+ * Lead-assignment eligibility (organizationHierarchyService.ts,
+ * LeadAssignmentEngine.tsx) deliberately stays narrower than this list —
+ * only TSE actually handle leads, so those two intentionally hardcode
+ * "TSE" rather than reading this broader list.
+ */
+export const SHIFT_TRACKED_ROLES = ["TSE", "TSM"] as const;
+
+export function isShiftTrackedRole(employee: { role?: string; designation?: string }): boolean {
+  return SHIFT_TRACKED_ROLES.includes(employee.role as any) ||
+    SHIFT_TRACKED_ROLES.includes(employee.designation as any);
+}
+
 export interface DayShift {
   isWeekOff: boolean;
   startTime: string; // "HH:MM", 24h

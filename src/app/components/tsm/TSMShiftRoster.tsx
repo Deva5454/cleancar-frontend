@@ -18,6 +18,7 @@ import { useRole } from "../../contexts/RoleContext";
 import {
   telecallerShiftService,
   DEFAULT_WEEKLY_SHIFT,
+  isShiftTrackedRole,
   type WeeklyShift,
   type DayShift,
 } from "../../services/telecallerShiftService";
@@ -41,7 +42,7 @@ export function TSMShiftRoster() {
   const { currentUser } = useRole();
 
   const telecallers = employees.filter((e: any) =>
-    (e.role === "TSE" || e.designation === "TSE" || e.role === "TSM" || e.designation === "TSM") &&
+    isShiftTrackedRole(e) &&
     (e.cityId === city || e.workLocation === city || e.city === city)
   );
 

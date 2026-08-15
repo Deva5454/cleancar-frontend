@@ -23,7 +23,7 @@ import { useCity } from "../../contexts/CityContext";
 import { useAttendance, type AttendanceRecord } from "../../contexts/AttendanceContext";
 import { employeeDatabaseService } from "../../services/employeeDatabaseService";
 import { exitWorkflowService, ExitWorkflow } from "../../services/exitWorkflowService";
-import { telecallerShiftService } from "../../services/telecallerShiftService";
+import { telecallerShiftService, SHIFT_TRACKED_ROLES } from "../../services/telecallerShiftService";
 import { TravelEmployeeView } from "../travel/TravelEmployeeView";
 import { ClaimEmployeeView } from "../claims/ClaimEmployeeView";
 import { InvestmentDeclarationView } from "./InvestmentDeclarationView";
@@ -97,7 +97,7 @@ export function MyAccountPage() {
   // assignment (see telecallerAttendanceService / organizationHierarchyService).
   // A configured shift schedule alone only says someone is *supposed* to be
   // on duty; this is the record of whether they actually showed up.
-  const isTelecaller = currentRole === "TSE" || currentRole === "TSM";
+  const isTelecaller = (SHIFT_TRACKED_ROLES as readonly string[]).includes(currentRole);
   const todayISO = new Date().toISOString().slice(0, 10);
   const myTodayAttendance: AttendanceRecord | undefined = currentUser.employeeId
     ? attendanceRecords.find(r => r.employeeId === currentUser.employeeId && r.date === todayISO)
