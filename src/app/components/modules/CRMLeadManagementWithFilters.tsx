@@ -33,7 +33,7 @@ import {
   Plus, Search, Download, Filter, Phone, UserPlus, TrendingUp,
   Clock, CheckCircle, Edit, Trash2, X, Check, MessageCircle,
   Calendar, MapPin, Car, Target, AlertCircle, Users, LayoutGrid,
-  List, ArrowRight, Zap
+  List, ArrowRight, Zap, Upload, FileSpreadsheet
 } from "lucide-react";
 import { LeadPipelineKanbanWithFilters } from "../crm/LeadPipelineKanbanWithFilters";
 import { ResponseTimerDashboard } from "../crm/ResponseTimerDashboard";
@@ -66,6 +66,26 @@ type Lead = {
   lastContact?: string;
   priority?: "High" | "Medium" | "Low";
 };
+
+type ImportRow = {
+  name: string;
+  mobile: string;
+  pincode: string;
+  area: string;
+  carType: string;
+  source: string;
+  valid: boolean;
+  error?: string;
+};
+
+/** Case/whitespace-tolerant header match against a row of common column-name variants. */
+function pickColumn(headerMap: Record<string, number>, candidates: string[]): number {
+  for (const c of candidates) {
+    const idx = headerMap[c];
+    if (idx !== undefined) return idx;
+  }
+  return -1;
+}
 
 export function CRMLeadManagementWithFilters() {
   const { currentRole } = useRole();
@@ -107,13 +127,15 @@ export function CRMLeadManagementWithFilters() {
     return areas.length > 0 ? areas : ["Adajan", "Vesu", "Pal", "City Light"];
   }, [selectedCity]);
 
-  // Get available TSEs for the selected city
+  // Get available TSEs for the selected city — real employees, not a fake territory list
   const availableTSEs = useMemo(() => {
-    const allTSEs = organizationHierarchyService.getAllTSETerritories();
-    if (!selectedCity) return allTSEs;
-
-    // Filter TSEs by city - for now return all, can be enhanced later
-    return allTSEs;
+    const cityIdMap: Record<string, string> = {
+      "surat": "CITY-SURAT",
+      "mumbai": "CITY-MUMBAI",
+      "ahmedabad": "CITY-AHMEDABAD",
+    };
+    const cityId = cityIdMap[selectedCity] || "CITY-SURAT";
+    return organizationHierarchyService.getRealTSEsForCity(cityId);
   }, [selectedCity]);
 
   // Default form values based on city
@@ -124,7 +146,13 @@ export function CRMLeadManagementWithFilters() {
     pincode: "",
     area: availableAreas[0] || "",
     carType: "Sedan",
-    assignedTo: availableTSEs[0]?.tseName || "Unassigned",
+    // ✅ FIX: this used to default to the first TSE in the list, which
+    // made real shift-aware auto-assignment below silently treat every
+    // untouched form as if the user had deliberately picked that person
+    // manually. Defaulting to "Unassigned" makes the dropdown a genuine
+    // optional override — auto-assignment runs unless someone actively
+    // picks a different TSE.
+    assignedTo: "Unassigned",
     notes: ""
   });
 
@@ -157,6 +185,13 @@ export function CRMLeadManagementWithFilters() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showConversionModal, setShowConversionModal] = useState(false);
   const [leadToConvert, setLeadToConvert] = useState<Lead | null>(null);
+
+  // Excel/CSV bulk lead import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importFileName, setImportFileName] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{ assigned: number; queued: number; skipped: number } | null>(null);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -270,9 +305,16 @@ export function CRMLeadManagementWithFilters() {
       }
       toast.success(`Lead "${formData.name}" updated successfully!`);
     } else {
-      // ✅ AUTOMATIC TSE ASSIGNMENT based on pincode
-      const tseAssignment = organizationHierarchyService.assignLeadByPincode(formData.pincode);
-      const assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : formData.assignedTo;
+      // A manual pick in the "Assign To" dropdown always wins. Otherwise,
+      // fall through to real shift-aware auto-assignment — which can now
+      // genuinely fail (nobody on shift right now) instead of always
+      // silently succeeding against a fake fallback TSE.
+      const manualPick = formData.assignedTo && formData.assignedTo !== "Unassigned" ? formData.assignedTo : null;
+      const tseAssignment = manualPick ? null : organizationHierarchyService.assignLeadByPincode(formData.pincode);
+      // Genuinely empty (not the literal string "Unassigned") on failure —
+      // that's what TSMLeadPoolAssignment's pool filter checks for, so a
+      // queued lead actually surfaces there instead of silently vanishing.
+      const assignedTSE = manualPick || (tseAssignment?.success ? tseAssignment.assignedToName : "");
 
       const nameParts = formData.name.split(' ');
       contextAddLead({
@@ -289,9 +331,13 @@ export function CRMLeadManagementWithFilters() {
         lastContact: timestamp,
       });
 
-      // ✅ EMIT LEAD_ASSIGNED EVENT
-
-      toast.success(`Lead "${formData.name}" created successfully!\n${tseAssignment.message}`);
+      if (manualPick) {
+        toast.success(`Lead "${formData.name}" created and assigned to ${manualPick}`);
+      } else if (tseAssignment?.success) {
+        toast.success(`Lead "${formData.name}" created successfully!\n${tseAssignment.message}`);
+      } else {
+        toast.info(`Lead "${formData.name}" created — ${tseAssignment?.message || "no TSE currently on shift"}. Queued in the unassigned pool.`);
+      }
     }
 
     closeModal();
@@ -302,6 +348,121 @@ export function CRMLeadManagementWithFilters() {
     setEditingLead(null);
     setSelectedLead(null);
     setFormData(getDefaultFormData());
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportRows([]);
+    setImportFileName("");
+    setImportSummary(null);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    setImportFileName(file.name);
+    setImportSummary(null);
+
+    try {
+      const ExcelJS = await import("exceljs");
+      const wb = new ExcelJS.Workbook();
+      const buffer = await file.arrayBuffer();
+      await wb.xlsx.load(buffer);
+      const sheet = wb.worksheets[0];
+      if (!sheet || sheet.rowCount < 2) {
+        toast.error("That sheet has no data rows below the header.");
+        setImportRows([]);
+        return;
+      }
+
+      // Build a case/whitespace-tolerant header → column-index map from row 1
+      const headerRow = sheet.getRow(1);
+      const headerMap: Record<string, number> = {};
+      headerRow.eachCell((cell, colNumber) => {
+        const key = String(cell.value ?? "").trim().toLowerCase();
+        if (key) headerMap[key] = colNumber;
+      });
+
+      const nameCol   = pickColumn(headerMap, ["name", "customer name", "lead name"]);
+      const mobileCol = pickColumn(headerMap, ["mobile", "phone", "mobile number", "phone number", "contact"]);
+      const pinCol    = pickColumn(headerMap, ["pincode", "pin code", "pin"]);
+      const areaCol   = pickColumn(headerMap, ["area", "locality"]);
+      const carCol    = pickColumn(headerMap, ["car type", "cartype", "vehicle type", "vehicle"]);
+      const sourceCol = pickColumn(headerMap, ["source", "lead source"]);
+
+      if (nameCol === -1 || mobileCol === -1 || pinCol === -1) {
+        toast.error("Couldn't find Name, Mobile, and Pincode columns — check the header row.");
+        setImportRows([]);
+        return;
+      }
+
+      const rows: ImportRow[] = [];
+      sheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // header
+        const name = String(row.getCell(nameCol).value ?? "").trim();
+        const mobile = String(row.getCell(mobileCol).value ?? "").trim();
+        const pincode = String(row.getCell(pinCol).value ?? "").trim();
+        const area = areaCol !== -1 ? String(row.getCell(areaCol).value ?? "").trim() : "";
+        const carType = carCol !== -1 ? String(row.getCell(carCol).value ?? "").trim() || "Sedan" : "Sedan";
+        const source = sourceCol !== -1 ? String(row.getCell(sourceCol).value ?? "").trim() || "Excel Import" : "Excel Import";
+
+        if (!name && !mobile && !pincode) return; // fully blank row — skip silently
+
+        let error: string | undefined;
+        if (!name) error = "Missing name";
+        else if (!mobile || mobile.replace(/\D/g, "").length < 10) error = "Invalid mobile number";
+        else if (!pincode || pincode.length !== 6) error = "Invalid pincode";
+
+        rows.push({ name, mobile, pincode, area, carType, source, valid: !error, error });
+      });
+
+      if (rows.length === 0) {
+        toast.error("No usable rows found in that sheet.");
+      }
+      setImportRows(rows);
+    } catch (err) {
+      console.error("Lead import parse failed:", err);
+      toast.error("Couldn't read that file — make sure it's a real .xlsx workbook.");
+      setImportRows([]);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    const validRows = importRows.filter(r => r.valid);
+    if (validRows.length === 0) return;
+
+    setImporting(true);
+    let assigned = 0, queued = 0;
+    const timestamp = new Date().toISOString().split('T')[0] + ' ' +
+      new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    for (const row of validRows) {
+      const tseAssignment = organizationHierarchyService.assignLeadByPincode(row.pincode, { cityId: cityContextId });
+      const assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : "";
+      if (tseAssignment.success) assigned++; else queued++;
+
+      const nameParts = row.name.split(' ');
+      contextAddLead({
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        email: '',
+        phone: row.mobile,
+        address: { line1: '', line2: '', area: row.area, city: '', pinCode: row.pincode },
+        vehicleDetails: { category: row.carType, brand: '', color: '', registrationNumber: '' },
+        leadSource: row.source,
+        status: "New",
+        assignedTo: assignedTSE,
+        notes: "",
+        lastContact: timestamp,
+      });
+    }
+
+    const skipped = importRows.length - validRows.length;
+    setImportSummary({ assigned, queued, skipped });
+    setImporting(false);
+    toast.success(`Imported ${validRows.length} leads — ${assigned} assigned, ${queued} queued (nobody on shift)${skipped ? `, ${skipped} rows skipped` : ""}.`);
   };
 
   const handleEdit = (lead: Lead) => {
@@ -384,6 +545,12 @@ export function CRMLeadManagementWithFilters() {
           </p>
         </div>
         <div className="flex gap-2">
+          {(currentRole === "Super Admin" || currentRole === "Admin" || currentRole === "TSM") && (
+            <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import Leads
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Lead
@@ -1003,7 +1170,7 @@ export function CRMLeadManagementWithFilters() {
                         <SelectItem value="Unassigned">Unassigned</SelectItem>
                         {availableTSEs.map(tse => (
                           <SelectItem key={tse.tseId} value={tse.tseName}>
-                            {tse.tseName} (TSE)
+                            {tse.tseName} (TSE){tse.onDuty ? "" : " — off shift"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1029,6 +1196,111 @@ export function CRMLeadManagementWithFilters() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Import Leads Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto mx-4">
+            <CardHeader className="bg-blue-50">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Import Leads from Excel
+                </CardTitle>
+                <Button size="sm" variant="ghost" onClick={closeImportModal}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <p className="text-sm text-gray-500">
+                Upload a .xlsx workbook with a header row containing at minimum <strong>Name</strong>, <strong>Mobile</strong>,
+                and <strong>Pincode</strong> columns. Area and Car Type are optional. Each valid row is created as a lead and
+                routed through the same real, shift-aware assignment as a manually added lead.
+              </p>
+
+              <div>
+                <Label htmlFor="import-file">Excel file (.xlsx)</Label>
+                <input
+                  id="import-file"
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleImportFile}
+                  className="block w-full text-sm border rounded-md p-2 mt-1"
+                />
+                {importFileName && <p className="text-xs text-gray-500 mt-1">Loaded: {importFileName}</p>}
+              </div>
+
+              {importRows.length > 0 && !importSummary && (
+                <div>
+                  <p className="text-sm font-medium mb-2">
+                    {importRows.filter(r => r.valid).length} of {importRows.length} rows are valid and will be imported.
+                  </p>
+                  <div className="max-h-64 overflow-y-auto border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Mobile</TableHead>
+                          <TableHead>Pincode</TableHead>
+                          <TableHead>Area</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importRows.map((row, i) => (
+                          <TableRow key={i} className={row.valid ? "" : "bg-red-50"}>
+                            <TableCell>{row.name || "—"}</TableCell>
+                            <TableCell>{row.mobile || "—"}</TableCell>
+                            <TableCell>{row.pincode || "—"}</TableCell>
+                            <TableCell>{row.area || "—"}</TableCell>
+                            <TableCell>
+                              {row.valid
+                                ? <Badge variant="outline">Ready</Badge>
+                                : <Badge variant="destructive">{row.error}</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={closeImportModal}>Cancel</Button>
+                    <Button
+                      onClick={handleConfirmImport}
+                      disabled={importing || importRows.filter(r => r.valid).length === 0}
+                    >
+                      {importing ? "Importing…" : `Import ${importRows.filter(r => r.valid).length} Leads`}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {importSummary && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="border rounded-lg p-3">
+                      <p className="text-2xl font-bold text-green-600">{importSummary.assigned}</p>
+                      <p className="text-xs text-gray-500">Assigned to an on-shift TSE</p>
+                    </div>
+                    <div className="border rounded-lg p-3">
+                      <p className="text-2xl font-bold text-amber-600">{importSummary.queued}</p>
+                      <p className="text-xs text-gray-500">Queued — nobody on shift</p>
+                    </div>
+                    <div className="border rounded-lg p-3">
+                      <p className="text-2xl font-bold text-gray-400">{importSummary.skipped}</p>
+                      <p className="text-xs text-gray-500">Rows skipped (invalid)</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={closeImportModal}>Done</Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

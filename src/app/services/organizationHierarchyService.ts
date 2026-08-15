@@ -25,7 +25,8 @@ import type { Zone } from '../types/city-config.types';
 import { getVisibilityScope, canAccessPincode, canReassignPincode } from '../types/organizationHierarchy';
 import { DataService } from './DataService';
 import { leadAssignmentEngine } from './ai/leadAssignmentEngine';
-import { teleSalesManagerService } from './teleSalesManagerService';
+import { employeeDatabaseService } from './employeeDatabaseService';
+import { telecallerShiftService } from './telecallerShiftService';
 
 class OrganizationHierarchyService {
   // ==================== DYNAMIC CONFIGURATION (DataService-backed) ====================
@@ -1259,74 +1260,89 @@ class OrganizationHierarchyService {
   // ==================== TSE ASSIGNMENT BY PINCODE ====================
 
   /**
-   * TSE-to-Pincode territory mapping
-   * Each TSE is responsible for specific pincodes
+   * ✅ FIX: this used to score a hardcoded list of 5 fictional TSEs
+   * (TSE-001..005 — "Rahul Sharma", "Priya Patel", etc., from
+   * teleSalesManagerService's dashboard mock data) with no concept of
+   * time-of-day or shift at all — a lead submitted at 2am Sunday was
+   * scored identically to one submitted at noon Tuesday. It then fell
+   * back to a second, equally fake pincode→TSE dictionary
+   * (`tseTerritory`, fictional names again) that ALWAYS returned a
+   * "default TSE" no matter what, so assignment could never actually
+   * fail even when nobody was real or available.
+   *
+   * Real TSE snapshots now come from actual employee records
+   * (employeeDatabaseService), scoped to the lead's city, with real
+   * territories from each TSE's own assigned pincodes and real
+   * eligibility from the weekly shift roster (telecallerShiftService) —
+   * a lead is only ever offered to someone genuinely on duty right now.
    */
-  private tseTerritory: Record<string, { tseId: string; tseName: string; pincodes: string[] }> = {
-    'TSE-001': {
-      tseId: 'TSE-001',
-      tseName: 'Neha Singh',
-      pincodes: ['395009', '395007'], // Adajan, Vesu
-    },
-    'TSE-002': {
-      tseId: 'TSE-002',
-      tseName: 'Amit Kumar',
-      pincodes: ['395006', '395001'], // Piplod, Nanpura
-    },
-    'TSE-003': {
-      tseId: 'TSE-003',
-      tseName: 'Priya Sharma',
-      pincodes: ['395002', '395003'], // Athwalines, Rander Road
-    },
-    'TSE-004': {
-      tseId: 'TSE-004',
-      tseName: 'Rajesh Patel',
-      pincodes: ['395004', '395005'], // Udhna, Katargam
-    },
-  };
+  private buildRealTSESnapshots(cityId: string) {
+    // ✅ FIX: was reading the raw legacy key "cleancar_leads", which
+    // nothing in the real lead pipeline writes to (CustomerContext/
+    // DataService store leads at the real per-city key below) — capacity
+    // and conversion signals were silently always computed from an empty
+    // array regardless of how many real leads existed.
+    let allLeads: any[] = [];
+    try { allLeads = DataService.get<any>("LEADS", cityId); } catch { /* empty */ }
 
-  /**
-   * Default TSE for unmapped pincodes
-   */
-  private defaultTSE = {
-    tseId: 'TSE-001',
-    tseName: 'Neha Singh',
-  };
+    return employeeDatabaseService.getAll()
+      .filter(emp =>
+        (emp.designation === 'TSE' || emp.designation === 'Tele Sales Executive' || emp.role === 'TSE') &&
+        emp.status === 'Active' &&
+        (emp.workLocation === cityId || emp.cityId === cityId)
+      )
+      .map(emp => {
+        const myLeads = allLeads.filter((l: any) => l.assignedTo === emp.fullName);
+        const openLeadsCount = myLeads.filter((l: any) => !['converted', 'lost'].includes(l.stage)).length;
+        const converted = myLeads.filter((l: any) => l.stage === 'converted').length;
+        // Neutral 25% baseline when there's no real conversion history yet
+        // for this TSE — not a fabricated number, just "no signal either way".
+        const conversionRate = myLeads.length > 0 ? Math.round((converted / myLeads.length) * 1000) / 10 : 25;
+        const lastLead = [...myLeads].sort((a, b) =>
+          new Date(b.assignedAt || b.createdAt || 0).getTime() - new Date(a.assignedAt || a.createdAt || 0).getTime()
+        )[0];
 
-  /**
-   * Get TSE assigned to a pincode
-   */
-  getTSEForPincode(pincode: string): { tseId: string; tseName: string } | null {
-    // Find TSE by pincode
-    for (const tse of Object.values(this.tseTerritory)) {
-      if (tse.pincodes.includes(pincode)) {
-        return { tseId: tse.tseId, tseName: tse.tseName };
-      }
-    }
+        return {
+          tseId: emp.id,
+          tseName: emp.fullName,
+          status: (telecallerShiftService.isOnDutyNow(emp.id) ? 'ACTIVE' : 'OFFLINE') as 'ACTIVE' | 'OFFLINE',
+          conversionRate,
+          crmComplianceScore: 100, // no real CRM-compliance signal tracked in this app yet — neutral, not invented
+          callsMadeToday: 0,
+          callsTarget: 1,
+          openLeadsCount,
+          // No real per-vehicle-type/source win-rate signal exists yet —
+          // same real conversion rate for both, so specialisation scoring
+          // stays neutral instead of fabricating a difference.
+          vehicleTypeWinRate: { "4W": conversionRate, "2W": conversionRate },
+          sourceWinRate: {},
+          avgHandleTimeMinutes: 12,
+          lastAssignedAt: lastLead?.assignedAt || lastLead?.createdAt,
+          // ✅ FIX: this was set to the TSE's own real pinCodes, but
+          // leadAssignmentEngine's eligibility filter checks
+          // territories.includes(lead.cityId) — a city id, not a pincode
+          // (its own type comment documents ["ALL"] or city ids). Real
+          // pincodes here meant NO real TSE ever matched, silently
+          // falling through to "any available" every time regardless of
+          // pincode. Scoped to the TSE's real city, matching what this
+          // field is actually checked against.
+          territories: [cityId],
+        };
+      });
+  }
 
-    // Return default TSE if pincode not mapped
-    console.warn(`⚠️ Pincode ${pincode} not mapped to any TSE - assigning to default TSE ${this.defaultTSE.tseName}`);
-    return this.defaultTSE;
+  /** Real TSE identities for a city — for manual-assignment dropdowns. */
+  getRealTSEsForCity(cityId: string): Array<{ tseId: string; tseName: string; onDuty: boolean }> {
+    return this.buildRealTSESnapshots(cityId).map(t => ({
+      tseId: t.tseId,
+      tseName: t.tseName,
+      onDuty: t.status === "ACTIVE",
+    }));
   }
 
   /**
-   * Get all pincodes assigned to a TSE
-   */
-  getPincodesForTSE(tseId: string): string[] {
-    const tse = this.tseTerritory[tseId];
-    return tse ? tse.pincodes : [];
-  }
-
-  /**
-   * Get all TSEs with their territories
-   */
-  getAllTSETerritories(): Array<{ tseId: string; tseName: string; pincodes: string[] }> {
-    return Object.values(this.tseTerritory);
-  }
-
-  /**
-   * Assign lead to TSE based on pincode
-   * This is the main method used by lead creation flows
+   * Assign lead to a real, on-duty TSE based on pincode.
+   * This is the main method used by lead creation flows.
    */
   assignLeadByPincode(pincode: string, lead?: {
     leadId?: string;
@@ -1345,46 +1361,25 @@ class OrganizationHierarchyService {
     aiReasons?: string[];
     assignmentMethod?: string;
   } {
+    const cityId = lead?.cityId || "CITY-SURAT";
+    const tseSnapshots = this.buildRealTSESnapshots(cityId);
+
+    if (tseSnapshots.length === 0) {
+      return { success: false, assignedTo: '', assignedToName: '', message: `No TSE is set up for ${cityId} yet — add one in Employee Database first` };
+    }
+
+    const leadContext = {
+      leadId: lead?.leadId || `LEAD-${Date.now()}`,
+      source: lead?.source || "DIGITAL",
+      vehicleType: lead?.vehicleType || "4W",
+      vehicleCategory: lead?.vehicleCategory,
+      cityId,
+      pincode,
+      priority: lead?.priority || "NORMAL",
+      estimatedValue: lead?.estimatedValue,
+    };
+
     try {
-      // Build TSE snapshots from live performance data
-      const tseCards = teleSalesManagerService.getTSEPerformanceCards();
-      const tseSnapshots = tseCards.map((tse: any) => ({
-        tseId: tse.id,
-        tseName: tse.name,
-        status: tse.status,
-        conversionRate: tse.kpis.conversionRate.rate,
-        crmComplianceScore: tse.kpis.crmCompliance.score,
-        callsMadeToday: tse.kpis.callsMade.count,
-        callsTarget: tse.kpis.callsMade.target,
-        openLeadsCount: (() => {
-            // TODO: replace with Supabase query: SELECT COUNT(*) FROM leads
-            //       WHERE assigned_tse_id = tse.id AND stage NOT IN ('CONVERTED','LOST')
-            try {
-              const leads = JSON.parse(localStorage.getItem('cleancar_leads') || '[]');
-              return (leads as any[]).filter((l: any) =>
-                l.assignedTseId === tse.id &&
-                !['CONVERTED','LOST','CANCELLED'].includes(l.stage)
-              ).length;
-            } catch { return 0; }
-          })(),
-        vehicleTypeWinRate: { "4W": tse.kpis.conversionRate.rate + 2, "2W": tse.kpis.conversionRate.rate - 4 },
-        sourceWinRate: { "DIGITAL": tse.kpis.conversionRate.rate, "BTL_REFERRAL": tse.kpis.conversionRate.rate + 5 },
-        avgHandleTimeMinutes: 12,
-        lastAssignedAt: tse.lastActivity?.toISOString(),
-        territories: ["ALL"], // all TSEs handle all cities
-      }));
-
-      const leadContext = {
-        leadId: lead?.leadId || `LEAD-${Date.now()}`,
-        source: lead?.source || "DIGITAL",
-        vehicleType: lead?.vehicleType || "4W",
-        vehicleCategory: lead?.vehicleCategory,
-        cityId: lead?.cityId || "CITY-SURAT",
-        pincode,
-        priority: lead?.priority || "NORMAL",
-        estimatedValue: lead?.estimatedValue,
-      };
-
       const result = leadAssignmentEngine.assignLead(leadContext, tseSnapshots);
 
       if (result.success) {
@@ -1398,16 +1393,15 @@ class OrganizationHierarchyService {
           assignmentMethod: result.method,
         };
       }
-    } catch (err) {
-      console.warn("[assignLeadByPincode] AI scoring failed — falling back to territory match", err);
-    }
 
-    // Fallback: original territory-based assignment
-    const tse = this.getTSEForPincode(pincode);
-    if (!tse) {
-      return { success: false, assignedTo: '', assignedToName: '', message: `No TSE available for pincode ${pincode}` };
+      // Real, honest failure — every TSE for this city is off-shift right
+      // now. No fake fallback TSE — the lead stays unassigned so it
+      // surfaces in the TSM's pool screen for assignment at the next shift.
+      return { success: false, assignedTo: '', assignedToName: '', message: `No TSE currently on shift for ${cityId} — queued for the next available shift` };
+    } catch (err) {
+      console.warn("[assignLeadByPincode] AI scoring failed", err);
+      return { success: false, assignedTo: '', assignedToName: '', message: 'Assignment failed — queued for manual assignment' };
     }
-    return { success: true, assignedTo: tse.tseId, assignedToName: tse.tseName, message: `Lead assigned to ${tse.tseName} (territory fallback)`, assignmentMethod: "TERRITORY_FALLBACK" };
   }
 }
 

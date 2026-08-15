@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useEmployee } from "../../contexts/EmployeeContext";
 import { useCity } from "../../contexts/CityContext";
 import { useCustomers } from "../../contexts/CustomerContext";
+import { telecallerShiftService } from "../../services/telecallerShiftService";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -124,7 +126,11 @@ export function LeadAssignmentEngine() {
     .map(e => ({
       id: e.id,
       name: e.fullName,
-      status: "available" as const,
+      // ✅ FIX: was a hardcoded "available" for every TSE regardless of
+      // time or shift — now reflects the real weekly shift roster
+      // (Shift Roster tab), so this screen only shows someone as
+      // available when they're genuinely on shift right now.
+      status: (telecallerShiftService.isOnDutyNow(e.id) ? "available" : "inactive") as ExecutiveStatus,
       leadsToday: cityLeads.filter(l => l.assignedTo === e.id).length,
       dailyCapacity: 25,
       lastAssigned: cityLeads.filter(l => l.assignedTo === e.id && l.assignedAt).sort((a, b) =>
@@ -142,13 +148,7 @@ export function LeadAssignmentEngine() {
   const [pauseDuration, setPauseDuration] = useState<number>(15);
   const [showConfigureRulesModal, setShowConfigureRulesModal] = useState(false);
   const [showConfigureHierarchyModal, setShowConfigureHierarchyModal] = useState(false);
-  
-  // Assignment Rules Configuration State
-  const [dailyCapacity, setDailyCapacity] = useState(25);
-  const [workingStartTime, setWorkingStartTime] = useState("09:00");
-  const [workingEndTime, setWorkingEndTime] = useState("19:00");
-  const [autoAssignment, setAutoAssignment] = useState(true);
-  
+
   // Hierarchy Configuration State
   const [primaryHandler, setPrimaryHandler] = useState("Tele Sales Manager");
   const [fallback1, setFallback1] = useState("City Manager");
@@ -160,12 +160,12 @@ export function LeadAssignmentEngine() {
                        currentRole === "TSM" || 
                        currentRole === "City Manager";
 
-  // Check if currently in working hours (9 AM - 7 PM)
-  const now = new Date();
-  const currentHour = now.getHours();
-  const isWorkingHours = currentHour >= 9 && currentHour < 19;
-
   const availableExecs = localExecutives.filter((e) => e.status === "available");
+  // ✅ FIX: was a fixed 9 AM–7 PM clock check applied to the whole org,
+  // ignoring the real per-TSE shift roster entirely (a lead at 9:30 PM
+  // when someone's genuinely on a till-10-PM shift showed "After Hours").
+  // Real signal: is at least one real TSE currently on shift right now.
+  const isWorkingHours = availableExecs.length > 0;
   const pausedExecs = localExecutives.filter((e) => e.status === "paused");
   const onLeaveExecs = localExecutives.filter((e) => e.status === "on-leave");
   const inactiveExecs = localExecutives.filter((e) => e.status === "inactive");
@@ -692,66 +692,32 @@ export function LeadAssignmentEngine() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Configure Assignment Rules</CardTitle>
+              <CardTitle>Assignment Rules</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label>Daily Capacity</Label>
-                <Input
-                  type="number"
-                  value={dailyCapacity}
-                  onChange={(e) => setDailyCapacity(parseInt(e.target.value))}
-                />
+              <p className="text-sm text-gray-600">
+                Working hours aren't one global setting anymore — each TSE/TSM has their own real weekly
+                schedule (different shifts, different weekly-offs), and a lead is only ever auto-assigned
+                to someone genuinely on shift right now.
+              </p>
+              <div className="text-sm text-gray-900 bg-gray-50 border rounded-lg p-3">
+                <strong>{availableExecs.length}</strong> of <strong>{localExecutives.length}</strong> TSEs
+                for {city} are on shift right now.
               </div>
 
-              <div>
-                <Label>Working Start Time</Label>
-                <Input
-                  type="time"
-                  value={workingStartTime}
-                  onChange={(e) => setWorkingStartTime(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Working End Time</Label>
-                <Input
-                  type="time"
-                  value={workingEndTime}
-                  onChange={(e) => setWorkingEndTime(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label>Auto Assignment</Label>
-                <Select value={autoAssignment ? "true" : "false"} onValueChange={value => setAutoAssignment(value === "true")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Enabled</SelectItem>
-                    <SelectItem value="false">Disabled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
-                  className="flex-1"
-                  onClick={() => {
-                    setShowConfigureRulesModal(false);
-                    toast.success(`✅ Assignment Rules Updated!\n\nDaily Capacity: ${dailyCapacity} leads\nWorking Hours: ${workingStartTime} - ${workingEndTime}\nAuto Assignment: ${autoAssignment ? 'Enabled' : 'Disabled'}\n\nChanges applied successfully.`);
-                  }}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
-                </Button>
+              <div className="flex gap-2 pt-2">
+                <Link to="/tsm-app?tab=shift-roster" className="flex-1">
+                  <Button className="w-full" onClick={() => setShowConfigureRulesModal(false)}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Open Shift Roster
+                  </Button>
+                </Link>
                 <Button
                   variant="outline"
                   className="flex-1"
                   onClick={() => setShowConfigureRulesModal(false)}
                 >
-                  Cancel
+                  Close
                 </Button>
               </div>
             </CardContent>

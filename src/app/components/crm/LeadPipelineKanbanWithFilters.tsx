@@ -307,11 +307,11 @@ export function LeadPipelineKanbanWithFilters() {
   const [scheduleType, setScheduleType] = useState("call");
   const [scheduleNotes, setScheduleNotes] = useState("");
 
-  // Get available TSEs from organization hierarchy
+  // Get available TSEs from organization hierarchy — real employees, not a fake territory list
   const executives = useMemo(() => {
-    const allTSEs = organizationHierarchyService.getAllTSETerritories();
+    const allTSEs = organizationHierarchyService.getRealTSEsForCity(cityContextId || "CITY-SURAT");
     return allTSEs.map(tse => tse.tseName);
-  }, []);
+  }, [cityContextId]);
 
   const stages: LeadStage[] = [
     "new",

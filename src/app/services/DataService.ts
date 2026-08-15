@@ -250,6 +250,12 @@ const STORAGE_KEYS = {
   PMS_MANAGER_REVIEWS:        "pms_manager_reviews",
   PMS_CALIBRATIONS:           "pms_calibrations",
   PMS_INCREMENT_BANDS:        "pms_increment_bands",
+  // ── Real weekly shift/roster config for TSE/TSM telecallers — previously
+  // didn't exist at all (lead assignment ran 24/7 with no concept of who's
+  // actually on shift). Keyed by employeeId, which is already globally
+  // unique, so this is a global entity like the KRA_/PMS_ records above,
+  // not city-namespaced.
+  TELECALLER_SHIFTS:          "telecaller_shifts",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
@@ -267,6 +273,7 @@ const GLOBAL_ENTITY_TYPES = new Set<EntityType>([
   "KRA_KPI_ACTUALS", "KRA_KPI_QUARTERLY_REVIEWS", "KRA_INCENTIVE_RULE_VERSIONS", "KRA_INCENTIVE_PAYOUTS",
   "PMS_CYCLES", "PMS_GOALS", "PMS_SELF_APPRAISALS",
   "PMS_MANAGER_REVIEWS", "PMS_CALIBRATIONS", "PMS_INCREMENT_BANDS",
+  "TELECALLER_SHIFTS",
 ]);
 
 /**

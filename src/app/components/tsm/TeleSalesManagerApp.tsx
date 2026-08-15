@@ -131,6 +131,7 @@ import { TSMLeadPoolAssignment } from "./TSMLeadPoolAssignment";
 import { RescheduleQueuePanel } from "../shared/RescheduleQueuePanel";
 import { TSMReschedulePanel } from "./TSMReschedulePanel";
 import { UpsellTasksPanel, TSMSettingsPanel } from "./TSMUpsellAndSettings";
+import { TSMShiftRoster } from "./TSMShiftRoster";
 import { rescheduleService } from "../../services/whatsappRescheduleHandler";
 
 
@@ -140,11 +141,6 @@ import { teleSalesManagerService } from "../../services/teleSalesManagerService"
 
 import { TATNotificationBell } from "../shared/TATNotificationBell";
 import { tatTrackingService } from "../../services/tatTrackingService";
-
-
-import { TATNotificationBell } from "../shared/TATNotificationBell";
-import { tatTrackingService } from "../../services/tatTrackingService";
-
 
 import {
   TIME_MODE_HOURS,
@@ -1176,6 +1172,10 @@ export function TeleSalesManagerApp() {
             <TabsTrigger value="settings" className="gap-2">
               <span>⚙️</span>Settings
             </TabsTrigger>
+            <TabsTrigger value="shift-roster" className="gap-2">
+              <span>🗓️</span>
+              <span className="hidden sm:inline">Shift Roster</span>
+            </TabsTrigger>
             <TabsTrigger value="exit-verify" className="gap-2 relative">
               <span>🚪</span>
               <span className="hidden sm:inline">Exit Verify</span>
@@ -1497,6 +1497,10 @@ export function TeleSalesManagerApp() {
           </TabsContent>
           <TabsContent value="settings" className="mt-0">
             <TSMSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="shift-roster" className="mt-0">
+            <TSMShiftRoster />
           </TabsContent>
 
           {/* TSE Exit Material Verification */}

@@ -436,11 +436,15 @@ class BTLLeadService {
       // ✅ GET PINCODE from GPS
       const pincode = this.getPincodeFromGPS(btlLead.gpsLocation.lat, btlLead.gpsLocation.lng);
 
-      // ✅ AUTOMATIC TSE ASSIGNMENT (if not already assigned)
-      let assignedTSE = btlLead.assignedToTSEName || "TSE Queue";
+      // Real shift-aware assignment (if not already assigned) — can now
+      // genuinely fail when nobody's on shift. An empty assignedTo (not a
+      // fake placeholder name) is what TSMLeadPoolAssignment's pool filter
+      // actually checks for, so a failed assignment genuinely surfaces
+      // there instead of silently vanishing under a decoy string.
+      let assignedTSE = btlLead.assignedToTSEName || "";
       if (!btlLead.assignedToTSEName) {
         const tseAssignment = organizationHierarchyService.assignLeadByPincode(pincode);
-        assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : "TSE Queue";
+        assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : "";
       }
 
       // Map vehicle type
@@ -740,9 +744,11 @@ class BTLLeadService {
     // ✅ EXTRACT PINCODE from GPS location (enhanced geocoding)
     const pincode = this.getPincodeFromGPS(gpsLocation.lat, gpsLocation.lng);
 
-    // ✅ AUTOMATIC TSE ASSIGNMENT based on pincode territory
+    // Real shift-aware assignment by pincode territory — leaves assignedTo
+    // genuinely empty (not a decoy placeholder name) when nobody's on
+    // shift, which is what TSMLeadPoolAssignment's pool filter checks for.
     const tseAssignment = organizationHierarchyService.assignLeadByPincode(pincode);
-    const assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : "TSE Queue";
+    const assignedTSE = tseAssignment.success ? tseAssignment.assignedToName : "";
     const assignedTSEId = tseAssignment.success ? tseAssignment.assignedTo : "UNASSIGNED";
 
     // Map vehicle type to car type
