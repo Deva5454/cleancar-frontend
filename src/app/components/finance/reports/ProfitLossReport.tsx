@@ -45,13 +45,31 @@ export function ProfitLossReport({ filters }: ProfitLossReportProps) {
     // to by approveRefund() whenever a refund is approved — but this
     // group never included that head, so an approved refund never
     // reduced Sales here even though the ledger entry genuinely existed.
+    // Real fix (16-Aug observation — Balance Sheet's own embedded P&L,
+    // which sums every income/expense-nature ledger with no head filter,
+    // disagreed with this report by ~₹1.15L): this whitelist was missing
+    // two heads that real money actually posts to —
+    // sales_package_bundle/sales_bundle_forfeiture (multiMonthBundleService,
+    // real multi-month bundle sales + forfeiture income) on the income
+    // side, and salary_expense (accountingEntryService's Finance-payable
+    // bridge — every "Salary" type payable debits this ledger) on the
+    // expense side. Missing salary_expense alone meant every real payroll
+    // disbursement silently vanished from this report's Gross Expenditure,
+    // which is why this P&L understated the loss so severely compared to
+    // the Balance Sheet. statutory_expense and purchase aren't currently
+    // posted to by anything (statutory payables land in indirect_expenses,
+    // and no ledger is seeded under "purchase" — see the comment on that
+    // head's declaration), but are included here too so a real posting to
+    // either one in the future doesn't silently disappear the same way.
     const INCOME_GROUPS = [
-      { key: "sales", label: "Sales", heads: ["sales_subscription", "sales_service", "sales_renewal", "sales_returns_allowances"] },
+      { key: "sales", label: "Sales", heads: ["sales_subscription", "sales_service", "sales_renewal", "sales_returns_allowances", "sales_package_bundle", "sales_bundle_forfeiture"] },
       { key: "other_income", label: "Other Income", heads: ["other_income"] },
     ];
     const EXPENSE_GROUPS = [
-      { key: "cogs", label: "Cost of Goods Sold", heads: ["cogs"] },
+      { key: "cogs", label: "Cost of Goods Sold", heads: ["cogs", "purchase"] },
       { key: "direct", label: "Direct Expenses", heads: ["direct_expenses"] },
+      { key: "salary", label: "Salaries & Wages", heads: ["salary_expense"] },
+      { key: "statutory", label: "Statutory Contributions", heads: ["statutory_expense"] },
       { key: "indirect", label: "Indirect Expenses", heads: ["indirect_expenses"] },
       { key: "depreciation", label: "Depreciation", heads: ["depreciation"] },
     ];

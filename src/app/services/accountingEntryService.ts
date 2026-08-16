@@ -30,19 +30,44 @@ export const CHART_OF_ACCOUNTS_HEADS = [
   { value: "fixed_assets",        label: "Fixed Assets",             nature: "asset" },
   { value: "cash_bank",           label: "Cash & Bank",              nature: "asset" },
   { value: "current_assets",      label: "Current Assets",           nature: "asset" },
+  { value: "inventory_asset",     label: "Inventory",                nature: "asset" },
   { value: "accounts_receivable", label: "Accounts Receivable",      nature: "asset" },
   { value: "gst_input",           label: "GST Input (ITC)",          nature: "asset" },
+  // Real fix (16-Aug observation — "No GST Output liability is available
+  // in Balancesheet"): these CGST/SGST/IGST input/output/RCM breakdown
+  // ledgers were seeded and posted to for real (see the GST posting logic
+  // below) but their account heads were never declared here — every
+  // screen that groups ledgers by iterating this list (Balance Sheet's
+  // Assets/Liabilities sections, the Debit/Credit pickers in Accounting
+  // Entry and Journal Entry) silently never visited these heads, so the
+  // ledgers existed with real balances but never appeared anywhere that
+  // groups by chart-of-accounts head — including the GST output tax
+  // liability the Balance Sheet was missing entirely.
+  { value: "gst_input_cgst",      label: "GST Input CGST",           nature: "asset" },
+  { value: "gst_input_sgst",      label: "GST Input SGST",           nature: "asset" },
+  { value: "gst_input_igst",      label: "GST Input IGST",           nature: "asset" },
+  { value: "gst_rcm_input_not_due", label: "RCM Tax Input (Not Yet Due)", nature: "asset" },
   // LIABILITIES
   { value: "equity",              label: "Capital & Equity",         nature: "liability" },
   { value: "duties_taxes",        label: "Duties & Taxes",           nature: "liability" },
+  { value: "gst_output_cgst",     label: "Output GST CGST",          nature: "liability" },
+  { value: "gst_output_sgst",     label: "Output GST SGST",          nature: "liability" },
+  { value: "gst_output_igst",     label: "Output GST IGST",          nature: "liability" },
+  { value: "gst_rcm_cgst_output", label: "RCM GST Payable (CGST)",   nature: "liability" },
+  { value: "gst_rcm_sgst_output", label: "RCM GST Payable (SGST)",   nature: "liability" },
+  { value: "gst_rcm_igst_output", label: "RCM GST Payable (IGST)",   nature: "liability" },
   { value: "credit_cards",        label: "Credit Cards",             nature: "liability" },
   { value: "non_current_liab",    label: "Non-Current Liabilities",  nature: "liability" },
   { value: "other_liabilities",   label: "Other Liabilities",        nature: "liability" },
+  { value: "contract_liability",  label: "Contract Liability",       nature: "liability" },
   { value: "accounts_payable",    label: "Accounts Payable",         nature: "liability" },
   // INCOME
   { value: "sales_subscription",  label: "Sales — Subscription",     nature: "income" },
   { value: "sales_service",       label: "Sales — Service",          nature: "income" },
   { value: "sales_renewal",       label: "Sales — Renewal",          nature: "income" },
+  { value: "sales_package_bundle", label: "Sales — Multi-Month Bundle", nature: "income" },
+  { value: "sales_bundle_forfeiture", label: "Sales — Bundle Forfeiture/Cancellation", nature: "income" },
+  { value: "sales_returns_allowances", label: "Sales Returns & Allowances", nature: "income" },
   { value: "other_income",        label: "Other Income",             nature: "income" },
   // EXPENSES
   { value: "cogs",                label: "Cost of Goods Sold",       nature: "expense" },
@@ -1579,6 +1604,15 @@ class AccountingEntryService {
       status: "Posted",
       changeHistory: [],
     };
+
+    // ✅ FIX (16-Aug observation — "system should not allow 0 value
+    // transaction"): nothing rejected a ₹0 entry — it trivially "balances"
+    // (0 == 0) and passed the check below, so it just silently posted as
+    // a real, empty voucher with no economic meaning. Reject before any
+    // journal lines are even built.
+    if (Math.abs(entry.taxableValue) < 0.01 && Math.abs(entry.totalBillValue) < 0.01) {
+      throw new Error("Cannot save a ₹0 transaction — enter a real taxable value/amount.");
+    }
 
     // ✅ FIX (ACC-DEF-01): previously this saved whatever it was given with
     // zero validation — the exact class of check JournalEntry.tsx already

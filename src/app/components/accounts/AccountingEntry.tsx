@@ -49,7 +49,13 @@ export function AccountingEntry() {
   const [isProductSale, setIsProductSale] = useState(false);
   const [productItemId, setProductItemId] = useState("");
   const [productQuantity, setProductQuantity] = useState("");
-  const { inventory, reduceStockForSale } = useInventory();
+  // ✅ NEW: real Purchase-of-Product wiring — the Sale-of-Product pattern
+  // above (reduce real stock on a Sales entry) had no mirror on the
+  // Purchase side, so a Purchase entry recorded here never actually
+  // increased real stock — items "added" via a purchase bill never showed
+  // up as real inventory, only Item Master's own manual stock screen did.
+  const [isProductPurchase, setIsProductPurchase] = useState(false);
+  const { inventory, reduceStockForSale, procureInventory } = useInventory();
   const [vendorName, setVendorName] = useState("");
   const [vendorGstin, setVendorGstin] = useState("");
   const [vendorStateCode, setVendorStateCode] = useState("");
@@ -262,6 +268,23 @@ export function AccountingEntry() {
       }
     }
 
+    // Real Purchase-of-Product: increases real stock the same way a GRN
+    // does, so an item purchased through this screen actually shows up in
+    // Item Master's stock report, not just as an accounting entry.
+    if (activeTab === "Purchase" && isProductPurchase) {
+      const qty = parseFloat(productQuantity);
+      if (!productItemId) {
+        toast.error("Select which item this purchase is for.");
+        return;
+      }
+      if (!qty || qty <= 0) {
+        toast.error("Enter a real quantity purchased.");
+        return;
+      }
+      const unitRate = taxableValue > 0 ? taxableValue / qty : undefined;
+      procureInventory(productItemId, qty, vendorName || "Unknown Vendor", city, unitRate);
+    }
+
     // Create entry
     // ✅ FIX (ACC-DEF-01): createEntry() can now throw if the resulting
     // journal lines don't balance (a real, previously-unvalidated case —
@@ -326,6 +349,7 @@ export function AccountingEntry() {
     setSelectedVendorId("");
     setSelectedPackageCode("");
     setIsProductSale(false);
+    setIsProductPurchase(false);
     setProductItemId("");
     setProductQuantity("");
     setVendorName("");
@@ -615,6 +639,56 @@ export function AccountingEntry() {
                     This is a Sale of a Product (reduces real stock)
                   </label>
                   {isProductSale && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Item</label>
+                        <select
+                          value={productItemId}
+                          onChange={(e) => setProductItemId(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Select item</option>
+                          {inventory
+                            .filter((i: any) => i.cityId === city)
+                            .map((i: any) => (
+                              <option key={i.itemId} value={i.itemId}>
+                                {i.itemName} — on hand: {i.centralStock ?? 0} {i.unit}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Quantity</label>
+                        <input
+                          type="number" min="0" step="1"
+                          value={productQuantity}
+                          onChange={(e) => setProductQuantity(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ✅ NEW: real Purchase-of-Product wiring, mirrors the
+                  Sale-of-Product block below but increases real stock via
+                  procureInventory() instead of reducing it. Without this,
+                  an item "purchased" through this screen only ever existed
+                  as an accounting entry — Item Master's real stock never
+                  moved, so a newly received item never showed up as stock
+                  on hand anywhere real stock is checked. */}
+              {activeTab === "Purchase" && (
+                <div className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      checked={isProductPurchase}
+                      onChange={(e) => { setIsProductPurchase(e.target.checked); if (!e.target.checked) { setProductItemId(""); setProductQuantity(""); } }}
+                    />
+                    This is a Purchase of a real Item (increases real stock)
+                  </label>
+                  {isProductPurchase && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1">Item</label>

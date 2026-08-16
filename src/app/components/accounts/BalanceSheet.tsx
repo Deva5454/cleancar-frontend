@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useCity } from "../../contexts/CityContext";
 import { accountingEntryService, CHART_OF_ACCOUNTS_HEADS } from "../../services/accountingEntryService";
 import { Download, AlertCircle, CheckCircle2, ChevronRight, ChevronDown } from "lucide-react";
@@ -249,7 +250,9 @@ export function BalanceSheet() {
                 </button>
                 {expandedGroups.has(`liab-${section.head}`) && section.ledgers.map(ledger => (
                   <div key={ledger.ledgerId} className="flex justify-between pl-6 text-gray-600 text-xs py-0.5">
-                    <span>{ledger.ledgerName}</span>
+                    <Link to={`/accounts/ledger?ledgerId=${ledger.ledgerId}`} className="hover:text-blue-600 hover:underline">
+                      {ledger.ledgerName}
+                    </Link>
                     <span>₹{(ledger.balanceType === "Cr" ? ledger.balance : -ledger.balance).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 ))}
@@ -319,7 +322,9 @@ export function BalanceSheet() {
                 </button>
                 {expandedGroups.has(`asset-${section.head}`) && section.ledgers.map(ledger => (
                   <div key={ledger.ledgerId} className="flex justify-between pl-6 text-gray-600 text-xs py-0.5">
-                    <span>{ledger.ledgerName}</span>
+                    <Link to={`/accounts/ledger?ledgerId=${ledger.ledgerId}`} className="hover:text-blue-600 hover:underline">
+                      {ledger.ledgerName}
+                    </Link>
                     <span>₹{(ledger.balanceType === "Dr" ? ledger.balance : -ledger.balance).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 ))}

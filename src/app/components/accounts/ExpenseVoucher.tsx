@@ -67,6 +67,20 @@ export function ExpenseVoucher() {
   });
 
   useEffect(() => {
+    // Real fix (16-Aug observation — "Still only 4 vendor visible in drop
+    // down list"): this only ever read vendors from accountingEntryService's
+    // own ledgers — but a vendor's AP ledger is only ever created lazily,
+    // the first time a payable is actually posted for them (see
+    // getOrCreateVendorLedger). A vendor added in the real Vendor Master
+    // (gstComplianceService) with no payable posted yet had no ledger at
+    // all, so never appeared here — leaving only the handful of seed AP
+    // ledgers visible. Materialize a ledger for every real Vendor Master
+    // entry up front (idempotent — returns the existing one if already
+    // created), so every real vendor shows up, not just ones already billed.
+    gstComplianceService.getVendors().forEach((v) => {
+      accountingEntryService.getOrCreateVendorLedger(v.id, v.name, cityId, city, v.gstin);
+    });
+
     const allLedgers = accountingEntryService.getLedgers(cityId);
 
     // FIX 6: vendor dropdown shows vendor NAME — filter out generic system "Accounts Payable" ledger
@@ -90,7 +104,7 @@ export function ExpenseVoucher() {
       )
     );
     setItems(accountingEntryService.getItems());
-  }, [cityId]);
+  }, [cityId, city]);
 
   useEffect(() => {
     if (formData.quantity && formData.unitPrice) {

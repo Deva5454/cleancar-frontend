@@ -13,6 +13,9 @@
  * D4 — KPI variables (salesToday, salesThisMonth etc.) were plain assignments outside
  *      useMemo — recomputed on every render. Fixed: all KPIs inside one kpis useMemo.
  * D5 — TDS Payable card hardcoded ₹0. Fixed: compute from tds_payable ledger movements.
+ * D6 — Total Expenses (Today/This Month) summed totalBillValue (GST-inclusive) instead of
+ *      taxableValue — purchase/expense figures shown here were overstated by the GST portion.
+ *      Fixed: sum taxableValue, matching how Sales' taxable-value reporting works elsewhere.
  */
 
 import { useMemo, useState } from "react";
@@ -86,8 +89,8 @@ export function AccountsDashboard() {
   const kpis = useMemo(() => {
     const salesToday        = todayEntries.filter(e => e.entryType === "Sales").reduce((s,e)=>s+e.totalBillValue,0);
     const salesThisMonth    = thisMonthEntries.filter(e => e.entryType === "Sales").reduce((s,e)=>s+e.totalBillValue,0);
-    const expensesToday     = todayEntries.filter(e => e.entryType === "Expense" || e.entryType === "Purchase").reduce((s,e)=>s+e.totalBillValue,0);
-    const expensesThisMonth = thisMonthEntries.filter(e => e.entryType === "Expense" || e.entryType === "Purchase").reduce((s,e)=>s+e.totalBillValue,0);
+    const expensesToday     = todayEntries.filter(e => e.entryType === "Expense" || e.entryType === "Purchase").reduce((s,e)=>s+e.taxableValue,0);
+    const expensesThisMonth = thisMonthEntries.filter(e => e.entryType === "Expense" || e.entryType === "Purchase").reduce((s,e)=>s+e.taxableValue,0);
 
     const gstOutput  = periodEntries.filter(e => e.entryType === "Sales").reduce((s,e)=>s+e.cgst+e.sgst+e.igst,0);
     const gstInput   = periodEntries.filter(e => (e.entryType === "Purchase"||e.entryType === "Expense") && !e.isRCM).reduce((s,e)=>s+e.cgst+e.sgst+e.igst,0);

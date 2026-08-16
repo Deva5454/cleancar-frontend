@@ -1,12 +1,39 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCity } from "../../contexts/CityContext";
 import { accountingEntryService, CHART_OF_ACCOUNTS_HEADS, type LedgerMaster } from "../../services/accountingEntryService";
 import { Download, Search } from "lucide-react";
 
 export function AccountsLedger() {
   const { city } = useCity();
+  // Real fix (16-Aug observation — "no hyperlink to see ledgers in
+  // balancesheet"): this screen only ever tracked its selection in local
+  // state, so nothing outside it could deep-link to a specific ledger.
+  // Now reads/writes a `ledgerId` query param, so Balance Sheet (and
+  // anything else) can link straight to a ledger's real transaction list.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedHead, setSelectedHead] = useState("");
-  const [selectedLedgerId, setSelectedLedgerId] = useState("");
+  const [selectedLedgerId, setSelectedLedgerIdState] = useState(searchParams.get("ledgerId") || "");
+  const setSelectedLedgerId = (id: string) => {
+    setSelectedLedgerIdState(id);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("ledgerId", id); else next.delete("ledgerId");
+      return next;
+    }, { replace: true });
+  };
+
+  // A deep link may arrive with just a ledgerId — auto-select its head too
+  // so the head dropdown and ledger list are consistent with the selection.
+  useEffect(() => {
+    const paramId = searchParams.get("ledgerId");
+    if (paramId && paramId !== selectedLedgerId) {
+      setSelectedLedgerIdState(paramId);
+      const ledger = accountingEntryService.getLedgers(city).find(l => l.id === paramId);
+      if (ledger) setSelectedHead(ledger.accountHead);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, city]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
