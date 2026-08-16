@@ -101,8 +101,13 @@ export function SalesSummaryReport() {
   }, [filteredEntries]);
 
   // KPI calculations
-  const totalSales = sales.reduce((sum, s) => sum + s.totalBillValue, 0);
-  const totalReturns = salesReturns.reduce((sum, s) => sum + s.totalBillValue, 0);
+  // Real fix (16-Aug observation): these were summing totalBillValue
+  // (GST-inclusive) — "need to show taxable value i.e value excluding
+  // GST, currently Bill Value total is being displayed". The detail
+  // table below already correctly separates Taxable Value from Total;
+  // only these summary KPI cards need the same taxable-value basis.
+  const totalSales = sales.reduce((sum, s) => sum + s.taxableValue, 0);
+  const totalReturns = salesReturns.reduce((sum, s) => sum + s.taxableValue, 0);
   const netSales = totalSales - totalReturns;
   const totalOutputTax = sales.reduce((sum, s) => sum + s.cgst + s.sgst + s.igst, 0);
 

@@ -904,7 +904,26 @@ export function postPayableEntryForFinance(params: {
     // Balance Sheet instead of pooling anonymously.
     params.vendorName ? accountingEntryService.getOrCreateVendorLedger(params.vendorId || params.vendorName, params.vendorName, params.cityId, params.city) :
     ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
-  if (!debitLedger || !creditLedger) return null;
+  // Real fix (16-Aug observation — a real ₹61,700 vendor payable was
+  // reported missing from P&L): this "skip, don't fabricate" contract
+  // silently returned null with zero logging whenever a required ledger
+  // wasn't resolved — the payable still saved fine in FinanceContext
+  // (so it appeared in the Payables Dashboard/Vendor Payment screens),
+  // but its real accounting-ledger posting just never happened, with no
+  // trace anywhere that it had been skipped. This is exactly the kind of
+  // gap that produces "shows here but not there" mismatches between
+  // FinanceContext-based screens and accountingEntryService-based ones
+  // (Balance Sheet, P&L, Vendor Payment's ledger totals). Logging loudly
+  // here doesn't change the "don't fabricate" behavior, but makes the
+  // skip discoverable instead of invisible.
+  if (!debitLedger || !creditLedger) {
+    console.warn(
+      `[postPayableEntryForFinance] Skipped posting payable ${params.payableId} (type=${params.type}, ₹${params.amount}) to the real ledger — ` +
+      `${!debitLedger ? "debit" : "credit"} ledger not found for city ${params.cityId}. ` +
+      `This payable will show in the Payables Dashboard but NOT in Balance Sheet/P&L until this is resolved.`
+    );
+    return null;
+  }
 
   const entryType = params.type === "Vendor" ? "Purchase" : "Expense";
   const hasRealGst = (params.cgst || 0) + (params.sgst || 0) + (params.igst || 0) > 0;
@@ -974,7 +993,16 @@ export function postPayableTopUpEntryForFinance(params: {
   const creditLedger =
     params.vendorName ? accountingEntryService.getOrCreateVendorLedger(params.vendorId || params.vendorName, params.vendorName, params.cityId, params.city) :
     ledgers.find(l => l.accountHead === "accounts_payable" && l.name === "Accounts Payable");
-  if (!debitLedger || !creditLedger) return null;
+  // Same observability fix as postPayableEntryForFinance above — a silent
+  // null return here means this GRN top-up never reaches Balance Sheet/P&L
+  // even though the Payable's amount was already topped up in FinanceContext.
+  if (!debitLedger || !creditLedger) {
+    console.warn(
+      `[postPayableTopUpEntryForFinance] Skipped posting top-up for payable ${params.payableId} / GRN ${params.grnNumber} (₹${params.amount}) to the real ledger — ` +
+      `${!debitLedger ? "debit" : "credit"} ledger not found for city ${params.cityId}.`
+    );
+    return null;
+  }
 
   const hasRealGst = (params.cgst || 0) + (params.sgst || 0) + (params.igst || 0) > 0;
 

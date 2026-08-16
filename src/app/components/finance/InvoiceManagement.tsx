@@ -57,6 +57,7 @@ import { useCustomers, type Customer } from "../../contexts/AppProvider";
 import { useCustomerSubscriptions, type CustomerSubscription } from "../../contexts/AppProvider";
 import { logger } from "../../services/logger";
 import { accountingEntryService } from "../../services/accountingEntryService";
+import { showExportMenu } from "../../utils/gstExportUtils";
 
 // Real inter-state detection instead of the previous hardcoded assumption
 // that every customer is in the company's own state (Gujarat) — this
@@ -696,6 +697,27 @@ export default function InvoiceManagement() {
   });
   const [isCreating, setIsCreating] = useState(false);
 
+  // Real fix (16-Aug observation — "not able to export the data from
+  // export button"): this button had no onClick handler at all.
+  function handleExportInvoices(e: React.MouseEvent) {
+    const data = invoices.map((inv) => ({
+      "Invoice No": inv.invoiceNumber,
+      "Customer": inv.customerName,
+      "Service": inv.serviceType || "-",
+      "Invoice Date": inv.invoiceDate,
+      "Due Date": inv.dueDate,
+      "Taxable Value": inv.subtotal,
+      CGST: inv.cgst || 0,
+      SGST: inv.sgst || 0,
+      IGST: inv.igst || 0,
+      "Total": inv.totalAmount,
+      "Paid": inv.paidAmount,
+      "Balance Due": inv.balanceDue,
+      "Status": inv.status,
+    }));
+    showExportMenu(data, "invoices", e.currentTarget as HTMLElement);
+  }
+
   function handleViewInvoice(invoiceId: string) {
     const inv = invoices.find(i => i.id === invoiceId);
     if (!inv) return;
@@ -916,7 +938,7 @@ export default function InvoiceManagement() {
               <FileText className="w-5 h-5 mr-2" />
               Invoices ({invoices.length})
             </CardTitle>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleExportInvoices}>
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
