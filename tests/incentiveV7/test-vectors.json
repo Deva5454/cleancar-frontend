@@ -1,0 +1,74 @@
+{
+  "_comment": "Expected results taken from the 7 Oct rulebook and the 13 Oct decisions. A ported engine must reproduce every value.",
+  "fullTimeSlab": [
+    { "units": 0,  "expect": 0 }, { "units": 5, "expect": 0 }, { "units": 6, "expect": 300 },
+    { "units": 7,  "expect": 350 }, { "units": 10, "expect": 500 }, { "units": 11, "expect": 850 },
+    { "units": 12, "expect": 900 }, { "units": 14, "expect": 1000 }, { "units": 15, "expect": 1050 }
+  ],
+  "guard": [
+    { "slab": 850, "exGstRevenue": 497,  "expectPaid": 149, "expectLimited": true,  "note": "11 subscription units, about Rs 45 each ex-GST" },
+    { "slab": 300, "exGstRevenue": 1520, "expectPaid": 300, "expectLimited": false, "note": "6 one-time Rs 299 washes" },
+    { "slab": 850, "exGstRevenue": 2787, "expectPaid": 836, "expectLimited": true,  "note": "11 one-time Rs 299 washes, 30% = 836" }
+  ],
+  "partTime": [
+    { "cars": 299, "expect": 0 }, { "cars": 300, "expect": 3000 }, { "cars": 350, "expect": 3500 },
+    { "cars": 500, "expect": 5000 }, { "cars": 620, "expect": 5000 }
+  ],
+  "tseDaily": [
+    { "washes": 0, "expect": 0 }, { "washes": 4, "expect": 0 }, { "washes": 5, "expect": 20 },
+    { "washes": 6, "expect": 240 }, { "washes": 10, "expect": 320 }, { "washes": 11, "expect": 590 },
+    { "washes": 14, "expect": 650 }, { "washes": 15, "expect": 920 }, { "washes": 19, "expect": 1000 },
+    { "washes": 20, "expect": 1520 }, { "washes": 25, "expect": 1620 }
+  ],
+  "tsmVolume": [
+    { "washes": 149, "expect": 0 }, { "washes": 150, "expect": 1000 }, { "washes": 249, "expect": 1500 },
+    { "washes": 300, "expect": 4000 }, { "washes": 500, "expect": 5000 }
+  ],
+  "tsmConversion_definitionNull": [ { "ratePct": 40, "expect": 0 } ],
+  "tsmConversion_definitionSet": [
+    { "ratePct": 14, "expect": 0 }, { "ratePct": 15, "expect": 1000 }, { "ratePct": 29, "expect": 3500 }, { "ratePct": 35, "expect": 7500 }, { "ratePct": 50, "expect": 7500 }
+  ],
+  "instalments": [
+    { "family": "PACK2",     "term": 1, "total": 50,  "planStart": "2026-01-10", "expectAmounts": [50] },
+    { "family": "DAILY_SUB", "term": 1, "total": 150, "planStart": "2026-01-10", "expectAmounts": [150] },
+    { "family": "PACK2",     "term": 3, "total": 100, "planStart": "2026-01-10", "expectAmounts": [50, 50],        "expectDue": ["2026-02-09", "2026-04-09"] },
+    { "family": "PACK4",     "term": 3, "total": 200, "planStart": "2026-01-10", "expectAmounts": [100, 100] },
+    { "family": "DAILY_SUB", "term": 3, "total": 350, "planStart": "2026-01-10", "expectAmounts": [175, 175] },
+    { "family": "PACK2",     "term": 6, "total": 150, "planStart": "2026-01-10", "expectAmounts": [60, 45, 45],    "expectDue": ["2026-02-09", "2026-04-09", "2026-07-09"], "expectPayrollMonths": ["2026-02", "2026-04", "2026-07"] },
+    { "family": "PACK4",     "term": 6, "total": 300, "planStart": "2026-01-10", "expectAmounts": [120, 90, 90] },
+    { "family": "DAILY_SUB", "term": 6, "total": 500, "planStart": "2026-01-10", "expectAmounts": [200, 150, 150] },
+    { "family": "DAILY_SUB", "term": 1, "total": 150, "planStart": "2026-01-31", "expectDue": ["2026-02-27"], "note": "31 Jan + 1 month clamps to 28 Feb, minus 1 day" }
+  ],
+  "classify": [
+    { "ctx": { "saleDate": "2026-01-20", "family": "PACK2", "firstPaidOneTimeWashDate": "2026-01-01", "hasPriorConversion": false, "activeFamily": null }, "expect": "REPEAT_CONVERSION" },
+    { "ctx": { "saleDate": "2026-01-31", "family": "PACK2", "firstPaidOneTimeWashDate": "2026-01-01", "hasPriorConversion": false, "activeFamily": null }, "expect": "REPEAT_CONVERSION", "note": "day 30 is inside the window" },
+    { "ctx": { "saleDate": "2026-02-01", "family": "PACK2", "firstPaidOneTimeWashDate": "2026-01-01", "hasPriorConversion": false, "activeFamily": null }, "expect": "PACKAGE_NO_INCENTIVE", "note": "day 31 is outside" },
+    { "ctx": { "saleDate": "2026-03-10", "family": "PACK2", "firstPaidOneTimeWashDate": "2026-01-01", "hasPriorConversion": true,  "activeFamily": null }, "expect": "RENEWAL" },
+    { "ctx": { "saleDate": "2026-02-10", "family": "PACK4", "firstPaidOneTimeWashDate": "2026-01-01", "hasPriorConversion": true,  "activeFamily": "PACK2" }, "expect": "UPGRADE" },
+    { "ctx": { "saleDate": "2026-01-10", "family": "PACK2", "firstPaidOneTimeWashDate": null, "hasPriorConversion": false, "activeFamily": null }, "expect": "PACKAGE_NO_INCENTIVE", "note": "no paid one-time wash on record" }
+  ],
+  "incentiveTotal": [
+    { "klass": "REPEAT_CONVERSION", "family": "DAILY_SUB", "termMonths": 6, "expect": 500 },
+    { "klass": "RENEWAL", "renewalNumber": 1, "expect": 50 },
+    { "klass": "RENEWAL", "renewalNumber": 2, "expect": 50 },
+    { "klass": "RENEWAL", "renewalNumber": 3, "expect": 25 },
+    { "klass": "RENEWAL", "renewalNumber": 9, "expect": 25 },
+    { "klass": "UPGRADE", "upgradeKey": "PACK2_TO_PACK4", "expect": 100 },
+    { "klass": "UPGRADE", "upgradeKey": "PACK4_TO_DAILY_SUB", "expect": 0 }
+  ],
+  "evaluateInstalment": [
+    { "inst": { "status": "PENDING", "due_date": "2026-02-09" }, "facts": { "cancelledOn": null, "refundedOn": null, "paymentReceived": true }, "today": "2026-02-09", "expect": "PENDING", "note": "due date itself is not yet past" },
+    { "inst": { "status": "PENDING", "due_date": "2026-02-09" }, "facts": { "cancelledOn": null, "refundedOn": null, "paymentReceived": true }, "today": "2026-02-10", "expect": "ELIGIBLE" },
+    { "inst": { "status": "PENDING", "due_date": "2026-02-09" }, "facts": { "cancelledOn": null, "refundedOn": null, "paymentReceived": false }, "today": "2026-02-10", "expect": "PENDING", "note": "payment not received" },
+    { "inst": { "status": "PENDING", "due_date": "2026-04-09" }, "facts": { "cancelledOn": "2026-03-15", "refundedOn": null, "paymentReceived": true }, "today": "2026-04-10", "expect": "FORFEITED" },
+    { "inst": { "status": "PENDING", "due_date": "2026-02-09" }, "facts": { "cancelledOn": "2026-02-20", "refundedOn": null, "paymentReceived": true }, "today": "2026-02-21", "expect": "ELIGIBLE", "note": "cancelled after the checkpoint: already earned" },
+    { "inst": { "status": "RELEASED", "due_date": "2026-02-09" }, "facts": { "cancelledOn": "2026-02-01", "refundedOn": null, "paymentReceived": true }, "today": "2026-03-01", "expect": "RELEASED", "note": "paid instalments are never recovered (no clawback)" }
+  ],
+  "exit": [
+    { "lastWorkingDay": "2026-03-20", "payrollMonths": ["2026-02", "2026-04", "2026-07"], "expectForfeited": [false, true, true] },
+    { "lastWorkingDay": "2026-04-05", "payrollMonths": ["2026-02", "2026-04", "2026-07"], "expectForfeited": [false, false, true] }
+  ],
+  "workingDays": [
+    { "year": 2026, "month": 11, "expect": 26 }, { "year": 2026, "month": 2, "expect": 24 }, { "year": 2026, "month": 10, "expect": 27 }
+  ]
+}

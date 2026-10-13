@@ -9,6 +9,7 @@ import "./styles/index.css";
 import App from "./app/App";
 import { EmergencyFallback } from "./app/EmergencyFallback";
 import { seedAllData, seedExtendedModules } from "./app/utils/seedAllData";
+import { startIncentiveV7Scheduler } from "./app/services/incentiveV7";
 
 // ── React Query client ─────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -72,6 +73,7 @@ const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root not found in index.html");
 
 try {
+  startIncentiveV7Scheduler();
   createRoot(container).render(
     <React.Fragment>
       <QueryClientProvider client={queryClient}>

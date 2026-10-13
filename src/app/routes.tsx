@@ -35,6 +35,7 @@ const PerformanceManagementModule = lazy(() => import("./components/hr/Performan
 const CreateSalaryStructure = lazy(() => import("./components/payroll/CreateSalaryStructure"));
 const ChartOfAccounts = lazy(() => import("./components/finance/ChartOfAccounts"));
 const AdminPlanManagement = lazy(() => import("./components/subscription/AdminPlanManagement"));
+const IncentiveV7Admin = lazy(() => import("./components/incentives/v7/IncentiveV7Admin"));
 const IncentiveConfiguration = lazy(() => import("./components/incentives/IncentiveConfiguration"));
 
 // Analytics module - all lazy loaded
@@ -743,6 +744,7 @@ export const router = createBrowserRouter([
 
       // Incentive Management System - Configuration, Simulation & Forecasting
       { path: "incentives/configuration", element: <ErrorBoundary><IncentiveConfiguration /></ErrorBoundary> },
+      { path: "incentives/v7", element: <ErrorBoundary><IncentiveV7Admin /></ErrorBoundary> },
       { path: "incentives/simulator", element: <IncentiveSimulator /> },
       { path: "incentives/forecast", element: <IncentiveDashboard /> },
       { path: "incentives", element: <Navigate to="/incentives/configuration" replace /> },

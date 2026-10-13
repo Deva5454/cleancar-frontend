@@ -256,6 +256,23 @@ const STORAGE_KEYS = {
   // unique, so this is a global entity like the KRA_/PMS_ records above,
   // not city-namespaced.
   TELECALLER_SHIFTS:          "telecaller_shifts",
+  // ── Incentive V7 (7 Oct plan: washers FT/PT, TSE, TSM). Runs alongside the
+  // legacy incentive engines, which are untouched. All company-wide (each record
+  // carries its own city_id), so they are registered as GLOBAL entities below and
+  // are NOT subject to the per-city MAX_RECORDS trimming.
+  INC7_CONFIG_VERSIONS:       "inc7_config_versions",
+  INC7_SETTINGS:              "inc7_settings",
+  INC7_CALENDAR:              "inc7_calendar",
+  INC7_MONTH_LOCKS:           "inc7_month_locks",
+  INC7_AUDIT:                 "inc7_audit",
+  INC7_WASHER_DAYS:           "inc7_washer_days",
+  INC7_TSE_DAYS:              "inc7_tse_days",
+  INC7_MONTH_SUMMARIES:       "inc7_month_summaries",
+  INC7_OWNERSHIP:             "inc7_ownership",
+  INC7_SALES:                 "inc7_sales",
+  INC7_INSTALMENTS:           "inc7_instalments",
+  INC7_LEDGER:                "inc7_ledger",
+  INC7_PROVISION:             "inc7_provision",
 } as const;
 
 type EntityType = keyof typeof STORAGE_KEYS;
@@ -274,6 +291,9 @@ const GLOBAL_ENTITY_TYPES = new Set<EntityType>([
   "PMS_CYCLES", "PMS_GOALS", "PMS_SELF_APPRAISALS",
   "PMS_MANAGER_REVIEWS", "PMS_CALIBRATIONS", "PMS_INCREMENT_BANDS",
   "TELECALLER_SHIFTS",
+  "INC7_CONFIG_VERSIONS", "INC7_SETTINGS", "INC7_CALENDAR", "INC7_MONTH_LOCKS", "INC7_AUDIT",
+  "INC7_WASHER_DAYS", "INC7_TSE_DAYS", "INC7_MONTH_SUMMARIES", "INC7_OWNERSHIP",
+  "INC7_SALES", "INC7_INSTALMENTS", "INC7_LEDGER", "INC7_PROVISION",
 ]);
 
 /**

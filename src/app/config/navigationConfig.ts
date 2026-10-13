@@ -257,6 +257,7 @@ export const NAV_CONFIG: NavItem[] = [
       { label: "Salary Payment", path: "/payroll/salary-payment", icon: CreditCard, module: "payroll", match: "prefix" },
       { label: "Statutory Payables", path: "/payroll/statutory-payables", icon: Landmark, module: "payroll", match: "prefix" },
       { label: "Incentives", path: "/incentives/configuration", icon: TrendingUp, module: "payroll", match: "prefix" },
+      { label: "Incentives (7 Oct plan)", path: "/incentives/v7", icon: TrendingUp, module: "payroll", match: "prefix" },
       { label: "Adjustments Report", path: "/advance/adjustments-report", icon: FileBarChart, module: "payroll", match: "prefix" },
     ]
   },

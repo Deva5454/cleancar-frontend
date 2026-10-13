@@ -56,6 +56,10 @@ export const EARNING_CATEGORIES = [
   "Special allowance",
   "Retention bonus",
   "Back pay / arrears",
+  "Incentive - Washer",
+  "Incentive - TSE one-time",
+  "Incentive - TSE conversion",
+  "Incentive - TSM",
   "Other",
 ];
 

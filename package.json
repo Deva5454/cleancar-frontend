@@ -4,6 +4,7 @@
   "version": "0.0.2",
   "type": "module",
   "scripts": {
+    "test:incentive": "esbuild tests/incentiveV7/run.ts --bundle --platform=node --format=esm --outfile=.inc7test.mjs --log-level=error && node .inc7test.mjs",
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit"

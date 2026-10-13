@@ -297,7 +297,7 @@ export function TeleSalesExecutiveApp() {
         serviceDetails: { specialInstructions: crmUpdate.notes || "" },
         cityId: currentCityId,
         amount: finalPrice,
-        ...({ paymentStatus: "Pending" } as any),
+        ...({ paymentStatus: "Pending", bookedByTseId: (currentUser as any)?.employeeId || (currentUser as any)?.id } as any),
       } as any);
 
       // Lead isn't "Converted" yet — that only happens once TSM confirms
