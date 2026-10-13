@@ -5,6 +5,7 @@
  * rewrites past results: every summary row stores the version it used.
  */
 import { DEFAULT_INCENTIVE_CONFIG } from "./defaultConfig";
+import { pickVersion } from "./engine";
 import { audit, readAll, upsertMany, writeAll } from "./store";
 import type { CalendarOverride, ConfigVersionRow, IncentiveConfig, IncentiveMode, V7Settings } from "./types";
 
@@ -44,12 +45,7 @@ export function getVersions(): ConfigVersionRow[] {
 }
 
 export function getActiveRow(date: string = todayIST()): ConfigVersionRow {
-  const versions = getVersions();
-  const eligible = versions.filter((v) => v.effective_from <= date);
-  if (eligible.length === 0) return versions[0];
-  return eligible.reduce((best, v) =>
-    v.effective_from > best.effective_from || (v.effective_from === best.effective_from && v.version > best.version) ? v : best,
-  );
+  return pickVersion(getVersions(), date);
 }
 export const getActiveConfig = (date?: string): IncentiveConfig => getActiveRow(date).config;
 

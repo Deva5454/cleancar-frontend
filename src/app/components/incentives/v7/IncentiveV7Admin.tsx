@@ -211,8 +211,41 @@ function Rules({ actor, canEdit, onSaved }: { actor: string; canEdit: boolean; o
     );
   };
   const ft = cfg.washer.full_time;
+  const versions = getVersions();
+  const t = today();
+  const addDay = (d: string, n: number) => new Date(Date.parse(d + "T00:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  const history = versions.map((v) => {
+    const winner = versions.filter((x) => x.effective_from === v.effective_from).reduce((a, b) => (b.version > a.version ? b : a));
+    const later = versions.filter((x) => x.effective_from > v.effective_from).map((x) => x.effective_from).sort()[0];
+    const superseded = winner.version !== v.version;
+    const until = later ? addDay(later, -1) : null;
+    const state = superseded ? "Replaced" : v.effective_from > t ? "Scheduled" : until && until < t ? "Past" : "In force now";
+    return { v, from: v.effective_from, until, state };
+  });
   return (
     <div className="space-y-4">
+      <div className={box}>
+        <div className="mb-1 font-medium">Saved versions</div>
+        <p className="mb-2 text-xs text-gray-500">A version applies from the start of its date. The day before is calculated under the previous version.</p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead><tr className="border-b text-left text-gray-500"><th className="px-2 py-1.5">Version</th><th className="px-2">From</th><th className="px-2">Until (end of day)</th><th className="px-2">Status</th><th className="px-2">Saved by</th><th className="px-2">Reason</th><th /></tr></thead>
+            <tbody>
+              {history.map(({ v, from, until, state }) => (
+                <tr key={v.id} className="border-b last:border-0">
+                  <td className="px-2 py-1.5">v{v.version}</td>
+                  <td className="px-2">{from === "2000-01-01" ? "Beginning" : from}</td>
+                  <td className="px-2">{state === "Replaced" ? "-" : until ?? "Open-ended"}</td>
+                  <td className="px-2"><span className={state === "In force now" ? "font-medium text-green-700" : state === "Scheduled" ? "font-medium text-amber-700" : "text-gray-500"}>{state}</span></td>
+                  <td className="px-2">{v.created_by}</td>
+                  <td className="px-2">{v.reason}</td>
+                  <td className="px-2"><button className="text-blue-600 underline" onClick={() => { setCfg(clone(v.config)); toast(`Loaded v${v.version} into the editor below`); }}>Load into editor</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div className={box}>
         <div className="mb-1 font-medium">Full-time washer (daily)</div>
         <N label="Slab starts at unit" path={["washer", "full_time", "slab", "start_unit"]} />

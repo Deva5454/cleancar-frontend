@@ -5,7 +5,7 @@
  */
 import { getActiveRow, getActiveConfig, getCalendarOverride } from "./configService";
 import {
-  addDays, applyGuard, applyMonthlyCap, daysInMonth, exGstRevenue, fullTimeSlab, partTimeMonthly,
+  addDays, applyGuard, applyMonthlyCap, daysInMonth, partTimeAcrossVersions, exGstRevenue, fullTimeSlab,
   tseDaily, tsmConversionBonus, tsmVolumeBonus, washerUnits, workingDaysInMonth,
 } from "./engine";
 import type { EmployeeFact, JobFact } from "./facts";
@@ -171,7 +171,7 @@ export function computeMonth(emps: EmployeeFact[], month: string, closed: boolea
     const ftGross = ftRows.reduce((a, r) => a + r.amount, 0);
     const ftCapped = applyMonthlyCap(ftGross, cfg);
     const cars = ptRows.reduce((a, r) => a + r.cars, 0);
-    const pt = partTimeMonthly(cars, cfg);
+    const pt = partTimeAcrossVersions(ptRows, cfg, (d) => getActiveConfig(d).washer.part_time.rate_per_car);
     const role: IncentiveRole = rows[rows.length - 1].employment_type === "PART_TIME" ? "PT_WASHER" : "FT_WASHER";
     const total = ftCapped + pt;
     summaries.push({

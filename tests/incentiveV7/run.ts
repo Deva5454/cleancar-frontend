@@ -4,7 +4,7 @@ import * as E from "../../src/app/services/incentiveV7/engine";
 import { DEFAULT_INCENTIVE_CONFIG } from "../../src/app/services/incentiveV7/defaultConfig";
 
 const cfg: any = structuredClone(DEFAULT_INCENTIVE_CONFIG);
-const V: any = JSON.parse(readFileSync(new URL("./test-vectors.json", import.meta.url), "utf8"));
+const V: any = JSON.parse(readFileSync("tests/incentiveV7/test-vectors.json", "utf8"));
 let pass = 0, fail = 0;
 const eq = (name: string, got: unknown, want: unknown) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
@@ -39,5 +39,21 @@ eq("uncounted", E.washerUnits([{ weight_type: "default", counts: false, is_holid
 eq("sale partial", E.saleStatus([{ status: "RELEASED" }, { status: "PENDING" }]), "PARTIALLY_RELEASED");
 eq("sale cancelled", E.saleStatus([{ status: "FORFEITED" }, { status: "FORFEITED" }]), "CANCELLED");
 eq("sale released", E.saleStatus([{ status: "RELEASED" }, { status: "RELEASED" }]), "RELEASED");
+// ── version cut-over: change effective 15 Aug => 14 Aug old, 15 Aug new ──
+const vs = [{ version: 1, effective_from: "2000-01-01" }, { version: 2, effective_from: "2026-08-15" }, { version: 3, effective_from: "2026-08-15" }, { version: 4, effective_from: "2026-09-01" }];
+eq("14 Aug -> v1", E.pickVersion(vs, "2026-08-14").version, 1);
+eq("15 Aug start -> v3 (latest for that date)", E.pickVersion(vs, "2026-08-15").version, 3);
+eq("31 Aug -> v3", E.pickVersion(vs, "2026-08-31").version, 3);
+eq("1 Sep -> v4", E.pickVersion(vs, "2026-09-01").version, 4);
+// same day, two regimes: 6 units under old and new slab
+const newCfg: any = structuredClone(cfg); newCfg.washer.full_time.slab.rate_per_unit = 60;
+eq("old regime 14 Aug (6 units)", E.fullTimeSlab(6, cfg), 300);
+eq("new regime 15 Aug (6 units)", E.fullTimeSlab(6, newCfg), 360);
+// part-time spanning a rate change: 200 cars at 10, then 150 cars at 12
+const ptRows = [{ work_date: "2026-08-10", cars: 200 }, { work_date: "2026-08-20", cars: 150 }];
+eq("part-time across versions", E.partTimeAcrossVersions(ptRows, cfg, (d) => (d < "2026-08-15" ? 10 : 12)), 3800);
+eq("part-time single version equals monthly", E.partTimeAcrossVersions(ptRows, cfg, () => 10), E.partTimeMonthly(350, cfg));
+eq("part-time below threshold", E.partTimeAcrossVersions([{ work_date: "2026-08-10", cars: 299 }], cfg, () => 10), 0);
+eq("part-time cap applies in order", E.partTimeAcrossVersions([{ work_date: "2026-08-10", cars: 450 }, { work_date: "2026-08-20", cars: 100 }], cfg, (d) => (d < "2026-08-15" ? 10 : 12)), 450 * 10 + 50 * 12);
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

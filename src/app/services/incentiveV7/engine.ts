@@ -99,6 +99,34 @@ export function partTimeMonthly(carsCounted: number, cfg: IncentiveConfig): numb
   return p.rate_per_car * Math.min(carsCounted, p.cap_cars);
 }
 
+/**
+ * Part-time pay when the rule changes inside the month.
+ * Qualification (threshold) and the car cap come from the version in force on the last day of the month;
+ * each car is paid at the rate of the version in force on the day it was washed (first cars count first).
+ */
+export function partTimeAcrossVersions(
+  rows: { work_date: string; cars: number }[], cfgEnd: IncentiveConfig, rateFor: (date: string) => number,
+): number {
+  const p = cfgEnd.washer.part_time;
+  const total = rows.reduce((a, r) => a + r.cars, 0);
+  if (total < p.threshold_cars) return 0;
+  let left = p.cap_cars, amount = 0;
+  for (const r of [...rows].sort((a, b) => a.work_date.localeCompare(b.work_date))) {
+    const take = Math.min(r.cars, left);
+    left -= take;
+    amount += take * rateFor(r.work_date);
+  }
+  return amount;
+}
+
+/** The version in force on a date: greatest effective_from <= date (ties: highest version). Before all: the earliest. */
+export function pickVersion<T extends { version: number; effective_from: string }>(versions: T[], date: string): T {
+  const eligible = versions.filter((v) => v.effective_from <= date);
+  if (eligible.length === 0) return [...versions].sort((a, b) => a.version - b.version)[0];
+  return eligible.reduce((best, v) =>
+    v.effective_from > best.effective_from || (v.effective_from === best.effective_from && v.version > best.version) ? v : best);
+}
+
 // ── TSE / TSM ────────────────────────────────────────────────────────────────
 export function tseDaily(countedWashes: number, cfg: IncentiveConfig): number {
   const s = cfg.tse.daily_slab;
