@@ -7,7 +7,8 @@
     "test:incentive": "esbuild tests/incentiveV7/run.ts --bundle --platform=node --format=esm --outfile=.inc7test.mjs --log-level=error && node .inc7test.mjs",
     "build": "vite build",
     "dev": "vite",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:tsmreport": "esbuild tests/tsmReport/run.ts --bundle --platform=node --format=esm --outfile=.tsmtest.mjs --log-level=error && node .tsmtest.mjs"
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.9",

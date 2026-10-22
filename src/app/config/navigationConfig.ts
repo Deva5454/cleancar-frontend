@@ -430,6 +430,7 @@ export const QUICK_ACTIONS: NavItem[] = [
       { label: "Team Performance",   path: "/tsm-app?tab=team",       icon: Users,         module: "crm", match: "exact" },
       { label: "Lead Pipeline",      path: "/tsm-app?tab=pipeline",   icon: ListTree,      module: "crm", match: "exact" },
       { label: "Renewals",           path: "/tsm-app?tab=renewals",   icon: RefreshCw,     module: "crm", match: "exact" },
+      { label: "Daily Report",       path: "/tsm-app?tab=daily-report", icon: BarChart3,     module: "crm", match: "exact" },
       { label: "Incentives",         path: "/tsm-app?tab=incentives", icon: TrendingUp,    module: "crm", match: "exact" },
       { label: "Reports",            path: "/tsm-app?tab=reports",    icon: BarChart3,     module: "crm", match: "exact" },
     ]

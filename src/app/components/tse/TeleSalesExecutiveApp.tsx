@@ -54,6 +54,7 @@ import type {
 } from "../../types/teleSalesExecutive.types";
 import { DAILY_CALL_TARGET, CONVERSION_TARGETS } from "../../constants/teleSalesExecutive.constants";
 import { logger } from "../../services/logger";
+import { normaliseCrmOutcome } from "../../services/tsmReport/engine";
 
 type ScreenType = "LEAD_QUEUE" | "ACTIVE_CALL" | "CRM_UPDATE" | "INCENTIVE_TRACKER" | "COMP_2W" | "DOORSTEP_CONFIRMATIONS" | "CALLBACK_REQUESTS";
 type TabType = "leads" | "incentives";
@@ -122,7 +123,7 @@ export function TeleSalesExecutiveApp() {
   const [searchParams] = useSearchParams();
   const { city: currentCityId } = useCity();
   const { currentUser } = useRole();
-  const { leads: contextLeads, updateLead, customers, addCustomer } = useCustomers();
+  const { leads: contextLeads, updateLead, appendLeadActivity, customers, addCustomer } = useCustomers();
   const { createJob } = useJobs();
   const { emit } = useEvents();
 
@@ -234,6 +235,27 @@ export function TeleSalesExecutiveApp() {
       setActiveCallSession(null);
       setCurrentScreen("LEAD_QUEUE");
       return;
+    }
+
+    // One common call record, so the TSM report counts every call made from this screen.
+    {
+      const n = normaliseCrmOutcome(crmUpdate.outcome);
+      appendLeadActivity(realLead.leadId, {
+        timestamp: new Date().toISOString(),
+        type: "call",
+        description: `Call ${n.outcome === "Connected" ? "connected" : "not connected"}. ${crmUpdate.notes || ""}`.trim(),
+        performedBy: (currentUser as any)?.name || "TSE",
+        outcome: n.outcome,
+        metadata: { crmOutcome: n.crmOutcome, source: "tse-app" },
+      });
+      if (crmUpdate.outcome === "INTERESTED") updateLead(realLead.leadId, { stage: "interested" } as any);
+      if (crmUpdate.outcome === "CALLBACK" || crmUpdate.outcome === "INTERESTED") {
+        if (crmUpdate.followUpDate) {
+          const d = new Date(crmUpdate.followUpDate as any);
+          const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          updateLead(realLead.leadId, { followUpDate: `${day}T${crmUpdate.followUpTime || "10:00"}`, followUpType: "call" } as any);
+        }
+      }
     }
 
     if (crmUpdate.outcome === "CONVERTED") {

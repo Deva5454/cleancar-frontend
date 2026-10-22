@@ -117,6 +117,7 @@ import { TSMRenewalDashboard } from "./TSMRenewalDashboard";
 
 
 import { TSMIncentiveTracker } from "./TSMIncentiveTracker";
+import { TSMDailyReport } from "./TSMDailyReport";
 import { TSMComplimentary2W } from "./TSMComplimentary2W";
 import { TSMCancellationQueue } from "./TSMCancellationQueue";
 
@@ -1086,6 +1087,10 @@ export function TeleSalesManagerApp() {
 
 
 
+            <TabsTrigger value="daily-report" className="gap-2" aria-label="Daily Report">
+              <BarChart3 className="w-4 h-4" aria-hidden="true" />
+              Daily Report
+            </TabsTrigger>
             <TabsTrigger value="incentives" className="gap-2" aria-label="Incentive Tracker">
 
 
@@ -1356,6 +1361,10 @@ export function TeleSalesManagerApp() {
 
           {/* Screen 6: Incentive Tracker */}
 
+
+          <TabsContent value="daily-report" className="mt-0">
+            <TSMDailyReport />
+          </TabsContent>
 
           <TabsContent value="incentives" className="mt-0">
 

@@ -238,14 +238,33 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
     return newLead;
   };
 
+  // Records what changed on a lead (stage, owner, follow-up) so the TSM report can count it by date.
+  // Skipped when the caller already supplies its own timeline.
+  const autoEvents = (prev: Lead, updates: Partial<Lead>): Omit<LeadActivity, "id">[] => {
+    const out: Omit<LeadActivity, "id">[] = [];
+    const ts = new Date().toISOString();
+    const mk = (type: LeadActivity["type"], description: string, metadata: Record<string, any>): Omit<LeadActivity, "id"> =>
+      ({ timestamp: ts, type, description, performedBy: "System", metadata: { ...metadata, auto: true } });
+    let toStage: string | undefined = updates.stage && updates.stage !== prev.stage ? updates.stage : undefined;
+    if (!toStage && updates.status && updates.status !== prev.status) {
+      if (updates.status === "Rejected") toStage = "lost";
+      else if (updates.status === "Converted") toStage = "converted";
+    }
+    if (toStage && toStage !== prev.stage) out.push(mk("stage_change", `Stage changed to ${toStage.replace(/_/g, " ")}`, { from: prev.stage, to: toStage }));
+    const owner = updates.assignedTSE ?? (updates as any).assignedTo;
+    if (owner && owner !== (prev.assignedTSE ?? (prev as any).assignedTo)) out.push(mk("assigned", `Assigned to ${owner}`, { to: owner }));
+    if (updates.followUpDate && updates.followUpDate !== prev.followUpDate) out.push(mk("follow_up_set", "Follow-up date set", { followUpDate: updates.followUpDate }));
+    return out;
+  };
+
   const updateLead = (id: string, updates: Partial<Lead>) => {
     railwaySync.lead(updates, "PATCH", id); // non-blocking background sync to Railway
     setLeads((prev) =>
-      prev.map((lead) =>
-        lead.leadId === id
-          ? { ...lead, ...updates }
-          : lead
-      )
+      prev.map((lead) => {
+        if (lead.leadId !== id) return lead;
+        const extra = updates.timeline ? [] : autoEvents(lead, updates).map((e, i) => ({ ...e, id: `ACT-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}` }));
+        return { ...lead, ...updates, ...(extra.length ? { timeline: [...(lead.timeline || []), ...extra] } : {}) };
+      })
     );
   };
 
@@ -254,10 +273,14 @@ export function CustomerProvider({ children }: { children: ReactNode }) {
       ...activity,
       id: `ACT-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
     };
-    updateLead(leadId, {
-      timeline: [...(leads.find(l => l.leadId === leadId)?.timeline || []), newActivity],
-      lastContactedAt: new Date().toISOString(),
-    });
+    // Functional update so two quick log calls on the same lead never overwrite each other.
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.leadId === leadId
+          ? { ...lead, timeline: [...(lead.timeline || []), newActivity], lastContactedAt: new Date().toISOString() }
+          : lead
+      )
+    );
   };
 
   const deleteLead = (id: string) => {
